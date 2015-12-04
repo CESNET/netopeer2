@@ -1,0 +1,36 @@
+Summary: Netopeer2 CLI client for NETCONF protocol.
+Name: netopeer2-cli
+Version: @PACKAGE_VERSION@
+Release: @RELEASE@
+URL: http://www.liberouter.org/
+Source: https://www.liberouter.org/repo/SOURCES/%{name}-%{version}-%{release}.tar.gz
+Group: Liberouter
+License: BSD
+Vendor: CESNET, z.s.p.o.
+Packager: @USERNAME@ <@USERMAIL@>
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}
+
+BuildRequires: gcc make pkgconfig @BUILDREQS@
+Requires: @REQS@
+Provides: netopeer2-cli
+
+%description
+CLI client connecting operator to a NETCONF capable device. This application
+is built on the libnetconf2 library.
+
+%prep
+%setup
+
+%build
+./configure --prefix=%{_prefix} @CONFIGURE_PARAMS@;
+make
+
+%install
+make DESTDIR=$RPM_BUILD_ROOT install
+
+%post
+
+%files
+%{_bindir}/netopeer2-cli
+%{_mandir}/man1/*
+%{_datadir}/netopeer2/*.html
