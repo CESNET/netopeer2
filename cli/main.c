@@ -32,26 +32,57 @@
 #include <sys/times.h>
 #include <string.h>
 
+#include <libyang/libyang.h>
 #include <nc_client.h>
 
 #include "commands.h"
 #include "completion.h"
 #include "linenoise/linenoise.h"
 
+#if !defined(ENABLE_SSH) && !defined(ENABLE_TLS)
+#   error "Included libnetconf2 headers were compiled without SSH and TLS support, netopeer2-cli requires at least one of them."
+#endif
+
 int done;
 char *search_path;
 extern struct nc_session *session;
 
 void
-usage(const char *progname)
+lnc2_print_clb(NC_VERB_LEVEL level, const char *msg)
 {
-    fprintf(stdout, "Usage: %s [[-h] [-v level] [-p dir] file.yin]\n\n", progname);
-    fprintf(stdout, "  -h, --help             Print this text.\n");
-    fprintf(stdout, "  -v, --verbose level    Set verbosity level (0-3).\n");
-    fprintf(stdout, "  -p, --path dir         Search path for data models.\n");
-    fprintf(stdout, "  file.yin               Input file in YIN format.\n\n");
-    fprintf(stdout, "The specified model is only loaded and validated.\n");
-    fprintf(stdout, "Executing without arguments starts the full interactive version.\n\n");
+    switch (level) {
+    case NC_VERB_ERROR:
+        fprintf(stderr, "nc ERROR: %s\n", msg);
+        break;
+    case NC_VERB_WARNING:
+        fprintf(stderr, "nc WARNING: %s\n", msg);
+        break;
+    case NC_VERB_VERBOSE:
+        fprintf(stderr, "nc VERBOSE: %s\n", msg);
+        break;
+    case NC_VERB_DEBUG:
+        fprintf(stderr, "nc DEBUG: %s\n", msg);
+        break;
+    }
+}
+
+void
+ly_print_clb(LY_LOG_LEVEL level, const char *msg)
+{
+    switch (level) {
+    case LY_LLERR:
+        fprintf(stderr, "ly ERROR: %s\n", msg);
+        break;
+    case LY_LLWRN:
+        fprintf(stderr, "ly WARNING: %s\n", msg);
+        break;
+    case LY_LLVRB:
+        fprintf(stderr, "ly VERBOSE: %s\n", msg);
+        break;
+    case LY_LLDBG:
+        fprintf(stderr, "ly DEBUG: %s\n", msg);
+        break;
+    }
 }
 
 int
@@ -61,9 +92,11 @@ main(int argc, char **argv)
     int i, j;
 
 #ifdef ENABLE_SSH
-    nc_client_init_ssh();
+    nc_ssh_client_init();
 #endif
 
+    nc_set_print_clb(lnc2_print_clb);
+    ly_set_log_clb(ly_print_clb);
     linenoiseSetCompletionCallback(complete_cmd);
 
     while (!done) {
@@ -110,7 +143,7 @@ main(int argc, char **argv)
             }
         } else {
             /* if unknown command specified, tell it to user */
-            fprintf(stderr, "%s: no such command, type 'help' for more information.\n", cmd);
+            fprintf(stderr, "%s: No such command, type 'help' for more information.\n", cmd);
         }
         linenoiseHistoryAdd(cmdline);
 
@@ -125,7 +158,11 @@ main(int argc, char **argv)
     }
 
 #ifdef ENABLE_SSH
-    nc_client_destroy_ssh();
+    nc_ssh_client_destroy();
+#endif
+
+#ifdef ENABLE_TLS
+    nc_tls_client_destroy();
 #endif
 
     return 0;

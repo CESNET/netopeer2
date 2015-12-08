@@ -48,7 +48,7 @@ bindir = ${exec_prefix}/bin
 datarootdir = ${prefix}/share
 
 CC = gcc
-LIBS = -lyang -lnetconf2
+LIBS = -lyang -lnetconf2 -lcrypto -lssl
 CFLAGS = -Wall -g -O0 -pthread
 CPPFLAGS = -DRCSID=\"$(IDGIT)\" -DENABLE_TLS -DVERSION=\"$(VERSION)\"
 INSTALL = /usr/bin/install -c
@@ -60,6 +60,7 @@ OBJDIR= .obj
 SRCS =  main.c \
 	commands.c \
 	completion.c \
+	configuration.c \
 	linenoise/linenoise.c
 
 OBJS = $(SRCS:%.c=$(OBJDIR)/%.o)
