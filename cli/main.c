@@ -45,7 +45,9 @@
 
 int done;
 char *search_path;
+
 extern struct nc_session *session;
+extern struct ly_ctx *ctx;
 
 void
 lnc2_print_clb(NC_VERB_LEVEL level, const char *msg)
@@ -155,6 +157,9 @@ main(int argc, char **argv)
 
     if (session) {
         nc_session_free(session);
+    }
+    if (ctx) {
+        ly_ctx_destroy(ctx);
     }
 
 #ifdef ENABLE_SSH

@@ -50,7 +50,8 @@ COMMAND commands[];
 extern int done;
 extern char *search_path;
 
-struct nc_session *session = NULL;
+struct nc_session *session;
+struct ly_ctx *ctx;
 
 struct arglist {
     char** list;
@@ -549,7 +550,6 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
     int c, timeout = 0;
     struct option *long_options;
     int option_index = 0;
-    struct ly_ctx *ctx;
 
     if (is_connect) {
         struct option connect_long_options[] = {
@@ -619,6 +619,9 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
         }
     }
 
+    if (ctx) {
+        ly_ctx_destroy(ctx);
+    }
     ctx = ly_ctx_new(search_path);
 
     if (is_connect) {
@@ -632,6 +635,7 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
         if (session == NULL) {
             ERROR(func_name, "Connecting to the %s:%d as user \"%s\" failed.", host, port, user);
             ly_ctx_destroy(ctx);
+            ctx = NULL;
             return EXIT_FAILURE;
         }
     } else {
@@ -646,6 +650,7 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
         if (!session) {
             ERROR(func_name, "Receiving SSH Call Home on port %d as user \"%s\" failed.", port, user);
             ly_ctx_destroy(ctx);
+            ctx = NULL;
             return EXIT_FAILURE;
         }
     }
@@ -1276,13 +1281,11 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
     char *host = NULL;
     DIR *dir = NULL;
     struct dirent* d;
-    int n, timeout = 0;
+    int c, n, timeout = 0;
     char *cert = NULL, *key = NULL, *trusted_dir = NULL, *crl_dir = NULL, *trusted_store = NULL;
     unsigned short port = 0;
-    int c;
     struct option *long_options;
     int option_index = 0;
-    struct ly_ctx *ctx = NULL;
 
     if (is_connect) {
         struct option connect_long_options[] = {
@@ -1403,6 +1406,9 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         port = (is_connect ? NC_PORT_TLS : NC_PORT_CH_TLS);
     }
 
+    if (ctx) {
+        ly_ctx_destroy(ctx);
+    }
     ctx = ly_ctx_new(search_path);
 
     if (is_connect) {
@@ -1444,6 +1450,7 @@ error_cleanup:
     free(cert);
     free(key);
     ly_ctx_destroy(ctx);
+    ctx = NULL;
     return EXIT_FAILURE;
 }
 
@@ -1515,6 +1522,8 @@ cmd_disconnect(const char *UNUSED(arg))
     } else {
         nc_session_free(session);
         session = NULL;
+        ly_ctx_destroy(ctx);
+        ctx = NULL;
     }
 
     return EXIT_SUCCESS;
@@ -1708,22 +1717,22 @@ generic_help:
 }
 
 COMMAND commands[] = {
-        {"help", cmd_help, NULL, "Display commands description"},
-        {"searchpath", cmd_searchpath, cmd_searchpath_help, "Set the search path for models"},
-        {"verb", cmd_verb, cmd_verb_help, "Change verbosity"},
-        {"quit", cmd_quit, NULL, "Quit the program"},
 #ifdef ENABLE_SSH
         {"auth", cmd_auth, cmd_auth_help, "Manage SSH authentication options"},
         {"knownhosts", cmd_knownhosts, cmd_knownhosts_help, "Manage the user knownhosts file"},
 #endif
-        {"connect", cmd_connect, cmd_connect_help, "Connect to a NETCONF server"},
-        {"listen", cmd_listen, cmd_listen_help, "Wait for a Call Home connection from a NETCONF server"},
-        {"disconnect", cmd_disconnect, NULL, "Disconnect from a NETCONF server"},
-        {"status", cmd_status, NULL, "Display information about the current NETCONF session"},
 #ifdef ENABLE_TLS
         {"cert", cmd_cert, cmd_cert_help, "Manage trusted or your own certificates"},
         {"crl", cmd_crl, cmd_crl_help, "Manage Certificate Revocation List directory"},
 #endif
+        {"searchpath", cmd_searchpath, cmd_searchpath_help, "Set the search path for models"},
+        {"verb", cmd_verb, cmd_verb_help, "Change verbosity"},
+        {"disconnect", cmd_disconnect, NULL, "Disconnect from a NETCONF server"},
+        {"status", cmd_status, NULL, "Display information about the current NETCONF session"},
+        {"connect", cmd_connect, cmd_connect_help, "Connect to a NETCONF server"},
+        {"listen", cmd_listen, cmd_listen_help, "Wait for a Call Home connection from a NETCONF server"},
+        {"quit", cmd_quit, NULL, "Quit the program"},
+        {"help", cmd_help, NULL, "Display commands description"},
         /* synonyms for previous commands */
         {"?", cmd_help, NULL, "Display commands description"},
         {"exit", cmd_quit, NULL, "Quit the program"},
