@@ -48,19 +48,35 @@ get_cmd_completion(const char *hint, char ***matches, unsigned int *match_count)
     }
 }
 
+/* can end with multiple paths if !long_opt, otherwise it must end with that option and some partial path */
 static void
-get_path_multiple_completion(const char *hint, char ***matches, unsigned int *match_count)
+get_path_completion(const char *hint, const char *long_opt, char ***matches, unsigned int *match_count)
 {
-    const char *ptr, *path;
+    const char *ptr, *path, *opt;
     DIR *dir;
     struct dirent *ent;
 
     *match_count = 0;
     *matches = NULL;
 
-    ptr = strrchr(hint, ' ');
-    while (*ptr == ' ') {
-        ++ptr;
+    ptr = strrchr(hint, ' ') + 1;
+
+    /* check long_opt */
+    if (long_opt) {
+        opt = ptr - 1;
+        while (opt[0] == ' ') {
+            --opt;
+        }
+
+        /* is the word long enough? */
+        if ((opt - hint) + 1 < strlen(long_opt)) {
+            return;
+        }
+
+        /* not the option we want */
+        if (strncmp(opt - (strlen(long_opt) - 1), long_opt, strlen(long_opt))) {
+            return;
+        }
     }
 
     path = ptr;
@@ -80,95 +96,6 @@ get_path_multiple_completion(const char *hint, char ***matches, unsigned int *ma
     }
 
     if (dir == NULL) {
-        fprintf(stderr, "opendir failed (%s)\n", strerror(errno));
-        return;
-    }
-
-    while ((ent = readdir(dir))) {
-        if (ent->d_name[0] == '.') {
-            continue;
-        }
-
-        /* some serious pointer fun */
-        if (!strncmp(ptr, ent->d_name, strlen(ptr))) {
-            ++(*match_count);
-            *matches = realloc(*matches, *match_count * sizeof **matches);
-            //asprintf(&(*matches)[*match_count-1], "%.*s%s", (int)(ptr-hint), hint, ent->d_name);
-            (*matches)[*match_count-1] = malloc((ptr-hint)+strlen(ent->d_name)+1);
-            strncpy((*matches)[*match_count-1], hint, ptr-hint);
-            strcpy((*matches)[*match_count-1]+(ptr-hint), ent->d_name);
-        }
-    }
-
-    closedir(dir);
-}
-
-static void
-get_path_skip_opts_completion(const char *hint, char ***matches, unsigned int *match_count)
-{
-    const char *ptr, *path;
-    DIR *dir;
-    struct dirent *ent;
-
-    *match_count = 0;
-    *matches = NULL;
-
-    ptr = strchr(hint, ' ');
-    while (*ptr == ' ') {
-        ++ptr;
-    }
-
-    /* options - skip them */
-    while (*ptr == '-') {
-        ptr = strchr(ptr, ' ');
-        /* option is last - no hint */
-        if (!ptr) {
-            return;
-        }
-        while (*ptr == ' ') {
-            ++ptr;
-        }
-
-        if (ptr[0] == '\'') {
-            ptr = strchr(ptr + 1, '\'');
-            if (ptr) {
-                ++ptr;
-            }
-        } else if (ptr[0] == '"') {
-            ptr = strchr(ptr + 1, '"');
-            if (ptr) {
-                ++ptr;
-            }
-        } else {
-            ptr = strchr(ptr, ' ');
-        }
-        /* option argument is last - no hint */
-        if (!ptr || !ptr[0]) {
-            return;
-        }
-        while (*ptr == ' ') {
-            ++ptr;
-        }
-    };
-
-    path = ptr;
-    ptr = strrchr(path, '/');
-
-    /* new relative path */
-    if (ptr == NULL) {
-        ptr = path;
-        dir = opendir(".");
-    } else {
-        char buf[FILENAME_MAX];
-
-        ++ptr;
-        sprintf(buf, "%.*s", (int)(ptr - path), path);
-
-        dir = opendir(buf);
-    }
-
-    if (dir == NULL) {
-        fprintf(stderr, "opendir failed (%s)\n", strerror(errno));
         return;
     }
 
@@ -209,7 +136,16 @@ complete_cmd(const char *buf, linenoiseCompletions *lc)
         || !strncmp(buf, "crl add ", 8) || !strncmp(buf, "crl remove ", 11)
 #endif
             ) {
-        get_path_multiple_completion(buf, &matches, &match_count);
+        get_path_completion(buf, NULL, &matches, &match_count);
+    } else if (!strncmp(buf, "copy-config ", 12)) {
+        get_path_completion(buf, "--src-config", &matches, &match_count);
+    } else if (!strncmp(buf, "edit-config ", 12)) {
+        get_path_completion(buf, "--config", &matches, &match_count);
+    } else if (!strncmp(buf, "get ", 4) || !strncmp(buf, "get-config ", 11)) {
+        get_path_completion(buf, "--filter-subtree", &matches, &match_count);
+        if (!match_count) {
+            get_path_completion(buf, "--out", &matches, &match_count);
+        }
     } else {
         get_cmd_completion(buf, &matches, &match_count);
     }
@@ -219,4 +155,12 @@ complete_cmd(const char *buf, linenoiseCompletions *lc)
         free(matches[i]);
     }
     free(matches);
+}
+
+char *
+readinput(const char *instruction)
+{
+    /* TODO */
+    (void)instruction;
+    return NULL;
 }

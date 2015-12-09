@@ -26,4 +26,6 @@
 
 void complete_cmd(const char *buf, linenoiseCompletions *lc);
 
+char *readinput(const char *instruction);
+
 #endif /* COMPLETION_H_ */

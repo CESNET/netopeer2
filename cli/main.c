@@ -46,6 +46,7 @@
 int done;
 char *search_path;
 
+extern char *config_editor;
 extern struct nc_session *session;
 extern struct ly_ctx *ctx;
 
@@ -101,6 +102,8 @@ main(int argc, char **argv)
     ly_set_log_clb(ly_print_clb);
     linenoiseSetCompletionCallback(complete_cmd);
 
+    config_editor = strdup("vim");
+
     while (!done) {
         /* get the command from user */
         cmdline = linenoise(PROMPT);
@@ -154,6 +157,7 @@ main(int argc, char **argv)
     }
 
     free(search_path);
+    free(config_editor);
 
     if (session) {
         nc_session_free(session);
