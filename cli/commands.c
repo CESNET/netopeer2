@@ -161,11 +161,12 @@ addargs(struct arglist *args, char *format, ...)
 static int
 cli_send_recv(struct nc_rpc *rpc, FILE *output)
 {
-    char *str;
+    char *str, *model_data, *ptr, *ptr2;
     int i, j;
     uint64_t msgid;
     NC_MSG_TYPE ret;
     struct nc_reply *reply;
+    struct nc_reply_data *data_rpl;
     struct nc_reply_error *error;
 
     ret = nc_send_rpc(session, rpc, 1000, &msgid);
@@ -191,10 +192,39 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
         fprintf(output, "OK\n");
         break;
     case NC_REPLY_DATA:
+        data_rpl = (struct nc_reply_data *)reply;
+
+        /* special case */
+        if (nc_rpc_get_type(rpc) == NC_RPC_GETSCHEMA) {
+            if (output == stdout) {
+                fprintf(output, "MODULE\n");
+            }
+            str = lyxml_serialize(((struct lyd_node_anyxml *)data_rpl->data)->value);
+            if (!str) {
+                ERROR(__func__, "Failed to get the model data from the reply.\n");
+                nc_reply_free(reply);
+                return EXIT_FAILURE;
+            }
+
+            ptr = strchr(str, '>');
+            ++ptr;
+            ptr2 = strrchr(str, '<');
+
+            model_data = strndup(ptr, strlen(ptr) - strlen(ptr2));
+            free(str);
+
+            fputs(model_data, output);
+            free(model_data);
+            if (output == stdout) {
+                fprintf(output, "\n");
+            }
+            break;
+        }
+
         if (output == stdout) {
             fprintf(output, "DATA\n");
         }
-        lyd_print_file(output, ((struct nc_reply_data *)reply)->data, LYD_JSON);
+        lyd_print_file(output, data_rpl->data, LYD_JSON);
         if (output == stdout) {
             fprintf(output, "\n");
         }
@@ -243,7 +273,8 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
         break;
     default:
         ERROR(__func__, "Internal error.");
-        break;
+        nc_reply_free(reply);
+        return EXIT_FAILURE;
     }
 
     nc_reply_free(reply);
