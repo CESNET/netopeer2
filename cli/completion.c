@@ -137,12 +137,19 @@ complete_cmd(const char *buf, linenoiseCompletions *lc)
 #endif
             ) {
         get_path_completion(buf, NULL, &matches, &match_count);
-    } else if (!strncmp(buf, "copy-config ", 12)) {
+    } else if (!strncmp(buf, "copy-config ", 12) || !strncmp(buf, "validate ", 9)) {
         get_path_completion(buf, "--src-config", &matches, &match_count);
     } else if (!strncmp(buf, "edit-config ", 12)) {
         get_path_completion(buf, "--config", &matches, &match_count);
-    } else if (!strncmp(buf, "get ", 4) || !strncmp(buf, "get-config ", 11)) {
+    } else if (!strncmp(buf, "get ", 4) || !strncmp(buf, "get-config ", 11) || !strncmp(buf, "subscribe ", 10)) {
         get_path_completion(buf, "--filter-subtree", &matches, &match_count);
+        if (!match_count) {
+            get_path_completion(buf, "--out", &matches, &match_count);
+        }
+    } else if (!strncmp(buf, "get-schema ", 11)) {
+        get_path_completion(buf, "--out", &matches, &match_count);
+    } else if (!strncmp(buf, "user-rpc ", 9)) {
+        get_path_completion(buf, "--content", &matches, &match_count);
         if (!match_count) {
             get_path_completion(buf, "--out", &matches, &match_count);
         }

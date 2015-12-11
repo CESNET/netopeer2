@@ -47,6 +47,7 @@
 
 #define CLI_CH_TIMEOUT 60 /* 1 minute */
 
+#define NC_CAP_WRITABLERUNNING_ID "urn:ietf:params:netconf:capability:writable-running"
 #define NC_CAP_CANDIDATE_ID       "urn:ietf:params:netconf:capability:candidate"
 #define NC_CAP_CONFIRMEDCOMMIT_ID "urn:ietf:params:netconf:capability:confirmed-commit:1.1"
 #define NC_CAP_ROLLBACK_ID        "urn:ietf:params:netconf:capability:rollback-on-error"
@@ -56,6 +57,7 @@
 #define NC_CAP_URL_ID             "urn:ietf:params:netconf:capability:url"
 #define NC_CAP_XPATH_ID           "urn:ietf:params:netconf:capability:xpath"
 #define NC_CAP_WITHDEFAULTS_ID    "urn:ietf:params:netconf:capability:with-defaults"
+#define NC_CAP_NOTIFICATION_ID    "urn:ietf:params:netconf:capability:notification"
 
 COMMAND commands[];
 extern int done;
@@ -328,12 +330,27 @@ cmd_editor_help(void)
 }
 
 void
+cmd_cancelcommit_help(void)
+{
+    if (session && !nc_session_cpblt(session, NC_CAP_CONFIRMEDCOMMIT_ID)) {
+        printf("cancel-commit is not supported by the current session.\n");
+    } else {
+        printf("cancel-commit [--help] --persist-id <commit-id>\n");
+    }
+}
+
+void
 cmd_commit_help(void)
 {
     const char *confirmed;
 
+    if (session && !nc_session_cpblt(session, NC_CAP_CANDIDATE_ID)) {
+        printf("commit is not supported by the current session.\n");
+        return;
+    }
+
     if (!session || nc_session_cpblt(session, NC_CAP_CONFIRMEDCOMMIT_ID)) {
-        confirmed = " [--confirmed] [--confirm-timeout <sec>] [--persist <new-ID>] [--persist-id <ID>]";
+        confirmed = " [--confirmed] [--confirm-timeout <sec>] [--persist <new-commit-id>] [--persist-id <commit-id>]";
     } else {
         confirmed = "";
     }
@@ -343,29 +360,57 @@ cmd_commit_help(void)
 void
 cmd_copyconfig_help(void)
 {
-    const char *ds_startup, *ds_candidate, *ds_url, *defaults;
+    int ds = 0;
+    const char *running, *startup, *candidate, *url, *defaults;
 
     if (!session) {
         /* if session not established, print complete help for all capabilities */
-        ds_startup = "|startup";
-        ds_candidate = "|candidate";
-        ds_url = "|url:<dsturl>";
+        running = "running";
+        startup = "|startup";
+        candidate = "|candidate";
+        url = "|url:<url>";
         defaults = " [--defaults report-all|report-all-tagged|trim|explicit]";
     } else {
-        if (nc_session_cpblt(session, NC_CAP_STARTUP_ID)) {
-            ds_startup = "|startup";
+        if (nc_session_cpblt(session, NC_CAP_WRITABLERUNNING_ID)) {
+            running = "running";
+            ds = 1;
         } else {
-            ds_startup = "";
+            running = "";
+        }
+        if (nc_session_cpblt(session, NC_CAP_STARTUP_ID)) {
+            if (ds) {
+                startup = "|startup";
+            } else {
+                startup = "startup";
+                ds = 1;
+            }
+        } else {
+            startup = "";
         }
         if (nc_session_cpblt(session, NC_CAP_CANDIDATE_ID)) {
-            ds_candidate = "|candidate";
+            if (ds) {
+                candidate = "|candidate";
+            } else {
+                candidate = "candidate";
+                ds = 1;
+            }
         } else {
-            ds_candidate = "";
+            candidate = "";
         }
         if (nc_session_cpblt(session, NC_CAP_URL_ID)) {
-            ds_url = "|url:<dsturl>";
+            if (ds) {
+                url = "|url:<url>";
+            } else {
+                url = "url:<url>";
+                ds = 1;
+            }
         } else {
-            ds_url = "";
+            url = "";
+        }
+
+        if (!ds) {
+            printf("copy-config is not supported by the current session.\n");
+            return;
         }
 
         if (nc_session_cpblt(session, NC_CAP_WITHDEFAULTS_ID)) {
@@ -375,15 +420,76 @@ cmd_copyconfig_help(void)
         }
     }
 
-    printf("copy-config [--help] --target running%s%s%s (--source running%s%s%s | --src-config [<file>])%s\n",
-           ds_startup, ds_candidate, ds_url,
-           ds_startup, ds_candidate, ds_url, defaults);
+    printf("copy-config [--help] --target %s%s%s%s (--source %s%s%s%s | --src-config [<file>])%s\n",
+           running, startup, candidate, url,
+           running, startup, candidate, url, defaults);
+}
+
+void
+cmd_deleteconfig_help(void)
+{
+    const char *startup, *url;
+
+    if (!session) {
+        startup = "startup";
+        url = "|url:<url>";
+    } else {
+        if (nc_session_cpblt(session, NC_CAP_STARTUP_ID)) {
+            startup = "startup";
+        } else {
+            startup = "";
+        }
+
+        if (nc_session_cpblt(session, NC_CAP_URL_ID)) {
+            url = strlen(startup) ? "|url:<url>" : "url:<url>";
+        } else {
+            url = "";
+        }
+    }
+
+    if ((strlen(startup) + strlen(url)) == 0) {
+        printf("delete-config is not supported by the current session.\n");
+        return;
+    }
+
+    printf("delete-config [--help] --target %s%s\n", startup, url);
+}
+
+void
+cmd_discardchanges_help(void)
+{
+    if (!session || nc_session_cpblt(session, NC_CAP_CANDIDATE_ID)) {
+        printf("discard-changes [--help]\n");
+    } else {
+        printf("discard-changes is not supported by the current session.\n");
+    }
 }
 
 void
 cmd_editconfig_help(void)
 {
-    const char *rollback, *validate, *candidate, *url, *bracket;
+    const char *rollback, *validate, *running, *candidate, *url, *bracket;
+
+    if (!session || nc_session_cpblt(session, NC_CAP_WRITABLERUNNING_ID)) {
+        running = "running";
+    } else {
+        running = "";
+    }
+
+    if (!session || nc_session_cpblt(session, NC_CAP_CANDIDATE_ID)) {
+        if (running[0]) {
+            candidate = "|candidate";
+        } else {
+            candidate = "candidate";
+        }
+    } else {
+        candidate = "";
+    }
+
+    if (!running[0] && !candidate[0]) {
+        printf("edit-config is not supported by the current session.\n");
+        return;
+    }
 
     if (!session || nc_session_cpblt(session, NC_CAP_ROLLBACK_ID)) {
         rollback = "|rollback";
@@ -399,12 +505,6 @@ cmd_editconfig_help(void)
         validate = "";
     }
 
-    if (!session || nc_session_cpblt(session, NC_CAP_CANDIDATE_ID)) {
-        candidate = "|candidate";
-    } else {
-        candidate = "";
-    }
-
     if (!session || nc_session_cpblt(session, NC_CAP_URL_ID)) {
         url = " | --url <url>)";
         bracket = "(";
@@ -413,8 +513,8 @@ cmd_editconfig_help(void)
         bracket = "";
     }
 
-    printf("edit-config [--help] --target running%s %s--config [<file>]%s [--defop merge|replace|none] "
-           "%s[--error stop|continue%s]\n", candidate, bracket, url, validate, rollback);
+    printf("edit-config [--help] --target %s%s %s--config [<file>]%s [--defop merge|replace|none] "
+           "%s[--error stop|continue%s]\n", running, candidate, bracket, url, validate, rollback);
 }
 
 void
@@ -475,6 +575,123 @@ void
 cmd_killsession_help(void)
 {
     printf("killsession [--help] --sid <sesion-ID>\n");
+}
+
+void
+cmd_lock_help(void)
+{
+    const char *candidate, *startup;
+
+    if (!session || nc_session_cpblt(session, NC_CAP_STARTUP_ID)) {
+        startup = "|startup";
+    } else {
+        startup = "";
+    }
+
+    if (!session || nc_session_cpblt(session, NC_CAP_CANDIDATE_ID)) {
+        candidate = "|candidate";
+    } else {
+        candidate = "";
+    }
+
+    printf("lock [--help] --target running%s%s\n", startup, candidate);
+}
+
+void
+cmd_unlock_help(void)
+{
+    const char *candidate, *startup;
+
+    if (!session || nc_session_cpblt(session, NC_CAP_STARTUP_ID)) {
+        startup = "|startup";
+    } else {
+        startup = "";
+    }
+
+    if (!session || nc_session_cpblt(session, NC_CAP_CANDIDATE_ID)) {
+        candidate = "|candidate";
+    } else {
+        candidate = "";
+    }
+
+    printf("unlock [--help] --target running%s%s\n", startup, candidate);
+}
+
+void
+cmd_validate_help(void)
+{
+    const char *startup, *candidate, *url;
+
+    if (session && !nc_session_cpblt(session, NC_CAP_VALIDATE10_ID)
+            && !nc_session_cpblt(session, NC_CAP_VALIDATE11_ID)) {
+        printf("validate is not supported by the current session.\n");
+        return;
+    }
+
+    if (!session) {
+        /* if session not established, print complete help for all capabilities */
+        startup = "|startup";
+        candidate = "|candidate";
+        url = "|url:<url>";
+    } else {
+        if (nc_session_cpblt(session, NC_CAP_STARTUP_ID)) {
+            startup = "|startup";
+        } else {
+            startup = "";
+        }
+        if (nc_session_cpblt(session, NC_CAP_CANDIDATE_ID)) {
+            candidate = "|candidate";
+        } else {
+            candidate = "";
+        }
+        if (nc_session_cpblt(session, NC_CAP_URL_ID)) {
+            url = "|url:<dsturl>";
+        } else {
+            url = "";
+        }
+    }
+    printf("validate [--help] (--source running%s%s%s | --src-config [<file>])\n",
+           startup, candidate, url);
+}
+
+void
+cmd_subscribe_help(void)
+{
+    const char *xpath;
+
+    if (session && !nc_session_cpblt(session, NC_CAP_NOTIFICATION_ID)) {
+        printf("subscribe not supported by the current session.\n");
+        return;
+    }
+
+    if (!session || nc_session_cpblt(session, NC_CAP_XPATH_ID)) {
+        xpath = " | --filter-xpath <XPath>";
+    } else {
+        xpath = "";
+    }
+
+    printf("subscribe [--help] [--filter-subtree [<file>]%s] [--begin <time>] [--end <time>] [--stream <stream>] [--out <file>]\n", xpath);
+    printf("\t<time> has following format:\n");
+    printf("\t\t+<num>  - current time plus the given number of seconds.\n");
+    printf("\t\t<num>   - absolute time as number of seconds since 1970-01-01.\n");
+    printf("\t\t-<num>  - current time minus the given number of seconds.\n");
+}
+
+void
+cmd_getschema_help(void)
+{
+    if (session && !ly_ctx_get_module(ctx, "ietf-netconf-monitoring", NULL)) {
+        printf("get-schema is not supported by the current session.\n");
+        return;
+    }
+
+    printf("get-schema [--help] --model <identifier> [--version <version>] [--format <format>] [--out <file>]\n");
+}
+
+void
+cmd_userrpc_help(void)
+{
+    printf("user-rpc [--help] [--content <file>] [--out <file>]\n");
 }
 
 #ifdef ENABLE_SSH
@@ -2035,6 +2252,62 @@ cmd_editor(const char *arg)
 }
 
 int
+cmd_cancelcommit(const char *arg)
+{
+    struct nc_rpc *rpc;
+    int c, ret;
+    char *persist_id = NULL;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"persist-id", 1, 0, 'i'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    /* process given arguments */
+    init_arglist(&cmd);
+    addargs(&cmd, "%s", arg);
+
+    while ((c = getopt_long(cmd.count, cmd.list, "hi:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_cancelcommit_help();
+            clear_arglist(&cmd);
+            return EXIT_SUCCESS;
+        case 'i':
+            persist_id = strdup(optarg);
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_cancelcommit_help();
+            clear_arglist(&cmd);
+            return EXIT_FAILURE;
+        }
+    }
+    clear_arglist(&cmd);
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        return EXIT_FAILURE;
+    }
+
+    rpc = nc_rpc_cancel(persist_id, NC_RPC_PARAMTYPE_FREE);
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        return EXIT_FAILURE;
+    }
+
+    ret = cli_send_recv(rpc, stdout);
+
+    nc_rpc_free(rpc);
+    return ret;
+}
+
+int
 cmd_commit(const char *arg)
 {
     struct nc_rpc *rpc;
@@ -2079,7 +2352,7 @@ cmd_commit(const char *arg)
             break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
-            cmd_killsession_help();
+            cmd_commit_help();
             clear_arglist(&cmd);
             return EXIT_FAILURE;
         }
@@ -2154,7 +2427,7 @@ cmd_copyconfig(const char *arg)
         case 's':
             /* check if -c was not used */
             if (source != NC_DATASTORE_ERROR) {
-                ERROR(__func__, "mixing --source, and --config parameters is not allowed.");
+                ERROR(__func__, "Mixing --source, and --src-config parameters is not allowed.");
                 goto fail;
             }
 
@@ -2176,7 +2449,7 @@ cmd_copyconfig(const char *arg)
         case 'c':
             /* check if -s was not used */
             if (source != NC_DATASTORE_ERROR) {
-                ERROR(__func__, "Mixing --source and --config parameters is not allowed.");
+                ERROR(__func__, "Mixing --source and --src-config parameters is not allowed.");
                 goto fail;
             }
 
@@ -2265,6 +2538,127 @@ fail:
     free(src);
     free(trg);
     return EXIT_FAILURE;
+}
+
+int
+cmd_deleteconfig(const char *arg)
+{
+    int c, ret;
+    char *trg = NULL;
+    struct nc_rpc *rpc;
+    NC_DATASTORE target = NC_DATASTORE_ERROR;;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"target", 1, 0, 't'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    addargs(&cmd, "%s", arg);
+
+    while ((c = getopt_long(cmd.count, cmd.list, "ht:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_deleteconfig_help();
+            clear_arglist(&cmd);
+            return EXIT_SUCCESS;
+        case 't':
+            if (!strcmp(optarg, "startup")) {
+                target = NC_DATASTORE_STARTUP;
+            } else if (!strncmp(optarg, "url:", 4)) {
+                target = NC_DATASTORE_URL;
+                trg = strdup(optarg + 4);
+            } else {
+                ERROR(__func__, "Invalid source datastore specified (%s).", optarg);
+                goto fail;
+            }
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_deleteconfig_help();
+            goto fail;
+        }
+    }
+    clear_arglist(&cmd);
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    /* create requests */
+    rpc = nc_rpc_delete(target, trg, NC_RPC_PARAMTYPE_FREE);
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        goto fail;
+    }
+
+    ret = cli_send_recv(rpc, stdout);
+
+    nc_rpc_free(rpc);
+    return ret;
+
+fail:
+    clear_arglist(&cmd);
+    free(trg);
+    return EXIT_FAILURE;
+}
+
+int
+cmd_discardchanges(const char *arg)
+{
+    struct nc_rpc *rpc;
+    int c, ret;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    /* process given arguments */
+    init_arglist(&cmd);
+    addargs(&cmd, "%s", arg);
+
+    while ((c = getopt_long(cmd.count, cmd.list, "h", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_discardchanges_help();
+            clear_arglist(&cmd);
+            return EXIT_SUCCESS;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_discardchanges_help();
+            clear_arglist(&cmd);
+            return EXIT_FAILURE;
+        }
+    }
+
+    clear_arglist(&cmd);
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        return EXIT_FAILURE;
+    }
+
+    rpc = nc_rpc_discard();
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        return EXIT_FAILURE;
+    }
+
+    ret = cli_send_recv(rpc, stdout);
+
+    nc_rpc_free(rpc);
+    return ret;
 }
 
 int
@@ -2708,7 +3102,7 @@ cmd_getconfig(const char *arg)
             break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
-            cmd_get_help();
+            cmd_getconfig_help();
             goto fail;
         }
     }
@@ -2817,6 +3211,632 @@ cmd_killsession(const char *arg)
     return ret;
 }
 
+int
+cmd_lock(const char *arg)
+{
+    int c, ret;
+    struct nc_rpc *rpc;
+    NC_DATASTORE target = NC_DATASTORE_ERROR;;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"target", 1, 0, 't'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    addargs(&cmd, "%s", arg);
+
+    while ((c = getopt_long(cmd.count, cmd.list, "ht:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_lock_help();
+            clear_arglist(&cmd);
+            return EXIT_SUCCESS;
+        case 't':
+            if (!strcmp(optarg, "running")) {
+                target = NC_DATASTORE_RUNNING;
+            } else if (!strcmp(optarg, "startup")) {
+                target = NC_DATASTORE_STARTUP;
+            } else if (!strcmp(optarg, "candidate")) {
+                target = NC_DATASTORE_CANDIDATE;
+            } else {
+                ERROR(__func__, "Invalid source datastore specified (%s).", optarg);
+                clear_arglist(&cmd);
+                return EXIT_FAILURE;
+            }
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_lock_help();
+            clear_arglist(&cmd);
+            return EXIT_FAILURE;
+        }
+    }
+    clear_arglist(&cmd);
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        return EXIT_FAILURE;
+    }
+
+    /* create requests */
+    rpc = nc_rpc_lock(target);
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        return EXIT_FAILURE;
+    }
+
+    ret = cli_send_recv(rpc, stdout);
+
+    nc_rpc_free(rpc);
+    return ret;
+}
+
+int
+cmd_unlock(const char *arg)
+{
+    int c, ret;
+    struct nc_rpc *rpc;
+    NC_DATASTORE target = NC_DATASTORE_ERROR;;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"target", 1, 0, 't'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    addargs(&cmd, "%s", arg);
+
+    while ((c = getopt_long(cmd.count, cmd.list, "ht:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_unlock_help();
+            clear_arglist(&cmd);
+            return EXIT_SUCCESS;
+        case 't':
+            if (!strcmp(optarg, "running")) {
+                target = NC_DATASTORE_RUNNING;
+            } else if (!strcmp(optarg, "startup")) {
+                target = NC_DATASTORE_STARTUP;
+            } else if (!strcmp(optarg, "candidate")) {
+                target = NC_DATASTORE_CANDIDATE;
+            } else {
+                ERROR(__func__, "Invalid source datastore specified (%s).", optarg);
+                clear_arglist(&cmd);
+                return EXIT_FAILURE;
+            }
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_unlock_help();
+            clear_arglist(&cmd);
+            return EXIT_FAILURE;
+        }
+    }
+    clear_arglist(&cmd);
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        return EXIT_FAILURE;
+    }
+
+    /* create requests */
+    rpc = nc_rpc_unlock(target);
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        return EXIT_FAILURE;
+    }
+
+    ret = cli_send_recv(rpc, stdout);
+
+    nc_rpc_free(rpc);
+    return ret;
+}
+
+int
+cmd_validate(const char *arg)
+{
+    int c, config_fd, ret;
+    struct stat config_stat;
+    char *src = NULL, *config_m = NULL;
+    NC_DATASTORE source = NC_DATASTORE_ERROR;
+    struct nc_rpc *rpc;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"source", 1, 0, 's'},
+            {"src-config", 2, 0, 'c'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    addargs(&cmd, "%s", arg);
+
+    while ((c = getopt_long(cmd.count, cmd.list, "hs:c::", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_validate_help();
+            clear_arglist(&cmd);
+            return EXIT_SUCCESS;
+        case 's':
+            /* check if -c was not used */
+            if (source != NC_DATASTORE_ERROR) {
+                ERROR(__func__, "Mixing --source, and --src-config parameters is not allowed.");
+                goto fail;
+            }
+
+            /* validate argument */
+            if (!strcmp(optarg, "running")) {
+                source = NC_DATASTORE_RUNNING;
+            } else if (!strcmp(optarg, "startup")) {
+                source = NC_DATASTORE_STARTUP;
+            } else if (!strcmp(optarg, "candidate")) {
+                source = NC_DATASTORE_CANDIDATE;
+            } else if (!strncmp(optarg, "url:", 4)) {
+                source = NC_DATASTORE_URL;
+                src = strdup(&(optarg[4]));
+            } else {
+                ERROR(__func__, "Invalid source datastore specified (%s).", optarg);
+                goto fail;
+            }
+            break;
+        case 'c':
+            /* check if -s was not used */
+            if (source != NC_DATASTORE_ERROR) {
+                ERROR(__func__, "Mixing --source and --src-config parameters is not allowed.");
+                goto fail;
+            }
+
+            source = NC_DATASTORE_CONFIG;
+
+            if (optarg) {
+                /* open edit configuration data from the file */
+                config_fd = open(optarg, O_RDONLY);
+                if (config_fd == -1) {
+                    ERROR(__func__, "Unable to open the local datastore file (%s).", strerror(errno));
+                    goto fail;
+                }
+
+                /* map content of the file into the memory */
+                if (fstat(config_fd, &config_stat) != 0) {
+                    ERROR(__func__, "fstat failed (%s).", strerror(errno));
+                    close(config_fd);
+                    goto fail;
+                }
+                config_m = mmap(NULL, config_stat.st_size, PROT_READ, MAP_PRIVATE, config_fd, 0);
+                if (config_m == MAP_FAILED) {
+                    ERROR(__func__, "mmap of the local datastore file failed (%s).", strerror(errno));
+                    close(config_fd);
+                    goto fail;
+                }
+
+                /* make a copy of the content to allow closing the file */
+                src = strdup(config_m);
+
+                /* unmap local datastore file and close it */
+                munmap(config_m, config_stat.st_size);
+                close(config_fd);
+            }
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_validate_help();
+            goto fail;
+        }
+    }
+    clear_arglist(&cmd);
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    /* check if edit configuration data were specified */
+    if ((source == NC_DATASTORE_CONFIG) && !src) {
+        /* let user write edit data interactively */
+        src = readinput("Type the content of a configuration datastore.");
+        if (!src) {
+            ERROR(__func__, "Reading configuration data failed.");
+            goto fail;
+        }
+    }
+
+    /* create requests */
+    rpc = nc_rpc_validate(source, src, NC_RPC_PARAMTYPE_FREE);
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        goto fail;
+    }
+
+    ret = cli_send_recv(rpc, stdout);
+
+    nc_rpc_free(rpc);
+    return ret;
+
+fail:
+    clear_arglist(&cmd);
+    free(src);
+    return EXIT_FAILURE;
+}
+
+int
+cmd_subscribe(const char *arg)
+{
+    int c, config_fd, ret, filter_param = 0;
+    struct stat config_stat;
+    char *filter = NULL, *config_m = NULL, *stream = NULL, *start = NULL, *stop = NULL;
+    struct nc_rpc *rpc;
+    time_t t;
+    FILE *output = NULL;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"filter-subtree", 2, 0, 's'},
+            {"filter-xpath", 1, 0, 'x'},
+            {"begin", 1, 0, 'b'},
+            {"end", 1, 0, 'e'},
+            {"stream", 1, 0, 't'},
+            {"out", 1, 0, 'o'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    addargs(&cmd, "%s", arg);
+
+    while ((c = getopt_long(cmd.count, cmd.list, "hs::x:b:e:t:o:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_subscribe_help();
+            clear_arglist(&cmd);
+            return EXIT_SUCCESS;
+        case 's':
+            /* check if -x was not used */
+            if (filter_param) {
+                ERROR(__func__, "Mixing --filter-subtree, and --filter-xpath parameters is not allowed.");
+                goto fail;
+            }
+
+            filter_param = 1;
+
+            if (optarg) {
+                /* open edit configuration data from the file */
+                config_fd = open(optarg, O_RDONLY);
+                if (config_fd == -1) {
+                    ERROR(__func__, "Unable to open the local datastore file (%s).", strerror(errno));
+                    goto fail;
+                }
+
+                /* map content of the file into the memory */
+                if (fstat(config_fd, &config_stat) != 0) {
+                    ERROR(__func__, "fstat failed (%s).", strerror(errno));
+                    close(config_fd);
+                    goto fail;
+                }
+                config_m = mmap(NULL, config_stat.st_size, PROT_READ, MAP_PRIVATE, config_fd, 0);
+                if (config_m == MAP_FAILED) {
+                    ERROR(__func__, "mmap of the local datastore file failed (%s).", strerror(errno));
+                    close(config_fd);
+                    goto fail;
+                }
+
+                /* make a copy of the content to allow closing the file */
+                filter = strdup(config_m);
+
+                /* unmap local datastore file and close it */
+                munmap(config_m, config_stat.st_size);
+                close(config_fd);
+            }
+            break;
+        case 'x':
+            /* check if -s was not used */
+            if (filter_param) {
+                ERROR(__func__, "Mixing --filter-subtree, and --filter-xpath parameters is not allowed.");
+                goto fail;
+            }
+
+            filter_param = 1;
+
+            filter = strdup(optarg);
+            break;
+        case 'b':
+        case 'e':
+            if (optarg[0] == '-' || optarg[0] == '+') {
+                t = time(NULL);
+                t += atol(optarg);
+            } else {
+                t = atol(optarg);
+            }
+
+            if (c == 'b') {
+                if (t > time(NULL)) {
+                    /* begin time is in future */
+                    ERROR(__func__, "Begin time cannot be set to future.");
+                    goto fail;
+                }
+                start = nc_time2datetime(t, NULL);
+            } else { /* c == 'e' */
+                stop = nc_time2datetime(t, NULL);
+            }
+            break;
+        case 't':
+            stream = strdup(optarg);
+            break;
+        case 'o':
+            output = fopen(optarg, "w");
+            if (!output) {
+                ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
+                goto fail;
+            }
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_subscribe_help();
+            goto fail;
+        }
+    }
+    clear_arglist(&cmd);
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    /* check if edit configuration data were specified */
+    if (filter_param && !filter) {
+        /* let user write edit data interactively */
+        filter = readinput("Type the content of the subtree filter.");
+        if (!filter) {
+            ERROR(__func__, "Reading filter data failed.");
+            goto fail;
+        }
+    }
+
+    /* create requests */
+    rpc = nc_rpc_subscribe(stream, filter, start, stop, NC_RPC_PARAMTYPE_FREE);
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        goto fail;
+    }
+
+    if (output) {
+        ret = cli_send_recv(rpc, output);
+        fclose(output);
+    } else {
+        ret = cli_send_recv(rpc, stdout);
+    }
+
+    nc_rpc_free(rpc);
+    return ret;
+
+fail:
+    clear_arglist(&cmd);
+    if (output) {
+        fclose(output);
+    }
+    free(filter);
+    free(stream);
+    free(start);
+    free(stop);
+    return EXIT_FAILURE;
+}
+
+int
+cmd_getschema(const char *arg)
+{
+    int c, ret;
+    char *model = NULL, *version = NULL, *format = NULL;
+    struct nc_rpc *rpc;
+    FILE *output = NULL;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"model", 1, 0, 'm'},
+            {"version", 1, 0, 'v'},
+            {"format", 1, 0, 'f'},
+            {"out", 1, 0, 'o'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    addargs(&cmd, "%s", arg);
+
+    while ((c = getopt_long(cmd.count, cmd.list, "hm:v:f:o:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_getschema_help();
+            clear_arglist(&cmd);
+            return EXIT_SUCCESS;
+        case 'm':
+            model = strdup(optarg);
+            break;
+        case 'v':
+            version = strdup(optarg);
+            break;
+        case 'f':
+            format = strdup(optarg);
+            break;
+        case 'o':
+            output = fopen(optarg, "w");
+            if (!output) {
+                ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
+                goto fail;
+            }
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_getschema_help();
+            goto fail;
+        }
+    }
+    clear_arglist(&cmd);
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    rpc = nc_rpc_getschema(model, version, format, NC_RPC_PARAMTYPE_FREE);
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        goto fail;
+    }
+
+    if (output) {
+        ret = cli_send_recv(rpc, output);
+        fclose(output);
+    } else {
+        ret = cli_send_recv(rpc, stdout);
+    }
+
+    nc_rpc_free(rpc);
+    return ret;
+
+fail:
+    clear_arglist(&cmd);
+    if (output) {
+        fclose(output);
+    }
+    free(model);
+    free(version);
+    free(format);
+    return EXIT_FAILURE;
+}
+
+int
+cmd_userrpc(const char *arg)
+{
+    int c, config_fd, ret;
+    struct stat config_stat;
+    char *content = NULL, *config_m = NULL;
+    struct nc_rpc *rpc;
+    FILE *output = NULL;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"content", 1, 0, 'c'},
+            {"out", 1, 0, 'o'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    addargs(&cmd, "%s", arg);
+
+    while ((c = getopt_long(cmd.count, cmd.list, "ht:s:c::d:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_userrpc_help();
+            clear_arglist(&cmd);
+            return EXIT_SUCCESS;
+        case 'c':
+            /* open edit configuration data from the file */
+            config_fd = open(optarg, O_RDONLY);
+            if (config_fd == -1) {
+                ERROR(__func__, "Unable to open the local datastore file (%s).", strerror(errno));
+                goto fail;
+            }
+
+            /* map content of the file into the memory */
+            if (fstat(config_fd, &config_stat) != 0) {
+                ERROR(__func__, "fstat failed (%s).", strerror(errno));
+                close(config_fd);
+                goto fail;
+            }
+            config_m = mmap(NULL, config_stat.st_size, PROT_READ, MAP_PRIVATE, config_fd, 0);
+            if (config_m == MAP_FAILED) {
+                ERROR(__func__, "mmap of the local datastore file failed (%s).", strerror(errno));
+                close(config_fd);
+                goto fail;
+            }
+
+            /* make a copy of the content to allow closing the file */
+            content = strdup(config_m);
+
+            /* unmap local datastore file and close it */
+            munmap(config_m, config_stat.st_size);
+            close(config_fd);
+            break;
+        case 'o':
+            output = fopen(optarg, "w");
+            if (!output) {
+                ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
+                goto fail;
+            }
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_userrpc_help();
+            goto fail;
+        }
+    }
+    clear_arglist(&cmd);
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    /* check if edit configuration data were specified */
+    if (!content) {
+        /* let user write edit data interactively */
+        content = readinput("Type the content of a configuration datastore.");
+        if (!content) {
+            ERROR(__func__, "Reading configuration data failed.");
+            goto fail;
+        }
+    }
+
+    /* create requests */
+    rpc = nc_rpc_generic_xml(content, NC_RPC_PARAMTYPE_FREE);
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        goto fail;
+    }
+
+    if (output) {
+        ret = cli_send_recv(rpc, output);
+        fclose(output);
+    } else {
+        ret = cli_send_recv(rpc, stdout);
+    }
+
+    nc_rpc_free(rpc);
+    return ret;
+
+fail:
+    clear_arglist(&cmd);
+    if (output) {
+        fclose(output);
+    }
+    free(content);
+    return EXIT_FAILURE;
+}
+
 COMMAND commands[] = {
 #ifdef ENABLE_SSH
         {"auth", cmd_auth, cmd_auth_help, "Manage SSH authentication options"},
@@ -2835,20 +3855,21 @@ COMMAND commands[] = {
         {"quit", cmd_quit, NULL, "Quit the program"},
         {"help", cmd_help, NULL, "Display commands description"},
         {"editor", cmd_editor, cmd_editor_help, "Set the text editor for working with XML data"},
+        {"cancel-commit", cmd_cancelcommit, cmd_cancelcommit_help, "ietf-netconf <cancel-commit> operation"},
         {"commit", cmd_commit, cmd_commit_help, "ietf-netconf <commit> operation"},
         {"copy-config", cmd_copyconfig, cmd_copyconfig_help, "ietf-netconf <copy-config> operation"},
-        //{"delete-config", cmd_deleteconfig, cmd_deleteconfig_help, "ietf-netconf <delete-config> operation"},
-        //{"discard-changes", cmd_discardchanges, NULL, "ietf-netconf <discard-changes> operation"},
+        {"delete-config", cmd_deleteconfig, cmd_deleteconfig_help, "ietf-netconf <delete-config> operation"},
+        {"discard-changes", cmd_discardchanges, cmd_discardchanges_help, "ietf-netconf <discard-changes> operation"},
         {"edit-config", cmd_editconfig, cmd_editconfig_help, "ietf-netconf <edit-config> operation"},
         {"get", cmd_get, cmd_get_help, "ietf-netconf <get> operation"},
         {"get-config", cmd_getconfig, cmd_getconfig_help, "ietf-netconf <get-config> operation"},
         {"kill-session", cmd_killsession, cmd_killsession_help, "ietf-netconf <kill-session> operation"},
-        //{"lock", cmd_lock, cmd_lock_help, "ietf-netconf <lock> operation"},
-        //{"unlock", cmd_unlock, cmd_unlock_help, "ietf-netconf <unlock> operation"},
-        //{"validate", cmd_validate, cmd_validate_help, "ietf-netconf <validate> operation"}
-        //{"subscribe", cmd_subscribe, cmd_subscribe_help, "notifications <create-subscription> operation"},
-        //{"get-schema", cmd_getschema, cmd_getschema_help, "ietf-netconf-monitoring <get-schema> operation"},
-        //{"user-rpc", cmd_userrpc, cmd_userrpc_help, "Send your own content in an RPC envelope (for DEBUG purposes)"},
+        {"lock", cmd_lock, cmd_lock_help, "ietf-netconf <lock> operation"},
+        {"unlock", cmd_unlock, cmd_unlock_help, "ietf-netconf <unlock> operation"},
+        {"validate", cmd_validate, cmd_validate_help, "ietf-netconf <validate> operation"},
+        {"subscribe", cmd_subscribe, cmd_subscribe_help, "notifications <create-subscription> operation"},
+        {"get-schema", cmd_getschema, cmd_getschema_help, "ietf-netconf-monitoring <get-schema> operation"},
+        {"user-rpc", cmd_userrpc, cmd_userrpc_help, "Send your own content in an RPC envelope (for DEBUG purposes)"},
         /* synonyms for previous commands */
         {"?", cmd_help, NULL, "Display commands description"},
         {"exit", cmd_quit, NULL, "Quit the program"},
