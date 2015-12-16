@@ -351,7 +351,7 @@ static int completeLine(struct linenoiseState *ls) {
     if (lc.len == 0) {
         linenoiseBeep();
     } else {
-        int i, j;
+        unsigned int i, j;
 
         /* Learn the longest common part */
         common = strdup(lc.cvec[0]);
@@ -405,7 +405,7 @@ static int completeLine(struct linenoiseState *ls) {
         /* Learn the longest hint */
         hint_len = strlen(lc.cvec[0]);
         for (i = 1; i < lc.len; ++i) {
-            if (strlen(lc.cvec[i]) > hint_len) {
+            if (strlen(lc.cvec[i]) > (unsigned)hint_len) {
                 hint_len = strlen(lc.cvec[i]);
             }
         }
