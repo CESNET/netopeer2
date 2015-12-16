@@ -62,11 +62,12 @@ struct linenoiseState {
 extern struct linenoiseState ls;
 
 typedef struct linenoiseCompletions {
-  size_t len;
-  char **cvec;
+    int path;
+    size_t len;
+    char **cvec;
 } linenoiseCompletions;
 
-typedef void(linenoiseCompletionCallback)(const char *, linenoiseCompletions *);
+typedef void(linenoiseCompletionCallback)(const char *, const char *, linenoiseCompletions *);
 void linenoiseSetCompletionCallback(linenoiseCompletionCallback *);
 void linenoiseAddCompletion(linenoiseCompletions *, const char *);
 
@@ -79,6 +80,7 @@ void linenoiseClearScreen(void);
 void linenoiseSetMultiLine(int ml);
 void linenoisePrintKeyCodes(void);
 
+void linenoisePathCompletion(const char *, linenoiseCompletions *);
 void linenoiseRefreshLine(void);
 int linenoiseEnableRawMode(int fd);
 void linenoiseDisableRawMode(int fd);

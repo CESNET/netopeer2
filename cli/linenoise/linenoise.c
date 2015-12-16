@@ -113,8 +113,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <dirent.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include "linenoise.h"
 
@@ -332,55 +334,127 @@ static void freeCompletions(linenoiseCompletions *lc) {
  * The state of the editing is encapsulated into the pointed linenoiseState
  * structure as described in the structure definition. */
 static int completeLine(struct linenoiseState *ls) {
-    linenoiseCompletions lc = { 0, NULL };
-    int nread, nwritten;
-    char c = 0;
+    linenoiseCompletions lc = {0, 0, NULL};
+    int nread, nwritten, hint_len, hint_line_count, char_count;
+    char c = 0, *common, *hint;
+    struct winsize w;
 
-    completionCallback(ls->buf,&lc);
+    /* Hint is only the string after the last space */
+    hint = strrchr(ls->buf, ' ');
+    if (!hint) {
+        hint = ls->buf;
+    } else {
+        ++hint;
+    }
+
+    completionCallback(ls->buf, hint, &lc);
     if (lc.len == 0) {
         linenoiseBeep();
     } else {
-        size_t stop = 0, i = 0;
+        int i, j;
 
-        while(!stop) {
-            /* Show completion or original buffer */
-            if (i < lc.len) {
-                struct linenoiseState saved = *ls;
+        /* Learn the longest common part */
+        common = strdup(lc.cvec[0]);
+        for (i = 1; i < lc.len; ++i) {
+            for (j = 0; j < strlen(lc.cvec[i]); ++j) {
+                if (lc.cvec[i][j] != common[j]) {
+                    common[j] = '\0';
+                    break;
+                }
+            }
+        }
 
-                ls->len = ls->pos = strlen(lc.cvec[i]);
-                ls->buf = lc.cvec[i];
-                linenoiseRefreshLine();
-                ls->len = saved.len;
-                ls->pos = saved.pos;
-                ls->buf = saved.buf;
-            } else {
-                linenoiseRefreshLine();
+        /* Path completions have a different hint */
+        if (lc.path && strrchr(hint, '/')) {
+            hint = strrchr(hint, '/');
+            ++hint;
+        }
+
+        /* Show completion */
+        if ((lc.len == 1) && (common[strlen(common) - 1] != '/')) {
+            nwritten = snprintf(hint, ls->buflen - (hint - ls->buf), "%s ", common);
+        } else {
+            nwritten = snprintf(hint, ls->buflen - (hint - ls->buf), "%s", common);
+        }
+        free(common);
+        ls->len = ls->pos = (hint - ls->buf) + nwritten;
+        linenoiseRefreshLine();
+
+        /* A single hint */
+        if (lc.len == 1) {
+            freeCompletions(&lc);
+            return 0;
+        }
+
+        /* Read a char */
+        nread = read(ls->ifd,&c,1);
+        if (nread <= 0) {
+            freeCompletions(&lc);
+            return -1;
+        }
+
+        /* Not a tab */
+        if (c != 9) {
+            freeCompletions(&lc);
+            return c;
+        }
+
+        /* Learn terminal window size */
+        ioctl(ls->ifd, TIOCGWINSZ, &w);
+
+        /* Learn the longest hint */
+        hint_len = strlen(lc.cvec[0]);
+        for (i = 1; i < lc.len; ++i) {
+            if (strlen(lc.cvec[i]) > hint_len) {
+                hint_len = strlen(lc.cvec[i]);
+            }
+        }
+
+        /* Learn the number of hints that fit a line */
+        hint_line_count = 0;
+        while (1) {
+            char_count = 0;
+            if (hint_line_count) {
+                char_count += hint_line_count * (hint_len + 2);
+            }
+            char_count += hint_len;
+
+            /* Too much */
+            if (char_count > w.ws_col) {
+                break;
             }
 
+            /* Still fits */
+            ++hint_line_count;
+        }
+
+        /* No hint fits, too bad */
+        if (!hint_line_count) {
+            freeCompletions(&lc);
+            return c;
+        }
+
+        while (c == 9) {
+            /* Second tab */
+            linenoiseDisableRawMode(ls->ifd);
+            printf("\n");
+            for (i = 0; i < lc.len; ++i) {
+                printf("%-*s", hint_len, lc.cvec[i]);
+                /* Line full or last hint */
+                if (((i + 1) % hint_line_count == 0) || (i == lc.len - 1)) {
+                    printf("\n");
+                } else {
+                    printf("  ");
+                }
+            }
+            linenoiseEnableRawMode(ls->ifd);
+            linenoiseRefreshLine();
+
+            /* Read a char */
             nread = read(ls->ifd,&c,1);
             if (nread <= 0) {
                 freeCompletions(&lc);
                 return -1;
-            }
-
-            switch(c) {
-                case 9: /* tab */
-                    i = (i+1) % (lc.len+1);
-                    if (i == lc.len) linenoiseBeep();
-                    break;
-                case 27: /* escape */
-                    /* Re-show original buffer */
-                    if (i < lc.len) linenoiseRefreshLine();
-                    stop = 1;
-                    break;
-                default:
-                    /* Update buffer and return */
-                    if (i < lc.len) {
-                        nwritten = snprintf(ls->buf,ls->buflen,"%s",lc.cvec[i]);
-                        ls->len = ls->pos = nwritten;
-                    }
-                    stop = 1;
-                    break;
             }
         }
     }
@@ -392,6 +466,61 @@ static int completeLine(struct linenoiseState *ls) {
 /* Register a callback function to be called for tab-completion. */
 void linenoiseSetCompletionCallback(linenoiseCompletionCallback *fn) {
     completionCallback = fn;
+}
+
+/* This function can be called in user completion callback to fill
+ * path completion for them. hint parameter is actually the whole path. */
+void linenoisePathCompletion(const char *hint, linenoiseCompletions *lc) {
+    const char *ptr;
+    char *buf, *hint_ptr, match[FILENAME_MAX + 2];
+    DIR *dir;
+    struct dirent *ent;
+    struct stat st;
+
+    lc->path = 1;
+
+    ptr = strrchr(hint, '/');
+
+    /* new relative path */
+    if (ptr == NULL) {
+        buf = malloc(2 + FILENAME_MAX + 1);
+        strcpy(buf, "./");
+
+        ptr = hint;
+    } else {
+        buf = malloc((int)(ptr - hint) + FILENAME_MAX + 1);
+        ++ptr;
+        sprintf(buf, "%.*s", (int)(ptr - hint), hint);
+    }
+    hint_ptr = buf + strlen(buf);
+
+    dir = opendir(buf);
+    if (dir == NULL) {
+        return;
+    }
+
+    while ((ent = readdir(dir))) {
+        if (ent->d_name[0] == '.') {
+            continue;
+        }
+
+        /* some serious pointer fun */
+        if (!strncmp(ptr, ent->d_name, strlen(ptr))) {
+            /* is it a directory? */
+            strcpy(hint_ptr, ent->d_name);
+            stat(buf, &st);
+
+            strcpy(match, ent->d_name);
+            if (S_ISDIR(st.st_mode)) {
+                strcat(match, "/");
+            }
+
+            linenoiseAddCompletion(lc, match);
+        }
+    }
+
+    free(buf);
+    closedir(dir);
 }
 
 /* This function is used by the callback function registered by the user
