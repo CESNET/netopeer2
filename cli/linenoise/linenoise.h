@@ -80,7 +80,7 @@ void linenoiseClearScreen(void);
 void linenoiseSetMultiLine(int ml);
 void linenoisePrintKeyCodes(void);
 
-void linenoisePathCompletion(const char *, linenoiseCompletions *);
+void linenoisePathCompletion(const char *, const char *, linenoiseCompletions *);
 void linenoiseRefreshLine(void);
 int linenoiseEnableRawMode(int fd);
 void linenoiseDisableRawMode(int fd);

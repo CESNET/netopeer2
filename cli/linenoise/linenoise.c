@@ -469,13 +469,16 @@ void linenoiseSetCompletionCallback(linenoiseCompletionCallback *fn) {
 }
 
 /* This function can be called in user completion callback to fill
- * path completion for them. hint parameter is actually the whole path. */
-void linenoisePathCompletion(const char *hint, linenoiseCompletions *lc) {
+ * path completion for them. hint parameter is actually the whole path
+ * and buf is unused, but included to match the completion callback prototype. */
+void linenoisePathCompletion(const char *buf, const char *hint, linenoiseCompletions *lc) {
     const char *ptr;
-    char *buf, *hint_ptr, match[FILENAME_MAX + 2];
+    char *full_path, *hint_ptr, match[FILENAME_MAX + 2];
     DIR *dir;
     struct dirent *ent;
     struct stat st;
+
+    (void)buf;
 
     lc->path = 1;
 
@@ -483,18 +486,18 @@ void linenoisePathCompletion(const char *hint, linenoiseCompletions *lc) {
 
     /* new relative path */
     if (ptr == NULL) {
-        buf = malloc(2 + FILENAME_MAX + 1);
-        strcpy(buf, "./");
+        full_path = malloc(2 + FILENAME_MAX + 1);
+        strcpy(full_path, "./");
 
         ptr = hint;
     } else {
-        buf = malloc((int)(ptr - hint) + FILENAME_MAX + 1);
+        full_path = malloc((int)(ptr - hint) + FILENAME_MAX + 1);
         ++ptr;
-        sprintf(buf, "%.*s", (int)(ptr - hint), hint);
+        sprintf(full_path, "%.*s", (int)(ptr - hint), hint);
     }
-    hint_ptr = buf + strlen(buf);
+    hint_ptr = full_path + strlen(full_path);
 
-    dir = opendir(buf);
+    dir = opendir(full_path);
     if (dir == NULL) {
         return;
     }
@@ -508,7 +511,7 @@ void linenoisePathCompletion(const char *hint, linenoiseCompletions *lc) {
         if (!strncmp(ptr, ent->d_name, strlen(ptr))) {
             /* is it a directory? */
             strcpy(hint_ptr, ent->d_name);
-            stat(buf, &st);
+            stat(full_path, &st);
 
             strcpy(match, ent->d_name);
             if (S_ISDIR(st.st_mode)) {
@@ -519,7 +522,7 @@ void linenoisePathCompletion(const char *hint, linenoiseCompletions *lc) {
         }
     }
 
-    free(buf);
+    free(full_path);
     closedir(dir);
 }
 
