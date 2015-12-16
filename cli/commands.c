@@ -23,6 +23,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <pthread.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -58,6 +59,7 @@
 #define NC_CAP_XPATH_ID           "urn:ietf:params:netconf:capability:xpath"
 #define NC_CAP_WITHDEFAULTS_ID    "urn:ietf:params:netconf:capability:with-defaults"
 #define NC_CAP_NOTIFICATION_ID    "urn:ietf:params:netconf:capability:notification"
+#define NC_CAP_INTERLEAVE_ID      "urn:ietf:params:netconf:capability:interleave"
 
 COMMAND commands[];
 extern int done;
@@ -65,6 +67,8 @@ extern char *search_path;
 
 char *config_editor;
 struct nc_session *session;
+volatile pthread_t ntf_tid;
+volatile int interleave;
 struct ly_ctx *ctx;
 
 struct arglist {
@@ -160,38 +164,87 @@ addargs(struct arglist *args, char *format, ...)
     free(aux1);
 }
 
+static void *
+cli_ntf_thread(void *arg)
+{
+    NC_MSG_TYPE msgtype;
+    struct nc_notif *notif;
+    FILE *output = (FILE *)arg;
+    int was_rawmode;
+
+    while (1) {
+        msgtype = nc_recv_notif(session, 0, &notif);
+
+        if (!ntf_tid) {
+            break;
+        } else if (msgtype == NC_MSG_WOULDBLOCK) {
+            usleep(1000);
+        } else if (msgtype == NC_MSG_NOTIF) {
+            if (output == stdout) {
+                if (ls.rawmode) {
+                    was_rawmode = 1;
+                    linenoiseDisableRawMode(ls.ifd);
+                    printf("\n");
+                } else {
+                    was_rawmode = 0;
+                }
+            }
+
+            /* TODO print datetime */
+            lyd_print_file(output, notif->tree, LYD_JSON);
+            fprintf(output, "\n");
+            fflush(output);
+
+            if ((output == stdout) && was_rawmode) {
+                linenoiseEnableRawMode(ls.ifd);
+                linenoiseRefreshLine();
+            }
+
+            nc_notif_free(notif);
+        }
+    }
+
+    if (output != stdout) {
+        fclose(output);
+    }
+    ntf_tid = 0;
+    interleave = 1;
+    return NULL;
+}
+
 static int
 cli_send_recv(struct nc_rpc *rpc, FILE *output)
 {
     char *str, *model_data, *ptr, *ptr2;
-    int i, j;
+    int i, j, ret;
     uint64_t msgid;
-    NC_MSG_TYPE ret;
+    NC_MSG_TYPE msgtype;
     struct nc_reply *reply;
     struct nc_reply_data *data_rpl;
     struct nc_reply_error *error;
 
-    ret = nc_send_rpc(session, rpc, 1000, &msgid);
-    if (ret == NC_MSG_ERROR) {
+    msgtype = nc_send_rpc(session, rpc, 1000, &msgid);
+    if (msgtype == NC_MSG_ERROR) {
         ERROR(__func__, "Failed to send the RPC.");
-        return EXIT_FAILURE;
-    } else if (ret == NC_MSG_WOULDBLOCK) {
+        return -1;
+    } else if (msgtype == NC_MSG_WOULDBLOCK) {
         ERROR(__func__, "Timeout for sending the RPC expired.");
-        return EXIT_FAILURE;
+        return -1;
     }
 
-    ret = nc_recv_reply(session, rpc, msgid, 1000, &reply);
-    if (ret == NC_MSG_ERROR) {
+    msgtype = nc_recv_reply(session, rpc, msgid, 1000, &reply);
+    if (msgtype == NC_MSG_ERROR) {
         ERROR(__func__, "Failed to receive a reply.");
-        return EXIT_FAILURE;
-    } else if (ret == NC_MSG_WOULDBLOCK) {
+        return -1;
+    } else if (msgtype == NC_MSG_WOULDBLOCK) {
         ERROR(__func__, "Timeout for receiving a reply expired.");
-        return EXIT_FAILURE;
+        return -1;
     }
 
     switch (reply->type) {
     case NC_REPLY_OK:
         fprintf(output, "OK\n");
+        ret = 0;
         break;
     case NC_REPLY_DATA:
         data_rpl = (struct nc_reply_data *)reply;
@@ -230,6 +283,7 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
         if (output == stdout) {
             fprintf(output, "\n");
         }
+        ret = 0;
         break;
     case NC_REPLY_ERROR:
         fprintf(output, "ERROR\n");
@@ -272,15 +326,16 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
             }
             fprintf(output, "\n");
         }
+        ret = 1;
         break;
     default:
         ERROR(__func__, "Internal error.");
         nc_reply_free(reply);
-        return EXIT_FAILURE;
+        return -1;
     }
 
     nc_reply_free(reply);
-    return EXIT_SUCCESS;
+    return ret;
 }
 
 void
@@ -2028,6 +2083,8 @@ cmd_disconnect(const char *UNUSED(arg))
     if (session == NULL) {
         ERROR("disconnect", "Not connected to any NETCONF server.");
     } else {
+        /* possible data race, but let's be optimistic */
+        ntf_tid = 0;
         nc_session_free(session);
         session = NULL;
         ly_ctx_destroy(ctx);
@@ -2154,6 +2211,10 @@ cmd_connect_listen(const char *arg, int is_connect)
 #elif defined(ENABLE_TLS)
         ret = cmd_connect_listen_tls(&cmd, is_connect);
 #endif
+    }
+
+    if (!ret) {
+        interleave = 1;
     }
 
     clear_arglist(&cmd);
@@ -2295,6 +2356,11 @@ cmd_cancelcommit(const char *arg)
         return EXIT_FAILURE;
     }
 
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
+        return EXIT_FAILURE;
+    }
+
     rpc = nc_rpc_cancel(persist_id, NC_RPC_PARAMTYPE_FREE);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
@@ -2361,6 +2427,11 @@ cmd_commit(const char *arg)
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        return EXIT_FAILURE;
+    }
+
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
         return EXIT_FAILURE;
     }
 
@@ -2511,6 +2582,11 @@ cmd_copyconfig(const char *arg)
         goto fail;
     }
 
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
+        goto fail;
+    }
+
     /* check if edit configuration data were specified */
     if ((source == NC_DATASTORE_CONFIG) && !src) {
         /* let user write edit data interactively */
@@ -2591,6 +2667,11 @@ cmd_deleteconfig(const char *arg)
         goto fail;
     }
 
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
+        goto fail;
+    }
+
     /* create requests */
     rpc = nc_rpc_delete(target, trg, NC_RPC_PARAMTYPE_FREE);
     if (!rpc) {
@@ -2646,6 +2727,11 @@ cmd_discardchanges(const char *arg)
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        return EXIT_FAILURE;
+    }
+
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
         return EXIT_FAILURE;
     }
 
@@ -2806,6 +2892,11 @@ cmd_editconfig(const char *arg)
         goto fail;
     }
 
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
+        goto fail;
+    }
+
     /* check if edit configuration data were specified */
     if (content_param && !content) {
         /* let user write edit data interactively */
@@ -2946,6 +3037,11 @@ cmd_get(const char *arg)
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
         goto fail;
+    }
+
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
+        return EXIT_FAILURE;
     }
 
     /* check if edit configuration data were specified */
@@ -3113,6 +3209,11 @@ cmd_getconfig(const char *arg)
         goto fail;
     }
 
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
+        goto fail;
+    }
+
     /* check if edit configuration data were specified */
     if (filter_param && !filter) {
         /* let user write edit data interactively */
@@ -3194,6 +3295,11 @@ cmd_killsession(const char *arg)
         return EXIT_FAILURE;
     }
 
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
+        return EXIT_FAILURE;
+    }
+
     if (!sid) {
         ERROR(__func__, "Session ID was not specififed or not a number.");
         return EXIT_FAILURE;
@@ -3264,6 +3370,11 @@ cmd_lock(const char *arg)
         return EXIT_FAILURE;
     }
 
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
+        return EXIT_FAILURE;
+    }
+
     /* create requests */
     rpc = nc_rpc_lock(target);
     if (!rpc) {
@@ -3327,6 +3438,11 @@ cmd_unlock(const char *arg)
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        return EXIT_FAILURE;
+    }
+
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
         return EXIT_FAILURE;
     }
 
@@ -3442,6 +3558,11 @@ cmd_validate(const char *arg)
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
         goto fail;
     }
 
@@ -3599,6 +3720,11 @@ cmd_subscribe(const char *arg)
         goto fail;
     }
 
+    if (ntf_tid) {
+        ERROR(__func__, "Already subscribed to a notification stream.");
+        goto fail;
+    }
+
     /* check if edit configuration data were specified */
     if (filter_param && !filter) {
         /* let user write edit data interactively */
@@ -3616,19 +3742,42 @@ cmd_subscribe(const char *arg)
         goto fail;
     }
 
-    if (output) {
-        ret = cli_send_recv(rpc, output);
-        fclose(output);
-    } else {
-        ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout);
+    nc_rpc_free(rpc);
+    filter = NULL;
+    stream = NULL;
+    start = NULL;
+    stop = NULL;
+
+    if (ret) {
+        goto fail;
     }
 
-    nc_rpc_free(rpc);
+    /* create notification thread */
+    if (!output) {
+        output = stdout;
+    }
+    ret = pthread_create((pthread_t *)&ntf_tid, NULL, cli_ntf_thread, output);
+    if (ret) {
+        ERROR(__func__, "Failed to create notification thread (%s).", strerror(ret));
+        ntf_tid = 0;
+        goto fail;
+    }
+    pthread_detach(ntf_tid);
+    output = NULL;
+
+    if (!nc_session_cpblt(session, NC_CAP_INTERLEAVE_ID)) {
+        fprintf(output, "NETCONF server does not support interleave, you\n"
+                        "cannot issue any RPCs during the subscription.\n"
+                        "Close the session with \"disconnect\".\n");
+        interleave = 0;
+    }
+
     return ret;
 
 fail:
     clear_arglist(&cmd);
-    if (output) {
+    if (output && (output != stdout)) {
         fclose(output);
     }
     free(filter);
@@ -3694,6 +3843,11 @@ cmd_getschema(const char *arg)
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
         goto fail;
     }
 
@@ -3798,6 +3952,11 @@ cmd_userrpc(const char *arg)
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
         goto fail;
     }
 

@@ -48,11 +48,20 @@ char *search_path;
 
 extern char *config_editor;
 extern struct nc_session *session;
+extern pthread_t ntf_tid;
 extern struct ly_ctx *ctx;
 
 void
 lnc2_print_clb(NC_VERB_LEVEL level, const char *msg)
 {
+    int was_rawmode = 0;
+
+    if (ls.rawmode) {
+        was_rawmode = 1;
+        linenoiseDisableRawMode(ls.ifd);
+        printf("\n");
+    }
+
     switch (level) {
     case NC_VERB_ERROR:
         fprintf(stderr, "nc ERROR: %s\n", msg);
@@ -67,11 +76,24 @@ lnc2_print_clb(NC_VERB_LEVEL level, const char *msg)
         fprintf(stderr, "nc DEBUG: %s\n", msg);
         break;
     }
+
+    if (was_rawmode) {
+        linenoiseEnableRawMode(ls.ifd);
+        linenoiseRefreshLine();
+    }
 }
 
 void
 ly_print_clb(LY_LOG_LEVEL level, const char *msg)
 {
+    int was_rawmode = 0;
+
+    if (ls.rawmode) {
+        was_rawmode = 1;
+        linenoiseDisableRawMode(ls.ifd);
+        printf("\n");
+    }
+
     switch (level) {
     case LY_LLERR:
         fprintf(stderr, "ly ERROR: %s\n", msg);
@@ -85,6 +107,11 @@ ly_print_clb(LY_LOG_LEVEL level, const char *msg)
     case LY_LLDBG:
         fprintf(stderr, "ly DEBUG: %s\n", msg);
         break;
+    }
+
+    if (was_rawmode) {
+        linenoiseEnableRawMode(ls.ifd);
+        linenoiseRefreshLine();
     }
 }
 
@@ -159,6 +186,7 @@ main(int argc, char **argv)
     free(search_path);
     free(config_editor);
 
+    ntf_tid = 0;
     if (session) {
         nc_session_free(session);
     }
