@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
 #include <string.h>
@@ -48,78 +50,28 @@ get_cmd_completion(const char *hint, char ***matches, unsigned int *match_count)
     }
 }
 
-/* can end with multiple paths if !long_opt, otherwise it must end with that option and some partial path */
-static void
-get_path_completion(const char *hint, const char *long_opt, char ***matches, unsigned int *match_count)
+static int
+last_opt(const char *buf, const char *hint, const char *opt)
 {
-    const char *ptr, *path, *opt;
-    DIR *dir;
-    struct dirent *ent;
+    do {
+        --hint;
+    } while (hint[0] == ' ');
 
-    *match_count = 0;
-    *matches = NULL;
-
-    ptr = strrchr(hint, ' ') + 1;
-
-    /* check long_opt */
-    if (long_opt) {
-        opt = ptr - 1;
-        while (opt[0] == ' ') {
-            --opt;
-        }
-
-        /* is the word long enough? */
-        if ((opt - hint) + 1 < strlen(long_opt)) {
-            return;
-        }
-
-        /* not the option we want */
-        if (strncmp(opt - (strlen(long_opt) - 1), long_opt, strlen(long_opt))) {
-            return;
-        }
+    if (hint - buf < strlen(opt) - 1) {
+        return 0;
     }
 
-    path = ptr;
-    ptr = strrchr(path, '/');
+    hint -= strlen(opt);
 
-    /* new relative path */
-    if (ptr == NULL) {
-        ptr = path;
-        dir = opendir(".");
-    } else {
-        char buf[FILENAME_MAX];
-
-        ++ptr;
-        sprintf(buf, "%.*s", (int)(ptr - path), path);
-
-        dir = opendir(buf);
+    if (!strncmp(hint, opt, strlen(opt))) {
+        return 1;
     }
 
-    if (dir == NULL) {
-        return;
-    }
-
-    while ((ent = readdir(dir))) {
-        if (ent->d_name[0] == '.') {
-            continue;
-        }
-
-        /* some serious pointer fun */
-        if (!strncmp(ptr, ent->d_name, strlen(ptr))) {
-            ++(*match_count);
-            *matches = realloc(*matches, *match_count * sizeof **matches);
-            //asprintf(&(*matches)[*match_count-1], "%.*s%s", (int)(ptr-hint), hint, ent->d_name);
-            (*matches)[*match_count-1] = malloc((ptr-hint)+strlen(ent->d_name)+1);
-            strncpy((*matches)[*match_count-1], hint, ptr-hint);
-            strcpy((*matches)[*match_count-1]+(ptr-hint), ent->d_name);
-        }
-    }
-
-    closedir(dir);
+    return 0;
 }
 
 void
-complete_cmd(const char *buf, linenoiseCompletions *lc)
+complete_cmd(const char *buf, const char *hint, linenoiseCompletions *lc)
 {
     char **matches = NULL;
     unsigned int match_count = 0, i;
@@ -136,32 +88,27 @@ complete_cmd(const char *buf, linenoiseCompletions *lc)
         || !strncmp(buf, "crl add ", 8) || !strncmp(buf, "crl remove ", 11)
 #endif
             ) {
-        get_path_completion(buf, NULL, &matches, &match_count);
-    } else if (!strncmp(buf, "copy-config ", 12) || !strncmp(buf, "validate ", 9)) {
-        get_path_completion(buf, "--src-config", &matches, &match_count);
-    } else if (!strncmp(buf, "edit-config ", 12)) {
-        get_path_completion(buf, "--config", &matches, &match_count);
-    } else if (!strncmp(buf, "get ", 4) || !strncmp(buf, "get-config ", 11) || !strncmp(buf, "subscribe ", 10)) {
-        get_path_completion(buf, "--filter-subtree", &matches, &match_count);
-        if (!match_count) {
-            get_path_completion(buf, "--out", &matches, &match_count);
-        }
-    } else if (!strncmp(buf, "get-schema ", 11)) {
-        get_path_completion(buf, "--out", &matches, &match_count);
-    } else if (!strncmp(buf, "user-rpc ", 9)) {
-        get_path_completion(buf, "--content", &matches, &match_count);
-        if (!match_count) {
-            get_path_completion(buf, "--out", &matches, &match_count);
-        }
-    } else {
-        get_cmd_completion(buf, &matches, &match_count);
-    }
+        linenoisePathCompletion(buf, hint, lc);
+    } else if ((!strncmp(buf, "copy-config ", 12) || !strncmp(buf, "validate ", 9)) && last_opt(buf, hint, "--src-config")) {
+        linenoisePathCompletion(buf, hint, lc);
+    } else if (!strncmp(buf, "edit-config ", 12) && last_opt(buf, hint, "--config")) {
+        linenoisePathCompletion(buf, hint, lc);
+    } else if ((!strncmp(buf, "get ", 4) || !strncmp(buf, "get-config ", 11) || !strncmp(buf, "subscribe ", 10))
+            && (last_opt(buf, hint, "--filter-subtree") || last_opt(buf, hint, "--out"))) {
+        linenoisePathCompletion(buf, hint, lc);
+    } else if (!strncmp(buf, "get-schema ", 11) && last_opt(buf, hint, "--out")) {
+        linenoisePathCompletion(buf, hint, lc);
+    } else if (!strncmp(buf, "user-rpc ", 9) && last_opt(buf, hint, "--content")) {
+        linenoisePathCompletion(buf, hint, lc);
+    } else if (!strchr(buf, ' ') && hint[0]) {
+        get_cmd_completion(hint, &matches, &match_count);
 
-    for (i = 0; i < match_count; ++i) {
-        linenoiseAddCompletion(lc, matches[i]);
-        free(matches[i]);
+        for (i = 0; i < match_count; ++i) {
+            linenoiseAddCompletion(lc, matches[i]);
+            free(matches[i]);
+        }
+        free(matches);
     }
-    free(matches);
 }
 
 char *
