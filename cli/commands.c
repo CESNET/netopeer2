@@ -1,7 +1,7 @@
 /**
  * @file commands.c
  * @author Michal Vasko <mvasko@cesnet.cz>
- * @brief libyang's yanglint tool commands
+ * @brief netopeer2-cli commands
  *
  * Copyright (c) 2015 CESNET, z.s.p.o.
  *
@@ -70,6 +70,62 @@ struct nc_session *session;
 volatile pthread_t ntf_tid;
 volatile int interleave;
 struct ly_ctx *ctx;
+
+struct history_file {
+    int *hist_idx;
+    char **file;
+    int count;
+} hist_file;
+
+static const char *
+get_hist_file(int hist_idx)
+{
+    int i;
+
+    if (!hist_idx) {
+        return NULL;
+    }
+
+    for (i = 0; i < hist_file.count; ++i) {
+        if (hist_file.hist_idx[i] == hist_idx) {
+            return hist_file.file[i];
+        }
+    }
+
+    return NULL;
+}
+
+void
+set_hist_file(int hist_idx, char *file)
+{
+    int i;
+
+    for (i = 0; i < hist_file.count; ++i) {
+        if (hist_file.hist_idx[i] == hist_idx) {
+            hist_file.file[i] = file;
+            return;
+        }
+    }
+
+    ++hist_file.count;
+    hist_file.hist_idx = realloc(hist_file.hist_idx, hist_file.count * sizeof *hist_file.hist_idx);
+    hist_file.file = realloc(hist_file.file, hist_file.count * sizeof *hist_file.file);
+
+    hist_file.hist_idx[hist_file.count - 1] = hist_idx;
+    hist_file.file[hist_file.count - 1] = file;
+}
+
+void
+free_hist_file(void)
+{
+    int i;
+
+    for (i = 0; i < hist_file.count; ++i) {
+        free(hist_file.file[i]);
+    }
+    free(hist_file.hist_idx);
+    free(hist_file.file);
+}
 
 struct arglist {
     char** list;
@@ -381,7 +437,7 @@ cmd_listen_help(void)
 void
 cmd_editor_help(void)
 {
-    printf("editor [--help] [<path/name_of_the_editor> | --none]\n");
+    printf("editor [--help] [<path/name-of-the-editor>]\n");
 }
 
 void
@@ -784,7 +840,7 @@ cmd_crl_help(void)
 #ifdef ENABLE_SSH
 
 int
-cmd_auth(const char *arg)
+cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
 {
     int i;
     short int pref;
@@ -906,11 +962,11 @@ cmd_auth(const char *arg)
 }
 
 int
-cmd_knownhosts(const char *arg)
+cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
 {
     char* ptr, *kh_file, *line = NULL, **pkeys = NULL, *text;
-    int del_idx = -1, i, j, pkey_len = 0, written;
-    size_t line_len, text_len;
+    int del_idx = -1, i, j, pkey_len = 0, written, text_len;
+    size_t line_len;
     FILE* file;
     struct passwd* pwd;
     struct arglist cmd;
@@ -1050,7 +1106,7 @@ cmd_knownhosts(const char *arg)
         text = malloc(text_len + 1);
         text[text_len] = '\0';
 
-        if (fread(text, 1, text_len, file) < text_len) {
+        if (fread(text, 1, text_len, file) < (unsigned)text_len) {
             ERROR("knownhosts", "Cannot read known hosts file (%s)", strerror(ferror(file)));
             free(text);
             fclose(file);
@@ -1426,7 +1482,7 @@ parse_crl(const char *name, const char *path)
 }
 
 int
-cmd_cert(const char *arg)
+cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
 {
     int ret;
     char* args = strdupa(arg);
@@ -1698,7 +1754,7 @@ cmd_cert(const char *arg)
 }
 
 int
-cmd_crl(const char *arg)
+cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
 {
     int ret;
     char *args = strdupa(arg);
@@ -2020,7 +2076,7 @@ error_cleanup:
 #endif /* ENABLE_TLS */
 
 int
-cmd_searchpath(const char *arg)
+cmd_searchpath(const char *arg, char **UNUSED(tmp_config_file))
 {
     const char *path;
     struct stat st;
@@ -2052,7 +2108,7 @@ cmd_searchpath(const char *arg)
 }
 
 int
-cmd_verb(const char *arg)
+cmd_verb(const char *arg, char **UNUSED(tmp_config_file))
 {
     const char *verb;
     if (strlen(arg) < 5) {
@@ -2078,7 +2134,7 @@ cmd_verb(const char *arg)
 }
 
 int
-cmd_disconnect(const char *UNUSED(arg))
+cmd_disconnect(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 {
     if (session == NULL) {
         ERROR("disconnect", "Not connected to any NETCONF server.");
@@ -2095,7 +2151,7 @@ cmd_disconnect(const char *UNUSED(arg))
 }
 
 int
-cmd_status(const char *UNUSED(arg))
+cmd_status(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 {
     const char *s, **cpblts;
     int i;
@@ -2222,26 +2278,26 @@ cmd_connect_listen(const char *arg, int is_connect)
 }
 
 int
-cmd_connect(const char *arg)
+cmd_connect(const char *arg, char **UNUSED(tmp_config_file))
 {
     return cmd_connect_listen(arg, 1);
 }
 
 int
-cmd_listen(const char *arg)
+cmd_listen(const char *arg, char **UNUSED(tmp_config_file))
 {
     return cmd_connect_listen(arg, 0);
 }
 
 int
-cmd_quit(const char *UNUSED(arg))
+cmd_quit(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 {
     done = 1;
     return 0;
 }
 
 int
-cmd_help(const char *arg)
+cmd_help(const char *arg, char **UNUSED(tmp_config_file))
 {
     int i;
     char *args = strdupa(arg);
@@ -2286,7 +2342,7 @@ generic_help:
 }
 
 int
-cmd_editor(const char *arg)
+cmd_editor(const char *arg, char **UNUSED(tmp_config_file))
 {
     char *cmd, *args = strdupa(arg), *ptr = NULL;
 
@@ -2294,16 +2350,9 @@ cmd_editor(const char *arg)
     cmd = strtok_r(NULL, " ", &ptr);
     if (cmd == NULL) {
         printf("Current editor: ");
-        if (strcmp(config_editor, "NONE") == 0) {
-            printf("(none)\n");
-        } else {
-            printf("%s\n", config_editor);
-        }
+        printf("%s\n", config_editor);
     } else if (strcmp(cmd, "--help") == 0 || strcmp(cmd, "-h") == 0) {
         cmd_editor_help();
-    } else if (strcmp(cmd, "--none") == 0) {
-        free(config_editor);
-        config_editor = strdup("NONE");
     } else {
         free(config_editor);
         config_editor = strdup(cmd);
@@ -2313,7 +2362,7 @@ cmd_editor(const char *arg)
 }
 
 int
-cmd_cancelcommit(const char *arg)
+cmd_cancelcommit(const char *arg, char **UNUSED(tmp_config_file))
 {
     struct nc_rpc *rpc;
     int c, ret;
@@ -2374,7 +2423,7 @@ cmd_cancelcommit(const char *arg)
 }
 
 int
-cmd_commit(const char *arg)
+cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
 {
     struct nc_rpc *rpc;
     int c, ret, confirmed = 0;
@@ -2448,7 +2497,7 @@ cmd_commit(const char *arg)
 }
 
 int
-cmd_copyconfig(const char *arg)
+cmd_copyconfig(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret;
     struct stat config_stat;
@@ -2590,7 +2639,7 @@ cmd_copyconfig(const char *arg)
     /* check if edit configuration data were specified */
     if ((source == NC_DATASTORE_CONFIG) && !src) {
         /* let user write edit data interactively */
-        src = readinput("Type the content of a configuration datastore.");
+        src = readinput("Type the content of a configuration datastore.", get_hist_file(ls.history_index), tmp_config_file);
         if (!src) {
             ERROR(__func__, "Reading configuration data failed.");
             goto fail;
@@ -2617,7 +2666,7 @@ fail:
 }
 
 int
-cmd_deleteconfig(const char *arg)
+cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
 {
     int c, ret;
     char *trg = NULL;
@@ -2691,7 +2740,7 @@ fail:
 }
 
 int
-cmd_discardchanges(const char *arg)
+cmd_discardchanges(const char *arg, char **UNUSED(tmp_config_file))
 {
     struct nc_rpc *rpc;
     int c, ret;
@@ -2748,7 +2797,7 @@ cmd_discardchanges(const char *arg)
 }
 
 int
-cmd_editconfig(const char *arg)
+cmd_editconfig(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret, content_param = 0;
     struct stat config_stat;
@@ -2900,7 +2949,7 @@ cmd_editconfig(const char *arg)
     /* check if edit configuration data were specified */
     if (content_param && !content) {
         /* let user write edit data interactively */
-        content = readinput("Type the content of the <edit-config>.");
+        content = readinput("Type the content of the <edit-config>.", get_hist_file(ls.history_index), tmp_config_file);
         if (!content) {
             ERROR(__func__, "Reading configuration data failed.");
             goto fail;
@@ -2925,7 +2974,7 @@ fail:
 }
 
 int
-cmd_get(const char *arg)
+cmd_get(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret, filter_param = 0;
     struct stat config_stat;
@@ -3047,7 +3096,7 @@ cmd_get(const char *arg)
     /* check if edit configuration data were specified */
     if (filter_param && !filter) {
         /* let user write edit data interactively */
-        filter = readinput("Type the content of the subtree filter.");
+        filter = readinput("Type the content of the subtree filter.", get_hist_file(ls.history_index), tmp_config_file);
         if (!filter) {
             ERROR(__func__, "Reading filter data failed.");
             goto fail;
@@ -3081,7 +3130,7 @@ fail:
 }
 
 int
-cmd_getconfig(const char *arg)
+cmd_getconfig(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret, filter_param = 0;
     struct stat config_stat;
@@ -3217,7 +3266,7 @@ cmd_getconfig(const char *arg)
     /* check if edit configuration data were specified */
     if (filter_param && !filter) {
         /* let user write edit data interactively */
-        filter = readinput("Type the content of the subtree filter.");
+        filter = readinput("Type the content of the subtree filter.", get_hist_file(ls.history_index), tmp_config_file);
         if (!filter) {
             ERROR(__func__, "Reading filter data failed.");
             goto fail;
@@ -3251,7 +3300,7 @@ fail:
 }
 
 int
-cmd_killsession(const char *arg)
+cmd_killsession(const char *arg, char **UNUSED(tmp_config_file))
 {
     struct nc_rpc *rpc;
     int c, ret;
@@ -3318,7 +3367,7 @@ cmd_killsession(const char *arg)
 }
 
 int
-cmd_lock(const char *arg)
+cmd_lock(const char *arg, char **UNUSED(tmp_config_file))
 {
     int c, ret;
     struct nc_rpc *rpc;
@@ -3389,7 +3438,7 @@ cmd_lock(const char *arg)
 }
 
 int
-cmd_unlock(const char *arg)
+cmd_unlock(const char *arg, char **UNUSED(tmp_config_file))
 {
     int c, ret;
     struct nc_rpc *rpc;
@@ -3460,7 +3509,7 @@ cmd_unlock(const char *arg)
 }
 
 int
-cmd_validate(const char *arg)
+cmd_validate(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret;
     struct stat config_stat;
@@ -3569,7 +3618,7 @@ cmd_validate(const char *arg)
     /* check if edit configuration data were specified */
     if ((source == NC_DATASTORE_CONFIG) && !src) {
         /* let user write edit data interactively */
-        src = readinput("Type the content of a configuration datastore.");
+        src = readinput("Type the content of a configuration datastore.", get_hist_file(ls.history_index), tmp_config_file);
         if (!src) {
             ERROR(__func__, "Reading configuration data failed.");
             goto fail;
@@ -3595,7 +3644,7 @@ fail:
 }
 
 int
-cmd_subscribe(const char *arg)
+cmd_subscribe(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret, filter_param = 0;
     struct stat config_stat;
@@ -3728,7 +3777,7 @@ cmd_subscribe(const char *arg)
     /* check if edit configuration data were specified */
     if (filter_param && !filter) {
         /* let user write edit data interactively */
-        filter = readinput("Type the content of the subtree filter.");
+        filter = readinput("Type the content of the subtree filter.", get_hist_file(ls.history_index), tmp_config_file);
         if (!filter) {
             ERROR(__func__, "Reading filter data failed.");
             goto fail;
@@ -3788,7 +3837,7 @@ fail:
 }
 
 int
-cmd_getschema(const char *arg)
+cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
 {
     int c, ret;
     char *model = NULL, *version = NULL, *format = NULL;
@@ -3879,7 +3928,7 @@ fail:
 }
 
 int
-cmd_userrpc(const char *arg)
+cmd_userrpc(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret;
     struct stat config_stat;
@@ -3963,7 +4012,7 @@ cmd_userrpc(const char *arg)
     /* check if edit configuration data were specified */
     if (!content) {
         /* let user write edit data interactively */
-        content = readinput("Type the content of a configuration datastore.");
+        content = readinput("Type the content of a configuration datastore.", get_hist_file(ls.history_index), tmp_config_file);
         if (!content) {
             ERROR(__func__, "Reading configuration data failed.");
             goto fail;

@@ -32,14 +32,17 @@
 #include <fcntl.h>
 #include <dirent.h>
 
+#include <libyang/libyang.h>
+#include <nc_client.h>
+
 #include "configuration.h"
 #include "commands.h"
-
-static const char rcsid[] __attribute__((used)) ="$Id: "__FILE__": "RCSID" $";
-
-struct cli_opts *opts;
+#include "linenoise/linenoise.h"
 
 extern int done;
+extern char *search_path;
+
+extern char *config_editor;
 
 /* NetConf Client home (appended to ~/) */
 #define NCC_DIR ".netopeer2-cli"
@@ -257,328 +260,183 @@ get_default_CRL_dir(DIR **ret_dir)
 void
 load_config(void)
 {
-//     char* netconf_dir, *history_file, *config_file;
-// #ifdef ENABLE_TLS
-//     struct stat st;
-//     char* trusted_dir, *crl_dir;
-// #endif
-//     char* tmp_cap;
-//     int i, ret, history_fd, config_fd;
-//     xmlDocPtr config_doc;
-//     xmlNodePtr config_cap, tmp_node;
-//
-// #ifndef DISABLE_LIBSSH
-//     char * key_priv, *key_pub, *prio;
-//     xmlNodePtr tmp_auth, tmp_pref, tmp_key;
-// #endif
-//
-//     if ((netconf_dir = get_netconf_dir()) == NULL) {
-//         return;
-//     }
-//
-//     if (opts != NULL) {
-//         for (i = 0; i < opts->key_count; ++i) {
-//             free(opts->keys[i]);
-//         }
-//         nc_cpblts_free(opts->cpblts);
-//         free(opts->config_editor);
-//         free(opts->keys);
-//         free(opts);
-//     }
-//     opts = calloc(1, sizeof(struct cli_options));
-//     opts->cpblts = nc_session_get_cpblts_default();
-//     opts->pubkey_auth_pref = 3;
-//     nc_ssh_pref(NC_SSH_AUTH_PUBLIC_KEYS, 3);
-//     opts->passwd_auth_pref = 2;
-//     nc_ssh_pref(NC_SSH_AUTH_PASSWORD, 2);
-//     opts->inter_auth_pref = 1;
-//     nc_ssh_pref(NC_SSH_AUTH_INTERACTIVE, 1);
-//
-// #ifdef ENABLE_TLS
-//     if (asprintf (&trusted_dir, "%s/%s", netconf_dir, CA_DIR) == -1) {
-//         ERROR("load_config", "asprintf() failed (%s:%d).", __FILE__, __LINE__);
-//         ERROR("load_config", "Unable to check trusted CA directory due to the previous error.");
-//         trusted_dir = NULL;
-//     } else {
-//         if (stat(trusted_dir, &st) == -1) {
-//             if (errno == ENOENT) {
-//                 ERROR("load_config", "Trusted CA directory (%s) does not exist, creating it", trusted_dir);
-//                 if (mkdir(trusted_dir, 0700) == -1) {
-//                     ERROR("load_config", "Trusted CA directory cannot be created (%s)", strerror(errno));
-//                 }
-//             } else {
-//                 ERROR("load_config", "Accessing the trusted CA directory failed (%s)", strerror(errno));
-//             }
-//         } else {
-//             if (!S_ISDIR(st.st_mode)) {
-//                 ERROR("load_config", "Accessing the trusted CA directory failed (Not a directory)");
-//             }
-//         }
-//     }
-//     free(trusted_dir);
-//
-//     if (asprintf (&crl_dir, "%s/%s", netconf_dir, CRL_DIR) == -1) {
-//         ERROR("load_config", "asprintf() failed (%s:%d).", __FILE__, __LINE__);
-//         ERROR("load_config", "Unable to check CRL directory due to the previous error.");
-//         crl_dir = NULL;
-//     } else {
-//         if (stat(crl_dir, &st) == -1) {
-//             if (errno == ENOENT) {
-//                 ERROR("load_config", "CRL directory (%s) does not exist, creating it", crl_dir);
-//                 if (mkdir(crl_dir, 0700) == -1) {
-//                     ERROR("load_config", "CRL directory cannot be created (%s)", strerror(errno));
-//                 }
-//             } else {
-//                 ERROR("load_config", "Accessing the CRL directory failed (%s)", strerror(errno));
-//             }
-//         } else {
-//             if (!S_ISDIR(st.st_mode)) {
-//                 ERROR("load_config", "Accessing the CRL directory failed (Not a directory)");
-//             }
-//         }
-//     }
-//     free(crl_dir);
-// #endif /* ENABLE_TLS */
-//
-//     if (asprintf(&history_file, "%s/history", netconf_dir) == -1) {
-//         ERROR("load_config", "asprintf() failed (%s:%d).", __FILE__, __LINE__);
-//         ERROR("load_config", "Unable to load commands history due to the previous error.");
-//         history_file = NULL;
-//     } else {
-//         ret = eaccess(history_file, R_OK);
-//         if (ret == -1) {
-//             if (errno == ENOENT) {
-//                 ERROR("load_config", "History file (%s) does not exist, creating it", history_file);
-//                 if ((history_fd = creat(history_file, 0600)) == -1) {
-//                     ERROR("load_config", "History file cannot be created (%s)", strerror(errno));
-//                 } else {
-//                     close(history_fd);
-//                 }
-//             } else {
-//                 ERROR("load_config", "Accessing the history file failed (%s)", strerror(errno));
-//             }
-//         } else {
-//             /* file exist and is accessible */
-//             if (read_history(history_file)) {
-//                 ERROR("load_config", "Failed to load history.");
-//             }
-//         }
-//     }
-//
-//     if (asprintf(&config_file, "%s/config.xml", netconf_dir) == -1) {
-//         ERROR("load_config", "asprintf() failed (%s:%d).", __FILE__, __LINE__);
-//         ERROR("load_config", "Unable to load configuration due to the previous error.");
-//         config_file = NULL;
-//     } else {
-//         ret = eaccess(config_file, R_OK);
-//         if (ret == -1) {
-//             if (errno == ENOENT) {
-//                 ERROR("load_config", "Configuration file (%s) does not exits, creating it", config_file);
-//                 if ((config_fd = creat(config_file, 0600)) == -1) {
-//                     ERROR("load_config", "Configuration file cannot be created (%s)", strerror(errno));
-//                 } else {
-//                     close(config_fd);
-//                 }
-//             } else {
-//                 ERROR("load_config", "Configuration file cannot accessed (%s)", strerror(errno));
-//             }
-//         } else {
-//             /* file exist and is accessible */
-//             if ((config_doc = xmlReadFile(config_file, NULL, XML_PARSE_NOBLANKS | XML_PARSE_NSCLEAN)) == NULL) {
-//                 ERROR("load_config", "Failed to load configuration of NETCONF client (xmlReadFile failed).");
-//             } else {
-//                 /* doc -> <netconf-client/>*/
-//                 if (config_doc->children != NULL && xmlStrEqual(config_doc->children->name, BAD_CAST "netconf-client")) {
-//                     tmp_node = config_doc->children->children;
-//                     while (tmp_node) {
-//                         if (xmlStrEqual(tmp_node->name, BAD_CAST "capabilities")) {
-//                             /* doc -> <netconf-client> -> <capabilities> */
-//                             nc_cpblts_free(opts->cpblts);
-//                             opts->cpblts = nc_cpblts_new(NULL);
-//                             config_cap = tmp_node->children;
-//                             while (config_cap) {
-//                                 tmp_cap = (char*)xmlNodeGetContent(config_cap);
-//                                 nc_cpblts_add(opts->cpblts, tmp_cap);
-//                                 free(tmp_cap);
-//                                 config_cap = config_cap->next;
-//                             }
-//                         } else if (xmlStrEqual(tmp_node->name, BAD_CAST "editor")) {
-//                             /* doc -> <netconf-client> -> <editor> */
-//                             opts->config_editor = (char*)xmlNodeGetContent(tmp_node);
-//                         }
-// #ifndef DISABLE_LIBSSH
-//                         else if (xmlStrEqual(tmp_node->name, BAD_CAST "authentication")) {
-//                             /* doc -> <netconf-client> -> <authentication> */
-//                             tmp_auth = tmp_node->children;
-//                             while (tmp_auth) {
-//                                 if (xmlStrEqual(tmp_auth->name, BAD_CAST "pref")) {
-//                                     tmp_pref = tmp_auth->children;
-//                                     while (tmp_pref) {
-//                                         prio = (char*) xmlNodeGetContent(tmp_pref);
-//                                         if (xmlStrEqual(tmp_pref->name, BAD_CAST "publickey")) {
-//                                             nc_ssh_pref(NC_SSH_AUTH_PUBLIC_KEYS, atoi(prio));
-//                                             opts->pubkey_auth_pref = atoi(prio);
-//                                         } else if (xmlStrEqual(tmp_pref->name, BAD_CAST "interactive")) {
-//                                             nc_ssh_pref(NC_SSH_AUTH_INTERACTIVE, atoi(prio));
-//                                             opts->inter_auth_pref = atoi(prio);
-//                                         } else if (xmlStrEqual(tmp_pref->name, BAD_CAST "password")) {
-//                                             nc_ssh_pref(NC_SSH_AUTH_PASSWORD, atoi(prio));
-//                                             opts->passwd_auth_pref = atoi(prio);
-//                                         }
-//                                         free(prio);
-//                                         tmp_pref = tmp_pref->next;
-//                                     }
-//                                 } else if (xmlStrEqual(tmp_auth->name, BAD_CAST "keys")) {
-//                                     tmp_key = tmp_auth->children;
-//                                     while (tmp_key) {
-//                                         if (xmlStrEqual(tmp_key->name, BAD_CAST "key-path")) {
-//                                             key_priv = (char*)xmlNodeGetContent(tmp_key);
-//                                             if (asprintf(&key_pub, "%s.pub", key_priv) == -1) {
-//                                                 ERROR("load_config", "asprintf() failed (%s:%d).", __FILE__, __LINE__);
-//                                                 ERROR("load_config", "Unable to set SSH keys pair due to the previous error.");
-//                                                 key_pub = NULL;
-//                                                 tmp_key = tmp_key->next;
-//                                                 continue;
-//                                             }
-//                                             nc_set_keypair_path(key_priv, key_pub);
-//                                             ++opts->key_count;
-//                                             opts->keys = realloc(opts->keys, opts->key_count*sizeof(char*));
-//                                             opts->keys[opts->key_count-1] = key_priv;
-//
-//                                             free(key_pub);
-//                                         }
-//                                         tmp_key = tmp_key->next;
-//                                     }
-//                                 }
-//                                 tmp_auth = tmp_auth->next;
-//                             }
-//                         }
-// #endif /* not DISABLE_LIBSSH */
-//                         tmp_node = tmp_node->next;
-//                     }
-//                 }
-//                 xmlFreeDoc(config_doc);
-//             }
-//         }
-//     }
-//
-//     free(config_file);
-//     free(history_file);
-//     free(netconf_dir);
+    char *netconf_dir, *history_file, *config_file;
+    struct lyxml_elem *config_xml = NULL, *child;
+    struct ly_ctx *ctx;
+
+#ifdef ENABLE_SSH
+    char *key_pub;
+    struct lyxml_elem *auth_child, *pref_child, *key_child;
+#endif
+
+    if ((netconf_dir = get_netconf_dir()) == NULL) {
+        return;
+    }
+
+    if (asprintf(&history_file, "%s/history", netconf_dir) == -1) {
+        ERROR(__func__, "asprintf() failed (%s:%d).", __FILE__, __LINE__);
+        ERROR(__func__, "Unable to load commands history due to the previous error.");
+        history_file = NULL;
+    } else {
+        if (eaccess(history_file, F_OK) && (errno == ENOENT)) {
+            ERROR(__func__, "No saved history.");
+        } else if (linenoiseHistoryLoad(history_file)) {
+            ERROR(__func__, "Failed to load history.");
+        }
+    }
+
+    ctx = ly_ctx_new(NULL);
+    if (!ctx) {
+        ERROR(__func__, "Failed to create context.");
+        ERROR(__func__, "Unable to load configuration due to the previous error.");
+        ctx = NULL;
+    } else {
+        if (asprintf(&config_file, "%s/config.xml", netconf_dir) == -1) {
+            ERROR(__func__, "asprintf() failed (%s:%d).", __FILE__, __LINE__);
+            ERROR(__func__, "Unable to load configuration due to the previous error.");
+            config_file = NULL;
+        } else if (eaccess(config_file, F_OK) && (errno == ENOENT)) {
+            ERROR(__func__, "No saved configuration.");
+        } else {
+            if ((config_xml = lyxml_read_path(ctx, config_file, 0)) == NULL) {
+                ERROR(__func__, "Failed to load configuration of NETCONF client (lyxml_read_path failed).");
+                config_xml = NULL;
+            } else {
+                /* doc -> <netconf-client/>*/
+                if (!strcmp(config_xml->name, "netconf-client")) {
+                    LY_TREE_FOR(config_xml->child, child) {
+                        if (!strcmp(child->name, "editor")) {
+                            /* doc -> <netconf-client> -> <editor> */
+                            config_editor = strdup(child->content);
+                        } else if (!strcmp(child->name, "searchpath")) {
+                            /* doc -> <netconf-client> -> <searchpath> */
+                            search_path = strdup(child->content);
+                        }
+#ifdef ENABLE_SSH
+                        else if (!strcmp(child->name, "authentication")) {
+                            /* doc -> <netconf-client> -> <authentication> */
+                            LY_TREE_FOR(child->child, auth_child) {
+                                if (!strcmp(auth_child->name, "pref")) {
+                                    LY_TREE_FOR(auth_child->child, pref_child) {
+                                        if (!strcmp(pref_child->name, "publickey")) {
+                                            nc_ssh_set_auth_pref(NC_SSH_AUTH_PUBLICKEY, atoi(pref_child->content));
+                                        } else if (!strcmp(pref_child->name, "interactive")) {
+                                            nc_ssh_set_auth_pref(NC_SSH_AUTH_INTERACTIVE, atoi(pref_child->content));
+                                        } else if (!strcmp(pref_child->name, "password")) {
+                                            nc_ssh_set_auth_pref(NC_SSH_AUTH_PASSWORD, atoi(pref_child->content));
+                                        }
+                                    }
+                                } else if (!strcmp(auth_child->name, "keys")) {
+                                    LY_TREE_FOR(auth_child->child, key_child) {
+                                        if (!strcmp(key_child->name, "key-path")) {
+                                            if (asprintf(&key_pub, "%s.pub", key_child->content) == -1) {
+                                                ERROR(__func__, "asprintf() failed (%s:%d).", __FILE__, __LINE__);
+                                                ERROR(__func__, "Unable to set SSH keys pair due to the previous error.");
+                                                continue;
+                                            }
+                                            nc_ssh_add_keypair(key_pub, key_child->content);
+                                            free(key_pub);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+#endif /* ENABLE_SSH */
+                    }
+                }
+            }
+        }
+    }
+
+    lyxml_free(ctx, config_xml);
+    ly_ctx_destroy(ctx);
+    free(config_file);
+    free(history_file);
+    free(netconf_dir);
 }
 
 void
 store_config(void)
 {
-//     char* netconf_dir, *history_file, *config_file, str_pref[8];
-//     const char* cap;
-//     int history_fd, ret, i;
-//     xmlDocPtr config_doc;
-//     xmlNodePtr config_node;
-//     FILE *config_f;
-//
-//     if ((netconf_dir = get_netconf_dir()) == NULL) {
-//         return;
-//     }
-//
-//     if (asprintf(&history_file, "%s/history", netconf_dir) == -1) {
-//         ERROR("store_config", "asprintf() failed (%s:%d).", __FILE__, __LINE__);
-//         ERROR("store_config", "Unable to store commands history due to the previous error.");
-//         history_file = NULL;
-//     } else {
-//         ret = eaccess(history_file, R_OK | W_OK);
-//         if (ret == -1) {
-//             if (errno == ENOENT) {
-//                 /* file does not exit, create it */
-//                 if ((history_fd = creat(history_file, 0600)) == -1) {
-//                     /* history file can not be created */
-//                 } else {
-//                     close(history_fd);
-//                 }
-//             }
-//             ERROR("store_config", "Accessing the history file failed (%s)", strerror(errno));
-//         }
-//
-//         if (write_history(history_file)) {
-//             ERROR("save_config", "Failed to save history.");
-//         }
-//         free(history_file);
-//     }
-//
-//     if (asprintf(&config_file, "%s/config.xml", netconf_dir) == -1) {
-//         ERROR("store_config", "asprintf() failed (%s:%d).", __FILE__, __LINE__);
-//         ERROR("store_config", "Unable to store configuration due to the previous error.");
-//         config_file = NULL;
-//     } else if (opts != NULL) {
-//         config_doc = xmlNewDoc(BAD_CAST "1.0");
-//         config_doc->children = xmlNewDocNode(config_doc, NULL, BAD_CAST "netconf-client", NULL);
-//         if (config_doc != NULL) {
-//             /* capabilities */
-//             config_node = xmlNewChild(config_doc->children, NULL, BAD_CAST "capabilities", NULL);
-//             nc_cpblts_iter_start(opts->cpblts);
-//             while ((cap = nc_cpblts_iter_next(opts->cpblts)) != NULL) {
-//                 xmlNewChild(config_node, NULL, BAD_CAST "capability", BAD_CAST cap);
-//             }
-//
-//             /* editor */
-//             if (opts->config_editor != NULL) {
-//                 xmlNewChild(config_doc->children, NULL, BAD_CAST "editor", BAD_CAST opts->config_editor);
-//             }
-//
-//             /* authentication */
-//             if (opts->pubkey_auth_pref != 3 || opts->passwd_auth_pref != 2 || opts->inter_auth_pref != 1 || opts->key_count > 0) {
-//                 config_node = xmlNewChild(config_doc->children, NULL, BAD_CAST "authentication", NULL);
-//
-//                 /* pref */
-//                 if (opts->pubkey_auth_pref != 3 || opts->passwd_auth_pref != 2 || opts->inter_auth_pref != 1) {
-//                     config_node = xmlNewChild(config_node, NULL, BAD_CAST "pref", NULL);
-//
-//                     sprintf(str_pref, "%d", opts->pubkey_auth_pref);
-//                     xmlNewChild(config_node, NULL, BAD_CAST "publickey", BAD_CAST str_pref);
-//                     sprintf(str_pref, "%d", opts->passwd_auth_pref);
-//                     xmlNewChild(config_node, NULL, BAD_CAST "password", BAD_CAST str_pref);
-//                     sprintf(str_pref, "%d", opts->inter_auth_pref);
-//                     xmlNewChild(config_node, NULL, BAD_CAST "interactive", BAD_CAST str_pref);
-//
-//                     config_node = config_node->parent;
-//                 }
-//
-//                 /* keys */
-//                 if (opts->key_count > 0) {
-//                     config_node = xmlNewChild(config_node, NULL, BAD_CAST "keys", NULL);
-//
-//                     for (i = 0; i < opts->key_count; ++i) {
-//                         xmlNewChild(config_node, NULL, BAD_CAST "key-path", BAD_CAST opts->keys[i]);
-//                     }
-//                 }
-//             }
-//
-//             if ((config_f = fopen(config_file, "w")) == NULL || xmlDocFormatDump(config_f, config_doc, 1) < 0) {
-//                 ERROR("store_config", "Cannot write configuration to file %s", config_file);
-//             } else {
-//                 fclose(config_f);
-//             }
-//             xmlFreeDoc(config_doc);
-//         } else {
-//             ERROR("store_config", "Cannot write configuration to file %s", config_file);
-//         }
-//     }
-//
-//     if (done && opts != NULL) {
-//         nc_cpblts_free(opts->cpblts);
-//         free(opts->config_editor);
-//         for (i = 0; i < opts->key_count; ++i) {
-//             free(opts->keys[i]);
-//         }
-//         free(opts->keys);
-//
-//         free(opts);
-//     }
-//
-//     free(netconf_dir);
-//     free(config_file);
-//
-//     if (done) {
-//         xmlCleanupParser();
-//     }
+    char *netconf_dir, *history_file, *config_file;
+    const char *priv_key;
+    int i, indent;
+    FILE *config_f = NULL;
+
+    if ((netconf_dir = get_netconf_dir()) == NULL) {
+        return;
+    }
+
+    if (asprintf(&history_file, "%s/history", netconf_dir) == -1) {
+        ERROR(__func__, "asprintf() failed (%s:%d).", __FILE__, __LINE__);
+        ERROR(__func__, "Unable to store commands history due to the previous error.");
+        history_file = NULL;
+    } else {
+        if (linenoiseHistorySave(history_file)) {
+            ERROR(__func__, "Failed to save history.");
+        }
+    }
+
+    if (asprintf(&config_file, "%s/config.xml", netconf_dir) == -1) {
+        ERROR(__func__, "asprintf() failed (%s:%d).", __FILE__, __LINE__);
+        ERROR(__func__, "Unable to store configuration due to the previous error.");
+        config_file = NULL;
+    } else if ((config_f = fopen(config_file, "w")) == NULL) {
+        ERROR(__func__, "fopen failed (%s).", strerror(errno));
+        ERROR(__func__, "Unable to store configuration due to the previous error.");
+    } else {
+        indent = 0;
+        fprintf(config_f, "%*.s<netconf-client>\n", indent, "");
+        ++indent;
+
+        /* editor */
+        fprintf(config_f, "%*.s<editor>%s</editor>\n", indent, "", config_editor);
+
+        /* search-path */
+        if (search_path) {
+            fprintf(config_f, "%*.s<searchpath>%s</searchpath>\n", indent, "", search_path);
+        }
+
+        /* authentication */
+        fprintf(config_f, "%*.s<authentication>\n", indent, "");
+        ++indent;
+
+        /* pref */
+        fprintf(config_f, "%*.s<pref>\n", indent, "");
+        ++indent;
+
+        fprintf(config_f, "%*.s<publickey>%d</publickey>\n", indent, "", nc_ssh_get_auth_pref(NC_SSH_AUTH_PUBLICKEY));
+        fprintf(config_f, "%*.s<password>%d</password>\n", indent, "", nc_ssh_get_auth_pref(NC_SSH_AUTH_PASSWORD));
+        fprintf(config_f, "%*.s<interactive>%d</interactive>\n", indent, "", nc_ssh_get_auth_pref(NC_SSH_AUTH_INTERACTIVE));
+
+        --indent;
+        fprintf(config_f, "%*.s</pref>\n", indent, "");
+
+        /* keys */
+        if (nc_ssh_get_keypair_count()) {
+            fprintf(config_f, "%*.s<keys>\n", indent, "");
+            ++indent;
+
+            /* key-pair */
+            for (i = 0; i < nc_ssh_get_keypair_count(); ++i) {
+                nc_ssh_get_keypair(i, NULL, &priv_key);
+                fprintf(config_f, "%*.s<key-path>%s</key-path>\n", indent, "", priv_key);
+            }
+
+            --indent;
+            fprintf(config_f, "%*.s</keys>\n", indent, "");
+        }
+
+        --indent;
+        fprintf(config_f, "%*.s</authentication>\n", indent, "");
+
+        --indent;
+        fprintf(config_f, "%*.s</netconf-client>\n", indent, "");
+
+        fclose(config_f);
+    }
+
+    free(history_file);
+    free(netconf_dir);
+    free(config_file);
 }

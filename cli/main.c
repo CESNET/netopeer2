@@ -1,7 +1,7 @@
 /**
  * @file main.c
- * @author Radek Krejci <rkrejci@cesnet.cz>
- * @brief libyang's yanglint tool
+ * @author Michal Vasko <mvasko@cesnet.cz>
+ * @brief netopeer2-cli tool
  *
  * Copyright (c) 2015 CESNET, z.s.p.o.
  *
@@ -37,6 +37,7 @@
 
 #include "commands.h"
 #include "completion.h"
+#include "configuration.h"
 #include "linenoise/linenoise.h"
 
 #if !defined(ENABLE_SSH) && !defined(ENABLE_TLS)
@@ -116,9 +117,9 @@ ly_print_clb(LY_LOG_LEVEL level, const char *msg)
 }
 
 int
-main(int argc, char **argv)
+main(void)
 {
-    char *cmd, *cmdline, *cmdstart;
+    char *cmd, *cmdline, *cmdstart, *tmp_config_file;
     int i, j;
 
 #ifdef ENABLE_SSH
@@ -129,7 +130,17 @@ main(int argc, char **argv)
     ly_set_log_clb(ly_print_clb);
     linenoiseSetCompletionCallback(complete_cmd);
 
-    config_editor = strdup("vim");
+    load_config();
+
+    if (!config_editor) {
+        config_editor = getenv("EDITOR");
+        if (config_editor) {
+            config_editor = strdup(config_editor);
+        }
+    }
+    if (!config_editor) {
+        config_editor = strdup("vi");
+    }
 
     while (!done) {
         /* get the command from user */
@@ -171,20 +182,27 @@ main(int argc, char **argv)
                     printf("%s\n", commands[i].helpstring);
                 }
             } else {
-                commands[i].func((const char *)cmdstart);
+                tmp_config_file = NULL;
+                commands[i].func((const char *)cmdstart, &tmp_config_file);
             }
         } else {
             /* if unknown command specified, tell it to user */
             fprintf(stderr, "%s: No such command, type 'help' for more information.\n", cmd);
         }
         linenoiseHistoryAdd(cmdline);
+        if (tmp_config_file) {
+            set_hist_file(ls.history_len - 1, tmp_config_file);
+        }
 
         free(cmd);
         free(cmdline);
     }
 
+    store_config();
+
     free(search_path);
     free(config_editor);
+    free_hist_file();
 
     ntf_tid = 0;
     if (session) {

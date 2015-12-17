@@ -1,7 +1,7 @@
 /**
  * @file completion.c
  * @author Michal Vasko <mvasko@cesnet.cz>
- * @brief libyang's yanglint tool auto completion
+ * @brief netopeer2-cli auto completion
  *
  * Copyright (c) 2015 CESNET, z.s.p.o.
  *
@@ -18,20 +18,26 @@
  *    may be used to endorse or promote products derived from this
  *    software without specific prior written permission.
  */
+#define _GNU_SOURCE
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <dirent.h>
 #include <errno.h>
 #include <string.h>
+
+#include <nc_client.h>
 
 #include "commands.h"
 #include "linenoise/linenoise.h"
 
 extern struct ly_ctx *ctx;
+extern char *config_editor;
 
 static void
 get_cmd_completion(const char *hint, char ***matches, unsigned int *match_count)
@@ -57,11 +63,11 @@ last_opt(const char *buf, const char *hint, const char *opt)
         --hint;
     } while (hint[0] == ' ');
 
-    if (hint - buf < strlen(opt) - 1) {
+    if ((unsigned)(hint - buf) < strlen(opt) - 1) {
         return 0;
     }
 
-    hint -= strlen(opt);
+    hint -= strlen(opt) - 1;
 
     if (!strncmp(hint, opt, strlen(opt))) {
         return 1;
@@ -112,9 +118,153 @@ complete_cmd(const char *buf, const char *hint, linenoiseCompletions *lc)
 }
 
 char *
-readinput(const char *instruction)
+readinput(const char *instruction, const char *old_tmp, char **new_tmp)
 {
-    /* TODO */
-    (void)instruction;
+    int tmpfd = -1, ret, size, oldfd;
+    pid_t pid, wait_pid;
+    char* tmpname = NULL, *input = NULL, *old_content = NULL, *ptr, *ptr2;
+
+    /* Create a unique temporary file */
+    asprintf(&tmpname, "/tmp/tmpXXXXXX.xml");
+    tmpfd = mkstemps(tmpname, 4);
+    if (tmpfd == -1) {
+        ERROR(__func__, "Failed to create a temporary file (%s).", strerror(errno));
+        goto fail;
+    }
+
+    /* Read the old content, if any */
+    if (old_tmp != NULL) {
+        oldfd = open(old_tmp, O_RDONLY);
+        if (oldfd != -1) {
+            size = lseek(oldfd, 0, SEEK_END);
+            lseek(oldfd, 0, SEEK_SET);
+            if (size > 0) {
+                old_content = malloc(size+1);
+                old_content[size] = '\0';
+                ret = read(oldfd, old_content, size);
+                if (ret != size) {
+                    free(old_content);
+                    old_content = NULL;
+                }
+            }
+            close(oldfd);
+        }
+    }
+
+
+    if (old_content) {
+        ret = write(tmpfd, old_content, strlen(old_content));
+        if ((unsigned)ret < strlen(old_content)) {
+            ERROR(__func__, "Failed to write the previous content (%s).", strerror(errno));
+            goto fail;
+        }
+
+    } else if (instruction) {
+        ret = write(tmpfd, "\n<!--#\n", 7);
+        ret += write(tmpfd, instruction, strlen(instruction));
+        ret += write(tmpfd, "\n-->\n", 5);
+        if ((unsigned)ret < 6+strlen(instruction)+5) {
+            ERROR(__func__, "Failed to write the instruction (%s).", strerror(errno));
+            goto fail;
+        }
+
+        ret = lseek(tmpfd, 0, SEEK_SET);
+        if (ret == -1) {
+            ERROR(__func__, "Rewinding the temporary file failed (%s).", strerror(errno));
+            goto fail;
+        }
+    }
+
+    if ((pid = vfork()) == -1) {
+        ERROR(__func__, "Fork failed (%s).", strerror(errno));
+        goto fail;
+    } else if (pid == 0) {
+        /* child */
+        execlp(config_editor, config_editor, tmpname, (char *)NULL);
+
+        ERROR(__func__, "Exec failed (%s).", strerror(errno));
+        exit(1);
+    } else {
+        /* parent */
+        wait_pid = wait(&ret);
+        if (wait_pid != pid) {
+            ERROR(__func__, "Child process other than the editor exited, weird.");
+            goto fail;
+        }
+        if (!WIFEXITED(ret)) {
+            ERROR(__func__, "Editor exited in a non-standard way.");
+            goto fail;
+        }
+    }
+
+    /* Get the size of the input */
+    size = lseek(tmpfd, 0, SEEK_END);
+    if (size == -1) {
+        ERROR(__func__, "Failed to get the size of the temporary file (%s).", strerror(errno));
+        goto fail;
+    } else if (size == 0) {
+        /* not a fail, just no input */
+        goto fail;
+    }
+    lseek(tmpfd, 0, SEEK_SET);
+
+    input = malloc(size+1);
+    input[size] = '\0';
+
+    /* Read the input */
+    ret = read(tmpfd, input, size);
+    if (ret < size) {
+        ERROR(__func__, "Failed to read from the temporary file (%s).", strerror(errno));
+        goto fail;
+    }
+
+    /* Remove the instruction comment */
+    if (!old_content && instruction) {
+        ptr = strstr(input, "\n<!--#\n");
+        if (!ptr) {
+            goto cleanup;
+        }
+        ptr2 = strstr(ptr, "\n-->\n");
+        /* The user could have deleted or modified the comment, ignore it then */
+        if (ptr2) {
+            ptr2 += 5;
+            memmove(ptr, ptr2, strlen(ptr2)+1);
+
+            /* Save the modified content */
+            if (ftruncate(tmpfd, 0) == -1) {
+                ERROR(__func__, "Failed to truncate the temporary file (%s).", strerror(errno));
+                goto fail;
+            }
+            lseek(tmpfd, 0, SEEK_SET);
+            ret = write(tmpfd, input, strlen(input));
+            if ((unsigned)ret < strlen(input)) {
+                ERROR(__func__, "Failed to write to the temporary file (%s).", strerror(errno));
+                goto fail;
+            }
+        }
+    }
+
+    if (new_tmp) {
+        *new_tmp = tmpname;
+    }
+
+cleanup:
+
+    close(tmpfd);
+    free(old_content);
+
+    return input;
+
+fail:
+    if (tmpfd > -1) {
+        close(tmpfd);
+    }
+    if (tmpname != NULL) {
+        unlink(tmpname);
+    }
+    free(tmpname);
+    free(old_content);
+    free(input);
+
     return NULL;
 }

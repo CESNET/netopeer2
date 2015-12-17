@@ -57,6 +57,8 @@ struct linenoiseState {
     size_t maxrows;     /* Maximum num of rows used so far (multiline mode) */
     int rawmode;
     int history_index;  /* The history index we are currently editing. */
+    char **history;
+    int history_len;
 };
 
 extern struct linenoiseState ls;

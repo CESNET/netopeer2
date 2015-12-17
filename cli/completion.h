@@ -1,7 +1,7 @@
 /**
- * @file main.c
+ * @file completion.h
  * @author Michal Vasko <mvasko@cesnet.cz>
- * @brief libyang's yanglint tool auto completion header
+ * @brief netopeer2-cli auto completion header
  *
  * Copyright (c) 2015 CESNET, z.s.p.o.
  *
@@ -24,8 +24,8 @@
 
 #include "linenoise/linenoise.h"
 
-void complete_cmd(const char *buf, linenoiseCompletions *lc);
+void complete_cmd(const char *buf, const char *hint, linenoiseCompletions *lc);
 
-char *readinput(const char *instruction);
+char *readinput(const char *instruction, const char *old_tmp, char **new_tmp);
 
 #endif /* COMPLETION_H_ */

@@ -1,7 +1,7 @@
 /**
  * @file commands.h
  * @author Michal Vasko <mvasko@cesnet.cz>
- * @brief libyang's yanglint tool commands header
+ * @brief netopeer2-cli commands header
  *
  * Copyright (c) 2015 CESNET, z.s.p.o.
  *
@@ -38,11 +38,15 @@ char some_msg[4096];
 
 typedef struct {
     char *name; /* User printable name of the function. */
-    int (*func)(const char*); /* Function to call to do the command. */
+    int (*func)(const char *, char **); /* Function to call to do the command. */
     void (*help_func)(void); /* Display command help. */
     char *helpstring; /* Documentation for this function. */
 } COMMAND;
 
 extern COMMAND commands[];
+
+void set_hist_file(int hist_idx, char *file);
+
+void free_hist_file(void);
 
 #endif /* COMMANDS_H_ */
