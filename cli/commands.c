@@ -34,13 +34,13 @@
 #include <unistd.h>
 #include <getopt.h>
 
+#include <libyang/libyang.h>
+#include <nc_client.h>
+
 #ifdef ENABLE_TLS
 #   include <openssl/pem.h>
 #   include <openssl/x509v3.h>
 #endif
-
-#include <libyang/libyang.h>
-#include <nc_client.h>
 
 #include "commands.h"
 #include "configuration.h"
