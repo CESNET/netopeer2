@@ -319,11 +319,11 @@ load_config(void)
                                 if (!strcmp(auth_child->name, "pref")) {
                                     LY_TREE_FOR(auth_child->child, pref_child) {
                                         if (!strcmp(pref_child->name, "publickey")) {
-                                            nc_ssh_set_auth_pref(NC_SSH_AUTH_PUBLICKEY, atoi(pref_child->content));
+                                            nc_ssh_client_set_auth_pref(NC_SSH_AUTH_PUBLICKEY, atoi(pref_child->content));
                                         } else if (!strcmp(pref_child->name, "interactive")) {
-                                            nc_ssh_set_auth_pref(NC_SSH_AUTH_INTERACTIVE, atoi(pref_child->content));
+                                            nc_ssh_client_set_auth_pref(NC_SSH_AUTH_INTERACTIVE, atoi(pref_child->content));
                                         } else if (!strcmp(pref_child->name, "password")) {
-                                            nc_ssh_set_auth_pref(NC_SSH_AUTH_PASSWORD, atoi(pref_child->content));
+                                            nc_ssh_client_set_auth_pref(NC_SSH_AUTH_PASSWORD, atoi(pref_child->content));
                                         }
                                     }
                                 } else if (!strcmp(auth_child->name, "keys")) {
@@ -334,7 +334,7 @@ load_config(void)
                                                 ERROR(__func__, "Unable to set SSH keys pair due to the previous error.");
                                                 continue;
                                             }
-                                            nc_ssh_add_keypair(key_pub, key_child->content);
+                                            nc_ssh_client_add_keypair(key_pub, key_child->content);
                                             free(key_pub);
                                         }
                                     }
@@ -405,21 +405,21 @@ store_config(void)
         fprintf(config_f, "%*.s<pref>\n", indent, "");
         ++indent;
 
-        fprintf(config_f, "%*.s<publickey>%d</publickey>\n", indent, "", nc_ssh_get_auth_pref(NC_SSH_AUTH_PUBLICKEY));
-        fprintf(config_f, "%*.s<password>%d</password>\n", indent, "", nc_ssh_get_auth_pref(NC_SSH_AUTH_PASSWORD));
-        fprintf(config_f, "%*.s<interactive>%d</interactive>\n", indent, "", nc_ssh_get_auth_pref(NC_SSH_AUTH_INTERACTIVE));
+        fprintf(config_f, "%*.s<publickey>%d</publickey>\n", indent, "", nc_ssh_client_get_auth_pref(NC_SSH_AUTH_PUBLICKEY));
+        fprintf(config_f, "%*.s<password>%d</password>\n", indent, "", nc_ssh_client_get_auth_pref(NC_SSH_AUTH_PASSWORD));
+        fprintf(config_f, "%*.s<interactive>%d</interactive>\n", indent, "", nc_ssh_client_get_auth_pref(NC_SSH_AUTH_INTERACTIVE));
 
         --indent;
         fprintf(config_f, "%*.s</pref>\n", indent, "");
 
         /* keys */
-        if (nc_ssh_get_keypair_count()) {
+        if (nc_ssh_client_get_keypair_count()) {
             fprintf(config_f, "%*.s<keys>\n", indent, "");
             ++indent;
 
             /* key-pair */
-            for (i = 0; i < nc_ssh_get_keypair_count(); ++i) {
-                nc_ssh_get_keypair(i, NULL, &priv_key);
+            for (i = 0; i < nc_ssh_client_get_keypair_count(); ++i) {
+                nc_ssh_client_get_keypair(i, NULL, &priv_key);
                 fprintf(config_f, "%*.s<key-path>%s</key-path>\n", indent, "", priv_key);
             }
 

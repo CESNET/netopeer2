@@ -272,7 +272,8 @@ static int
 cli_send_recv(struct nc_rpc *rpc, FILE *output)
 {
     char *str, *model_data, *ptr, *ptr2;
-    int i, j, ret;
+    int ret;
+    uint16_t i, j;
     uint64_t msgid;
     NC_MSG_TYPE msgtype;
     struct nc_reply *reply;
@@ -298,11 +299,11 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
     }
 
     switch (reply->type) {
-    case NC_REPLY_OK:
+    case NC_RPL_OK:
         fprintf(output, "OK\n");
         ret = 0;
         break;
-    case NC_REPLY_DATA:
+    case NC_RPL_DATA:
         data_rpl = (struct nc_reply_data *)reply;
 
         /* special case */
@@ -341,10 +342,10 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
         }
         ret = 0;
         break;
-    case NC_REPLY_ERROR:
+    case NC_RPL_ERROR:
         fprintf(output, "ERROR\n");
         error = (struct nc_reply_error *)reply;
-        for (i = 0; i < error->err_count; ++i) {
+        for (i = 0; i < error->count; ++i) {
             if (error->err[i].type) {
                 fprintf(output, "\ttype:     %s\n", error->err[i].type);
             }
@@ -857,17 +858,17 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
         cmd = strtok_r(NULL, " ", &ptr);
         if (cmd == NULL) {
             printf("The SSH authentication method preferences:\n");
-            if ((pref = nc_ssh_get_auth_pref(NC_SSH_AUTH_PUBLICKEY)) < 0) {
+            if ((pref = nc_ssh_client_get_auth_pref(NC_SSH_AUTH_PUBLICKEY)) < 0) {
                 printf("\t'publickey':   disabled\n");
             } else {
                 printf("\t'publickey':   %d\n", pref);
             }
-            if ((pref = nc_ssh_get_auth_pref(NC_SSH_AUTH_PASSWORD)) < 0) {
+            if ((pref = nc_ssh_client_get_auth_pref(NC_SSH_AUTH_PASSWORD)) < 0) {
                 printf("\t'password':    disabled\n");
             } else {
                 printf("\t'password':    %d\n", pref);
             }
-            if ((pref = nc_ssh_get_auth_pref(NC_SSH_AUTH_INTERACTIVE)) < 0) {
+            if ((pref = nc_ssh_client_get_auth_pref(NC_SSH_AUTH_INTERACTIVE)) < 0) {
                 printf("\t'interactive': disabled\n");
             } else {
                 printf("\t'interactive': %d\n", pref);
@@ -879,7 +880,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
                 ERROR("auth pref publickey", "Missing the preference argument");
                 return EXIT_FAILURE;
             } else {
-                nc_ssh_set_auth_pref(NC_SSH_AUTH_PUBLICKEY, atoi(cmd));
+                nc_ssh_client_set_auth_pref(NC_SSH_AUTH_PUBLICKEY, atoi(cmd));
             }
         } else if (strcmp(cmd, "interactive") == 0) {
             cmd = strtok_r(NULL, " ", &ptr);
@@ -887,7 +888,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
                 ERROR("auth pref interactive", "Missing the preference argument");
                 return EXIT_FAILURE;
             } else {
-                nc_ssh_set_auth_pref(NC_SSH_AUTH_INTERACTIVE, atoi(cmd));
+                nc_ssh_client_set_auth_pref(NC_SSH_AUTH_INTERACTIVE, atoi(cmd));
             }
         } else if (strcmp(cmd, "password") == 0) {
             cmd = strtok_r(NULL, " ", &ptr);
@@ -895,7 +896,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
                 ERROR("auth pref password", "Missing the preference argument");
                 return EXIT_FAILURE;
             } else {
-                nc_ssh_set_auth_pref(NC_SSH_AUTH_PASSWORD, atoi(cmd));
+                nc_ssh_client_set_auth_pref(NC_SSH_AUTH_PASSWORD, atoi(cmd));
             }
         } else {
             ERROR("auth pref", "Unknown authentication method (%s)", cmd);
@@ -906,11 +907,11 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
         cmd = strtok_r(NULL, " ", &ptr);
         if (cmd == NULL) {
             printf("The keys used for SSH authentication:\n");
-            if (nc_ssh_get_keypair_count() == 0) {
+            if (nc_ssh_client_get_keypair_count() == 0) {
                 printf("(none)\n");
             } else {
-                for (i = 0; i < nc_ssh_get_keypair_count(); ++i) {
-                    nc_ssh_get_keypair(i, &pub_key, &priv_key);
+                for (i = 0; i < nc_ssh_client_get_keypair_count(); ++i) {
+                    nc_ssh_client_get_keypair(i, &pub_key, &priv_key);
                     printf("#%d: %s (private %s)\n", i, pub_key, priv_key);
                 }
             }
@@ -922,7 +923,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
             }
 
             asprintf(&str, "%s.pub", cmd);
-            if (nc_ssh_add_keypair(str, cmd) != EXIT_SUCCESS) {
+            if (nc_ssh_client_add_keypair(str, cmd) != EXIT_SUCCESS) {
                 ERROR("auth keys add", "Failed to add key");
                 free(str);
                 return EXIT_FAILURE;
@@ -944,7 +945,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
             }
 
             i = strtol(cmd, &ptr, 10);
-            if (ptr[0] || nc_ssh_del_keypair(i)) {
+            if (ptr[0] || nc_ssh_client_del_keypair(i)) {
                 ERROR("auth keys remove", "Wrong index");
                 return EXIT_FAILURE;
             }
@@ -2410,7 +2411,7 @@ cmd_cancelcommit(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    rpc = nc_rpc_cancel(persist_id, NC_RPC_PARAMTYPE_FREE);
+    rpc = nc_rpc_cancel(persist_id, NC_PARAMTYPE_FREE);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         return EXIT_FAILURE;
@@ -2484,7 +2485,7 @@ cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    rpc = nc_rpc_commit(confirmed, confirm_timeout, persist, persist_id, NC_RPC_PARAMTYPE_FREE);
+    rpc = nc_rpc_commit(confirmed, confirm_timeout, persist, persist_id, NC_PARAMTYPE_FREE);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         return EXIT_FAILURE;
@@ -2647,7 +2648,7 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
     }
 
     /* create requests */
-    rpc = nc_rpc_copy(target, trg, source, src, wd, NC_RPC_PARAMTYPE_FREE);
+    rpc = nc_rpc_copy(target, trg, source, src, wd, NC_PARAMTYPE_FREE);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -2722,7 +2723,7 @@ cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
     }
 
     /* create requests */
-    rpc = nc_rpc_delete(target, trg, NC_RPC_PARAMTYPE_FREE);
+    rpc = nc_rpc_delete(target, trg, NC_PARAMTYPE_FREE);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -2956,7 +2957,7 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
         }
     }
 
-    rpc = nc_rpc_edit(target, op, test, err, content, NC_RPC_PARAMTYPE_FREE);
+    rpc = nc_rpc_edit(target, op, test, err, content, NC_PARAMTYPE_FREE);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -3104,7 +3105,7 @@ cmd_get(const char *arg, char **tmp_config_file)
     }
 
     /* create requests */
-    rpc = nc_rpc_get(filter, wd, NC_RPC_PARAMTYPE_FREE);
+    rpc = nc_rpc_get(filter, wd, NC_PARAMTYPE_FREE);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -3274,7 +3275,7 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
     }
 
     /* create requests */
-    rpc = nc_rpc_getconfig(source, filter, wd, NC_RPC_PARAMTYPE_FREE);
+    rpc = nc_rpc_getconfig(source, filter, wd, NC_PARAMTYPE_FREE);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -3626,7 +3627,7 @@ cmd_validate(const char *arg, char **tmp_config_file)
     }
 
     /* create requests */
-    rpc = nc_rpc_validate(source, src, NC_RPC_PARAMTYPE_FREE);
+    rpc = nc_rpc_validate(source, src, NC_PARAMTYPE_FREE);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -3785,7 +3786,7 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
     }
 
     /* create requests */
-    rpc = nc_rpc_subscribe(stream, filter, start, stop, NC_RPC_PARAMTYPE_FREE);
+    rpc = nc_rpc_subscribe(stream, filter, start, stop, NC_PARAMTYPE_FREE);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -3900,7 +3901,7 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    rpc = nc_rpc_getschema(model, version, format, NC_RPC_PARAMTYPE_FREE);
+    rpc = nc_rpc_getschema(model, version, format, NC_PARAMTYPE_FREE);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -4020,7 +4021,7 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
     }
 
     /* create requests */
-    rpc = nc_rpc_generic_xml(content, NC_RPC_PARAMTYPE_FREE);
+    rpc = nc_rpc_generic_xml(content, NC_PARAMTYPE_FREE);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;

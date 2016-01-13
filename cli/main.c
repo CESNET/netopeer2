@@ -123,7 +123,7 @@ main(void)
     int i, j;
 
 #ifdef ENABLE_SSH
-    nc_ssh_client_init();
+    nc_ssh_init();
 #endif
 
     nc_set_print_clb(lnc2_print_clb);
@@ -212,12 +212,14 @@ main(void)
         ly_ctx_destroy(ctx);
     }
 
-#ifdef ENABLE_SSH
-    nc_ssh_client_destroy();
+#ifdef ENABLE_TLS
+    /* must be before SSH */
+    nc_tls_client_destroy();
 #endif
 
-#ifdef ENABLE_TLS
-    nc_tls_client_destroy();
+#ifdef ENABLE_SSH
+    nc_ssh_client_destroy();
+    nc_ssh_destroy();
 #endif
 
     return 0;
