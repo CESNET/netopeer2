@@ -77,6 +77,8 @@ struct history_file {
     int count;
 } hist_file;
 
+int cmd_disconnect(const char *arg, char **tmp_config_file);
+
 static const char *
 get_hist_file(int hist_idx)
 {
@@ -283,6 +285,9 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
     msgtype = nc_send_rpc(session, rpc, 1000, &msgid);
     if (msgtype == NC_MSG_ERROR) {
         ERROR(__func__, "Failed to send the RPC.");
+        if (nc_session_get_status(session) != NC_STATUS_RUNNING) {
+            cmd_disconnect(NULL, NULL);
+        }
         return -1;
     } else if (msgtype == NC_MSG_WOULDBLOCK) {
         ERROR(__func__, "Timeout for sending the RPC expired.");
@@ -292,6 +297,9 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
     msgtype = nc_recv_reply(session, rpc, msgid, 1000, &reply);
     if (msgtype == NC_MSG_ERROR) {
         ERROR(__func__, "Failed to receive a reply.");
+        if (nc_session_get_status(session) != NC_STATUS_RUNNING) {
+            cmd_disconnect(NULL, NULL);
+        }
         return -1;
     } else if (msgtype == NC_MSG_WOULDBLOCK) {
         ERROR(__func__, "Timeout for receiving a reply expired.");
@@ -315,7 +323,7 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
             if (!str) {
                 ERROR(__func__, "Failed to get the model data from the reply.\n");
                 nc_reply_free(reply);
-                return EXIT_FAILURE;
+                return 1;
             }
 
             ptr = strchr(str, '>');
