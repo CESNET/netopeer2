@@ -122,6 +122,9 @@ main(void)
     char *cmd, *cmdline, *cmdstart, *tmp_config_file;
     int i, j;
 
+#ifdef ENABLE_TLS
+    nc_tls_init();
+#endif
 #ifdef ENABLE_SSH
     nc_ssh_init();
 #endif
@@ -215,6 +218,7 @@ main(void)
 #ifdef ENABLE_TLS
     /* must be before SSH */
     nc_tls_client_destroy();
+    nc_tls_destroy();
 #endif
 
 #ifdef ENABLE_SSH

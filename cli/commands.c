@@ -249,7 +249,7 @@ cli_ntf_thread(void *arg)
             }
 
             /* TODO print datetime */
-            lyd_print_file(output, notif->tree, LYD_JSON);
+            lyd_print_file(output, notif->tree, LYD_JSON, 0);
             fprintf(output, "\n");
             fflush(output);
 
@@ -344,7 +344,7 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
         if (output == stdout) {
             fprintf(output, "DATA\n");
         }
-        lyd_print_file(output, data_rpl->data, LYD_JSON);
+        lyd_print_file(output, data_rpl->data, LYD_JSON, 0);
         if (output == stdout) {
             fprintf(output, "\n");
         }
