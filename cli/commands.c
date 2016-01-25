@@ -433,13 +433,13 @@ void
 cmd_listen_help(void)
 {
 #if defined(ENABLE_SSH) && defined(ENABLE_TLS)
-    printf("listen [--help] [--timeout <sec>] [--port <num>]\n");
+    printf("listen [--help] [--timeout <sec>] [--host <hostname>] [--port <num>]\n");
     printf("   SSH [--ssh] [--login <username>]\n");
     printf("   TLS  --tls  [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
 #elif defined(ENABLE_SSH)
-    printf("listen [--help] [--ssh] [--timeout <sec>] [--port <num>] [--login <username>]\n");
+    printf("listen [--help] [--ssh] [--timeout <sec>] [--host <hostname>] [--port <num>] [--login <username>]\n");
 #elif defined(ENABLE_TLS)
-    printf("listen [--help] [--tls] [--timeout <sec>] [--port <num>] [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
+    printf("listen [--help] [--tls] [--timeout <sec>] [--host <hostname>] [--port <num>] [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
 #endif
 }
 
@@ -1192,6 +1192,7 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
         struct option listen_long_options[] = {
             {"ssh", 0, 0, 's'},
             {"timeout", 1, 0, 'i'},
+            {"host", 1, 0, 'o'},
             {"port", 1, 0, 'p'},
             {"login", 1, 0, 'l'},
             {0, 0, 0, 0}
@@ -1202,7 +1203,7 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
     /* set back to start to be able to use getopt() repeatedly */
     optind = 0;
 
-    while ((c = getopt_long(cmd->count, cmd->list, (is_connect ? "so:p:l:" : "si:p:l:"), long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd->count, cmd->list, (is_connect ? "so:p:l:" : "si:o:p:l:"), long_options, &option_index)) != -1) {
         switch (c) {
         case 's':
             /* we know already */
@@ -1234,11 +1235,6 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
         }
     }
 
-    /* default port */
-    if (!port) {
-        port = (is_connect ? NC_PORT_SSH : NC_PORT_CH_SSH);
-    }
-
     /* default user */
     if (!user) {
         pw = getpwuid(getuid());
@@ -1253,6 +1249,11 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
     ctx = ly_ctx_new(search_path);
 
     if (is_connect) {
+        /* default port */
+        if (!port) {
+            port = NC_PORT_SSH;
+        }
+
         /* default hostname */
         if (!host) {
             host = "localhost";
@@ -1267,6 +1268,16 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
             return EXIT_FAILURE;
         }
     } else {
+        /* default port */
+        if (!port) {
+            port = NC_PORT_CH_SSH;
+        }
+
+        /* default hostname */
+        if (!host) {
+            host = "::0";
+        }
+
         /* default timeout */
         if (!timeout) {
             timeout = CLI_CH_TIMEOUT;
@@ -1274,7 +1285,7 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
 
         /* create the session */
         ERROR(func_name, "Waiting %ds for an SSH Call Home connection on port %u...", timeout, port);
-        session = nc_callhome_accept_ssh(port, user, timeout * 1000, ctx);
+        session = nc_callhome_accept_ssh(host, port, user, timeout * 1000, ctx);
         if (!session) {
             ERROR(func_name, "Receiving SSH Call Home on port %d as user \"%s\" failed.", port, user);
             ly_ctx_destroy(ctx);
@@ -1930,6 +1941,7 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         struct option listen_long_options[] = {
             {"tls", 0, 0, 't'},
             {"timeout", 1, 0, 'i'},
+            {"host", 1, 0, 'o'},
             {"port", 1, 0, 'p'},
             {"cert", 1, 0, 'c'},
             {"key", 1, 0, 'k'},
@@ -1942,7 +1954,7 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
     /* set back to start to be able to use getopt() repeatedly */
     optind = 0;
 
-    while ((c = getopt_long(cmd->count, cmd->list, (is_connect ? "to:p:c:k:r:" : "ti:p:c:k:r:"), long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd->count, cmd->list, (is_connect ? "to:p:c:k:r:" : "ti:o:p:c:k:r:"), long_options, &option_index)) != -1) {
         switch (c) {
         case 't':
             /* we know already */
@@ -2029,17 +2041,17 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         goto error_cleanup;
     }
 
-    /* default port */
-    if (!port) {
-        port = (is_connect ? NC_PORT_TLS : NC_PORT_CH_TLS);
-    }
-
     if (ctx) {
         ly_ctx_destroy(ctx);
     }
     ctx = ly_ctx_new(search_path);
 
     if (is_connect) {
+        /* default port */
+        if (!port) {
+            port = NC_PORT_TLS;
+        }
+
         /* default host */
         if (!host) {
             host = "localhost";
@@ -2057,9 +2069,19 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
             timeout = CLI_CH_TIMEOUT;
         }
 
+        /* default port */
+        if (!port) {
+            port = NC_PORT_CH_TLS;
+        }
+
+        /* default host */
+        if (!host) {
+            host = "::0";
+        }
+
         /* create the session */
         ERROR(func_name, "Waiting %ds for a TLS Call Home connection on port %u...", timeout, port);
-        session = nc_callhome_accept_tls(port, timeout * 1000, ctx);
+        session = nc_callhome_accept_tls(host, port, timeout * 1000, ctx);
         if (!session) {
             ERROR(func_name, "Receiving TLS Call Home on port %d failed.", port);
             goto error_cleanup;
