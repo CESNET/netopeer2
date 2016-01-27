@@ -866,17 +866,17 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
         cmd = strtok_r(NULL, " ", &ptr);
         if (cmd == NULL) {
             printf("The SSH authentication method preferences:\n");
-            if ((pref = nc_ssh_client_get_auth_pref(NC_SSH_AUTH_PUBLICKEY)) < 0) {
+            if ((pref = nc_client_ssh_get_auth_pref(NC_SSH_AUTH_PUBLICKEY)) < 0) {
                 printf("\t'publickey':   disabled\n");
             } else {
                 printf("\t'publickey':   %d\n", pref);
             }
-            if ((pref = nc_ssh_client_get_auth_pref(NC_SSH_AUTH_PASSWORD)) < 0) {
+            if ((pref = nc_client_ssh_get_auth_pref(NC_SSH_AUTH_PASSWORD)) < 0) {
                 printf("\t'password':    disabled\n");
             } else {
                 printf("\t'password':    %d\n", pref);
             }
-            if ((pref = nc_ssh_client_get_auth_pref(NC_SSH_AUTH_INTERACTIVE)) < 0) {
+            if ((pref = nc_client_ssh_get_auth_pref(NC_SSH_AUTH_INTERACTIVE)) < 0) {
                 printf("\t'interactive': disabled\n");
             } else {
                 printf("\t'interactive': %d\n", pref);
@@ -888,7 +888,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
                 ERROR("auth pref publickey", "Missing the preference argument");
                 return EXIT_FAILURE;
             } else {
-                nc_ssh_client_set_auth_pref(NC_SSH_AUTH_PUBLICKEY, atoi(cmd));
+                nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PUBLICKEY, atoi(cmd));
             }
         } else if (strcmp(cmd, "interactive") == 0) {
             cmd = strtok_r(NULL, " ", &ptr);
@@ -896,7 +896,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
                 ERROR("auth pref interactive", "Missing the preference argument");
                 return EXIT_FAILURE;
             } else {
-                nc_ssh_client_set_auth_pref(NC_SSH_AUTH_INTERACTIVE, atoi(cmd));
+                nc_client_ssh_set_auth_pref(NC_SSH_AUTH_INTERACTIVE, atoi(cmd));
             }
         } else if (strcmp(cmd, "password") == 0) {
             cmd = strtok_r(NULL, " ", &ptr);
@@ -904,7 +904,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
                 ERROR("auth pref password", "Missing the preference argument");
                 return EXIT_FAILURE;
             } else {
-                nc_ssh_client_set_auth_pref(NC_SSH_AUTH_PASSWORD, atoi(cmd));
+                nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PASSWORD, atoi(cmd));
             }
         } else {
             ERROR("auth pref", "Unknown authentication method (%s)", cmd);
@@ -915,11 +915,11 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
         cmd = strtok_r(NULL, " ", &ptr);
         if (cmd == NULL) {
             printf("The keys used for SSH authentication:\n");
-            if (nc_ssh_client_get_keypair_count() == 0) {
+            if (nc_client_ssh_get_keypair_count() == 0) {
                 printf("(none)\n");
             } else {
-                for (i = 0; i < nc_ssh_client_get_keypair_count(); ++i) {
-                    nc_ssh_client_get_keypair(i, &pub_key, &priv_key);
+                for (i = 0; i < nc_client_ssh_get_keypair_count(); ++i) {
+                    nc_client_ssh_get_keypair(i, &pub_key, &priv_key);
                     printf("#%d: %s (private %s)\n", i, pub_key, priv_key);
                 }
             }
@@ -931,7 +931,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
             }
 
             asprintf(&str, "%s.pub", cmd);
-            if (nc_ssh_client_add_keypair(str, cmd) != EXIT_SUCCESS) {
+            if (nc_client_ssh_add_keypair(str, cmd) != EXIT_SUCCESS) {
                 ERROR("auth keys add", "Failed to add key");
                 free(str);
                 return EXIT_FAILURE;
@@ -953,7 +953,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
             }
 
             i = strtol(cmd, &ptr, 10);
-            if (ptr[0] || nc_ssh_client_del_keypair(i)) {
+            if (ptr[0] || nc_client_ssh_del_keypair(i)) {
                 ERROR("auth keys remove", "Wrong index");
                 return EXIT_FAILURE;
             }
@@ -1175,7 +1175,7 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
     char *host = NULL, *user = NULL;
     struct passwd *pw;
     unsigned short port = 0;
-    int c, timeout = 0;
+    int c, timeout = 0, ret;
     struct option *long_options;
     int option_index = 0;
 
@@ -1259,8 +1259,9 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
             host = "localhost";
         }
 
+        nc_client_ssh_set_username(user);
         /* create the session */
-        session = nc_connect_ssh(host, port, user, ctx);
+        session = nc_connect_ssh(host, port, ctx);
         if (session == NULL) {
             ERROR(func_name, "Connecting to the %s:%d as user \"%s\" failed.", host, port, user);
             ly_ctx_destroy(ctx);
@@ -1284,9 +1285,12 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
         }
 
         /* create the session */
-        ERROR(func_name, "Waiting %ds for an SSH Call Home connection on port %u...", timeout, port);
-        session = nc_callhome_accept_ssh(host, port, user, timeout * 1000, ctx);
-        if (!session) {
+        nc_client_ssh_ch_set_username(user);
+        nc_client_ssh_ch_add_bind_listen(host, port);
+        printf("Waiting %ds for an SSH Call Home connection on port %u...\n", timeout, port);
+        ret = nc_accept_callhome(timeout * 1000, ctx, &session);
+        nc_client_ssh_ch_del_bind(host, port);
+        if (ret) {
             ERROR(func_name, "Receiving SSH Call Home on port %d as user \"%s\" failed.", port, user);
             ly_ctx_destroy(ctx);
             ctx = NULL;
@@ -1920,7 +1924,7 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
     char *host = NULL;
     DIR *dir = NULL;
     struct dirent* d;
-    int c, n, timeout = 0;
+    int c, n, timeout = 0, ret;
     char *cert = NULL, *key = NULL, *trusted_dir = NULL, *crl_dir = NULL, *trusted_store = NULL;
     unsigned short port = 0;
     struct option *long_options;
@@ -2036,10 +2040,9 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         goto error_cleanup;
     }
 
-    if (nc_tls_client_init(cert, key, trusted_store, trusted_dir, NULL, crl_dir)) {
-        ERROR(func_name, "Initiating TLS failed.");
-        goto error_cleanup;
-    }
+    nc_client_tls_set_cert_key(cert, key);
+    nc_client_tls_set_trusted_ca_certs(trusted_store, trusted_dir);
+    nc_client_tls_set_crl(NULL, crl_dir);
 
     if (ctx) {
         ly_ctx_destroy(ctx);
@@ -2080,9 +2083,11 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         }
 
         /* create the session */
+        nc_client_tls_ch_add_bind_listen(host, port);
         ERROR(func_name, "Waiting %ds for a TLS Call Home connection on port %u...", timeout, port);
-        session = nc_callhome_accept_tls(host, port, timeout * 1000, ctx);
-        if (!session) {
+        ret = nc_accept_callhome(timeout * 1000, ctx, &session);
+        nc_client_tls_ch_del_bind(host, port);
+        if (ret) {
             ERROR(func_name, "Receiving TLS Call Home on port %d failed.", port);
             goto error_cleanup;
         }

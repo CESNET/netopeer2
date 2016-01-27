@@ -217,12 +217,12 @@ main(void)
 
 #ifdef ENABLE_TLS
     /* must be before SSH */
-    nc_tls_client_destroy();
+    nc_client_tls_destroy();
     nc_tls_destroy();
 #endif
 
 #ifdef ENABLE_SSH
-    nc_ssh_client_destroy();
+    nc_client_tls_destroy();
     nc_ssh_destroy();
 #endif
 
