@@ -129,6 +129,8 @@ static struct termios orig_termios; /* In order to restore at exit.*/
 static int mlmode = 0;  /* Multi line mode. Default is single line. */
 static int atexit_registered = 0; /* Register atexit just 1 time. */
 static int history_max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
+static int history_len = 0;
+static char **history = NULL;
 
 /* The linenoiseState structure represents the state during line editing.
  * We pass this state to functions implementing specific editing
@@ -356,10 +358,10 @@ static int completeLine(struct linenoiseState *ls) {
         for (i = 1; i < lc.len; ++i) {
             for (j = 0; j < strlen(lc.cvec[i]); ++j) {
                 if (lc.cvec[i][j] != common[j]) {
-                    common[j] = '\0';
                     break;
                 }
             }
+            common[j] = '\0';
         }
 
         /* Path completions have a different hint */
@@ -497,6 +499,7 @@ void linenoisePathCompletion(const char *buf, const char *hint, linenoiseComplet
 
     dir = opendir(full_path);
     if (dir == NULL) {
+        free(full_path);
         return;
     }
 
@@ -505,11 +508,13 @@ void linenoisePathCompletion(const char *buf, const char *hint, linenoiseComplet
             continue;
         }
 
-        /* some serious pointer fun */
         if (!strncmp(ptr, ent->d_name, strlen(ptr))) {
             /* is it a directory? */
             strcpy(hint_ptr, ent->d_name);
-            stat(full_path, &st);
+            if (stat(full_path, &st)) {
+                /* skip this item */
+                continue;
+            }
 
             strcpy(match, ent->d_name);
             if (S_ISDIR(st.st_mode)) {
@@ -771,21 +776,21 @@ void linenoiseEditMoveEnd(struct linenoiseState *l) {
 #define LINENOISE_HISTORY_NEXT 0
 #define LINENOISE_HISTORY_PREV 1
 void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
-    if (l->history_len > 1) {
+    if (history_len > 1) {
         /* Update the current history entry before to
          * overwrite it with the next one. */
-        free(l->history[l->history_len - 1 - l->history_index]);
-        l->history[l->history_len - 1 - l->history_index] = strdup(l->buf);
+        free(history[history_len - 1 - l->history_index]);
+        history[history_len - 1 - l->history_index] = strdup(l->buf);
         /* Show the new entry */
         l->history_index += (dir == LINENOISE_HISTORY_PREV) ? 1 : -1;
         if (l->history_index < 0) {
             l->history_index = 0;
             return;
-        } else if (l->history_index >= l->history_len) {
-            l->history_index = l->history_len-1;
+        } else if (l->history_index >= history_len) {
+            l->history_index = history_len-1;
             return;
         }
-        strncpy(l->buf,l->history[l->history_len - 1 - l->history_index],l->buflen);
+        strncpy(l->buf,history[history_len - 1 - l->history_index],l->buflen);
         l->buf[l->buflen-1] = '\0';
         l->len = l->pos = strlen(l->buf);
         linenoiseRefreshLine();
@@ -884,8 +889,8 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
 
         switch(c) {
         case ENTER:    /* enter */
-            ls.history_len--;
-            free(ls.history[ls.history_len]);
+            history_len--;
+            free(history[history_len]);
             if (mlmode) linenoiseEditMoveEnd(&ls);
             return (int)ls.len;
         case CTRL_C:     /* ctrl-c */
@@ -900,8 +905,8 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
             if (ls.len > 0) {
                 linenoiseEditDelete(&ls);
             } else {
-                ls.history_len--;
-                free(ls.history[ls.history_len]);
+                history_len--;
+                free(history[history_len]);
                 return -1;
             }
             break;
@@ -1100,12 +1105,12 @@ char *linenoise(const char *prompt) {
 /* Free the history, but does not reset it. Only used when we have to
  * exit() to avoid memory leaks are reported by valgrind & co. */
 static void freeHistory(void) {
-    if (ls.history) {
+    if (history) {
         int j;
 
-        for (j = 0; j < ls.history_len; j++)
-            free(ls.history[j]);
-        free(ls.history);
+        for (j = 0; j < history_len; j++)
+            free(history[j]);
+        free(history);
     }
 }
 
@@ -1128,26 +1133,26 @@ int linenoiseHistoryAdd(const char *line) {
     if (history_max_len == 0) return 0;
 
     /* Initialization on first call. */
-    if (ls.history == NULL) {
-        ls.history = malloc(sizeof(char*)*history_max_len);
-        if (ls.history == NULL) return 0;
-        memset(ls.history,0,(sizeof(char*)*history_max_len));
+    if (history == NULL) {
+        history = malloc(sizeof(char*)*history_max_len);
+        if (history == NULL) return 0;
+        memset(history,0,(sizeof(char*)*history_max_len));
     }
 
     /* Don't add duplicated lines. */
-    if (ls.history_len && !strcmp(ls.history[ls.history_len-1], line)) return 0;
+    if (history_len && !strcmp(history[history_len-1], line)) return 0;
 
     /* Add an heap allocated copy of the line in the history.
      * If we reached the max length, remove the older line. */
     linecopy = strdup(line);
     if (!linecopy) return 0;
-    if (ls.history_len == history_max_len) {
-        free(ls.history[0]);
-        memmove(ls.history,ls.history+1,sizeof(char*)*(history_max_len-1));
-        ls.history_len--;
+    if (history_len == history_max_len) {
+        free(history[0]);
+        memmove(history,history+1,sizeof(char*)*(history_max_len-1));
+        history_len--;
     }
-    ls.history[ls.history_len] = linecopy;
-    ls.history_len++;
+    history[history_len] = linecopy;
+    history_len++;
     return 1;
 }
 
@@ -1159,8 +1164,8 @@ int linenoiseHistorySetMaxLen(int len) {
     char **new;
 
     if (len < 1) return 0;
-    if (ls.history) {
-        int tocopy = ls.history_len;
+    if (history) {
+        int tocopy = history_len;
 
         new = malloc(sizeof(char*)*len);
         if (new == NULL) return 0;
@@ -1169,17 +1174,17 @@ int linenoiseHistorySetMaxLen(int len) {
         if (len < tocopy) {
             int j;
 
-            for (j = 0; j < tocopy-len; j++) free(ls.history[j]);
+            for (j = 0; j < tocopy-len; j++) free(history[j]);
             tocopy = len;
         }
         memset(new,0,sizeof(char*)*len);
-        memcpy(new,ls.history+(ls.history_len-tocopy), sizeof(char*)*tocopy);
-        free(ls.history);
-        ls.history = new;
+        memcpy(new,history+(history_len-tocopy), sizeof(char*)*tocopy);
+        free(history);
+        history = new;
     }
     history_max_len = len;
-    if (ls.history_len > history_max_len)
-        ls.history_len = history_max_len;
+    if (history_len > history_max_len)
+        history_len = history_max_len;
     return 1;
 }
 
@@ -1190,8 +1195,8 @@ int linenoiseHistorySave(const char *filename) {
     int j;
 
     if (fp == NULL) return -1;
-    for (j = 0; j < ls.history_len; j++)
-        fprintf(fp,"%s\n",ls.history[j]);
+    for (j = 0; j < history_len; j++)
+        fprintf(fp,"%s\n",history[j]);
     fclose(fp);
     return 0;
 }
