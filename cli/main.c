@@ -122,11 +122,12 @@ main(void)
     char *cmd, *cmdline, *cmdstart, *tmp_config_file;
     int i, j;
 
-#ifdef ENABLE_TLS
-    nc_tls_init();
-#endif
-#ifdef ENABLE_SSH
+#if defined(ENABLE_SSH) && defined(ENABLE_TLS)
+    nc_ssh_tls_init();
+#elif defined(ENABLE_SSH)
     nc_ssh_init();
+#elif defined(ENABLE_TLS)
+    nc_tls_init();
 #endif
 
     nc_set_print_clb(lnc2_print_clb);
@@ -212,18 +213,20 @@ main(void)
         nc_session_free(session);
     }
     if (ctx) {
-        ly_ctx_destroy(ctx);
+        ly_ctx_destroy(ctx, NULL);
     }
 
-#ifdef ENABLE_TLS
-    /* must be before SSH */
-    nc_client_tls_destroy();
-    nc_tls_destroy();
-#endif
-
-#ifdef ENABLE_SSH
-    nc_client_tls_destroy();
+    nc_client_schema_searchpath(NULL);
+#if defined(ENABLE_SSH) && defined(ENABLE_TLS)
+    nc_client_ssh_destroy_opts();
+    nc_client_tls_destroy_opts();
+    nc_ssh_tls_destroy();
+#elif defined(ENABLE_SSH)
+    nc_client_ssh_destroy_opts();
     nc_ssh_destroy();
+#elif defined(ENABLE_TLS)
+    nc_client_tls_destroy_opts();
+    nc_tls_destroy();
 #endif
 
     return 0;

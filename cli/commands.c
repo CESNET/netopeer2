@@ -319,8 +319,8 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
             if (output == stdout) {
                 fprintf(output, "MODULE\n");
             }
-            str = lyxml_serialize(((struct lyd_node_anyxml *)data_rpl->data)->value);
-            if (!str) {
+            ret = lyxml_print_mem(&str, ((struct lyd_node_anyxml *)data_rpl->data)->value, 0);
+            if (ret) {
                 ERROR(__func__, "Failed to get the model data from the reply.\n");
                 nc_reply_free(reply);
                 return 1;
@@ -385,7 +385,7 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
                 fprintf(output, "\tbad-ns #%d:   %s\n", j + 1, error->err[i].ns[j]);
             }
             for (j = 0; j < error->err[i].other_count; ++j) {
-                str = lyxml_serialize(error->err[i].other[j]);
+                lyxml_print_mem(&str, error->err[i].other[j], 0);
                 fprintf(output, "\tother #%d:\n%s\n", j + 1, str);
                 free(str);
             }
@@ -1244,7 +1244,7 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
     }
 
     if (ctx) {
-        ly_ctx_destroy(ctx);
+        ly_ctx_destroy(ctx, NULL);
     }
     ctx = ly_ctx_new(search_path);
 
@@ -1264,7 +1264,7 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
         session = nc_connect_ssh(host, port, ctx);
         if (session == NULL) {
             ERROR(func_name, "Connecting to the %s:%d as user \"%s\" failed.", host, port, user);
-            ly_ctx_destroy(ctx);
+            ly_ctx_destroy(ctx, NULL);
             ctx = NULL;
             return EXIT_FAILURE;
         }
@@ -1292,7 +1292,7 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
         nc_client_ssh_ch_del_bind(host, port);
         if (ret) {
             ERROR(func_name, "Receiving SSH Call Home on port %d as user \"%s\" failed.", port, user);
-            ly_ctx_destroy(ctx);
+            ly_ctx_destroy(ctx, NULL);
             ctx = NULL;
             return EXIT_FAILURE;
         }
@@ -2040,12 +2040,12 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         goto error_cleanup;
     }
 
-    nc_client_tls_set_cert_key(cert, key);
-    nc_client_tls_set_trusted_ca_certs(trusted_store, trusted_dir);
-    nc_client_tls_set_crl(NULL, crl_dir);
+    nc_client_tls_set_cert_key_paths(cert, key);
+    nc_client_tls_set_trusted_ca_paths(trusted_store, trusted_dir);
+    nc_client_tls_set_crl_paths(NULL, crl_dir);
 
     if (ctx) {
-        ly_ctx_destroy(ctx);
+        ly_ctx_destroy(ctx, NULL);
     }
     ctx = ly_ctx_new(search_path);
 
@@ -2104,7 +2104,7 @@ error_cleanup:
     free(crl_dir);
     free(cert);
     free(key);
-    ly_ctx_destroy(ctx);
+    ly_ctx_destroy(ctx, NULL);
     ctx = NULL;
     return EXIT_FAILURE;
 }
@@ -2179,7 +2179,7 @@ cmd_disconnect(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
         ntf_tid = 0;
         nc_session_free(session);
         session = NULL;
-        ly_ctx_destroy(ctx);
+        ly_ctx_destroy(ctx, NULL);
         ctx = NULL;
     }
 

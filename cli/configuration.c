@@ -298,7 +298,7 @@ load_config(void)
         } else if (eaccess(config_file, F_OK) && (errno == ENOENT)) {
             ERROR(__func__, "No saved configuration.");
         } else {
-            if ((config_xml = lyxml_read_path(ctx, config_file, 0)) == NULL) {
+            if ((config_xml = lyxml_parse_path(ctx, config_file, 0)) == NULL) {
                 ERROR(__func__, "Failed to load configuration of NETCONF client (lyxml_read_path failed).");
                 config_xml = NULL;
             } else {
@@ -349,7 +349,7 @@ load_config(void)
     }
 
     lyxml_free(ctx, config_xml);
-    ly_ctx_destroy(ctx);
+    ly_ctx_destroy(ctx, NULL);
     free(config_file);
     free(history_file);
     free(netconf_dir);
