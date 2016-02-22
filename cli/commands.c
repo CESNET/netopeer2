@@ -33,6 +33,7 @@
 #include <assert.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <stdarg.h>
 
 #include <libyang/libyang.h>
 #include <nc_client.h>
