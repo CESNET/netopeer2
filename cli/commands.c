@@ -2203,12 +2203,16 @@ cmd_status(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
         printf("  Port        : %u\n", nc_session_get_port(session));
         printf("  User        : %s\n", nc_session_get_username(session));
         switch (nc_session_get_ti(session)) {
+#ifdef NC_ENABLED_SSH
         case NC_TI_LIBSSH:
             s = "SSH";
             break;
+#endif
+#ifdef NC_ENABLED_TLS
         case NC_TI_OPENSSL:
             s = "TLS";
             break;
+#endif
         case NC_TI_FD:
             s = "FD";
         default:

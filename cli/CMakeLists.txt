@@ -52,6 +52,9 @@ include_directories(${LIBYANG_INCLUDE_DIRS})
 
 # dependencies - libnetconf2
 find_package(LibNETCONF2 REQUIRED)
+if (NOT LIBNETCONF2_ENABLED_SSH AND NOT LIBNETCONF2_ENABLED_TLS)
+	message(SEND_ERROR "Missing SSH and TLS support in libnetconf2, CLI requires at least one them to be supported.")
+endif()
 target_link_libraries(netopeer2-cli ${LIBNETCONF2_LIBRARIES})
 include_directories(${LIBNETCONF2_INCLUDE_DIRS})
 

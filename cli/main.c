@@ -40,10 +40,6 @@
 #include "configuration.h"
 #include "linenoise/linenoise.h"
 
-#if !defined(ENABLE_SSH) && !defined(ENABLE_TLS)
-#   error "Included libnetconf2 headers were compiled without SSH and TLS support, netopeer2-cli requires at least one of them."
-#endif
-
 int done;
 char *search_path;
 
