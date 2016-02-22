@@ -294,7 +294,8 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
         return -1;
     }
 
-    msgtype = nc_recv_reply(session, rpc, msgid, 1000, &reply);
+    msgtype = nc_recv_reply(session, rpc, msgid, 1000,
+                            LYD_OPT_DESTRUCT | LYD_OPT_NOSIBLINGS, &reply);
     if (msgtype == NC_MSG_ERROR) {
         ERROR(__func__, "Failed to receive a reply.");
         if (nc_session_get_status(session) != NC_STATUS_RUNNING) {

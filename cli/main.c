@@ -85,7 +85,7 @@ lnc2_print_clb(NC_VERB_LEVEL level, const char *msg)
 }
 
 void
-ly_print_clb(LY_LOG_LEVEL level, const char *msg)
+ly_print_clb(LY_LOG_LEVEL level, const char *msg, const char *path)
 {
     int was_rawmode = 0;
 
@@ -97,16 +97,32 @@ ly_print_clb(LY_LOG_LEVEL level, const char *msg)
 
     switch (level) {
     case LY_LLERR:
-        fprintf(stderr, "ly ERROR: %s\n", msg);
+        if (path) {
+            fprintf(stderr, "ly ERROR: %s (%s)\n", msg, path);
+        } else {
+            fprintf(stderr, "ly ERROR: %s\n", msg);
+        }
         break;
     case LY_LLWRN:
-        fprintf(stderr, "ly WARNING: %s\n", msg);
+        if (path) {
+            fprintf(stderr, "ly WARNING: %s (%s)\n", msg, path);
+        } else {
+            fprintf(stderr, "ly WARNING: %s\n", msg);
+        }
         break;
     case LY_LLVRB:
-        fprintf(stderr, "ly VERBOSE: %s\n", msg);
+        if (path) {
+            fprintf(stderr, "ly VERBOSE: %s (%s)\n", msg, path);
+        } else {
+            fprintf(stderr, "ly VERBOSE: %s\n", msg);
+        }
         break;
     case LY_LLDBG:
-        fprintf(stderr, "ly DEBUG: %s\n", msg);
+        if (path) {
+            fprintf(stderr, "ly DEBUG: %s (%s)\n", msg, path);
+        } else {
+            fprintf(stderr, "ly DEBUG: %s\n", msg);
+        }
         break;
     }
 
@@ -131,7 +147,7 @@ main(void)
 #endif
 
     nc_set_print_clb(lnc2_print_clb);
-    ly_set_log_clb(ly_print_clb);
+    ly_set_log_clb(ly_print_clb, 1);
     linenoiseSetCompletionCallback(complete_cmd);
 
     load_config();
