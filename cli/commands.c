@@ -38,7 +38,7 @@
 #include <libyang/libyang.h>
 #include <nc_client.h>
 
-#ifdef ENABLE_TLS
+#ifdef NC_ENABLED_TLS
 #   include <openssl/pem.h>
 #   include <openssl/x509v3.h>
 #endif
@@ -420,13 +420,13 @@ cmd_verb_help(void)
 void
 cmd_connect_help(void)
 {
-#if defined(ENABLE_SSH) && defined(ENABLE_TLS)
+#if defined(NC_ENABLED_SSH) && defined(NC_ENABLED_TLS)
     printf("connect [--help] [--host <hostname>] [--port <num>]\n");
     printf("    SSH [--ssh] [--login <username>]\n");
     printf("    TLS  --tls  [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
-#elif defined(ENABLE_SSH)
+#elif defined(NC_ENABLED_SSH)
     printf("connect [--help] [--ssh] [--host <hostname>] [--port <num>] [--login <username>]\n");
-#elif defined(ENABLE_TLS)
+#elif defined(NC_ENABLED_TLS)
     printf("connect [--help] [--tls] [--host <hostname>] [--port <num>] [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
 #endif
 }
@@ -434,13 +434,13 @@ cmd_connect_help(void)
 void
 cmd_listen_help(void)
 {
-#if defined(ENABLE_SSH) && defined(ENABLE_TLS)
+#if defined(NC_ENABLED_SSH) && defined(NC_ENABLED_TLS)
     printf("listen [--help] [--timeout <sec>] [--host <hostname>] [--port <num>]\n");
     printf("   SSH [--ssh] [--login <username>]\n");
     printf("   TLS  --tls  [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
-#elif defined(ENABLE_SSH)
+#elif defined(NC_ENABLED_SSH)
     printf("listen [--help] [--ssh] [--timeout <sec>] [--host <hostname>] [--port <num>] [--login <username>]\n");
-#elif defined(ENABLE_TLS)
+#elif defined(NC_ENABLED_TLS)
     printf("listen [--help] [--tls] [--timeout <sec>] [--host <hostname>] [--port <num>] [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
 #endif
 }
@@ -816,7 +816,7 @@ cmd_userrpc_help(void)
     printf("user-rpc [--help] [--content <file>] [--out <file>]\n");
 }
 
-#ifdef ENABLE_SSH
+#ifdef NC_ENABLED_SSH
 
 void
 cmd_auth_help(void)
@@ -830,9 +830,9 @@ cmd_knownhosts_help(void)
     printf("knownhosts [--help] [--del <key_index>]\n");
 }
 
-#endif /* ENABLE_SSH */
+#endif /* NC_ENABLED_SSH */
 
-#ifdef ENABLE_TLS
+#ifdef NC_ENABLED_TLS
 
 void
 cmd_cert_help(void)
@@ -846,9 +846,9 @@ cmd_crl_help(void)
     printf("crl [--help | display | add <crl_path> | remove <crl_name>]\n");
 }
 
-#endif /* ENABLE_TLS */
+#endif /* NC_ENABLED_TLS */
 
-#ifdef ENABLE_SSH
+#ifdef NC_ENABLED_SSH
 
 int
 cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
@@ -1303,9 +1303,9 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
     return EXIT_SUCCESS;
 }
 
-#endif /* ENABLE_SSH */
+#endif /* NC_ENABLED_SSH */
 
-#ifdef ENABLE_TLS
+#ifdef NC_ENABLED_TLS
 
 static int
 cp(const char *to, const char *from)
@@ -2111,7 +2111,7 @@ error_cleanup:
     return EXIT_FAILURE;
 }
 
-#endif /* ENABLE_TLS */
+#endif /* NC_ENABLED_TLS */
 
 int
 cmd_searchpath(const char *arg, char **UNUSED(tmp_config_file))
@@ -2239,10 +2239,10 @@ cmd_connect_listen(const char *arg, int is_connect)
     struct arglist cmd;
     struct option long_options[] = {
             {"help", 0, 0, 'h'},
-#ifdef ENABLE_SSH
+#ifdef NC_ENABLED_SSH
             {"ssh", 0, 0, 's'},
 #endif
-#ifdef ENABLE_TLS
+#ifdef NC_ENABLED_TLS
             {"tls", 0, 0, 't'},
 #endif
             {0, 0, 0, 0}
@@ -2263,11 +2263,11 @@ cmd_connect_listen(const char *arg, int is_connect)
 
     ret = -1;
 
-#if defined(ENABLE_SSH) && defined(ENABLE_TLS)
+#if defined(NC_ENABLED_SSH) && defined(NC_ENABLED_TLS)
     optstring = "hst";
-#elif defined(ENABLE_SSH)
+#elif defined(NC_ENABLED_SSH)
     optstring = "hs";
-#elif defined(ENABLE_TLS)
+#elif defined(NC_ENABLED_TLS)
     optstring = "ht";
 #endif
 
@@ -2282,12 +2282,12 @@ cmd_connect_listen(const char *arg, int is_connect)
             clear_arglist(&cmd);
             ret = EXIT_SUCCESS;
             break;
-#ifdef ENABLE_SSH
+#ifdef NC_ENABLED_SSH
         case 's':
             ret = cmd_connect_listen_ssh(&cmd, is_connect);
             break;
 #endif
-#ifdef ENABLE_TLS
+#ifdef NC_ENABLED_TLS
         case 't':
             ret = cmd_connect_listen_tls(&cmd, is_connect);
             break;
@@ -2304,9 +2304,9 @@ cmd_connect_listen(const char *arg, int is_connect)
     }
 
     if (ret == -1) {
-#ifdef ENABLE_SSH
+#ifdef NC_ENABLED_SSH
         ret = cmd_connect_listen_ssh(&cmd, is_connect);
-#elif defined(ENABLE_TLS)
+#elif defined(NC_ENABLED_TLS)
         ret = cmd_connect_listen_tls(&cmd, is_connect);
 #endif
     }
@@ -4088,11 +4088,11 @@ fail:
 }
 
 COMMAND commands[] = {
-#ifdef ENABLE_SSH
+#ifdef NC_ENABLED_SSH
         {"auth", cmd_auth, cmd_auth_help, "Manage SSH authentication options"},
         {"knownhosts", cmd_knownhosts, cmd_knownhosts_help, "Manage the user knownhosts file"},
 #endif
-#ifdef ENABLE_TLS
+#ifdef NC_ENABLED_TLS
         {"cert", cmd_cert, cmd_cert_help, "Manage trusted or your own certificates"},
         {"crl", cmd_crl, cmd_crl_help, "Manage Certificate Revocation List directory"},
 #endif

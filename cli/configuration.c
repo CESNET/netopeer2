@@ -264,7 +264,7 @@ load_config(void)
     struct lyxml_elem *config_xml = NULL, *child;
     struct ly_ctx *ctx;
 
-#ifdef ENABLE_SSH
+#ifdef NC_ENABLED_SSH
     char *key_pub;
     struct lyxml_elem *auth_child, *pref_child, *key_child;
 #endif
@@ -312,7 +312,7 @@ load_config(void)
                             /* doc -> <netconf-client> -> <searchpath> */
                             search_path = strdup(child->content);
                         }
-#ifdef ENABLE_SSH
+#ifdef NC_ENABLED_SSH
                         else if (!strcmp(child->name, "authentication")) {
                             /* doc -> <netconf-client> -> <authentication> */
                             LY_TREE_FOR(child->child, auth_child) {

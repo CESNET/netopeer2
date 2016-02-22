@@ -83,10 +83,10 @@ complete_cmd(const char *buf, const char *hint, linenoiseCompletions *lc)
     unsigned int match_count = 0, i;
 
     if (!strncmp(buf, "searchpath ", 11)
-#ifdef ENABLE_SSH
+#ifdef NC_ENABLED_SSH
         || !strncmp(buf, "auth keys add ", 14)
 #endif
-#ifdef ENABLE_TLS
+#ifdef NC_ENABLED_TLS
         || !strncmp(buf, "cert add ", 9) || !strncmp(buf, "cert remove ", 12) || !strncmp(buf, "cert replaceown ", 16)
         || !strncmp(buf, "crl add ", 8) || !strncmp(buf, "crl remove ", 11)
 #endif

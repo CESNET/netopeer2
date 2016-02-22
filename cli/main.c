@@ -134,11 +134,11 @@ main(void)
     char *cmd, *cmdline, *cmdstart, *tmp_config_file;
     int i, j;
 
-#if defined(ENABLE_SSH) && defined(ENABLE_TLS)
+#if defined(NC_ENABLED_SSH) && defined(NC_ENABLED_TLS)
     nc_ssh_tls_init();
-#elif defined(ENABLE_SSH)
+#elif defined(NC_ENABLED_SSH)
     nc_ssh_init();
-#elif defined(ENABLE_TLS)
+#elif defined(NC_ENABLED_TLS)
     nc_tls_init();
 #endif
 
@@ -229,14 +229,14 @@ main(void)
     }
 
     nc_client_schema_searchpath(NULL);
-#if defined(ENABLE_SSH) && defined(ENABLE_TLS)
+#if defined(NC_ENABLED_SSH) && defined(NC_ENABLED_TLS)
     nc_client_ssh_destroy_opts();
     nc_client_tls_destroy_opts();
     nc_ssh_tls_destroy();
-#elif defined(ENABLE_SSH)
+#elif defined(NC_ENABLED_SSH)
     nc_client_ssh_destroy_opts();
     nc_ssh_destroy();
-#elif defined(ENABLE_TLS)
+#elif defined(NC_ENABLED_TLS)
     nc_client_tls_destroy_opts();
     nc_tls_destroy();
 #endif
