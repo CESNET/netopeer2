@@ -59,7 +59,7 @@ target_link_libraries(netopeer2-cli ${LIBNETCONF2_LIBRARIES})
 include_directories(${LIBNETCONF2_INCLUDE_DIRS})
 
 # dependencies - libssl
-if(LIBNETCONF2_ENABLE_TLS)
+if(LIBNETCONF2_ENABLED_TLS)
     find_package(OpenSSL REQUIRED)
     target_link_libraries(netopeer2-cli ${OPENSSL_LIBRARIES})
     include_directories(${OPENSSL_INCLUDE_DIR})
