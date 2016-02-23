@@ -20,7 +20,8 @@ set(CMAKE_C_FLAGS_RELEASE "-O2")
 set(CMAKE_C_FLAGS_DEBUG   "-g -O0")
 
 # set version
-set(NP2CLI_VERSION 0.1.0)
+set(NP2CLI_VERSION 0.2.2)
+configure_file("${PROJECT_SOURCE_DIR}/version.h.in" "${PROJECT_SOURCE_DIR}/version.h" ESCAPE_QUOTES @ONLY)
 
 # source files
 set(srcs
@@ -38,7 +39,6 @@ set(headers
 
 # netopeer2-cli target
 add_executable(netopeer2-cli ${srcs})
-set_target_properties(netopeer2-cli PROPERTIES VERSION ${NP2CLI_VERSION})
 
 # dependencies - pthread
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
