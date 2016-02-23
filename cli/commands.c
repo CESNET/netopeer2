@@ -2146,6 +2146,13 @@ cmd_searchpath(const char *arg, char **UNUSED(tmp_config_file))
 }
 
 int
+cmd_version(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
+{
+    fprintf(stdout, "Netopeer2 CLI %s\n", VERSION);
+    return 0;
+}
+
+int
 cmd_verb(const char *arg, char **UNUSED(tmp_config_file))
 {
     const char *verb;
@@ -4098,6 +4105,7 @@ COMMAND commands[] = {
 #endif
         {"searchpath", cmd_searchpath, cmd_searchpath_help, "Set the search path for models"},
         {"verb", cmd_verb, cmd_verb_help, "Change verbosity"},
+        {"version", cmd_version, NULL, "Print Netopeer2 CLI version"},
         {"disconnect", cmd_disconnect, NULL, "Disconnect from a NETCONF server"},
         {"status", cmd_status, NULL, "Display information about the current NETCONF session"},
         {"connect", cmd_connect, cmd_connect_help, "Connect to a NETCONF server"},
