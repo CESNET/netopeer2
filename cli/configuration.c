@@ -8,7 +8,7 @@
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
@@ -34,7 +34,7 @@
 
 extern int done;
 extern char *search_path;
-
+extern LYD_FORMAT output_format;
 extern char *config_editor;
 
 /* NetConf Client home (appended to ~/) */
@@ -304,6 +304,13 @@ load_config(void)
                         } else if (!strcmp(child->name, "searchpath")) {
                             /* doc -> <netconf-client> -> <searchpath> */
                             search_path = strdup(child->content);
+                        } else if (!strcmp(child->name, "output-format")) {
+                            /* doc -> <netconf-client> -> <output-format> */
+                            if (!strcmp(child->content, "json")) {
+                                output_format = LYD_JSON;
+                            } else if (!strcmp(child->content, "xml_noformat")) {
+                                output_format = LYD_XML;
+                            } /* else default (formatted XML) */
                         }
 #ifdef NC_ENABLED_SSH
                         else if (!strcmp(child->name, "authentication")) {
@@ -389,6 +396,15 @@ store_config(void)
         if (search_path) {
             fprintf(config_f, "%*.s<searchpath>%s</searchpath>\n", indent, "", search_path);
         }
+
+        /* output-format */
+        fprintf(config_f, "%*.s<output-format>", indent, "");
+        if (output_format == LYD_JSON) {
+            fprintf(config_f, "json");
+        } else {
+            fprintf(config_f, "xml");
+        }
+        fprintf(config_f, "</output-format>\n");
 
         /* authentication */
         fprintf(config_f, "%*.s<authentication>\n", indent, "");

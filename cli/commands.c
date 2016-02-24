@@ -58,7 +58,7 @@
 COMMAND commands[];
 extern int done;
 extern char *search_path;
-
+LYD_FORMAT output_format = LYD_XML_FORMAT;
 char *config_editor;
 struct nc_session *session;
 volatile pthread_t ntf_tid;
@@ -242,8 +242,8 @@ cli_ntf_thread(void *arg)
                 }
             }
 
-            /* TODO print datetime */
-            lyd_print_file(output, notif->tree, LYD_JSON, 0);
+            fprintf(output, "notification (%s)\n", notif->datetime);
+            lyd_print_file(output, notif->tree, output_format, 0);
             fprintf(output, "\n");
             fflush(output);
 
@@ -339,7 +339,7 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
         if (output == stdout) {
             fprintf(output, "DATA\n");
         }
-        lyd_print_file(output, data_rpl->data, LYD_JSON, 0);
+        lyd_print_file(output, data_rpl->data, output_format, 0);
         if (output == stdout) {
             fprintf(output, "\n");
         }
@@ -402,6 +402,12 @@ void
 cmd_searchpath_help(void)
 {
     printf("searchpath <model-dir-path>\n");
+}
+
+void
+cmd_outputformat_help(void)
+{
+    printf("outputformat (xml | xml_noformat | json)\n");
 }
 
 void
@@ -2134,6 +2140,37 @@ cmd_searchpath(const char *arg, char **UNUSED(tmp_config_file))
 
     free(search_path);
     search_path = strdup(path);
+
+    return 0;
+}
+
+int
+cmd_outputformat(const char *arg, char **UNUSED(tmp_config_file))
+{
+    const char *format;
+
+    if (strchr(arg, ' ') == NULL) {
+        fprintf(stderr, "Missing the output format.\n");
+        return 1;
+    }
+
+    format = strchr(arg, ' ') + 1;
+
+    if (!strncmp(format, "-h", 2) || !strncmp(format, "--help", 6)) {
+        cmd_outputformat_help();
+        return 0;
+    }
+
+    if (!strncmp(format, "xml", 3) && ((format[3] == '\0') || (format[3] == ' '))) {
+        output_format = LYD_XML_FORMAT;
+    } else if (!strncmp(format, "xml_noformat", 12) && ((format[12] == '\0') || (format[12] == ' '))) {
+        output_format = LYD_XML;
+    } else if (!strncmp(format, "json", 4) && ((format[4] == '\0') || (format[4] == ' '))) {
+        output_format = LYD_JSON;
+    } else {
+        fprintf(stderr, "Unknown output format \"%s\".\n", format);
+        return 1;
+    }
 
     return 0;
 }
@@ -4096,6 +4133,7 @@ COMMAND commands[] = {
         {"cert", cmd_cert, cmd_cert_help, "Manage trusted or your own certificates"},
         {"crl", cmd_crl, cmd_crl_help, "Manage Certificate Revocation List directory"},
 #endif
+        {"outputformat", cmd_outputformat, cmd_outputformat_help, "Set the output format of all the data"},
         {"searchpath", cmd_searchpath, cmd_searchpath_help, "Set the search path for models"},
         {"verb", cmd_verb, cmd_verb_help, "Change verbosity"},
         {"version", cmd_version, NULL, "Print Netopeer2 CLI version"},
