@@ -31,12 +31,6 @@ set(srcs
 	configuration.c
 	linenoise/linenoise.c)
 
-set(headers
-	commands.h
-	completion.h
-	configuration.h
-	linenoise/linenoise.h)
-
 # netopeer2-cli target
 add_executable(netopeer2-cli ${srcs})
 
