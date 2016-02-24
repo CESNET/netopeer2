@@ -2179,6 +2179,7 @@ int
 cmd_version(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 {
     fprintf(stdout, "Netopeer2 CLI %s\n", VERSION);
+    fprintf(stdout, "Compile time: %s, %s\n", __DATE__, __TIME__);
     return 0;
 }
 
