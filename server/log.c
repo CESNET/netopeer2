@@ -12,10 +12,16 @@
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
+#include <stdarg.h>
 #include <syslog.h>
 
 #include <libyang/libyang.h>
 #include <nc_server.h>
+
+/**
+ * @brief libnetconf verbose level variable
+ */
+volatile uint8_t verbose_level = 0;
 
 /**
  * @brief printer callback for libnetconf2
@@ -67,4 +73,25 @@ print_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
     } else {
         syslog(facility, msg);
     }
+}
+
+/**
+ * @brief internal printing function, follows the levels from libnetconf2
+ * @param[in] level Verbose level
+ * @param[in] format Formatting string
+ */
+void
+prv_printf(NC_VERB_LEVEL level, const char *format, ...)
+{
+#define PRV_MSG_SIZE 4096
+    char prv_msg[PRV_MSG_SIZE];
+    va_list ap;
+
+    va_start(ap, format);
+    vsnprintf(prv_msg, PRV_MSG_SIZE - 1, format, ap);
+    prv_msg[PRV_MSG_SIZE - 1] = '\0';
+    print_clb_nc2(level, prv_msg);
+    va_end(ap);
+
+#undef PRV_MSG_SIZE
 }

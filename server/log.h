@@ -18,7 +18,25 @@
 #include <libyang/libyang.h>
 #include <nc_server.h>
 
-/* TODO own logging functionality */
+/**
+ * @brief Verbose level variable
+ */
+extern volatile uint8_t verbose_level;
+
+/**
+ * @brief internal printing function, follows the levels from libnetconf2
+ * @param[in] level Verbose level
+ * @param[in] format Formatting string
+ */
+void prv_printf(NC_VERB_LEVEL level, const char *format, ...);
+
+/*
+ * Verbose printing macros
+ */
+#define ERR(format,args...) prv_printf(NC_VERB_ERROR,format,##args)
+#define WRN(format,args...) if(verbose_level>=NC_VERB_WARNING){prv_printf(NC_VERB_WARNING,format,##args);}
+#define VRB(format,args...) if(verbose_level>=NC_VERB_VERBOSE){prv_printf(NC_VERB_VERBOSE,format,##args);}
+#define DBG(format,args...) if(verbose_level>=NC_VERB_DEBUG){prv_printf(NC_VERB_DEBUG,format,##args);}
 
 /**
  * @brief printer callback for libnetconf2

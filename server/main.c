@@ -124,7 +124,8 @@ main(int argc, char *argv[])
             print_usage(argv[0]);
             return EXIT_SUCCESS;
         case 'v':
-            /* TODO */
+            c = atoi(optarg);
+            verbose_level = (c > NC_VERB_ERROR) ? ((c > NC_VERB_DEBUG) ? NC_VERB_DEBUG : c) : NC_VERB_ERROR;
             break;
         case 'V':
             print_version();
@@ -139,24 +140,25 @@ main(int argc, char *argv[])
     /* daemonize */
     if (daemonize == 1) {
         if (daemon(0, 0) != 0) {
+            ERR("Daemonizing netopeer2-server failed (%s)", strerror(errno));
             return EXIT_FAILURE;
         }
-        openlog("netopeer-server", LOG_PID, LOG_DAEMON);
+        openlog("netopeer2-server", LOG_PID, LOG_DAEMON);
     } else {
-        openlog("netopeer-server", LOG_PID | LOG_PERROR, LOG_DAEMON);
+        openlog("netopeer2-server", LOG_PID | LOG_PERROR, LOG_DAEMON);
     }
 
     /* make sure we are the only instance - lock the PID file and write the PID */
     pidfd = open(NP2SRV_PIDFILE, O_RDWR | O_CREAT, 0640);
     if (pidfd < 0) {
-        syslog(LOG_ERR, "Unable to open Netopeer2 PID file '%s': %s.", NP2SRV_PIDFILE, strerror(errno));
+        ERR("Unable to open Netopeer2 PID file '%s': %s.", NP2SRV_PIDFILE, strerror(errno));
         return EXIT_FAILURE;
     }
     if (lockf(pidfd, F_TLOCK, 0) < 0) {
         if (errno == EACCES || errno == EAGAIN) {
-            syslog(LOG_ERR, "Another instance of the Netopeer2 server is running.");
+            ERR("Another instance of the Netopeer2 server is running.");
         } else {
-            syslog(LOG_ERR, "Unable to lock Netopeer2 PID file '%s': %s.", NP2SRV_PIDFILE, strerror(errno));
+            ERR("Unable to lock Netopeer2 PID file '%s': %s.", NP2SRV_PIDFILE, strerror(errno));
         }
         return EXIT_FAILURE;
     }
