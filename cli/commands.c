@@ -456,7 +456,7 @@ cmd_cancelcommit_help(void)
     if (session && !nc_session_cpblt(session, NC_CAP_CONFIRMEDCOMMIT_ID)) {
         printf("cancel-commit is not supported by the current session.\n");
     } else {
-        printf("cancel-commit [--help] --persist-id <commit-id>\n");
+        printf("cancel-commit [--help] [--persist-id <commit-id>]\n");
     }
 }
 
