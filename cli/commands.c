@@ -2223,9 +2223,19 @@ cmd_connect_listen(const char *arg, int is_connect)
             {"help", 0, 0, 'h'},
 #ifdef NC_ENABLED_SSH
             {"ssh", 0, 0, 's'},
+            {"timeout", 1, 0, 'i'},
+            {"host", 1, 0, 'o'},
+            {"port", 1, 0, 'p'},
+            {"login", 1, 0, 'l'},
 #endif
 #ifdef NC_ENABLED_TLS
             {"tls", 0, 0, 't'},
+            {"timeout", 1, 0, 'i'},
+            {"host", 1, 0, 'o'},
+            {"port", 1, 0, 'p'},
+            {"cert", 1, 0, 'c'},
+            {"key", 1, 0, 'k'},
+            {"trusted", 1, 0, 'r'},
 #endif
             {0, 0, 0, 0}
     };
@@ -2246,11 +2256,11 @@ cmd_connect_listen(const char *arg, int is_connect)
     ret = -1;
 
 #if defined(NC_ENABLED_SSH) && defined(NC_ENABLED_TLS)
-    optstring = "hst";
+    optstring = "hsti:o:p:l:c:k:r:";
 #elif defined(NC_ENABLED_SSH)
-    optstring = "hs";
+    optstring = "hsi:o:p:l:";
 #elif defined(NC_ENABLED_TLS)
-    optstring = "ht";
+    optstring = "hti:o:p:c:k:r:";
 #endif
 
     while ((c = getopt_long(cmd.count, cmd.list, optstring, long_options, &option_index)) != -1) {
@@ -2275,13 +2285,7 @@ cmd_connect_listen(const char *arg, int is_connect)
             break;
 #endif
         default:
-            ERROR(func_name, "Unknown option -%c.", c);
-            if (is_connect) {
-                cmd_connect_help();
-            } else {
-                cmd_listen_help();
-            }
-            ret = EXIT_FAILURE;
+            break;
         }
     }
 
