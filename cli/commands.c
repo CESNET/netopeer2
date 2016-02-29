@@ -8,7 +8,7 @@
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
@@ -65,63 +65,7 @@ volatile pthread_t ntf_tid;
 volatile int interleave;
 struct ly_ctx *ctx;
 
-struct history_file {
-    int *hist_idx;
-    char **file;
-    int count;
-} hist_file;
-
 int cmd_disconnect(const char *arg, char **tmp_config_file);
-
-static const char *
-get_hist_file(int hist_idx)
-{
-    int i;
-
-    if (!hist_idx) {
-        return NULL;
-    }
-
-    for (i = 0; i < hist_file.count; ++i) {
-        if (hist_file.hist_idx[i] == hist_idx) {
-            return hist_file.file[i];
-        }
-    }
-
-    return NULL;
-}
-
-void
-set_hist_file(int hist_idx, char *file)
-{
-    int i;
-
-    for (i = 0; i < hist_file.count; ++i) {
-        if (hist_file.hist_idx[i] == hist_idx) {
-            hist_file.file[i] = file;
-            return;
-        }
-    }
-
-    ++hist_file.count;
-    hist_file.hist_idx = realloc(hist_file.hist_idx, hist_file.count * sizeof *hist_file.hist_idx);
-    hist_file.file = realloc(hist_file.file, hist_file.count * sizeof *hist_file.file);
-
-    hist_file.hist_idx[hist_file.count - 1] = hist_idx;
-    hist_file.file[hist_file.count - 1] = file;
-}
-
-void
-free_hist_file(void)
-{
-    int i;
-
-    for (i = 0; i < hist_file.count; ++i) {
-        free(hist_file.file[i]);
-    }
-    free(hist_file.hist_idx);
-    free(hist_file.file);
-}
 
 struct arglist {
     char** list;
@@ -2719,7 +2663,7 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
     /* check if edit configuration data were specified */
     if ((source == NC_DATASTORE_CONFIG) && !src) {
         /* let user write edit data interactively */
-        src = readinput("Type the content of a configuration datastore.", get_hist_file(ls.history_index), tmp_config_file);
+        src = readinput("Type the content of a configuration datastore.", *tmp_config_file, tmp_config_file);
         if (!src) {
             ERROR(__func__, "Reading configuration data failed.");
             goto fail;
@@ -3029,7 +2973,7 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
     /* check if edit configuration data were specified */
     if (content_param && !content) {
         /* let user write edit data interactively */
-        content = readinput("Type the content of the <edit-config>.", get_hist_file(ls.history_index), tmp_config_file);
+        content = readinput("Type the content of the <edit-config>.", *tmp_config_file, tmp_config_file);
         if (!content) {
             ERROR(__func__, "Reading configuration data failed.");
             goto fail;
@@ -3176,7 +3120,7 @@ cmd_get(const char *arg, char **tmp_config_file)
     /* check if edit configuration data were specified */
     if (filter_param && !filter) {
         /* let user write edit data interactively */
-        filter = readinput("Type the content of the subtree filter.", get_hist_file(ls.history_index), tmp_config_file);
+        filter = readinput("Type the content of the subtree filter.", *tmp_config_file, tmp_config_file);
         if (!filter) {
             ERROR(__func__, "Reading filter data failed.");
             goto fail;
@@ -3346,7 +3290,7 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
     /* check if edit configuration data were specified */
     if (filter_param && !filter) {
         /* let user write edit data interactively */
-        filter = readinput("Type the content of the subtree filter.", get_hist_file(ls.history_index), tmp_config_file);
+        filter = readinput("Type the content of the subtree filter.", *tmp_config_file, tmp_config_file);
         if (!filter) {
             ERROR(__func__, "Reading filter data failed.");
             goto fail;
@@ -3698,7 +3642,7 @@ cmd_validate(const char *arg, char **tmp_config_file)
     /* check if edit configuration data were specified */
     if ((source == NC_DATASTORE_CONFIG) && !src) {
         /* let user write edit data interactively */
-        src = readinput("Type the content of a configuration datastore.", get_hist_file(ls.history_index), tmp_config_file);
+        src = readinput("Type the content of a configuration datastore.", *tmp_config_file, tmp_config_file);
         if (!src) {
             ERROR(__func__, "Reading configuration data failed.");
             goto fail;
@@ -3857,7 +3801,7 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
     /* check if edit configuration data were specified */
     if (filter_param && !filter) {
         /* let user write edit data interactively */
-        filter = readinput("Type the content of the subtree filter.", get_hist_file(ls.history_index), tmp_config_file);
+        filter = readinput("Type the content of the subtree filter.", *tmp_config_file, tmp_config_file);
         if (!filter) {
             ERROR(__func__, "Reading filter data failed.");
             goto fail;
@@ -4092,7 +4036,7 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
     /* check if edit configuration data were specified */
     if (!content) {
         /* let user write edit data interactively */
-        content = readinput("Type the content of a configuration datastore.", get_hist_file(ls.history_index), tmp_config_file);
+        content = readinput("Type the content of a configuration datastore.", *tmp_config_file, tmp_config_file);
         if (!content) {
             ERROR(__func__, "Reading configuration data failed.");
             goto fail;

@@ -8,7 +8,7 @@
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
@@ -39,9 +39,5 @@ typedef struct {
 } COMMAND;
 
 extern COMMAND commands[];
-
-void set_hist_file(int hist_idx, char *file);
-
-void free_hist_file(void);
 
 #endif /* COMMANDS_H_ */
