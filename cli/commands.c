@@ -283,7 +283,7 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
         if (output == stdout) {
             fprintf(output, "DATA\n");
         }
-        lyd_print_file(output, data_rpl->data, output_format, 0);
+        lyd_print_file(output, data_rpl->data, output_format, LYP_WITHSIBLINGS);
         if (output == stdout) {
             fprintf(output, "\n");
         }
