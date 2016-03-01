@@ -178,7 +178,15 @@ main(int argc, char *argv[])
     sigaction(SIGHUP, &action, NULL);
     sigaction(SIGUSR1, &action, NULL);
 
-    /* main loop */
+    /* set printer callbacks for the used libraries and set proper log levels */
+    nc_set_print_clb(print_clb_nc2); /* libnetconf2 */
+    ly_set_log_clb(print_clb_ly, 1); /* libyang */
+    sr_log_set_cb(print_clb_sr); /* sysrepo, log level is checked by callback */
+
+    nc_verbosity(verbose_level);
+    ly_verb(verbose_level);
+
+    /* listen for new NETCONF sessions */
     while(control == LOOP_CONTINUE) {
         /* TODO, now sleep to avoid eating CPU */
         usleep(100);

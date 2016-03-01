@@ -62,6 +62,11 @@ include_directories(${LIBNETCONF2_INCLUDE_DIRS})
 #    include_directories(${OPENSSL_INCLUDE_DIR})
 #endif()
 
+# dependencies - sysrepo
+find_package(SYSREPO REQUIRED)
+target_link_libraries(netopeer2-server ${SYSREPO_LIBRARIES})
+include_directories(${SYSREPO_INCLUDE_DIRS})
+
 if(NOT BIN_INSTALL_DIR)
 	set(BIN_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/bin)
 endif()

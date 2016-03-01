@@ -17,6 +17,7 @@
 
 #include <libyang/libyang.h>
 #include <nc_server.h>
+#include <sysrepo.h>
 
 /**
  * @brief libnetconf verbose level variable
@@ -72,6 +73,14 @@ print_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
         syslog(facility, "%s (%s)", msg, path);
     } else {
         syslog(facility, msg);
+    }
+}
+
+void
+print_clb_sr(sr_log_level_t level, const char *msg)
+{
+    if (verbose_level >= level - 1) {
+        print_clb_nc2((NC_VERB_LEVEL)(level - 1), msg);
     }
 }
 

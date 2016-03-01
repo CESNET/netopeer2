@@ -48,4 +48,9 @@ void print_clb_nc2(NC_VERB_LEVEL level, const char *msg);
  */
 void print_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path);
 
+/**
+ * @brief printer callback for sysrepo
+ */
+void print_clb_sr(sr_log_level_t level, const char *msg);
+
 #endif /* NP2SRV_LOG_H_ */
