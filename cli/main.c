@@ -184,7 +184,7 @@ main(void)
     char *cmd, *cmdline, *cmdstart, *tmp_config_file;
     int i, j;
 
-    nc_init();
+    nc_client_init();
 
     nc_set_print_clb(lnc2_print_clb);
     ly_set_log_clb(ly_print_clb, 1);
@@ -267,14 +267,13 @@ main(void)
 
     ntf_tid = 0;
     if (session) {
-        nc_session_free(session);
+        nc_session_free(session, NULL);
     }
     if (ctx) {
         ly_ctx_destroy(ctx, NULL);
     }
 
     nc_client_destroy();
-    nc_destroy();
 
     return 0;
 }

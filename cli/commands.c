@@ -2161,7 +2161,7 @@ cmd_disconnect(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
     } else {
         /* possible data race, but let's be optimistic */
         ntf_tid = 0;
-        nc_session_free(session);
+        nc_session_free(session, NULL);
         session = NULL;
         ly_ctx_destroy(ctx, NULL);
         ctx = NULL;
