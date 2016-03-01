@@ -38,6 +38,8 @@ void prv_printf(NC_VERB_LEVEL level, const char *format, ...);
 #define VRB(format,args...) if(verbose_level>=NC_VERB_VERBOSE){prv_printf(NC_VERB_VERBOSE,format,##args);}
 #define DBG(format,args...) if(verbose_level>=NC_VERB_DEBUG){prv_printf(NC_VERB_DEBUG,format,##args);}
 
+#define EMEM ERR("Memory allocation failed (%s:%d)", __FILE__, __LINE__)
+
 /**
  * @brief printer callback for libnetconf2
  */
