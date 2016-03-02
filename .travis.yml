@@ -1,0 +1,53 @@
+os: linux
+sudo: required
+dist: trusty
+
+language:
+  - c
+
+compiler:
+  - gcc
+  - clang
+
+branches:
+  only:
+    - master
+
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install -y libavl-dev libev-dev
+  
+  - git clone https://github.com/CESNET/libyang.git
+  - git checkout devel
+  - cd libyang; mkdir build; cd build
+  - cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
+  - make -j2 && sudo make install
+  - cd ../..
+
+  - git clone https://github.com/CESNET/libnetconf2.git
+  - git checkout devel
+  - cd libnetconf2; mkdir build; cd build
+  - cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
+  - make -j2 && sudo make install
+  - cd ../..
+  
+  - git clone https://github.com/google/protobuf.git
+  - cd protobuf
+  - ./autogen.sh && ./configure --prefix=/usr && make -j2 && sudo make install
+  - cd ..
+  
+  - git clone https://github.com/protobuf-c/protobuf-c.git
+  - cd protobuf-c
+  - ./autogen.sh && ./configure --prefix=/usr && make -j2 && sudo make install
+  - cd ..
+
+  - git clone https://github.com/sysrepo/sysrepo.git
+  - cd sysrepo; mkdir build; cd bui;d
+  - cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=/usr -DREPOSITORY_LOC:PATH=/etc/sysrepo ..
+  - make -j2 && sudo make install
+  - cd ../..
+
+script:
+  - mkdir build-cli && cd build-cli && cmake ../cli && make -j2
+  - mkdir ../build-server && cd ../build-server && cmake ../server && make -j2
+
