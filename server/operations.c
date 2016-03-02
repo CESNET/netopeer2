@@ -21,7 +21,7 @@
 #include <nc_server.h>
 #include <sysrepo.h>
 
-#include "config.h"
+#include "common.h"
 
 static char *
 get_srval_name(sr_val_t *value, char **prefix)

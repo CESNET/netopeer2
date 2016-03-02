@@ -28,8 +28,7 @@
 #include <nc_server.h>
 #include <sysrepo.h>
 
-#include "config.h"
-#include "log.h"
+#include "common.h"
 #include "operations.h"
 
 #include "modules/ietf-netconf-acm.h"
