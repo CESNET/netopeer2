@@ -18,15 +18,15 @@ before_install:
   - sudo apt-get install -y libavl-dev libev-dev
   
   - git clone https://github.com/CESNET/libyang.git
-  - git checkout devel
   - cd libyang; mkdir build; cd build
+  - git checkout devel
   - cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
   - make -j2 && sudo make install
   - cd ../..
 
   - git clone https://github.com/CESNET/libnetconf2.git
-  - git checkout devel
   - cd libnetconf2; mkdir build; cd build
+  - git checkout devel
   - cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
   - make -j2 && sudo make install
   - cd ../..
