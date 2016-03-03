@@ -32,16 +32,16 @@ print_clb_nc2(NC_VERB_LEVEL level, const char *msg)
 {
     switch (level) {
     case NC_VERB_ERROR:
-        syslog(LOG_ERR, msg);
+        syslog(LOG_ERR, "%s", msg);
         break;
     case NC_VERB_WARNING:
-        syslog(LOG_WARNING, msg);
+        syslog(LOG_WARNING, "%s", msg);
         break;
     case NC_VERB_VERBOSE:
-        syslog(LOG_INFO, msg);
+        syslog(LOG_INFO, "%s", msg);
         break;
     case NC_VERB_DEBUG:
-        syslog(LOG_DEBUG, msg);
+        syslog(LOG_DEBUG, "%s", msg);
         break;
     }
 }
@@ -72,7 +72,7 @@ print_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
     if (path) {
         syslog(facility, "%s (%s)", msg, path);
     } else {
-        syslog(facility, msg);
+        syslog(facility, "%s", msg);
     }
 }
 
