@@ -11,7 +11,7 @@ compiler:
 
 branches:
   only:
-    - master
+    - devel-cli
 
 before_install:
   - sudo apt-get update -qq
