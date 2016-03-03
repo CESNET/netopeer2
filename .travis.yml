@@ -1,0 +1,40 @@
+os: linux
+sudo: required
+dist: trusty
+
+language:
+  - c
+
+compiler:
+  - gcc
+  - clang
+
+branches:
+  only:
+    - master
+
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install -y zlib1g-dev libssl-dev
+  
+  - git clone https://github.com/CESNET/libyang.git
+  - cd libyang; mkdir build; cd build
+  - cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
+  - make -j2 && sudo make install
+  - cd ../..
+
+  - wget https://red.libssh.org/attachments/download/177/libssh-0.7.2.tar.xz
+  - tar -xJf libssh-0.7.2.tar.xz
+  - mkdir libssh-0.7.2/build && cd libssh-0.7.2/build
+  - cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr .. && make -j2 && sudo make install
+  - cd ../..
+
+  - git clone https://github.com/CESNET/libnetconf2.git
+  - cd libnetconf2; mkdir build; cd build
+  - cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
+  - make -j2 && sudo make install
+  - cd ../..
+
+script:
+  - mkdir build-cli && cd build-cli && cmake ../cli && make -j2
+
