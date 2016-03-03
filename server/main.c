@@ -110,6 +110,27 @@ signal_handler(int sig)
         break;
     }
 }
+char *
+np2srv_ly_module_clb(const char *name, const char *revision, void *user_data, LYS_INFORMAT *format,
+                     void (**free_module_data)(char *model_data))
+{
+    char *data = NULL;
+
+    (void)free_module_data;
+    (void)format; /* TODO, should be a parameter in sr_get_schema() */
+
+    if (sr_get_schema(np2srv.sr_sess.running, name, NULL, revision, &data) == SR_ERR_OK) {
+        /* import */
+        return data;
+    } else if (sr_get_schema(np2srv.sr_sess.running, (const char *)user_data, name, revision, &data) == SR_ERR_OK) {
+        /* include */
+        return data;
+    }
+
+    ERR("Unable to get %s module (as dependency of %s) from sysrepo.", name, (const char *)user_data);
+
+    return NULL;
+}
 
 static int
 server_init(void)
@@ -118,7 +139,8 @@ server_init(void)
     const struct lys_node *snode;
     const struct lys_module *mod;
     int rc;
-    size_t count, i, c, x;
+    char *data;
+    size_t count, i, j;
 
     /* connect to the sysrepo */
     rc = sr_connect("netopeer2", false, &np2srv.sr_conn);
@@ -159,36 +181,31 @@ server_init(void)
     }
 
     /* 1) with modules from sysrepo */
-    c = 0;
-    while(count != c) {
-        for (i = 0, x = 0; i < count; i++) {
-            if (!schemas[i].file_path_yin) {
-                /* already processed or not present ... */
-                continue;
+    for (i = 0; i < count; i++) {
+        for (j = 0; j < schemas[i].rev_count; j++) {
+            ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_module_clb, (void*)schemas[i].module_name);
+            data = NULL;
+            mod = NULL;
+
+            if ((mod = ly_ctx_get_module(np2srv.ly_ctx, schemas[i].module_name, schemas[i].revisions[j].revision))) {
+                VRB("Module %s (%s) already present in context.", schemas[i].module_name,
+                    schemas[i].revisions[j].revision);
+            } else if (sr_get_schema(np2srv.sr_sess.running, schemas[i].module_name, NULL,
+                                     schemas[i].revisions[j].revision, &data) == SR_ERR_OK) {
+                /* TODO format in lys_parse_mem() must correspond with the format received by sr_get_schema() */
+                mod = lys_parse_mem(np2srv.ly_ctx, data, LYS_IN_YIN);
+                free(data);
             }
 
-            if (ly_ctx_get_module(np2srv.ly_ctx, schemas[i].module_name, schemas[i].revision) ||
-                    lys_parse_path(np2srv.ly_ctx, schemas[i].file_path_yin, LYS_IN_YIN)) {
-                /* success */
-                x++;
-
-                /* mark schema as already processed */
-                free(schemas[i].file_path_yin);
-                schemas[i].file_path_yin = NULL;
+            if (!mod) {
+                WRN("Getting %s schema from sysrepo failed, data from this module won't be available.",
+                    schemas[i].module_name);
             }
-        }
-        if (!x && count != c) {
-            for (i = 0; i < count; i++) {
-                if (schemas[i].file_path_yin) {
-                    WRN("Loading %s schema (%s) failed.", schemas[i].module_name, schemas[i].file_path_yin);
-                }
-            }
-            break;
         }
     }
     sr_free_schemas(schemas, count);
 
-    /* 2) add ietf-netconf with ietf-netconf-acm */
+    /* 2) add ietf-netconf with ietf-netconf-acm - TODO do it correctly as sysrepo's southbound app */
     lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_acm_yin, LYS_IN_YIN);
     mod = lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_2011_06_01_yin, LYS_IN_YIN);
     lys_features_enable(mod, "writable-running");
@@ -200,7 +217,7 @@ server_init(void)
     }
 
     /* debug - list schemas
-    struct lyd_node *ylib = ly_ctx_info(server.ly_ctx);
+    struct lyd_node *ylib = ly_ctx_info(np2srv.ly_ctx);
     lyd_print_file(stdout, ylib, LYD_JSON, LYP_WITHSIBLINGS);
     lyd_free(ylib);
     */
