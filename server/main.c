@@ -31,8 +31,8 @@
 #include "common.h"
 #include "operations.h"
 
-#include "modules/ietf-netconf-acm.h"
-#include "modules/ietf-netconf@2011-06-01.h"
+#include "../modules/ietf-netconf-acm.h"
+#include "../modules/ietf-netconf@2011-06-01.h"
 
 struct np2srv np2srv = {NULL, {NULL, NULL, NULL}, NULL, NULL};
 
