@@ -443,6 +443,9 @@ main(int argc, char *argv[])
     sigaction(SIGTERM, &action, NULL);
     sigaction(SIGHUP, &action, NULL);
     sigaction(SIGUSR1, &action, NULL);
+    /* ignore SIGPIPE */
+    action.sa_handler = SIG_IGN;
+    sigaction(SIGPIPE, &action, NULL);
 
     /* set printer callbacks for the used libraries and set proper log levels */
     nc_set_print_clb(print_clb_nc2); /* libnetconf2 */
