@@ -70,10 +70,15 @@ static void
 print_usage(char* progname)
 {
     fprintf(stdout, "Usage: %s [-dhV] [-v level]\n", progname);
-    fprintf(stdout, " -d                  daemonize server\n");
+    fprintf(stdout, " -d                  debug mode (do not daemonize and print\n");
+    fprintf(stdout, "                     verbose messages to stderr instead of syslog)\n");
     fprintf(stdout, " -h                  display help\n");
-    fprintf(stdout, " -v level            verbose output level\n");
     fprintf(stdout, " -V                  show program version\n");
+    fprintf(stdout, " -v level            verbose output level:\n");
+    fprintf(stdout, "                         0 - errors\n");
+    fprintf(stdout, "                         1 - errors and warnings\n");
+    fprintf(stdout, "                         2 - errors, warnings and verbose messages\n");
+    fprintf(stdout, "                         3 - all messages including debug notes\n");
     exit(0);
 }
 
@@ -366,7 +371,7 @@ main(int argc, char *argv[])
 {
     int ret = EXIT_SUCCESS;
     int c, rc;
-    int daemonize = 0;
+    int daemonize = 1;
     int pidfd;
     char pid[8];
     struct sigaction action;
@@ -378,7 +383,7 @@ main(int argc, char *argv[])
     while ((c = getopt(argc, argv, OPTSTRING)) != -1) {
         switch (c) {
         case 'd':
-            daemonize = 1;
+            daemonize = 0;
             break;
         case 'h':
             print_usage(argv[0]);
