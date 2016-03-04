@@ -1190,8 +1190,8 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
 
     if (ctx) {
         ly_ctx_destroy(ctx, NULL);
+        ctx = NULL;
     }
-    ctx = ly_ctx_new(search_path);
 
     if (is_connect) {
         /* default port */
@@ -1206,11 +1206,9 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
 
         nc_client_ssh_set_username(user);
         /* create the session */
-        session = nc_connect_ssh(host, port, ctx);
+        session = nc_connect_ssh(host, port, NULL);
         if (session == NULL) {
             ERROR(func_name, "Connecting to the %s:%d as user \"%s\" failed.", host, port, user);
-            ly_ctx_destroy(ctx, NULL);
-            ctx = NULL;
             return EXIT_FAILURE;
         }
     } else {
@@ -1233,15 +1231,14 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
         nc_client_ssh_ch_set_username(user);
         nc_client_ssh_ch_add_bind_listen(host, port);
         printf("Waiting %ds for an SSH Call Home connection on port %u...\n", timeout, port);
-        ret = nc_accept_callhome(timeout * 1000, ctx, &session);
+        ret = nc_accept_callhome(timeout * 1000, NULL, &session);
         nc_client_ssh_ch_del_bind(host, port);
         if (ret) {
             ERROR(func_name, "Receiving SSH Call Home on port %d as user \"%s\" failed.", port, user);
-            ly_ctx_destroy(ctx, NULL);
-            ctx = NULL;
             return EXIT_FAILURE;
         }
     }
+    ctx = nc_session_get_ctx(session);
 
     return EXIT_SUCCESS;
 }
@@ -1991,8 +1988,8 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
 
     if (ctx) {
         ly_ctx_destroy(ctx, NULL);
+        ctx = NULL;
     }
-    ctx = ly_ctx_new(search_path);
 
     if (is_connect) {
         /* default port */
@@ -2006,7 +2003,7 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         }
 
         /* create the session */
-        session = nc_connect_tls(host, port, ctx);
+        session = nc_connect_tls(host, port, NULL);
         if (session == NULL) {
             ERROR(func_name, "Connecting to the %s:%d failed.", host, port);
             goto error_cleanup;
@@ -2030,13 +2027,14 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         /* create the session */
         nc_client_tls_ch_add_bind_listen(host, port);
         ERROR(func_name, "Waiting %ds for a TLS Call Home connection on port %u...", timeout, port);
-        ret = nc_accept_callhome(timeout * 1000, ctx, &session);
+        ret = nc_accept_callhome(timeout * 1000, NULL, &session);
         nc_client_tls_ch_del_bind(host, port);
         if (ret) {
             ERROR(func_name, "Receiving TLS Call Home on port %d failed.", port);
             goto error_cleanup;
         }
     }
+    ctx = nc_session_get_ctx(session);
 
     free(trusted_dir);
     free(crl_dir);
@@ -2049,8 +2047,6 @@ error_cleanup:
     free(crl_dir);
     free(cert);
     free(key);
-    ly_ctx_destroy(ctx, NULL);
-    ctx = NULL;
     return EXIT_FAILURE;
 }
 
@@ -2082,6 +2078,9 @@ cmd_searchpath(const char *arg, char **UNUSED(tmp_config_file))
         return 1;
     }
 
+    nc_client_schema_searchpath(path);
+
+    /* keep it for config_store() */
     free(search_path);
     search_path = strdup(path);
 
@@ -2163,7 +2162,6 @@ cmd_disconnect(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
         ntf_tid = 0;
         nc_session_free(session, NULL);
         session = NULL;
-        ly_ctx_destroy(ctx, NULL);
         ctx = NULL;
     }
 

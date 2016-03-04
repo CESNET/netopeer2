@@ -268,9 +268,8 @@ main(void)
     ntf_tid = 0;
     if (session) {
         nc_session_free(session, NULL);
-    }
-    if (ctx) {
-        ly_ctx_destroy(ctx, NULL);
+        session = NULL;
+        ctx = NULL;
     }
 
     nc_client_destroy();

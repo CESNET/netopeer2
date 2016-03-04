@@ -303,6 +303,7 @@ load_config(void)
                             config_editor = strdup(child->content);
                         } else if (!strcmp(child->name, "searchpath")) {
                             /* doc -> <netconf-client> -> <searchpath> */
+                            nc_client_schema_searchpath(child->content);
                             search_path = strdup(child->content);
                         } else if (!strcmp(child->name, "output-format")) {
                             /* doc -> <netconf-client> -> <output-format> */
