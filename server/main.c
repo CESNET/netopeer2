@@ -122,16 +122,17 @@ np2srv_ly_module_clb(const char *name, const char *revision, void *user_data, LY
     char *data = NULL;
 
     (void)free_module_data;
-    (void)format; /* TODO, should be a parameter in sr_get_schema() */
+    *format = LYS_IN_YIN;
 
-    if (sr_get_schema(np2srv.sr_sess.running, name, NULL, revision, &data) == SR_ERR_OK) {
-        /* import */
-        return data;
-    } else if (sr_get_schema(np2srv.sr_sess.running, (const char *)user_data, name, revision, &data) == SR_ERR_OK) {
+    if (sr_get_schema(np2srv.sr_sess.startup, (const char *)user_data, revision, name, SR_SCHEMA_YIN,
+                      &data) == SR_ERR_OK) {
         /* include */
         return data;
+    } else if (sr_get_schema(np2srv.sr_sess.startup, name, revision, NULL, SR_SCHEMA_YIN,
+                             &data) == SR_ERR_OK) {
+        /* import */
+        return data;
     }
-
     ERR("Unable to get %s module (as dependency of %s) from sysrepo.", name, (const char *)user_data);
 
     return NULL;
@@ -145,7 +146,7 @@ server_init(void)
     const struct lys_module *mod;
     int rc;
     char *data;
-    size_t count, i, j;
+    size_t count, i;
 
     /* connect to the sysrepo */
     rc = sr_connect("netopeer2", false, &np2srv.sr_conn);
@@ -187,25 +188,23 @@ server_init(void)
 
     /* 1) with modules from sysrepo */
     for (i = 0; i < count; i++) {
-        for (j = 0; j < schemas[i].rev_count; j++) {
-            ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_module_clb, (void*)schemas[i].module_name);
-            data = NULL;
-            mod = NULL;
+        ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_module_clb, (void*)schemas[i].module_name);
+        data = NULL;
+        mod = NULL;
 
-            if ((mod = ly_ctx_get_module(np2srv.ly_ctx, schemas[i].module_name, schemas[i].revisions[j].revision))) {
-                VRB("Module %s (%s) already present in context.", schemas[i].module_name,
-                    schemas[i].revisions[j].revision);
-            } else if (sr_get_schema(np2srv.sr_sess.running, schemas[i].module_name, NULL,
-                                     schemas[i].revisions[j].revision, &data) == SR_ERR_OK) {
-                /* TODO format in lys_parse_mem() must correspond with the format received by sr_get_schema() */
-                mod = lys_parse_mem(np2srv.ly_ctx, data, LYS_IN_YIN);
-                free(data);
-            }
+        if ((mod = ly_ctx_get_module(np2srv.ly_ctx, schemas[i].module_name, schemas[i].revision.revision))) {
+            VRB("Module %s (%s) already present in context.", schemas[i].module_name,
+                schemas[i].revision.revision ? schemas[i].revision.revision : "no revision");
+        } else if (sr_get_schema(np2srv.sr_sess.running, schemas[i].module_name,
+                                 schemas[i].revision.revision, NULL, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
+            mod = lys_parse_mem(np2srv.ly_ctx, data, LYS_IN_YIN);
+            free(data);
+        }
 
-            if (!mod) {
-                WRN("Getting %s schema from sysrepo failed, data from this module won't be available.",
-                    schemas[i].module_name);
-            }
+        if (!mod) {
+            WRN("Getting %s (%s) schema from sysrepo failed, data from this module won't be available.",
+                schemas[i].module_name,
+                schemas[i].revision.revision ? schemas[i].revision.revision : "no revision");
         }
     }
     sr_free_schemas(schemas, count);
