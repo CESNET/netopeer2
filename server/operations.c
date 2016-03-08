@@ -213,8 +213,14 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             ds = sessions->startup;
         } else if (!strcmp(nodeset->dset[0]->schema->name, "candidate")) {
             ds = sessions->candidate;
+        } else {
+            ERR("Invalid <get-config> source (%s)", nodeset->dset[0]->schema->name);
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, np2log_lastmsg(), "en");
+            return nc_server_reply_err(e);
         }
         /* TODO URL capability */
+
         ly_set_free(nodeset);
     }
     /* refresh sysrepo data */
@@ -237,7 +243,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         } else if (rc != SR_ERR_OK) {
             ERR("Getting items (/%s) from sysrepo failed (%s)", list[i], sr_strerror(rc));
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, "", "en"); /* TODO, get last error message */
+            nc_err_set_msg(e, np2log_lastmsg(), "en");
 
             lyd_free_withsiblings(root);
             free(list);

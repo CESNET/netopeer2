@@ -390,7 +390,7 @@ main(int argc, char *argv[])
         case 'v':
             c = atoi(optarg);
             /* normalize verbose level */
-            verbose_level = (c > NC_VERB_ERROR) ? ((c > NC_VERB_DEBUG) ? NC_VERB_DEBUG : c) : NC_VERB_ERROR;
+            np2_verbose_level = (c > NC_VERB_ERROR) ? ((c > NC_VERB_DEBUG) ? NC_VERB_DEBUG : c) : NC_VERB_ERROR;
             break;
         case 'V':
             print_version();
@@ -447,12 +447,12 @@ main(int argc, char *argv[])
     sigaction(SIGPIPE, &action, NULL);
 
     /* set printer callbacks for the used libraries and set proper log levels */
-    nc_set_print_clb(print_clb_nc2); /* libnetconf2 */
-    ly_set_log_clb(print_clb_ly, 1); /* libyang */
-    sr_log_set_cb(print_clb_sr); /* sysrepo, log level is checked by callback */
+    nc_set_print_clb(np2log_clb_nc2); /* libnetconf2 */
+    ly_set_log_clb(np2log_clb_ly, 1); /* libyang */
+    sr_log_set_cb(np2log_clb_sr); /* sysrepo, log level is checked by callback */
 
-    nc_verbosity(verbose_level);
-    ly_verb(verbose_level);
+    nc_verbosity(np2_verbose_level);
+    ly_verb(np2_verbose_level);
 
 restart:
     /* initiate NETCONF server */
