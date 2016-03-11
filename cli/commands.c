@@ -57,13 +57,11 @@
 
 COMMAND commands[];
 extern int done;
-extern char *search_path;
 LYD_FORMAT output_format = LYD_XML_FORMAT;
 char *config_editor;
 struct nc_session *session;
 volatile pthread_t ntf_tid;
 volatile int interleave;
-struct ly_ctx *ctx;
 
 int cmd_disconnect(const char *arg, char **tmp_config_file);
 
@@ -745,7 +743,7 @@ cmd_subscribe_help(void)
 void
 cmd_getschema_help(void)
 {
-    if (session && !ly_ctx_get_module(ctx, "ietf-netconf-monitoring", NULL)) {
+    if (session && !ly_ctx_get_module(nc_session_get_ctx(session), "ietf-netconf-monitoring", NULL)) {
         printf("get-schema is not supported by the current session.\n");
         return;
     }
@@ -1188,11 +1186,6 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
         }
     }
 
-    if (ctx) {
-        ly_ctx_destroy(ctx, NULL);
-    }
-    ctx = ly_ctx_new(search_path);
-
     if (is_connect) {
         /* default port */
         if (!port) {
@@ -1206,11 +1199,9 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
 
         nc_client_ssh_set_username(user);
         /* create the session */
-        session = nc_connect_ssh(host, port, ctx);
+        session = nc_connect_ssh(host, port, NULL);
         if (session == NULL) {
             ERROR(func_name, "Connecting to the %s:%d as user \"%s\" failed.", host, port, user);
-            ly_ctx_destroy(ctx, NULL);
-            ctx = NULL;
             return EXIT_FAILURE;
         }
     } else {
@@ -1233,12 +1224,10 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
         nc_client_ssh_ch_set_username(user);
         nc_client_ssh_ch_add_bind_listen(host, port);
         printf("Waiting %ds for an SSH Call Home connection on port %u...\n", timeout, port);
-        ret = nc_accept_callhome(timeout * 1000, ctx, &session);
+        ret = nc_accept_callhome(timeout * 1000, NULL, &session);
         nc_client_ssh_ch_del_bind(host, port);
         if (ret) {
             ERROR(func_name, "Receiving SSH Call Home on port %d as user \"%s\" failed.", port, user);
-            ly_ctx_destroy(ctx, NULL);
-            ctx = NULL;
             return EXIT_FAILURE;
         }
     }
@@ -1989,11 +1978,6 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
     nc_client_tls_set_trusted_ca_paths(trusted_store, trusted_dir);
     nc_client_tls_set_crl_paths(NULL, crl_dir);
 
-    if (ctx) {
-        ly_ctx_destroy(ctx, NULL);
-    }
-    ctx = ly_ctx_new(search_path);
-
     if (is_connect) {
         /* default port */
         if (!port) {
@@ -2006,7 +1990,7 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         }
 
         /* create the session */
-        session = nc_connect_tls(host, port, ctx);
+        session = nc_connect_tls(host, port, NULL);
         if (session == NULL) {
             ERROR(func_name, "Connecting to the %s:%d failed.", host, port);
             goto error_cleanup;
@@ -2030,7 +2014,7 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         /* create the session */
         nc_client_tls_ch_add_bind_listen(host, port);
         ERROR(func_name, "Waiting %ds for a TLS Call Home connection on port %u...", timeout, port);
-        ret = nc_accept_callhome(timeout * 1000, ctx, &session);
+        ret = nc_accept_callhome(timeout * 1000, NULL, &session);
         nc_client_tls_ch_del_bind(host, port);
         if (ret) {
             ERROR(func_name, "Receiving TLS Call Home on port %d failed.", port);
@@ -2049,8 +2033,6 @@ error_cleanup:
     free(crl_dir);
     free(cert);
     free(key);
-    ly_ctx_destroy(ctx, NULL);
-    ctx = NULL;
     return EXIT_FAILURE;
 }
 
@@ -2060,7 +2042,6 @@ int
 cmd_searchpath(const char *arg, char **UNUSED(tmp_config_file))
 {
     const char *path;
-    struct stat st;
 
     if (strchr(arg, ' ') == NULL) {
         fprintf(stderr, "Missing the search path.\n");
@@ -2073,18 +2054,7 @@ cmd_searchpath(const char *arg, char **UNUSED(tmp_config_file))
         return 0;
     }
 
-    if (stat(path, &st) == -1) {
-        fprintf(stderr, "Failed to stat the search path (%s).\n", strerror(errno));
-        return 1;
-    }
-    if (!S_ISDIR(st.st_mode)) {
-        fprintf(stderr, "\"%s\" is not a directory.\n", path);
-        return 1;
-    }
-
-    free(search_path);
-    search_path = strdup(path);
-
+    nc_client_set_schema_searchpath(path);
     return 0;
 }
 
@@ -2163,8 +2133,6 @@ cmd_disconnect(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
         ntf_tid = 0;
         nc_session_free(session, NULL);
         session = NULL;
-        ly_ctx_destroy(ctx, NULL);
-        ctx = NULL;
     }
 
     return EXIT_SUCCESS;
@@ -2426,6 +2394,14 @@ cmd_cancelcommit(const char *arg, char **UNUSED(tmp_config_file))
             return EXIT_FAILURE;
         }
     }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_cancelcommit_help();
+        clear_arglist(&cmd);
+        return EXIT_FAILURE;
+    }
+
     clear_arglist(&cmd);
 
     if (!session) {
@@ -2500,6 +2476,14 @@ cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
             return EXIT_FAILURE;
         }
     }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_commit_help();
+        clear_arglist(&cmd);
+        return EXIT_FAILURE;
+    }
+
     clear_arglist(&cmd);
 
     if (!session) {
@@ -2652,7 +2636,20 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
             goto fail;
         }
     }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_copyconfig_help();
+        goto fail;
+    }
+
     clear_arglist(&cmd);
+
+    if (!source || !target) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_copyconfig_help();
+        goto fail;
+    }
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
@@ -2737,7 +2734,20 @@ cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
             goto fail;
         }
     }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_deleteconfig_help();
+        goto fail;
+    }
+
     clear_arglist(&cmd);
+
+    if (!target) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_deleteconfig_help();
+        goto fail;
+    }
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
@@ -2798,6 +2808,13 @@ cmd_discardchanges(const char *arg, char **UNUSED(tmp_config_file))
             clear_arglist(&cmd);
             return EXIT_FAILURE;
         }
+    }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_discardchanges_help();
+        clear_arglist(&cmd);
+        return EXIT_FAILURE;
     }
 
     clear_arglist(&cmd);
@@ -2962,7 +2979,20 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
             goto fail;
         }
     }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_editconfig_help();
+        goto fail;
+    }
+
     clear_arglist(&cmd);
+
+    if (!target || !content_param) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_editconfig_help();
+        goto fail;
+    }
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
@@ -2975,7 +3005,7 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
     }
 
     /* check if edit configuration data were specified */
-    if (content_param && !content) {
+    if (!content) {
         /* let user write edit data interactively */
         content = readinput("Type the content of the <edit-config>.", *tmp_config_file, tmp_config_file);
         if (!content) {
@@ -3109,6 +3139,13 @@ cmd_get(const char *arg, char **tmp_config_file)
             goto fail;
         }
     }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_get_help();
+        goto fail;
+    }
+
     clear_arglist(&cmd);
 
     if (!session) {
@@ -3279,7 +3316,20 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
             goto fail;
         }
     }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_getconfig_help();
+        goto fail;
+    }
+
     clear_arglist(&cmd);
+
+    if (!source) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_getconfig_help();
+        goto fail;
+    }
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
@@ -3365,7 +3415,20 @@ cmd_killsession(const char *arg, char **UNUSED(tmp_config_file))
         }
     }
 
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_killsession_help();
+        clear_arglist(&cmd);
+        return EXIT_FAILURE;
+    }
+
     clear_arglist(&cmd);
+
+    if (!sid) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_killsession_help();
+        return EXIT_FAILURE;
+    }
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
@@ -3440,7 +3503,21 @@ cmd_lock(const char *arg, char **UNUSED(tmp_config_file))
             return EXIT_FAILURE;
         }
     }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_lock_help();
+        clear_arglist(&cmd);
+        return EXIT_FAILURE;
+    }
+
     clear_arglist(&cmd);
+
+    if (!target) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_lock_help();
+        return EXIT_FAILURE;
+    }
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
@@ -3511,7 +3588,21 @@ cmd_unlock(const char *arg, char **UNUSED(tmp_config_file))
             return EXIT_FAILURE;
         }
     }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_unlock_help();
+        clear_arglist(&cmd);
+        return EXIT_FAILURE;
+    }
+
     clear_arglist(&cmd);
+
+    if (!target) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_unlock_help();
+        return EXIT_FAILURE;
+    }
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
@@ -3631,7 +3722,20 @@ cmd_validate(const char *arg, char **tmp_config_file)
             goto fail;
         }
     }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_validate_help();
+        goto fail;
+    }
+
     clear_arglist(&cmd);
+
+    if (!source) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_validate_help();
+        goto fail;
+    }
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
@@ -3790,6 +3894,13 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
             goto fail;
         }
     }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_subscribe_help();
+        goto fail;
+    }
+
     clear_arglist(&cmd);
 
     if (!session) {
@@ -3916,7 +4027,20 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
             goto fail;
         }
     }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_getschema_help();
+        goto fail;
+    }
+
     clear_arglist(&cmd);
+
+    if (!model) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_getschema_help();
+        goto fail;
+    }
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
@@ -4025,6 +4149,13 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
             goto fail;
         }
     }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_userrpc_help();
+        goto fail;
+    }
+
     clear_arglist(&cmd);
 
     if (!session) {
