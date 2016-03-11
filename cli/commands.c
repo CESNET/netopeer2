@@ -158,52 +158,36 @@ addargs(struct arglist *args, char *format, ...)
     free(aux1);
 }
 
-static void *
-cli_ntf_thread(void *arg)
+static void
+cli_ntf_clb(struct nc_session *session, const struct nc_notif *notif)
 {
-    NC_MSG_TYPE msgtype;
-    struct nc_notif *notif;
-    FILE *output = (FILE *)arg;
+    FILE *output = nc_session_get_data(session);
     int was_rawmode;
 
-    while (1) {
-        msgtype = nc_recv_notif(session, 0, &notif);
-
-        if (!ntf_tid) {
-            break;
-        } else if (msgtype == NC_MSG_WOULDBLOCK) {
-            usleep(1000);
-        } else if (msgtype == NC_MSG_NOTIF) {
-            if (output == stdout) {
-                if (ls.rawmode) {
-                    was_rawmode = 1;
-                    linenoiseDisableRawMode(ls.ifd);
-                    printf("\n");
-                } else {
-                    was_rawmode = 0;
-                }
-            }
-
-            fprintf(output, "notification (%s)\n", notif->datetime);
-            lyd_print_file(output, notif->tree, output_format, 0);
-            fprintf(output, "\n");
-            fflush(output);
-
-            if ((output == stdout) && was_rawmode) {
-                linenoiseEnableRawMode(ls.ifd);
-                linenoiseRefreshLine();
-            }
-
-            nc_notif_free(notif);
+    if (output == stdout) {
+        if (ls.rawmode) {
+            was_rawmode = 1;
+            linenoiseDisableRawMode(ls.ifd);
+            printf("\n");
+        } else {
+            was_rawmode = 0;
         }
     }
 
-    if (output != stdout) {
-        fclose(output);
+    fprintf(output, "notification (%s)\n", notif->datetime);
+    lyd_print_file(output, notif->tree, output_format, 0);
+    fprintf(output, "\n");
+    fflush(output);
+
+    if ((output == stdout) && was_rawmode) {
+        linenoiseEnableRawMode(ls.ifd);
+        linenoiseRefreshLine();
     }
-    ntf_tid = 0;
-    interleave = 1;
-    return NULL;
+
+    if (!strcmp(notif->tree->schema->name, "notificationComplete")
+            && !strcmp(notif->tree->schema->module->name, "nc-notifications")) {
+        interleave = 1;
+    }
 }
 
 static int
@@ -3945,14 +3929,12 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
     if (!output) {
         output = stdout;
     }
-    ret = pthread_create((pthread_t *)&ntf_tid, NULL, cli_ntf_thread, output);
+    nc_session_set_data(session, output);
+    ret = nc_recv_notif_dispatch(session, cli_ntf_clb);
     if (ret) {
-        ERROR(__func__, "Failed to create notification thread (%s).", strerror(ret));
-        ntf_tid = 0;
+        ERROR(__func__, "Failed to create notification thread.");
         goto fail;
     }
-    pthread_detach(ntf_tid);
-    output = NULL;
 
     if (!nc_session_cpblt(session, NC_CAP_INTERLEAVE_ID)) {
         fprintf(output, "NETCONF server does not support interleave, you\n"
