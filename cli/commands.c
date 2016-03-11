@@ -57,13 +57,11 @@
 
 COMMAND commands[];
 extern int done;
-extern char *search_path;
 LYD_FORMAT output_format = LYD_XML_FORMAT;
 char *config_editor;
 struct nc_session *session;
 volatile pthread_t ntf_tid;
 volatile int interleave;
-struct ly_ctx *ctx;
 
 int cmd_disconnect(const char *arg, char **tmp_config_file);
 
@@ -745,7 +743,7 @@ cmd_subscribe_help(void)
 void
 cmd_getschema_help(void)
 {
-    if (session && !ly_ctx_get_module(ctx, "ietf-netconf-monitoring", NULL)) {
+    if (session && !ly_ctx_get_module(nc_session_get_ctx(session), "ietf-netconf-monitoring", NULL)) {
         printf("get-schema is not supported by the current session.\n");
         return;
     }
@@ -1188,11 +1186,6 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
         }
     }
 
-    if (ctx) {
-        ly_ctx_destroy(ctx, NULL);
-        ctx = NULL;
-    }
-
     if (is_connect) {
         /* default port */
         if (!port) {
@@ -1238,7 +1231,6 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
             return EXIT_FAILURE;
         }
     }
-    ctx = nc_session_get_ctx(session);
 
     return EXIT_SUCCESS;
 }
@@ -1986,11 +1978,6 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
     nc_client_tls_set_trusted_ca_paths(trusted_store, trusted_dir);
     nc_client_tls_set_crl_paths(NULL, crl_dir);
 
-    if (ctx) {
-        ly_ctx_destroy(ctx, NULL);
-        ctx = NULL;
-    }
-
     if (is_connect) {
         /* default port */
         if (!port) {
@@ -2034,7 +2021,6 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
             goto error_cleanup;
         }
     }
-    ctx = nc_session_get_ctx(session);
 
     free(trusted_dir);
     free(crl_dir);
@@ -2056,7 +2042,6 @@ int
 cmd_searchpath(const char *arg, char **UNUSED(tmp_config_file))
 {
     const char *path;
-    struct stat st;
 
     if (strchr(arg, ' ') == NULL) {
         fprintf(stderr, "Missing the search path.\n");
@@ -2069,21 +2054,7 @@ cmd_searchpath(const char *arg, char **UNUSED(tmp_config_file))
         return 0;
     }
 
-    if (stat(path, &st) == -1) {
-        fprintf(stderr, "Failed to stat the search path (%s).\n", strerror(errno));
-        return 1;
-    }
-    if (!S_ISDIR(st.st_mode)) {
-        fprintf(stderr, "\"%s\" is not a directory.\n", path);
-        return 1;
-    }
-
-    nc_client_schema_searchpath(path);
-
-    /* keep it for config_store() */
-    free(search_path);
-    search_path = strdup(path);
-
+    nc_client_set_schema_searchpath(path);
     return 0;
 }
 
@@ -2162,7 +2133,6 @@ cmd_disconnect(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
         ntf_tid = 0;
         nc_session_free(session, NULL);
         session = NULL;
-        ctx = NULL;
     }
 
     return EXIT_SUCCESS;

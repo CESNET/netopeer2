@@ -34,7 +34,6 @@
 #include "linenoise/linenoise.h"
 
 int done;
-char *search_path;
 
 struct history_file {
     int *hist_idx;
@@ -45,7 +44,6 @@ struct history_file {
 extern char *config_editor;
 extern struct nc_session *session;
 extern pthread_t ntf_tid;
-extern struct ly_ctx *ctx;
 
 static const char *
 get_hist_file(int hist_idx)
@@ -261,15 +259,12 @@ main(void)
 
     store_config();
 
-    free(search_path);
     free(config_editor);
     free_hist_file();
 
     ntf_tid = 0;
     if (session) {
         nc_session_free(session, NULL);
-        session = NULL;
-        ctx = NULL;
     }
 
     nc_client_destroy();

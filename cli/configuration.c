@@ -33,7 +33,6 @@
 #include "linenoise/linenoise.h"
 
 extern int done;
-extern char *search_path;
 extern LYD_FORMAT output_format;
 extern char *config_editor;
 
@@ -303,8 +302,7 @@ load_config(void)
                             config_editor = strdup(child->content);
                         } else if (!strcmp(child->name, "searchpath")) {
                             /* doc -> <netconf-client> -> <searchpath> */
-                            nc_client_schema_searchpath(child->content);
-                            search_path = strdup(child->content);
+                            nc_client_set_schema_searchpath(child->content);
                         } else if (!strcmp(child->name, "output-format")) {
                             /* doc -> <netconf-client> -> <output-format> */
                             if (!strcmp(child->content, "json")) {
@@ -394,8 +392,8 @@ store_config(void)
         fprintf(config_f, "%*.s<editor>%s</editor>\n", indent, "", config_editor);
 
         /* search-path */
-        if (search_path) {
-            fprintf(config_f, "%*.s<searchpath>%s</searchpath>\n", indent, "", search_path);
+        if (nc_client_get_schema_searchpath()) {
+            fprintf(config_f, "%*.s<searchpath>%s</searchpath>\n", indent, "", nc_client_get_schema_searchpath());
         }
 
         /* output-format */
