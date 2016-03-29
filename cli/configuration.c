@@ -34,6 +34,7 @@
 
 extern int done;
 extern LYD_FORMAT output_format;
+extern int output_flag;
 extern char *config_editor;
 
 /* NetConf Client home (appended to ~/) */
@@ -307,8 +308,13 @@ load_config(void)
                             /* doc -> <netconf-client> -> <output-format> */
                             if (!strcmp(child->content, "json")) {
                                 output_format = LYD_JSON;
+                                output_flag = LYP_FORMAT;
+                            } else if (!strcmp(child->content, "json_noformat")) {
+                                output_format = LYD_JSON;
+                                output_flag = 0;
                             } else if (!strcmp(child->content, "xml_noformat")) {
                                 output_format = LYD_XML;
+                                output_flag = 0;
                             } /* else default (formatted XML) */
                         }
 #ifdef NC_ENABLED_SSH
@@ -399,9 +405,17 @@ store_config(void)
         /* output-format */
         fprintf(config_f, "%*.s<output-format>", indent, "");
         if (output_format == LYD_JSON) {
-            fprintf(config_f, "json");
+            if (output_flag) {
+                fprintf(config_f, "json");
+            } else {
+                fprintf(config_f, "json_noformat");
+            }
         } else {
-            fprintf(config_f, "xml");
+            if (output_flag) {
+                fprintf(config_f, "xml");
+            } else {
+                fprintf(config_f, "xml_noformat");
+            }
         }
         fprintf(config_f, "</output-format>\n");
 
