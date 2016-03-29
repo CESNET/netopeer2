@@ -207,14 +207,14 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         ds = sessions->running;
     } else { /* get-config */
         nodeset = lyd_get_node(rpc, "/ietf-netconf:get-config/source/*");
-        if (!strcmp(nodeset->dset[0]->schema->name, "running")) {
+        if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
             ds = sessions->running;
-        } else if (!strcmp(nodeset->dset[0]->schema->name, "startup")) {
+        } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
             ds = sessions->startup;
-        } else if (!strcmp(nodeset->dset[0]->schema->name, "candidate")) {
+        } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
             ds = sessions->candidate;
         } else {
-            ERR("Invalid <get-config> source (%s)", nodeset->dset[0]->schema->name);
+            ERR("Invalid <get-config> source (%s)", nodeset->set.d[0]->schema->name);
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
             nc_err_set_msg(e, np2log_lastmsg(), "en");
             return nc_server_reply_err(e);

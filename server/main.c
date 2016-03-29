@@ -117,11 +117,11 @@ signal_handler(int sig)
 }
 char *
 np2srv_ly_module_clb(const char *name, const char *revision, void *user_data, LYS_INFORMAT *format,
-                     void (**free_module_data)(char *model_data))
+                     void (**free_module_data)(void *model_data))
 {
     char *data = NULL;
 
-    (void)free_module_data;
+    *free_module_data = NULL;
     *format = LYS_IN_YIN;
 
     if (sr_get_schema(np2srv.sr_sess.startup, (const char *)user_data, revision, name, SR_SCHEMA_YIN,
@@ -233,10 +233,10 @@ server_init(void)
     np2srv.nc_ps = nc_ps_new();
 
     /* set NETCONF operations callbacks */
-    snode = ly_ctx_get_node(np2srv.ly_ctx, "/ietf-netconf:get");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get");
     lys_set_private(snode, op_get);
 
-    snode = ly_ctx_get_node(np2srv.ly_ctx, "/ietf-netconf:get-config");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get-config");
     lys_set_private(snode, op_get);
 
     nc_server_ssh_add_endpt_listen("main", "0.0.0.0", 6001);
