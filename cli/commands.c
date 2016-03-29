@@ -57,7 +57,8 @@
 
 COMMAND commands[];
 extern int done;
-LYD_FORMAT output_format = LYD_XML_FORMAT;
+LYD_FORMAT output_format = LYD_XML;
+int output_flag = LYP_FORMAT;
 char *config_editor;
 struct nc_session *session;
 volatile pthread_t ntf_tid;
@@ -175,7 +176,7 @@ cli_ntf_clb(struct nc_session *session, const struct nc_notif *notif)
     }
 
     fprintf(output, "notification (%s)\n", notif->datetime);
-    lyd_print_file(output, notif->tree, output_format, 0);
+    lyd_print_file(output, notif->tree, output_format, LYP_WITHSIBLINGS | output_flag);
     fprintf(output, "\n");
     fflush(output);
 
@@ -265,7 +266,7 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
         if (output == stdout) {
             fprintf(output, "DATA\n");
         }
-        lyd_print_file(output, data_rpl->data, output_format, LYP_WITHSIBLINGS);
+        lyd_print_file(output, data_rpl->data, output_format, LYP_WITHSIBLINGS | output_flag);
         if (output == stdout) {
             fprintf(output, "\n");
         }
@@ -333,7 +334,7 @@ cmd_searchpath_help(void)
 void
 cmd_outputformat_help(void)
 {
-    printf("outputformat (xml | xml_noformat | json)\n");
+    printf("outputformat (xml | xml_noformat | json | json_noformat)\n");
 }
 
 void
@@ -2060,11 +2061,17 @@ cmd_outputformat(const char *arg, char **UNUSED(tmp_config_file))
     }
 
     if (!strncmp(format, "xml", 3) && ((format[3] == '\0') || (format[3] == ' '))) {
-        output_format = LYD_XML_FORMAT;
+        output_format = LYD_XML;
+        output_flag = LYP_FORMAT;
     } else if (!strncmp(format, "xml_noformat", 12) && ((format[12] == '\0') || (format[12] == ' '))) {
         output_format = LYD_XML;
+        output_flag = 0;
     } else if (!strncmp(format, "json", 4) && ((format[4] == '\0') || (format[4] == ' '))) {
         output_format = LYD_JSON;
+        output_flag = LYP_FORMAT;
+    } else if (!strncmp(format, "json_noformat", 13) && ((format[13] == '\0') || (format[13] == ' '))) {
+        output_format = LYD_JSON;
+        output_flag = 0;
     } else {
         fprintf(stderr, "Unknown output format \"%s\".\n", format);
         return 1;
