@@ -31,8 +31,8 @@
 #include "common.h"
 #include "operations.h"
 
-#include "modules/ietf-netconf-acm.h"
-#include "modules/ietf-netconf@2011-06-01.h"
+#include "../modules/ietf-netconf-acm.h"
+#include "../modules/ietf-netconf@2011-06-01.h"
 
 struct np2srv np2srv = {NULL, {NULL, NULL, NULL}, NULL, NULL};
 
@@ -70,10 +70,15 @@ static void
 print_usage(char* progname)
 {
     fprintf(stdout, "Usage: %s [-dhV] [-v level]\n", progname);
-    fprintf(stdout, " -d                  daemonize server\n");
+    fprintf(stdout, " -d                  debug mode (do not daemonize and print\n");
+    fprintf(stdout, "                     verbose messages to stderr instead of syslog)\n");
     fprintf(stdout, " -h                  display help\n");
-    fprintf(stdout, " -v level            verbose output level\n");
     fprintf(stdout, " -V                  show program version\n");
+    fprintf(stdout, " -v level            verbose output level:\n");
+    fprintf(stdout, "                         0 - errors\n");
+    fprintf(stdout, "                         1 - errors and warnings\n");
+    fprintf(stdout, "                         2 - errors, warnings and verbose messages\n");
+    fprintf(stdout, "                         3 - all messages including debug notes\n");
     exit(0);
 }
 
@@ -110,6 +115,28 @@ signal_handler(int sig)
         break;
     }
 }
+char *
+np2srv_ly_module_clb(const char *name, const char *revision, void *user_data, LYS_INFORMAT *format,
+                     void (**free_module_data)(void *model_data))
+{
+    char *data = NULL;
+
+    *free_module_data = NULL;
+    *format = LYS_IN_YIN;
+
+    if (sr_get_schema(np2srv.sr_sess.startup, (const char *)user_data, revision, name, SR_SCHEMA_YIN,
+                      &data) == SR_ERR_OK) {
+        /* include */
+        return data;
+    } else if (sr_get_schema(np2srv.sr_sess.startup, name, revision, NULL, SR_SCHEMA_YIN,
+                             &data) == SR_ERR_OK) {
+        /* import */
+        return data;
+    }
+    ERR("Unable to get %s module (as dependency of %s) from sysrepo.", name, (const char *)user_data);
+
+    return NULL;
+}
 
 static int
 server_init(void)
@@ -118,7 +145,8 @@ server_init(void)
     const struct lys_node *snode;
     const struct lys_module *mod;
     int rc;
-    size_t count, i, c, x;
+    char *data;
+    size_t count, i;
 
     /* connect to the sysrepo */
     rc = sr_connect("netopeer2", false, &np2srv.sr_conn);
@@ -159,36 +187,29 @@ server_init(void)
     }
 
     /* 1) with modules from sysrepo */
-    c = 0;
-    while(count != c) {
-        for (i = 0, x = 0; i < count; i++) {
-            if (!schemas[i].file_path_yin) {
-                /* already processed or not present ... */
-                continue;
-            }
+    for (i = 0; i < count; i++) {
+        ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_module_clb, (void*)schemas[i].module_name);
+        data = NULL;
+        mod = NULL;
 
-            if (ly_ctx_get_module(np2srv.ly_ctx, schemas[i].module_name, schemas[i].revision) ||
-                    lys_parse_path(np2srv.ly_ctx, schemas[i].file_path_yin, LYS_IN_YIN)) {
-                /* success */
-                x++;
-
-                /* mark schema as already processed */
-                free(schemas[i].file_path_yin);
-                schemas[i].file_path_yin = NULL;
-            }
+        if ((mod = ly_ctx_get_module(np2srv.ly_ctx, schemas[i].module_name, schemas[i].revision.revision))) {
+            VRB("Module %s (%s) already present in context.", schemas[i].module_name,
+                schemas[i].revision.revision ? schemas[i].revision.revision : "no revision");
+        } else if (sr_get_schema(np2srv.sr_sess.running, schemas[i].module_name,
+                                 schemas[i].revision.revision, NULL, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
+            mod = lys_parse_mem(np2srv.ly_ctx, data, LYS_IN_YIN);
+            free(data);
         }
-        if (!x && count != c) {
-            for (i = 0; i < count; i++) {
-                if (schemas[i].file_path_yin) {
-                    WRN("Loading %s schema (%s) failed.", schemas[i].module_name, schemas[i].file_path_yin);
-                }
-            }
-            break;
+
+        if (!mod) {
+            WRN("Getting %s (%s) schema from sysrepo failed, data from this module won't be available.",
+                schemas[i].module_name,
+                schemas[i].revision.revision ? schemas[i].revision.revision : "no revision");
         }
     }
     sr_free_schemas(schemas, count);
 
-    /* 2) add ietf-netconf with ietf-netconf-acm */
+    /* 2) add ietf-netconf with ietf-netconf-acm - TODO do it correctly as sysrepo's southbound app */
     lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_acm_yin, LYS_IN_YIN);
     mod = lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_2011_06_01_yin, LYS_IN_YIN);
     lys_features_enable(mod, "writable-running");
@@ -200,7 +221,7 @@ server_init(void)
     }
 
     /* debug - list schemas
-    struct lyd_node *ylib = ly_ctx_info(server.ly_ctx);
+    struct lyd_node *ylib = ly_ctx_info(np2srv.ly_ctx);
     lyd_print_file(stdout, ylib, LYD_JSON, LYP_WITHSIBLINGS);
     lyd_free(ylib);
     */
@@ -212,10 +233,10 @@ server_init(void)
     np2srv.nc_ps = nc_ps_new();
 
     /* set NETCONF operations callbacks */
-    snode = ly_ctx_get_node(np2srv.ly_ctx, "/ietf-netconf:get");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get");
     lys_set_private(snode, op_get);
 
-    snode = ly_ctx_get_node(np2srv.ly_ctx, "/ietf-netconf:get-config");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get-config");
     lys_set_private(snode, op_get);
 
     nc_server_ssh_add_endpt_listen("main", "0.0.0.0", 6001);
@@ -349,7 +370,7 @@ main(int argc, char *argv[])
 {
     int ret = EXIT_SUCCESS;
     int c, rc;
-    int daemonize = 0;
+    int daemonize = 1;
     int pidfd;
     char pid[8];
     struct sigaction action;
@@ -361,7 +382,7 @@ main(int argc, char *argv[])
     while ((c = getopt(argc, argv, OPTSTRING)) != -1) {
         switch (c) {
         case 'd':
-            daemonize = 1;
+            daemonize = 0;
             break;
         case 'h':
             print_usage(argv[0]);
@@ -369,7 +390,7 @@ main(int argc, char *argv[])
         case 'v':
             c = atoi(optarg);
             /* normalize verbose level */
-            verbose_level = (c > NC_VERB_ERROR) ? ((c > NC_VERB_DEBUG) ? NC_VERB_DEBUG : c) : NC_VERB_ERROR;
+            np2_verbose_level = (c > NC_VERB_ERROR) ? ((c > NC_VERB_DEBUG) ? NC_VERB_DEBUG : c) : NC_VERB_ERROR;
             break;
         case 'V':
             print_version();
@@ -421,14 +442,17 @@ main(int argc, char *argv[])
     sigaction(SIGTERM, &action, NULL);
     sigaction(SIGHUP, &action, NULL);
     sigaction(SIGUSR1, &action, NULL);
+    /* ignore SIGPIPE */
+    action.sa_handler = SIG_IGN;
+    sigaction(SIGPIPE, &action, NULL);
 
     /* set printer callbacks for the used libraries and set proper log levels */
-    nc_set_print_clb(print_clb_nc2); /* libnetconf2 */
-    ly_set_log_clb(print_clb_ly, 1); /* libyang */
-    sr_log_set_cb(print_clb_sr); /* sysrepo, log level is checked by callback */
+    nc_set_print_clb(np2log_clb_nc2); /* libnetconf2 */
+    ly_set_log_clb(np2log_clb_ly, 1); /* libyang */
+    sr_log_set_cb(np2log_clb_sr); /* sysrepo, log level is checked by callback */
 
-    nc_verbosity(verbose_level);
-    ly_verb(verbose_level);
+    nc_verbosity(np2_verbose_level);
+    ly_verb(np2_verbose_level);
 
 restart:
     /* initiate NETCONF server */

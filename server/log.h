@@ -21,38 +21,43 @@
 /**
  * @brief Verbose level variable
  */
-extern volatile uint8_t verbose_level;
+extern volatile uint8_t np2_verbose_level;
 
 /**
  * @brief internal printing function, follows the levels from libnetconf2
  * @param[in] level Verbose level
  * @param[in] format Formatting string
  */
-void prv_printf(NC_VERB_LEVEL level, const char *format, ...);
+void np2log_printf(NC_VERB_LEVEL level, const char *format, ...);
 
 /*
  * Verbose printing macros
  */
-#define ERR(format,args...) prv_printf(NC_VERB_ERROR,format,##args)
-#define WRN(format,args...) if(verbose_level>=NC_VERB_WARNING){prv_printf(NC_VERB_WARNING,format,##args);}
-#define VRB(format,args...) if(verbose_level>=NC_VERB_VERBOSE){prv_printf(NC_VERB_VERBOSE,format,##args);}
-#define DBG(format,args...) if(verbose_level>=NC_VERB_DEBUG){prv_printf(NC_VERB_DEBUG,format,##args);}
+#define ERR(format,args...) np2log_printf(NC_VERB_ERROR,format,##args)
+#define WRN(format,args...) if(np2_verbose_level>=NC_VERB_WARNING){np2log_printf(NC_VERB_WARNING,format,##args);}
+#define VRB(format,args...) if(np2_verbose_level>=NC_VERB_VERBOSE){np2log_printf(NC_VERB_VERBOSE,format,##args);}
+#define DBG(format,args...) if(np2_verbose_level>=NC_VERB_DEBUG){np2log_printf(NC_VERB_DEBUG,format,##args);}
 
 #define EMEM ERR("Memory allocation failed (%s:%d)", __FILE__, __LINE__)
 
 /**
  * @brief printer callback for libnetconf2
  */
-void print_clb_nc2(NC_VERB_LEVEL level, const char *msg);
+void np2log_clb_nc2(NC_VERB_LEVEL level, const char *msg);
 
 /**
  * @brief printer callback for libyang
  */
-void print_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path);
+void np2log_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path);
 
 /**
  * @brief printer callback for sysrepo
  */
-void print_clb_sr(sr_log_level_t level, const char *msg);
+void np2log_clb_sr(sr_log_level_t level, const char *msg);
+
+/**
+ * @brief Get last error message (covers libyang, libnetconf2, sysrepo and netopeer2 in the current thread)
+ */
+const char *np2log_lastmsg(void);
 
 #endif /* NP2SRV_LOG_H_ */
