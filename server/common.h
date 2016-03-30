@@ -23,6 +23,7 @@ struct np2sr_sessions {
 	sr_session_ctx_t *running;
 	sr_session_ctx_t *startup;
 	sr_session_ctx_t *candidate;
+	struct nc_session *ncs;
 };
 
 /* Netopeer server internal data */

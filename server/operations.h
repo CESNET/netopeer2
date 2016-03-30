@@ -17,6 +17,14 @@
 
 #include <nc_server.h>
 
+/**
+ * @brief Use when the session is being terminated to 'release' all its locks
+ * @param[in] ncs NETCONF session being terminated.
+ */
+void np2srv_clean_dslock(struct nc_session *ncs);
+
 struct nc_server_reply *op_get(struct lyd_node *rpc, struct nc_session *ncs);
+struct nc_server_reply *op_lock(struct lyd_node *rpc, struct nc_session *ncs);
+struct nc_server_reply *op_unlock(struct lyd_node *rpc, struct nc_session *ncs);
 
 #endif /* NP2SRV_OPERATIONS_H_ */

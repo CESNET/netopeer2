@@ -34,7 +34,7 @@
 #include "../modules/ietf-netconf-acm.h"
 #include "../modules/ietf-netconf@2011-06-01.h"
 
-struct np2srv np2srv = {NULL, {NULL, NULL, NULL}, NULL, NULL};
+struct np2srv np2srv = {NULL, {NULL, NULL, NULL, NULL}, NULL, NULL};
 
 /**
  * @brief Control flags for the main loop
@@ -239,6 +239,12 @@ server_init(void)
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get-config");
     lys_set_private(snode, op_get);
 
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:lock");
+    lys_set_private(snode, op_lock);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:unlock");
+    lys_set_private(snode, op_unlock);
+
     nc_server_ssh_add_endpt_listen("main", "0.0.0.0", 6001);
     nc_server_ssh_endpt_set_hostkey("main", "/etc/ssh/ssh_host_rsa_key");
 
@@ -263,6 +269,7 @@ free_ds(void *ptr)
             sr_session_stop(s->candidate);
         }
         */
+        np2srv_clean_dslock(s->ncs);
         free(s);
     }
 }
@@ -282,6 +289,7 @@ connect_ds(struct nc_session *ncs)
         EMEM;
         return EXIT_FAILURE;
     }
+    s->ncs = ncs;
 
     rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_RUNNING, &s->running);
     if (rc != SR_ERR_OK) {

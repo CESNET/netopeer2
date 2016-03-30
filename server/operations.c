@@ -13,6 +13,7 @@
  */
 
 #define _GNU_SOURCE
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +23,34 @@
 #include <sysrepo.h>
 
 #include "common.h"
+
+/**
+ * Local information about locks
+ */
+static struct {
+    struct nc_session *running;
+    struct nc_session *startup;
+    struct nc_session *candidate;
+} dslock = {NULL, NULL, NULL};
+pthread_rwlock_t dslock_rwl = PTHREAD_RWLOCK_INITIALIZER;
+
+void
+np2srv_clean_dslock(struct nc_session *ncs)
+{
+    pthread_rwlock_wrlock(&dslock_rwl);
+
+    if (dslock.running == ncs) {
+        dslock.running = NULL;
+    }
+    if (dslock.startup == ncs) {
+        dslock.startup = NULL;
+    }
+    if (dslock.candidate == ncs) {
+        dslock.candidate = NULL;
+    }
+
+    pthread_rwlock_unlock(&dslock_rwl);
+}
 
 static char *
 get_srval_name(sr_val_t *value, char **prefix)
@@ -215,6 +244,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             ds = sessions->candidate;
         } else {
             ERR("Invalid <get-config> source (%s)", nodeset->set.d[0]->schema->name);
+            ly_set_free(nodeset);
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
             nc_err_set_msg(e, np2log_lastmsg(), "en");
             return nc_server_reply_err(e);
@@ -271,5 +301,157 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
     /* build RPC Reply */
     return nc_server_reply_data(root, NC_PARAMTYPE_FREE);
+}
+
+struct nc_server_reply *
+op_lock(struct lyd_node *rpc, struct nc_session *ncs)
+{
+    struct np2sr_sessions *sessions;
+    sr_session_ctx_t *ds;
+    struct nc_session **dsl;
+    struct ly_set *nodeset;
+    struct nc_server_error *e;
+    int rc;
+
+    /* get sysrepo connections for this session */
+    sessions = (struct np2sr_sessions *)nc_session_get_data(ncs);
+
+    /* get know which datastore is being affected */
+    nodeset = lyd_get_node(rpc, "/ietf-netconf:lock/target/*");
+    if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
+        /* TODO additional requirements in case of supporting confirmed-commit */
+        ds = sessions->running;
+        dsl = &dslock.running;
+    } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
+        ds = sessions->startup;
+        dsl = &dslock.startup;
+    /* TODO sysrepo does not support candidate, RFC 6020 has some addition requirements here
+    } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
+        ds = sessions->candidate;
+        dsl = &dslock.candidate;
+    */
+    } else {
+        ERR("Invalid <lock> target (%s)", nodeset->set.d[0]->schema->name);
+        ly_set_free(nodeset);
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, np2log_lastmsg(), "en");
+        return nc_server_reply_err(e);
+    }
+    ly_set_free(nodeset);
+
+    pthread_rwlock_rdlock(&dslock_rwl);
+    if (*dsl) {
+lock_held:
+        /* lock already held */
+        pthread_rwlock_unlock(&dslock_rwl);
+        ERR("Locking datastore %s by session %d failed (datastore is already locked by session %d).",
+            nodeset->set.d[0]->schema->name, nc_session_get_id(ncs), nc_session_get_id(*dsl));
+        e = nc_err(NC_ERR_LOCK_DENIED, nc_session_get_id(*dsl));
+        nc_err_set_msg(e, np2log_lastmsg(), "en");
+        return nc_server_reply_err(e);
+    }
+    pthread_rwlock_unlock(&dslock_rwl);
+
+    pthread_rwlock_wrlock(&dslock_rwl);
+    /* check again dsl, it could change between unlock and wrlock */
+    if (*dsl) {
+        goto lock_held;
+    }
+
+    rc = sr_lock_datastore(ds);
+    if (rc != SR_ERR_OK) {
+        /* lock is held outside Netopeer */
+        pthread_rwlock_unlock(&dslock_rwl);
+        ERR("Locking datastore %s by session %d failed (%s).", nodeset->set.d[0]->schema->name,
+            nc_session_get_id(ncs), sr_strerror(rc));
+        e = nc_err(NC_ERR_LOCK_DENIED, 0);
+        nc_err_set_msg(e, np2log_lastmsg(), "en");
+        return nc_server_reply_err(e);
+    }
+
+    /* update local information about locks */
+    *dsl = ncs;
+    pthread_rwlock_unlock(&dslock_rwl);
+
+    /* build positive RPC Reply */
+    return nc_server_reply_ok();
+}
+
+struct nc_server_reply *
+op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
+{
+    struct np2sr_sessions *sessions;
+    sr_session_ctx_t *ds;
+    struct nc_session **dsl;
+    struct ly_set *nodeset;
+    struct nc_server_error *e;
+    int rc;
+
+    /* get sysrepo connections for this session */
+    sessions = (struct np2sr_sessions *)nc_session_get_data(ncs);
+
+    /* get know which datastore is being affected */
+    nodeset = lyd_get_node(rpc, "/ietf-netconf:lock/target/*");
+    if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
+        ds = sessions->running;
+        dsl = &dslock.running;
+    } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
+        ds = sessions->startup;
+        dsl = &dslock.startup;
+    /* TODO sysrepo does not support candidate
+    } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
+        ds = sessions->candidate;
+        dsl = &dslock.candidate;
+    */
+    } else {
+        ERR("Invalid <unlock> target (%s)", nodeset->set.d[0]->schema->name);
+        ly_set_free(nodeset);
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, np2log_lastmsg(), "en");
+        return nc_server_reply_err(e);
+    }
+    ly_set_free(nodeset);
+
+    pthread_rwlock_rdlock(&dslock_rwl);
+    if (!(*dsl)) {
+        /* lock is not held */
+        pthread_rwlock_unlock(&dslock_rwl);
+        ERR("Unlocking datastore %s by session %d failed (lock is not active).",
+            nodeset->set.d[0]->schema->name, nc_session_get_id(ncs));
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_PROT);
+        nc_err_set_msg(e, np2log_lastmsg(), "en");
+        return nc_server_reply_err(e);
+    } else {
+        /* lock is held, but by who? */
+        if ((*dsl) != ncs) {
+            /* by someone else */
+            pthread_rwlock_unlock(&dslock_rwl);
+            ERR("Unlocking datastore %s by session %d failed (lock is held by session %d).",
+                nodeset->set.d[0]->schema->name, nc_session_get_id(ncs), nc_session_get_id(*dsl));
+            e = nc_err(NC_ERR_LOCK_DENIED, nc_session_get_id(*dsl));
+            nc_err_set_msg(e, np2log_lastmsg(), "en");
+            return nc_server_reply_err(e);
+        }
+    }
+    pthread_rwlock_unlock(&dslock_rwl);
+    pthread_rwlock_wrlock(&dslock_rwl);
+
+    rc = sr_unlock_datastore(ds);
+    if (rc != SR_ERR_OK) {
+        /* lock is held outside Netopeer */
+        pthread_rwlock_unlock(&dslock_rwl);
+        ERR("Unlocking datastore %s by session %d failed (%s).", nodeset->set.d[0]->schema->name,
+            nc_session_get_id(ncs), sr_strerror(rc));
+        e = nc_err(NC_ERR_LOCK_DENIED, 0);
+        nc_err_set_msg(e, np2log_lastmsg(), "en");
+        return nc_server_reply_err(e);
+    }
+
+    /* update local information about locks */
+    *dsl = NULL;
+    pthread_rwlock_unlock(&dslock_rwl);
+
+    /* build positive RPC Reply */
+    return nc_server_reply_ok();
 }
 
