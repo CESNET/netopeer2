@@ -158,12 +158,12 @@ server_init(void)
     VRB("Netopeer2 connected to sysrepod.");
 
     /* start internal sessions with sysrepo */
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &np2srv.sr_sess.running);
+    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, SR_SESS_DEFAULT, &np2srv.sr_sess.running);
     if (rc != SR_ERR_OK) {
         ERR("Unable to create Netopeer session to sysrepod (%s).", sr_strerror(rc));
         return EXIT_FAILURE;
     }
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_STARTUP, &np2srv.sr_sess.startup);
+    rc = sr_session_start(np2srv.sr_conn, SR_DS_STARTUP, SR_SESS_DEFAULT, &np2srv.sr_sess.startup);
     if (rc != SR_ERR_OK) {
         VRB("Startup datastore not available in sysrepod (%s).", sr_strerror(rc));
     }
@@ -291,14 +291,14 @@ connect_ds(struct nc_session *ncs)
     }
     s->ncs = ncs;
 
-    rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_RUNNING, &s->running);
+    rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_RUNNING, SR_SESS_DEFAULT, &s->running);
     if (rc != SR_ERR_OK) {
         ERR("Unable to create sysrepo running session for NETCONF session %d (%s).",
             nc_session_get_id(ncs), sr_strerror(rc));
         goto error;
     }
     if (np2srv.sr_sess.startup) {
-        rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_STARTUP, &s->startup);
+        rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_STARTUP, SR_SESS_DEFAULT, &s->startup);
         if (rc != SR_ERR_OK) {
             ERR("Unable to create sysrepo startup session for NETCONF session %d (%s).",
                 nc_session_get_id(ncs), sr_strerror(rc));
