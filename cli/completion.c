@@ -116,7 +116,10 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
     char* tmpname = NULL, *input = NULL, *old_content = NULL, *ptr, *ptr2;
 
     /* Create a unique temporary file */
-    asprintf(&tmpname, "/tmp/tmpXXXXXX.xml");
+    if (asprintf(&tmpname, "/tmp/tmpXXXXXX.xml") == -1) {
+        ERROR(__func__, "asprintf() failed (%s).", strerror(errno));
+        goto fail;
+    }
     tmpfd = mkstemps(tmpname, 4);
     if (tmpfd == -1) {
         ERROR(__func__, "Failed to create a temporary file (%s).", strerror(errno));
@@ -131,11 +134,12 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
             lseek(oldfd, 0, SEEK_SET);
             if (size > 0) {
                 old_content = malloc(size+1);
-                old_content[size] = '\0';
                 ret = read(oldfd, old_content, size);
                 if (ret != size) {
                     free(old_content);
                     old_content = NULL;
+                } else {
+                    old_content[size] = '\0';
                 }
             }
             close(oldfd);
@@ -199,15 +203,14 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
     }
     lseek(tmpfd, 0, SEEK_SET);
 
-    input = malloc(size+1);
-    input[size] = '\0';
-
     /* Read the input */
+    input = malloc(size+1);
     ret = read(tmpfd, input, size);
     if (ret < size) {
         ERROR(__func__, "Failed to read from the temporary file (%s).", strerror(errno));
         goto fail;
     }
+    input[size] = '\0';
 
     /* Remove the instruction comment */
     if (!old_content && instruction) {
@@ -237,6 +240,11 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
 
     if (new_tmp) {
         *new_tmp = tmpname;
+    } else {
+        if (tmpname != NULL) {
+            unlink(tmpname);
+        }
+        free(tmpname);
     }
 
 cleanup:

@@ -99,7 +99,7 @@ clear_arglist(struct arglist *args)
     init_arglist(args);
 }
 
-static void
+static int
 addargs(struct arglist *args, char *format, ...)
 {
     va_list arguments;
@@ -107,13 +107,14 @@ addargs(struct arglist *args, char *format, ...)
     int len;
 
     if (args == NULL) {
-        return;
+        return EXIT_FAILURE;
     }
 
     /* store arguments to aux string */
     va_start(arguments, format);
     if ((len = vasprintf(&aux, format, arguments)) == -1) {
-        perror("addargs - vasprintf");
+        ERROR(__func__, "vasprintf() failed (%s)", strerror(errno));
+        return EXIT_FAILURE;
     }
     va_end(arguments);
 
@@ -135,7 +136,8 @@ addargs(struct arglist *args, char *format, ...)
 
         if (!args->list) { /* initial memory allocation */
             if ((args->list = (char **)malloc(8 * sizeof(char *))) == NULL) {
-                perror("Fatal error while allocating memory");
+                ERROR(__func__, "Memory allocation failed (%s:%d)", __FILE__, __LINE__);
+                return EXIT_FAILURE;
             }
             args->size = 8;
             args->count = 0;
@@ -149,7 +151,8 @@ addargs(struct arglist *args, char *format, ...)
         }
         /* add word in the end of the list */
         if ((args->list[args->count] = malloc((strlen(aux) + 1) * sizeof(char))) == NULL) {
-            perror("Fatal error while allocating memory");
+            ERROR(__func__, "Memory allocation failed (%s:%d)", __FILE__, __LINE__);
+            return EXIT_FAILURE;
         }
         strcpy(args->list[args->count], aux);
         args->list[++args->count] = NULL; /* last argument */
@@ -157,6 +160,8 @@ addargs(struct arglist *args, char *format, ...)
 
     /* clean up */
     free(aux1);
+
+    return EXIT_SUCCESS;
 }
 
 static void
@@ -917,7 +922,9 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hd:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -1041,14 +1048,13 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
         fseek(file, 0, SEEK_SET);
 
         text = malloc(text_len + 1);
-        text[text_len] = '\0';
-
         if (fread(text, 1, text_len, file) < (unsigned)text_len) {
             ERROR("knownhosts", "Cannot read known hosts file (%s)", strerror(ferror(file)));
             free(text);
             fclose(file);
             return EXIT_FAILURE;
         }
+        text[text_len] = '\0';
         fseek(file, 0, SEEK_SET);
 
         for (i = 0, ptr = text; (i < del_idx) && ptr; ++i, ptr = strchr(ptr + 1, '\n'));
@@ -1104,28 +1110,19 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
     struct passwd *pw;
     unsigned short port = 0;
     int c, timeout = 0, ret;
-    struct option *long_options;
     int option_index = 0;
+    struct option long_options[] = {
+        {"ssh", 0, 0, 's'},
+        {"host", 1, 0, 'o'},
+        {"port", 1, 0, 'p'},
+        {"login", 1, 0, 'l'},
+        {"timeout", 1, 0, 'i'},
+        {0, 0, 0, 0}
+    };
 
     if (is_connect) {
-        struct option connect_long_options[] = {
-            {"ssh", 0, 0, 's'},
-            {"host", 1, 0, 'o'},
-            {"port", 1, 0, 'p'},
-            {"login", 1, 0, 'l'},
-            {0, 0, 0, 0}
-        };
-        long_options = connect_long_options;
-    } else {
-        struct option listen_long_options[] = {
-            {"ssh", 0, 0, 's'},
-            {"timeout", 1, 0, 'i'},
-            {"host", 1, 0, 'o'},
-            {"port", 1, 0, 'p'},
-            {"login", 1, 0, 'l'},
-            {0, 0, 0, 0}
-        };
-        long_options = listen_long_options;
+        /* remove timeout option for use as connect command */
+        memset(&long_options[4], 0, sizeof long_options[4]);
     }
 
     /* set back to start to be able to use getopt() repeatedly */
@@ -1251,14 +1248,19 @@ cp(const char *to, const char *from)
     if (sendfile(fd_to, fd_from, NULL, from_len) < from_len) {
         goto out_error;
     }
+
+    close(fd_from);
+    close(fd_to);
+
     return 0;
 
 out_error:
     saved_errno = errno;
 
     close(fd_from);
-    if (fd_to >= 0)
+    if (fd_to >= 0) {
         close(fd_to);
+    }
 
     errno = saved_errno;
     return -1;
@@ -1843,35 +1845,24 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
     char *host = NULL;
     DIR *dir = NULL;
     struct dirent* d;
-    int c, n, timeout = 0, ret;
+    int c, n, timeout = 0, ret = EXIT_FAILURE;
     char *cert = NULL, *key = NULL, *trusted_dir = NULL, *crl_dir = NULL, *trusted_store = NULL;
     unsigned short port = 0;
-    struct option *long_options;
     int option_index = 0;
+    struct option long_options[] = {
+        {"tls", 0, 0, 't'},
+        {"host", 1, 0, 'o'},
+        {"port", 1, 0, 'p'},
+        {"cert", 1, 0, 'c'},
+        {"key", 1, 0, 'k'},
+        {"trusted", 1, 0, 'r'},
+        {"timeout", 1, 0, 'i'},
+        {0, 0, 0, 0}
+    };
 
     if (is_connect) {
-        struct option connect_long_options[] = {
-            {"tls", 0, 0, 't'},
-            {"host", 1, 0, 'o'},
-            {"port", 1, 0, 'p'},
-            {"cert", 1, 0, 'c'},
-            {"key", 1, 0, 'k'},
-            {"trusted", 1, 0, 'r'},
-            {0, 0, 0, 0}
-        };
-        long_options = connect_long_options;
-    } else {
-        struct option listen_long_options[] = {
-            {"tls", 0, 0, 't'},
-            {"timeout", 1, 0, 'i'},
-            {"host", 1, 0, 'o'},
-            {"port", 1, 0, 'p'},
-            {"cert", 1, 0, 'c'},
-            {"key", 1, 0, 'k'},
-            {"trusted", 1, 0, 'r'},
-            {0, 0, 0, 0}
-        };
-        long_options = listen_long_options;
+        /* remove timeout option for use as connect command */
+        memset(&long_options[6], 0, sizeof long_options[6]);
     }
 
     /* set back to start to be able to use getopt() repeatedly */
@@ -2007,18 +1998,14 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         }
     }
 
-    free(trusted_dir);
-    free(crl_dir);
-    free(cert);
-    free(key);
-    return EXIT_SUCCESS;
+    ret = EXIT_SUCCESS;
 
 error_cleanup:
     free(trusted_dir);
     free(crl_dir);
     free(cert);
     free(key);
-    return EXIT_FAILURE;
+    return ret;
 }
 
 #endif /* NC_ENABLED_TLS */
@@ -2156,6 +2143,7 @@ cmd_status(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 #endif
         case NC_TI_FD:
             s = "FD";
+            break;
         default:
             s = "Unknown";
             break;
@@ -2210,7 +2198,9 @@ cmd_connect_listen(const char *arg, int is_connect)
 
     /* process given arguments */
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     ret = -1;
 
@@ -2352,8 +2342,8 @@ int
 cmd_cancelcommit(const char *arg, char **UNUSED(tmp_config_file))
 {
     struct nc_rpc *rpc;
-    int c, ret;
-    char *persist_id = NULL;
+    int c, ret = EXIT_FAILURE;
+    const char *persist_id = NULL;
     struct arglist cmd;
     struct option long_options[] = {
             {"help", 0, 0, 'h'},
@@ -2367,53 +2357,55 @@ cmd_cancelcommit(const char *arg, char **UNUSED(tmp_config_file))
 
     /* process given arguments */
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hi:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_cancelcommit_help();
-            clear_arglist(&cmd);
-            return EXIT_SUCCESS;
+            ret = EXIT_SUCCESS;
+            goto fail;
         case 'i':
-            persist_id = strdup(optarg);
+            persist_id = optarg;
             break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
             cmd_cancelcommit_help();
-            clear_arglist(&cmd);
-            return EXIT_FAILURE;
+            goto fail;
         }
     }
 
     if (cmd.list[optind]) {
         ERROR(__func__, "Unparsed command arguments.");
         cmd_cancelcommit_help();
-        clear_arglist(&cmd);
-        return EXIT_FAILURE;
+        goto fail;
     }
 
-    clear_arglist(&cmd);
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     if (!interleave) {
         ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
-    rpc = nc_rpc_cancel(persist_id, NC_PARAMTYPE_FREE);
+    rpc = nc_rpc_cancel(persist_id, NC_PARAMTYPE_CONST);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     ret = cli_send_recv(rpc, stdout);
 
     nc_rpc_free(rpc);
+
+fail:
+    clear_arglist(&cmd);
     return ret;
 }
 
@@ -2421,7 +2413,7 @@ int
 cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
 {
     struct nc_rpc *rpc;
-    int c, ret, confirmed = 0;
+    int c, ret = EXIT_FAILURE, confirmed = 0;
     int32_t confirm_timeout = 0;
     char *persist = NULL, *persist_id = NULL;
     struct arglist cmd;
@@ -2440,14 +2432,16 @@ cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
 
     /* process given arguments */
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hct:p:i:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_commit_help();
-            clear_arglist(&cmd);
-            return EXIT_SUCCESS;
+            ret = EXIT_SUCCESS;
+            goto fail;
         case 'c':
             confirmed = 1;
             break;
@@ -2455,56 +2449,56 @@ cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
             confirm_timeout = atoi(optarg);
             break;
         case 'p':
-            persist = strdup(optarg);
+            persist = optarg;
             break;
         case 'i':
-            persist_id = strdup(optarg);
+            persist_id = optarg;
             break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
             cmd_commit_help();
-            clear_arglist(&cmd);
-            return EXIT_FAILURE;
+            goto fail;
         }
     }
 
     if (cmd.list[optind]) {
         ERROR(__func__, "Unparsed command arguments.");
         cmd_commit_help();
-        clear_arglist(&cmd);
-        return EXIT_FAILURE;
+        goto fail;
     }
-
-    clear_arglist(&cmd);
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     if (!interleave) {
         ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
-    rpc = nc_rpc_commit(confirmed, confirm_timeout, persist, persist_id, NC_PARAMTYPE_FREE);
+    rpc = nc_rpc_commit(confirmed, confirm_timeout, persist, persist_id, NC_PARAMTYPE_CONST);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     ret = cli_send_recv(rpc, stdout);
 
     nc_rpc_free(rpc);
+
+fail:
+    clear_arglist(&cmd);
     return ret;
 }
 
 int
 cmd_copyconfig(const char *arg, char **tmp_config_file)
 {
-    int c, config_fd, ret;
+    int c, config_fd, ret = EXIT_FAILURE;
     struct stat config_stat;
-    char *src = NULL, *config_m = NULL, *trg = NULL;
+    char *src = NULL, *config_m = NULL;
+    const char *trg = NULL;
     NC_DATASTORE target = NC_DATASTORE_ERROR, source = NC_DATASTORE_ERROR;
     struct nc_rpc *rpc;
     NC_WD_MODE wd = NC_WD_UNKNOWN;
@@ -2523,14 +2517,16 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "ht:s:c::d:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_copyconfig_help();
-            clear_arglist(&cmd);
-            return EXIT_SUCCESS;
+            ret = EXIT_SUCCESS;
+            goto fail;
         case 't':
             /* validate argument */
             if (!strcmp(optarg, "running")) {
@@ -2541,7 +2537,7 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
                 target = NC_DATASTORE_CANDIDATE;
             } else if (!strncmp(optarg, "url:", 4)) {
                 target = NC_DATASTORE_URL;
-                trg = strdup(&(optarg[4]));
+                trg = &(optarg[4]);
             } else {
                 ERROR(__func__, "Invalid target datastore specified (%s).", optarg);
                 goto fail;
@@ -2634,8 +2630,6 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    clear_arglist(&cmd);
-
     if (!source || !target) {
         ERROR(__func__, "Mandatory command arguments missing.");
         cmd_copyconfig_help();
@@ -2663,7 +2657,7 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
     }
 
     /* create requests */
-    rpc = nc_rpc_copy(target, trg, source, src, wd, NC_PARAMTYPE_FREE);
+    rpc = nc_rpc_copy(target, trg, source, src, wd, NC_PARAMTYPE_CONST);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -2672,20 +2666,19 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
     ret = cli_send_recv(rpc, stdout);
 
     nc_rpc_free(rpc);
-    return ret;
 
 fail:
-    clear_arglist(&cmd);
     free(src);
-    free(trg);
-    return EXIT_FAILURE;
+    clear_arglist(&cmd);
+
+    return ret;
 }
 
 int
 cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
 {
-    int c, ret;
-    char *trg = NULL;
+    int c, ret = EXIT_FAILURE;
+    const char *trg = NULL;
     struct nc_rpc *rpc;
     NC_DATASTORE target = NC_DATASTORE_ERROR;;
     struct arglist cmd;
@@ -2700,20 +2693,22 @@ cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "ht:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_deleteconfig_help();
-            clear_arglist(&cmd);
-            return EXIT_SUCCESS;
+            ret = EXIT_SUCCESS;
+            goto fail;
         case 't':
             if (!strcmp(optarg, "startup")) {
                 target = NC_DATASTORE_STARTUP;
             } else if (!strncmp(optarg, "url:", 4)) {
                 target = NC_DATASTORE_URL;
-                trg = strdup(optarg + 4);
+                trg = &(optarg[4]);
             } else {
                 ERROR(__func__, "Invalid source datastore specified (%s).", optarg);
                 goto fail;
@@ -2732,8 +2727,6 @@ cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    clear_arglist(&cmd);
-
     if (!target) {
         ERROR(__func__, "Mandatory command arguments missing.");
         cmd_deleteconfig_help();
@@ -2751,7 +2744,7 @@ cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
     }
 
     /* create requests */
-    rpc = nc_rpc_delete(target, trg, NC_PARAMTYPE_FREE);
+    rpc = nc_rpc_delete(target, trg, NC_PARAMTYPE_CONST);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -2760,12 +2753,10 @@ cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
     ret = cli_send_recv(rpc, stdout);
 
     nc_rpc_free(rpc);
-    return ret;
 
 fail:
     clear_arglist(&cmd);
-    free(trg);
-    return EXIT_FAILURE;
+    return ret;
 }
 
 int
@@ -2785,7 +2776,9 @@ cmd_discardchanges(const char *arg, char **UNUSED(tmp_config_file))
 
     /* process given arguments */
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "h", long_options, &option_index)) != -1) {
         switch (c) {
@@ -2835,7 +2828,7 @@ cmd_discardchanges(const char *arg, char **UNUSED(tmp_config_file))
 int
 cmd_editconfig(const char *arg, char **tmp_config_file)
 {
-    int c, config_fd, ret, content_param = 0;
+    int c, config_fd, ret = EXIT_FAILURE, content_param = 0;
     struct stat config_stat;
     char *content = NULL, *config_m = NULL;
     NC_DATASTORE target = NC_DATASTORE_ERROR;
@@ -2860,14 +2853,16 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "ht:o:e:r:c::u:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_editconfig_help();
-            clear_arglist(&cmd);
-            return EXIT_SUCCESS;
+            ret = EXIT_SUCCESS;
+            goto fail;
         case 't':
             /* validate argument */
             if (!strcmp(optarg, "running")) {
@@ -2977,8 +2972,6 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    clear_arglist(&cmd);
-
     if (!target || !content_param) {
         ERROR(__func__, "Mandatory command arguments missing.");
         cmd_editconfig_help();
@@ -3005,7 +2998,7 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
         }
     }
 
-    rpc = nc_rpc_edit(target, op, test, err, content, NC_PARAMTYPE_FREE);
+    rpc = nc_rpc_edit(target, op, test, err, content, NC_PARAMTYPE_CONST);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -3014,18 +3007,17 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
     ret = cli_send_recv(rpc, stdout);
 
     nc_rpc_free(rpc);
-    return ret;
 
 fail:
     clear_arglist(&cmd);
     free(content);
-    return EXIT_FAILURE;
+    return ret;
 }
 
 int
 cmd_get(const char *arg, char **tmp_config_file)
 {
-    int c, config_fd, ret, filter_param = 0;
+    int c, config_fd, ret = EXIT_FAILURE, filter_param = 0;
     struct stat config_stat;
     char *filter = NULL, *config_m = NULL;
     struct nc_rpc *rpc;
@@ -3046,14 +3038,16 @@ cmd_get(const char *arg, char **tmp_config_file)
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hs::x:d:o:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_get_help();
-            clear_arglist(&cmd);
-            return EXIT_SUCCESS;
+            ret = EXIT_SUCCESS;
+            goto fail;
         case 's':
             /* check if -x was not used */
             if (filter_param) {
@@ -3137,8 +3131,6 @@ cmd_get(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    clear_arglist(&cmd);
-
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
         goto fail;
@@ -3146,7 +3138,7 @@ cmd_get(const char *arg, char **tmp_config_file)
 
     if (!interleave) {
         ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     /* check if edit configuration data were specified */
@@ -3160,7 +3152,7 @@ cmd_get(const char *arg, char **tmp_config_file)
     }
 
     /* create requests */
-    rpc = nc_rpc_get(filter, wd, NC_PARAMTYPE_FREE);
+    rpc = nc_rpc_get(filter, wd, NC_PARAMTYPE_CONST);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -3168,13 +3160,11 @@ cmd_get(const char *arg, char **tmp_config_file)
 
     if (output) {
         ret = cli_send_recv(rpc, output);
-        fclose(output);
     } else {
         ret = cli_send_recv(rpc, stdout);
     }
 
     nc_rpc_free(rpc);
-    return ret;
 
 fail:
     clear_arglist(&cmd);
@@ -3182,13 +3172,13 @@ fail:
         fclose(output);
     }
     free(filter);
-    return EXIT_FAILURE;
+    return ret;
 }
 
 int
 cmd_getconfig(const char *arg, char **tmp_config_file)
 {
-    int c, config_fd, ret, filter_param = 0;
+    int c, config_fd, ret = EXIT_FAILURE, filter_param = 0;
     struct stat config_stat;
     char *filter = NULL, *config_m = NULL;
     struct nc_rpc *rpc;
@@ -3211,14 +3201,16 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hu:s::x:d:o:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_getconfig_help();
-            clear_arglist(&cmd);
-            return EXIT_SUCCESS;
+            ret = EXIT_SUCCESS;
+            goto fail;
         case 'u':
             if (!strcmp(optarg, "running")) {
                 source = NC_DATASTORE_RUNNING;
@@ -3314,8 +3306,6 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    clear_arglist(&cmd);
-
     if (!source) {
         ERROR(__func__, "Mandatory command arguments missing.");
         cmd_getconfig_help();
@@ -3343,7 +3333,7 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
     }
 
     /* create requests */
-    rpc = nc_rpc_getconfig(source, filter, wd, NC_PARAMTYPE_FREE);
+    rpc = nc_rpc_getconfig(source, filter, wd, NC_PARAMTYPE_CONST);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -3351,13 +3341,11 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
 
     if (output) {
         ret = cli_send_recv(rpc, output);
-        fclose(output);
     } else {
         ret = cli_send_recv(rpc, stdout);
     }
 
     nc_rpc_free(rpc);
-    return ret;
 
 fail:
     clear_arglist(&cmd);
@@ -3365,7 +3353,7 @@ fail:
         fclose(output);
     }
     free(filter);
-    return EXIT_FAILURE;
+    return ret;
 }
 
 int
@@ -3387,7 +3375,9 @@ cmd_killsession(const char *arg, char **UNUSED(tmp_config_file))
 
     /* process given arguments */
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hs:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -3466,7 +3456,9 @@ cmd_lock(const char *arg, char **UNUSED(tmp_config_file))
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "ht:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -3551,7 +3543,9 @@ cmd_unlock(const char *arg, char **UNUSED(tmp_config_file))
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "ht:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -3621,7 +3615,7 @@ cmd_unlock(const char *arg, char **UNUSED(tmp_config_file))
 int
 cmd_validate(const char *arg, char **tmp_config_file)
 {
-    int c, config_fd, ret;
+    int c, config_fd, ret = EXIT_FAILURE;
     struct stat config_stat;
     char *src = NULL, *config_m = NULL;
     NC_DATASTORE source = NC_DATASTORE_ERROR;
@@ -3639,14 +3633,16 @@ cmd_validate(const char *arg, char **tmp_config_file)
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hs:c::", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_validate_help();
-            clear_arglist(&cmd);
-            return EXIT_SUCCESS;
+            ret = EXIT_SUCCESS;
+            goto fail;
         case 's':
             /* check if -c was not used */
             if (source != NC_DATASTORE_ERROR) {
@@ -3720,8 +3716,6 @@ cmd_validate(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    clear_arglist(&cmd);
-
     if (!source) {
         ERROR(__func__, "Mandatory command arguments missing.");
         cmd_validate_help();
@@ -3749,7 +3743,7 @@ cmd_validate(const char *arg, char **tmp_config_file)
     }
 
     /* create requests */
-    rpc = nc_rpc_validate(source, src, NC_PARAMTYPE_FREE);
+    rpc = nc_rpc_validate(source, src, NC_PARAMTYPE_CONST);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -3758,20 +3752,20 @@ cmd_validate(const char *arg, char **tmp_config_file)
     ret = cli_send_recv(rpc, stdout);
 
     nc_rpc_free(rpc);
-    return ret;
 
 fail:
     clear_arglist(&cmd);
     free(src);
-    return EXIT_FAILURE;
+    return ret;
 }
 
 int
 cmd_subscribe(const char *arg, char **tmp_config_file)
 {
-    int c, config_fd, ret, filter_param = 0;
+    int c, config_fd, ret = EXIT_FAILURE, filter_param = 0;
     struct stat config_stat;
-    char *filter = NULL, *config_m = NULL, *stream = NULL, *start = NULL, *stop = NULL;
+    char *filter = NULL, *config_m = NULL, *start = NULL, *stop = NULL;
+    const char *stream = NULL;
     struct nc_rpc *rpc;
     time_t t;
     FILE *output = NULL;
@@ -3792,14 +3786,16 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hs::x:b:e:t:o:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_subscribe_help();
-            clear_arglist(&cmd);
-            return EXIT_SUCCESS;
+            ret = EXIT_SUCCESS;
+            goto fail;
         case 's':
             /* check if -x was not used */
             if (filter_param) {
@@ -3870,7 +3866,7 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
             }
             break;
         case 't':
-            stream = strdup(optarg);
+            stream = optarg;
             break;
         case 'o':
             output = fopen(optarg, "w");
@@ -3891,8 +3887,6 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
         cmd_subscribe_help();
         goto fail;
     }
-
-    clear_arglist(&cmd);
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
@@ -3915,7 +3909,7 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
     }
 
     /* create requests */
-    rpc = nc_rpc_subscribe(stream, filter, start, stop, NC_PARAMTYPE_FREE);
+    rpc = nc_rpc_subscribe(stream, filter, start, stop, NC_PARAMTYPE_CONST);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -3923,10 +3917,6 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
 
     ret = cli_send_recv(rpc, stdout);
     nc_rpc_free(rpc);
-    filter = NULL;
-    stream = NULL;
-    start = NULL;
-    stop = NULL;
 
     if (ret) {
         goto fail;
@@ -3950,25 +3940,23 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
         interleave = 0;
     }
 
-    return ret;
-
 fail:
     clear_arglist(&cmd);
     if (output && (output != stdout)) {
         fclose(output);
     }
     free(filter);
-    free(stream);
     free(start);
     free(stop);
-    return EXIT_FAILURE;
+
+    return ret;
 }
 
 int
 cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
 {
-    int c, ret;
-    char *model = NULL, *version = NULL, *format = NULL;
+    int c, ret = EXIT_FAILURE;
+    const char *model = NULL, *version = NULL, *format = NULL;
     struct nc_rpc *rpc;
     FILE *output = NULL;
     struct arglist cmd;
@@ -3986,22 +3974,24 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hm:v:f:o:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_getschema_help();
-            clear_arglist(&cmd);
-            return EXIT_SUCCESS;
+            ret = EXIT_SUCCESS;
+            goto fail;
         case 'm':
-            model = strdup(optarg);
+            model = optarg;
             break;
         case 'v':
-            version = strdup(optarg);
+            version = optarg;
             break;
         case 'f':
-            format = strdup(optarg);
+            format = optarg;
             break;
         case 'o':
             output = fopen(optarg, "w");
@@ -4023,8 +4013,6 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    clear_arglist(&cmd);
-
     if (!model) {
         ERROR(__func__, "Mandatory command arguments missing.");
         cmd_getschema_help();
@@ -4041,7 +4029,7 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    rpc = nc_rpc_getschema(model, version, format, NC_PARAMTYPE_FREE);
+    rpc = nc_rpc_getschema(model, version, format, NC_PARAMTYPE_CONST);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -4049,29 +4037,24 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
 
     if (output) {
         ret = cli_send_recv(rpc, output);
-        fclose(output);
     } else {
         ret = cli_send_recv(rpc, stdout);
     }
 
     nc_rpc_free(rpc);
-    return ret;
 
 fail:
     clear_arglist(&cmd);
     if (output) {
         fclose(output);
     }
-    free(model);
-    free(version);
-    free(format);
-    return EXIT_FAILURE;
+    return ret;
 }
 
 int
 cmd_userrpc(const char *arg, char **tmp_config_file)
 {
-    int c, config_fd, ret;
+    int c, config_fd, ret = EXIT_FAILURE;
     struct stat config_stat;
     char *content = NULL, *config_m = NULL;
     struct nc_rpc *rpc;
@@ -4089,14 +4072,16 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "ht:s:c::d:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_userrpc_help();
-            clear_arglist(&cmd);
-            return EXIT_SUCCESS;
+            ret = EXIT_SUCCESS;
+            goto fail;
         case 'c':
             /* open edit configuration data from the file */
             config_fd = open(optarg, O_RDONLY);
@@ -4145,8 +4130,6 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    clear_arglist(&cmd);
-
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
         goto fail;
@@ -4168,7 +4151,7 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
     }
 
     /* create requests */
-    rpc = nc_rpc_generic_xml(content, NC_PARAMTYPE_FREE);
+    rpc = nc_rpc_generic_xml(content, NC_PARAMTYPE_CONST);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -4176,13 +4159,11 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
 
     if (output) {
         ret = cli_send_recv(rpc, output);
-        fclose(output);
     } else {
         ret = cli_send_recv(rpc, stdout);
     }
 
     nc_rpc_free(rpc);
-    return ret;
 
 fail:
     clear_arglist(&cmd);
@@ -4190,7 +4171,7 @@ fail:
         fclose(output);
     }
     free(content);
-    return EXIT_FAILURE;
+    return ret;
 }
 
 COMMAND commands[] = {

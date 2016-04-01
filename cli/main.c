@@ -179,7 +179,7 @@ ly_print_clb(LY_LOG_LEVEL level, const char *msg, const char *path)
 int
 main(void)
 {
-    char *cmd, *cmdline, *cmdstart, *tmp_config_file;
+    char *cmd, *cmdline, *cmdstart, *tmp_config_file = NULL;
     int i, j;
 
     nc_client_init();
@@ -251,6 +251,7 @@ main(void)
         if (tmp_config_file) {
             set_hist_file(ls.history_len - 1 - i, tmp_config_file);
             free(tmp_config_file);
+            tmp_config_file = NULL;
         }
 
         free(cmd);
