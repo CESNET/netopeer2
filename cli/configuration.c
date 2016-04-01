@@ -299,6 +299,9 @@ load_config(void)
                     LY_TREE_FOR(config_xml->child, child) {
                         if (!strcmp(child->name, "editor")) {
                             /* doc -> <netconf-client> -> <editor> */
+                            if (config_editor) {
+                                free(config_editor);
+                            }
                             config_editor = strdup(child->content);
                         } else if (!strcmp(child->name, "searchpath")) {
                             /* doc -> <netconf-client> -> <searchpath> */
