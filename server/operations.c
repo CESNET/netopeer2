@@ -487,7 +487,7 @@ build_xpath_from_subtree_filter(struct ly_ctx *ctx, struct lyxml_elem *elem, cha
                 }
             } else {
                 /* containment or selection node */
-                if (xpath_buf_add(ctx, next, modules[i]->name, NULL, &buf, 1, filters, filter_count)) {
+                if (xpath_buf_add(ctx, next, modules[i]->name, modules[i]->ns, &buf, 1, filters, filter_count)) {
                     goto error;
                 }
             }
