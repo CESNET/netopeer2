@@ -246,7 +246,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             ERR("Invalid <get-config> source (%s)", nodeset->set.d[0]->schema->name);
             ly_set_free(nodeset);
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, np2log_lastmsg(), "en");
+            nc_err_set_msg(e, np2log_lasterr(), "en");
             return nc_server_reply_err(e);
         }
         /* TODO URL capability */
@@ -273,7 +273,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         } else if (rc != SR_ERR_OK) {
             ERR("Getting items (/%s) from sysrepo failed (%s)", list[i], sr_strerror(rc));
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, np2log_lastmsg(), "en");
+            nc_err_set_msg(e, np2log_lasterr(), "en");
 
             lyd_free_withsiblings(root);
             free(list);
@@ -337,7 +337,7 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
     } else {
         ERR("Invalid <lock> target (%s)", dsname);
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, np2log_lastmsg(), "en");
+        nc_err_set_msg(e, np2log_lasterr(), "en");
         return nc_server_reply_err(e);
     }
 
@@ -349,7 +349,7 @@ lock_held:
         ERR("Locking datastore %s by session %d failed (datastore is already locked by session %d).",
             dsname, nc_session_get_id(ncs), nc_session_get_id(*dsl));
         e = nc_err(NC_ERR_LOCK_DENIED, nc_session_get_id(*dsl));
-        nc_err_set_msg(e, np2log_lastmsg(), "en");
+        nc_err_set_msg(e, np2log_lasterr(), "en");
         return nc_server_reply_err(e);
     }
     pthread_rwlock_unlock(&dslock_rwl);
@@ -367,7 +367,7 @@ lock_held:
         ERR("Locking datastore %s by session %d failed (%s).", dsname,
             nc_session_get_id(ncs), sr_strerror(rc));
         e = nc_err(NC_ERR_LOCK_DENIED, 0);
-        nc_err_set_msg(e, np2log_lastmsg(), "en");
+        nc_err_set_msg(e, np2log_lasterr(), "en");
         return nc_server_reply_err(e);
     }
 
@@ -412,7 +412,7 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
     } else {
         ERR("Invalid <unlock> target (%s)", dsname);
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, np2log_lastmsg(), "en");
+        nc_err_set_msg(e, np2log_lasterr(), "en");
         return nc_server_reply_err(e);
     }
 
@@ -423,7 +423,7 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
         ERR("Unlocking datastore %s by session %d failed (lock is not active).",
             dsname, nc_session_get_id(ncs));
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_PROT);
-        nc_err_set_msg(e, np2log_lastmsg(), "en");
+        nc_err_set_msg(e, np2log_lasterr(), "en");
         return nc_server_reply_err(e);
     } else {
         /* lock is held, but by who? */
@@ -433,7 +433,7 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
             ERR("Unlocking datastore %s by session %d failed (lock is held by session %d).",
                 dsname, nc_session_get_id(ncs), nc_session_get_id(*dsl));
             e = nc_err(NC_ERR_LOCK_DENIED, nc_session_get_id(*dsl));
-            nc_err_set_msg(e, np2log_lastmsg(), "en");
+            nc_err_set_msg(e, np2log_lasterr(), "en");
             return nc_server_reply_err(e);
         }
     }
@@ -447,7 +447,7 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
         ERR("Unlocking datastore %s by session %d failed (%s).", dsname,
             nc_session_get_id(ncs), sr_strerror(rc));
         e = nc_err(NC_ERR_LOCK_DENIED, 0);
-        nc_err_set_msg(e, np2log_lastmsg(), "en");
+        nc_err_set_msg(e, np2log_lasterr(), "en");
         return nc_server_reply_err(e);
     }
 

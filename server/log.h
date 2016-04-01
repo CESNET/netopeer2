@@ -58,6 +58,6 @@ void np2log_clb_sr(sr_log_level_t level, const char *msg);
 /**
  * @brief Get last error message (covers libyang, libnetconf2, sysrepo and netopeer2 in the current thread)
  */
-const char *np2log_lastmsg(void);
+const char *np2log_lasterr(void);
 
 #endif /* NP2SRV_LOG_H_ */
