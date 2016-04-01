@@ -37,7 +37,7 @@ enum ERR_SOURCE {
     ERRS_SYSREPO,
     ERRS_DONOTREPLACE
 };
-#define NP2ERR_MSG_SIZE 2044
+#define NP2ERR_MSG_SIZE 1024
 struct np2err {
     enum ERR_SOURCE source;
     char msg[NP2ERR_MSG_SIZE];
@@ -105,10 +105,12 @@ np2log_clb_nc2(NC_VERB_LEVEL level, const char *msg)
 {
     struct np2err *e;
 
-    e = np2_err_location();
-    if (e && e->source != ERRS_DONOTREPLACE) {
-        e->source = ERRS_LIBNETCONF2;
-        strncpy(e->msg, msg, NP2ERR_MSG_SIZE - 1);
+    if (level == NC_VERB_ERROR) {
+        e = np2_err_location();
+        if (e && e->source != ERRS_DONOTREPLACE) {
+            e->source = ERRS_LIBNETCONF2;
+            strncpy(e->msg, msg, NP2ERR_MSG_SIZE - 1);
+        }
     }
 
     switch (level) {
@@ -151,9 +153,11 @@ np2log_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
         break;
     }
 
-    e = np2_err_location();
-    if (e) {
-        e->source = ERRS_LIBYANG;
+    if (level == LY_LLERR) {
+        e = np2_err_location();
+        if (e) {
+            e->source = ERRS_LIBYANG;
+        }
     }
 
     if (path) {
@@ -166,14 +170,16 @@ np2log_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
 void
 np2log_clb_sr(sr_log_level_t level, const char *msg)
 {
-    struct np2err *e;
+    struct np2err *e = NULL;
 
     if (np2_verbose_level >= level - 1) {
 
-        e = np2_err_location();
-        if (e) {
-            e->source = ERRS_DONOTREPLACE;
-            strncpy(e->msg, msg, NP2ERR_MSG_SIZE - 1);
+        if (level == SR_LL_ERR) {
+            e = np2_err_location();
+            if (e) {
+                e->source = ERRS_DONOTREPLACE;
+                strncpy(e->msg, msg, NP2ERR_MSG_SIZE - 1);
+            }
         }
 
         np2log_clb_nc2((NC_VERB_LEVEL)(level - 1), msg);
@@ -195,12 +201,14 @@ np2log_printf(NC_VERB_LEVEL level, const char *format, ...)
     va_list ap;
     char prv_msg[NP2ERR_MSG_SIZE];
     char *msg = prv_msg;
-    struct np2err *e;
+    struct np2err *e = NULL;
 
-    e = np2_err_location();
-    if (e) {
-        e->source = ERRS_DONOTREPLACE;
-        msg = e->msg;
+    if (level == NC_VERB_ERROR) {
+        e = np2_err_location();
+        if (e) {
+            e->source = ERRS_DONOTREPLACE;
+            msg = e->msg;
+        }
     }
 
     va_start(ap, format);
@@ -215,7 +223,7 @@ np2log_printf(NC_VERB_LEVEL level, const char *format, ...)
 }
 
 const char *
-np2log_lastmsg(void)
+np2log_lasterr(void)
 {
     struct np2err *e;
 
