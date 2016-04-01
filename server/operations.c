@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #include <libyang/libyang.h>
 #include <nc_server.h>
@@ -53,38 +54,9 @@ np2srv_clean_dslock(struct nc_session *ncs)
 }
 
 static char *
-get_srval_name(sr_val_t *value, char **prefix)
+get_srval_value(struct ly_ctx *ctx, sr_val_t *value, char *buf)
 {
-    char *start, *stop, *aux;
-    size_t len;
-
-    if (!value || !value->xpath) {
-        return NULL;
-    }
-
-    start = strrchr(value->xpath, '/');
-    aux = strrchr(start, ':');
-    if (aux) {
-        *prefix = strndup(start + 1, aux - start - 1);
-        start = aux;
-    }
-    start++;
-
-    stop = strchr(start, '[');
-    if (stop) {
-        len = stop - start;
-    } else {
-        len = strlen(start);
-    }
-
-    aux = strndup(start, len);
-    return aux;
-}
-
-static char *
-get_srval_value(const struct lys_module *module, struct lyd_node *parent, const char *name, sr_val_t *value, char *buf)
-{
-    const struct lys_node *iter = NULL;
+    const struct lys_node *snode;
 
     if (!value) {
         return NULL;
@@ -105,15 +77,11 @@ get_srval_value(const struct lys_module *module, struct lyd_node *parent, const 
         return value->data.bool_val ? "true" : "false";
     case SR_DECIMAL64_T:
         /* get fraction-digits */
-        while ((iter = lys_getnext(iter, parent->schema, module, 0))) {
-            if (!strcmp(iter->name, name)) {
-                break;
-            }
-        }
-        if (!iter) {
+        snode = ly_ctx_get_node(ctx, NULL, value->xpath);
+        if (!snode) {
             return NULL;
         }
-        sprintf(buf, "%.*f", ((struct lys_node_leaf *)iter)->type.info.dec64.dig, value->data.decimal64_val);
+        sprintf(buf, "%.*f", ((struct lys_node_leaf *)snode)->type.info.dec64.dig, value->data.decimal64_val);
         return buf;
     case SR_UINT8_T:
         sprintf(buf, "%u", value->data.uint8_val);
@@ -145,88 +113,417 @@ get_srval_value(const struct lys_module *module, struct lyd_node *parent, const 
 
 }
 
-static struct lyd_node *
-build_subtree(sr_session_ctx_t *ds, const struct lys_module *module, struct lyd_node *parent, sr_val_t *value)
+/* add subtree to root */
+static int
+build_subtree(sr_session_ctx_t *ds, struct lyd_node *root, const char *subtree_path)
 {
-    struct lyd_node *result;
-    sr_val_t *child = NULL;
-    sr_val_iter_t *iter = NULL;
-    char *name, *strval = NULL;
-    char buf[4096];
-    int recursion, rc;
+    sr_val_t *value;
+    sr_val_iter_t *iter;
+    char *subtree_children_path, buf[21];
+    int rc;
 
-    switch (value->type) {
-    case SR_CONTAINER_T:
-    case SR_CONTAINER_PRESENCE_T:
-    case SR_LIST_T:
-        name = get_srval_name(value, &strval);
-        if (strval) {
-            module = ly_ctx_get_module(np2srv.ly_ctx, strval, NULL);
-            free(strval);
-        }
-        result = lyd_new(parent, module, name);
-        free(name);
-        recursion = 1;
-        break;
-    default: /* all others (leafs and leaf-lists) */
-        name = get_srval_name(value, &strval);
-        if (strval) {
-            module = ly_ctx_get_module(np2srv.ly_ctx, strval, NULL);
-            free(strval);
-        }
-        strval = get_srval_value(module, parent, name, value, buf);
-        result = lyd_new_leaf(parent, module, name, strval);
-        free(name);
-        recursion = 0;
-        break;
+    /* TODO this asprintf replaces the origin al path */
+    //if (asprintf(&subtree_children_path, "%s//*", subtree_path) == -1) {
+    //    EMEM;
+    //    return -1;
+    //}
+    subtree_children_path = (char *)subtree_path;
+
+    /* TODO recursive parameter will be removed */
+    rc = sr_get_items_iter(ds, subtree_children_path, true, &iter);
+    if (rc != SR_ERR_OK) {
+        ERR("Getting items (%s) from sysrepo failed (%s).", subtree_children_path, sr_strerror(rc));
+        return -1;
     }
 
-    if (!result) {
-        ERR("Building data tree from sysrepo failed.");
-        return NULL;
+    ly_errno = LY_SUCCESS;
+    while (sr_get_item_next(ds, iter, &value) == SR_ERR_OK) {
+        lyd_new_path(root, np2srv.ly_ctx, value->xpath,
+                     get_srval_value(np2srv.ly_ctx, value, buf), LYD_PATH_OPT_UPDATE);
+        sr_free_val(value);
+        if (ly_errno) {
+            sr_free_val_iter(iter);
+            return -1;
+        }
+    }
+    sr_free_val_iter(iter);
+
+    return 0;
+}
+
+static int
+strws(const char *str)
+{
+    while (*str) {
+        if (!isspace(*str)) {
+            return 0;
+        }
+        ++str;
     }
 
-    if (recursion) {
-        rc = sr_get_items_iter(ds, value->xpath, false, &iter);
-        if (rc != SR_ERR_OK) {
-            ERR("Getting items (%s) from sysrepo failed (%s)", value->xpath, sr_strerror(rc));
-            goto error;
+    return 1;
+}
+
+static int
+xpath_add_filter(char *new_filter, char ***filters, int *filter_count)
+{
+    char **filters_new;
+
+    filters_new = realloc(*filters, (*filter_count + 1) * sizeof **filters);
+    if (!filters_new) {
+        EMEM;
+        return -1;
+    }
+    ++(*filter_count);
+    *filters = filters_new;
+    (*filters)[*filter_count - 1] = new_filter;
+
+    return 0;
+}
+
+static int
+xpath_buf_add_attrs(struct ly_ctx *ctx, struct lyxml_attr *attr, char **buf, int size)
+{
+    const struct lys_module *module;
+    struct lyxml_attr *next;
+    int new_size;
+    char *buf_new;
+
+    LY_TREE_FOR(attr, next) {
+        if (next->type == LYXML_ATTR_STD) {
+            module = NULL;
+            if (next->ns) {
+                module = ly_ctx_get_module_by_ns(ctx, next->ns->value, NULL);
+            }
+            if (!module) {
+                /* attribute without namespace or with unknown one will not match anything anyway */
+                continue;
+            }
+
+            new_size = size + 2 + strlen(module->name) + 1 + strlen(next->name) + 2 + strlen(next->value) + 2;
+            buf_new = realloc(*buf, new_size * sizeof(char));
+            if (!buf_new) {
+                EMEM;
+                return -1;
+            }
+            *buf = buf_new;
+            sprintf((*buf) + (size - 1), "[@%s:%s='%s']", module->name, next->name, next->value);
+            size = new_size;
+        }
+    }
+
+    return size;
+}
+
+/* top-level content node with namespace and attributes */
+static int
+xpath_buf_add_top_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name, char ***filters,
+                          int *filter_count)
+{
+    int size, len;
+    const char *start;
+    char *buf;
+
+    /* skip leading and trailing whitespaces */
+    for (start = elem->content; isspace(*start); ++start);
+    for (len = strlen(start); isspace(start[len - 1]); --len);
+
+    size = 1 + strlen(elem_module_name) + 1 + strlen(elem->name) + 9 + len + 3;
+    buf = malloc(size * sizeof(char));
+    if (!buf) {
+        EMEM;
+        return -1;
+    }
+    sprintf(buf, "/%s:%s[text()='%.*s']", elem_module_name, elem->name, len, start);
+
+    size = xpath_buf_add_attrs(ctx, elem->attr, &buf, size);
+    if (!size) {
+        free(buf);
+        return 0;
+    } else if (size < 1) {
+        free(buf);
+        return -1;
+    }
+
+    if (xpath_add_filter(buf, filters, filter_count)) {
+        free(buf);
+        return -1;
+    }
+
+    return 0;
+}
+
+/* content node with namespace and attributes */
+static int
+xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name, const char **last_ns,
+                      char **buf, int size)
+{
+    const struct lys_module *module;
+    int new_size, len;
+    const char *start;
+    char *buf_new;
+
+    if (!elem_module_name && elem->ns && (elem->ns->value != *last_ns)
+            && strcmp(elem->ns->value, "urn:ietf:params:xml:ns:netconf:base:1.0")) {
+        module = ly_ctx_get_module_by_ns(ctx, elem->ns->value, NULL);
+        if (!module) {
+            /* not really an error */
+            return 0;
         }
 
-        while (sr_get_item_next(ds, iter, &child) == SR_ERR_OK){
-            if (!build_subtree(ds, module, result, child)) {
-                sr_free_val(child);
-                sr_free_val_iter(iter);
+        *last_ns = elem->ns->value;
+        elem_module_name = module->name;
+    }
+
+    new_size = size + 1 + (elem_module_name ? strlen(elem_module_name) + 1 : 0) + strlen(elem->name);
+    buf_new = realloc(*buf, new_size * sizeof(char));
+    if (!buf_new) {
+        EMEM;
+        return -1;
+    }
+    *buf = buf_new;
+    sprintf((*buf) + (size - 1), "[%s%s%s", (elem_module_name ? elem_module_name : ""), (elem_module_name ? ":" : ""),
+            elem->name);
+    size = new_size;
+
+    size = xpath_buf_add_attrs(ctx, elem->attr, buf, size);
+    if (!size) {
+        return 0;
+    } else if (size < 1) {
+        return -1;
+    }
+
+    /* skip leading and trailing whitespaces */
+    for (start = elem->content; isspace(*start); ++start);
+    for (len = strlen(start); isspace(start[len - 1]); --len);
+
+    new_size = size + 2 + len + 2;
+    buf_new = realloc(*buf, new_size * sizeof(char));
+    if (!buf_new) {
+        EMEM;
+        return -1;
+    }
+    *buf = buf_new;
+    sprintf((*buf) + (size - 1), "='%.*s']", len, start);
+
+    return new_size;
+}
+
+/* containment/selection node with namespace and attributes */
+static int
+xpath_buf_add_node(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name, const char **last_ns,
+                   char **buf, int size)
+{
+    const struct lys_module *module;
+    int new_size;
+    char *buf_new;
+
+    if (!elem_module_name && elem->ns && (elem->ns->value != *last_ns)
+            && strcmp(elem->ns->value, "urn:ietf:params:xml:ns:netconf:base:1.0")) {
+        module = ly_ctx_get_module_by_ns(ctx, elem->ns->value, NULL);
+        if (!module) {
+            /* not really an error */
+            return 0;
+        }
+
+        *last_ns = elem->ns->value;
+        elem_module_name = module->name;
+    }
+
+    new_size = size + 1 + (elem_module_name ? strlen(elem_module_name) + 1 : 0) + strlen(elem->name);
+    buf_new = realloc(*buf, new_size * sizeof(char));
+    if (!buf_new) {
+        EMEM;
+        return -1;
+    }
+    *buf = buf_new;
+    sprintf((*buf) + (size - 1), "/%s%s%s", (elem_module_name ? elem_module_name : ""), (elem_module_name ? ":" : ""),
+            elem->name);
+    size = new_size;
+
+    size = xpath_buf_add_attrs(ctx, elem->attr, buf, size);
+
+    return size;
+}
+
+/* buf is spent in the function, removes content match nodes from elem->child list! */
+static int
+xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name, const char *last_ns,
+              char **buf, int size, char ***filters, int *filter_count)
+{
+    struct lyxml_elem *temp, *child;
+    int new_size;
+    char *buf_new;
+
+    /* containment node, selection node */
+    size = xpath_buf_add_node(ctx, elem, elem_module_name, &last_ns, buf, size);
+    if (!size) {
+        free(*buf);
+        *buf = NULL;
+        return 0;
+    } else if (size < 1) {
+        goto error;
+    }
+
+    /* content match node */
+    LY_TREE_FOR_SAFE(elem->child, temp, child) {
+        if (!child->child && child->content && !strws(child->content)) {
+            size = xpath_buf_add_content(ctx, child, elem_module_name, &last_ns, buf, size);
+            if (!size) {
+                free(*buf);
+                *buf = NULL;
+                return 0;
+            } else if (size < 1) {
                 goto error;
             }
-            sr_free_val(child);
+            lyxml_free(ctx, child);
         }
-        sr_free_val_iter(iter);
     }
 
-    return result;
+    /* that is it, it seems */
+    if (!elem->child) {
+        if (xpath_add_filter(*buf, filters, filter_count)) {
+            goto error;
+        }
+        *buf = NULL;
+        return 0;
+    }
+
+    /* that is it for this filter depth, now we branch with every new node except last */
+    LY_TREE_FOR(elem->child, child) {
+        if (!child->next) {
+            buf_new = *buf;
+            *buf = NULL;
+        } else {
+            buf_new = malloc(size * sizeof(char));
+            if (!buf_new) {
+                goto error;
+            }
+            memcpy(buf_new, *buf, size * sizeof(char));
+        }
+        new_size = size;
+
+        /* child containment node */
+        if (child->child) {
+            xpath_buf_add(ctx, child, NULL, last_ns, &buf_new, new_size, filters, filter_count);
+
+        /* child selection node */
+        } else {
+            new_size = xpath_buf_add_node(ctx, child, NULL, &last_ns, &buf_new, new_size);
+            if (!new_size) {
+                free(buf_new);
+                continue;
+            } else if (new_size < 1) {
+                free(buf_new);
+                goto error;
+            }
+
+            if (xpath_add_filter(buf_new, filters, filter_count)) {
+                goto error;
+            }
+        }
+    }
+
+    return 0;
 
 error:
-    lyd_free(result);
+    free(*buf);
+    return -1;
+}
 
-    return NULL;
+/* modifies elem XML tree! */
+static int
+build_xpath_from_subtree_filter(struct ly_ctx *ctx, struct lyxml_elem *elem, char ***filters, int *filter_count)
+{
+    const struct lys_module *module, **modules, **modules_new;
+    const struct lys_node *node;
+    struct lyxml_elem *next;
+    char *buf;
+    uint32_t i, module_count;
+
+    LY_TREE_FOR(elem, next) {
+        /* first filter node, it must always have a namespace */
+        modules = NULL;
+        module_count = 0;
+        if (next->ns && strcmp(next->ns->value, "urn:ietf:params:xml:ns:netconf:base:1.0")) {
+            modules = malloc(sizeof *modules);
+            if (!modules) {
+                EMEM;
+                goto error;
+            }
+            module_count = 1;
+            modules[0] = ly_ctx_get_module_by_ns(ctx, next->ns->value, NULL);
+            if (!modules[0]) {
+                /* not really an error */
+                free(modules);
+                continue;
+            }
+        } else {
+            i = 0;
+            while ((module = ly_ctx_get_module_iter(ctx, &i))) {
+                node = NULL;
+                while ((node = lys_getnext(node, NULL, module, 0))) {
+                    if (!strcmp(node->name, next->name)) {
+                        modules_new = realloc(modules, (module_count + 1) * sizeof *modules);
+                        if (!modules_new) {
+                            EMEM;
+                            goto error;
+                        }
+                        ++module_count;
+                        modules = modules_new;
+                        modules[module_count - 1] = module;
+                        break;
+                    }
+                }
+            }
+        }
+
+        buf = NULL;
+        for (i = 0; i < module_count; ++i) {
+            if (!next->child && next->content && !strws(next->content)) {
+                /* special case of top-level content match node */
+                if (xpath_buf_add_top_content(ctx, next, modules[i]->name, filters, filter_count)) {
+                    goto error;
+                }
+            } else {
+                /* containment or selection node */
+                if (xpath_buf_add(ctx, next, modules[i]->name, NULL, &buf, 1, filters, filter_count)) {
+                    goto error;
+                }
+            }
+        }
+        free(modules);
+    }
+
+    free(modules);
+    return 0;
+
+error:
+    free(modules);
+    for (i = 0; (signed)i < *filter_count; ++i) {
+        free((*filters)[i]);
+    }
+    free(*filters);
+    return -1;
 }
 
 struct nc_server_reply *
 op_get(struct lyd_node *rpc, struct nc_session *ncs)
 {
-    sr_val_t *value = NULL;
-    sr_val_iter_t *iter = NULL;
+    sr_val_t *values = NULL;
+    size_t value_count = 0;
+    const struct lys_module *module;
+    struct lys_node *snode;
     struct lyd_node *root = NULL, *node;
-    const char **list;
-    char *xpath;
-    int rc, i;
+    struct lyd_attr *attr;
+    char **filters = NULL, buf[21], *path;
+    int rc, filter_count = 0;
+    uint32_t i, j;
+    struct lyxml_elem *subtree_filter;
     struct np2sr_sessions *sessions;
     struct ly_set *nodeset;
     sr_session_ctx_t *ds;
     struct nc_server_error *e;
-
-    /* TODO get and process filter, mandatory filter for get-config = only config true data */
 
     /* get sysrepo connections for this session */
     sessions = (struct np2sr_sessions *)nc_session_get_data(ncs);
@@ -236,6 +533,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         ds = sessions->running;
     } else { /* get-config */
         nodeset = lyd_get_node(rpc, "/ietf-netconf:get-config/source/*");
+        /* TODO we want only configuration data! */
         if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
             ds = sessions->running;
         } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
@@ -245,55 +543,127 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         } else {
             ERR("Invalid <get-config> source (%s)", nodeset->set.d[0]->schema->name);
             ly_set_free(nodeset);
-            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, np2log_lasterr(), "en");
-            return nc_server_reply_err(e);
+            goto error;
         }
         /* TODO URL capability */
 
         ly_set_free(nodeset);
     }
+
+    /* create filters */
+    nodeset = lyd_get_node(rpc, "/ietf-netconf:*/filter");
+    if (nodeset->number) {
+        node = nodeset->set.d[0];
+        ly_set_free(nodeset);
+        LY_TREE_FOR(node->attr, attr) {
+            if (!strcmp(attr->name, "xpath")) {
+                LY_TREE_FOR(node->attr, attr) {
+                    if (!strcmp(attr->name, "select")) {
+                        break;
+                    }
+                }
+                if (!attr) {
+                    ERR("RPC with an XPath filter without the \"select\" attribute.");
+                    goto error;
+                }
+            } else if (!strcmp(attr->name, "subtree")) {
+                attr = NULL;
+                break;
+            }
+        }
+
+        if (!attr) {
+            /* subtree */
+            subtree_filter = ((struct lyd_node_anyxml *)node)->value;
+            if (!subtree_filter->child) {
+                /* empty filter, fair enough */
+                return nc_server_reply_data(NULL, NC_PARAMTYPE_CONST);
+            }
+            subtree_filter = subtree_filter->child;
+            if (build_xpath_from_subtree_filter(np2srv.ly_ctx, subtree_filter, &filters, &filter_count)) {
+                goto error;
+            }
+        } else {
+            /* xpath */
+            if (!attr->value || !attr->value[0]) {
+                /* empty select, okay, I guess... */
+                return nc_server_reply_data(NULL, NC_PARAMTYPE_CONST);
+            }
+            path = strdup(attr->value);
+            if (!path) {
+                EMEM;
+                goto error;
+            }
+            if (xpath_add_filter(path, &filters, &filter_count)) {
+                free(path);
+                goto error;
+            }
+        }
+    } else {
+        ly_set_free(nodeset);
+
+        i = 0;
+        while ((module = ly_ctx_get_module_iter(np2srv.ly_ctx, &i))) {
+            LY_TREE_FOR(module->data, snode) {
+                if (!(snode->nodetype & (LYS_GROUPING | LYS_NOTIF | LYS_RPC))) {
+                    /* module with some actual data definitions */
+                    break;
+                }
+            }
+
+            if (snode) {
+                /* TODO later add "*" at the end */
+                asprintf(&path, "/%s:", module->name);
+                if (xpath_add_filter(path, &filters, &filter_count)) {
+                    free(path);
+                    goto error;
+                }
+            }
+        }
+    }
+
     /* refresh sysrepo data */
     sr_session_refresh(ds);
 
-    list = ly_ctx_get_module_names(np2srv.ly_ctx);
-    if (!list) {
-        return nc_server_reply_data(NULL, NC_PARAMTYPE_FREE);;
-    }
-
-    for (i = 0; list[i]; i++) {
-        asprintf(&xpath, "/%s:", list[i]);
-
-        /* get all list instances with their content (recursive) */
-        rc = sr_get_items_iter(ds, xpath, false, &iter);
-        free(xpath);
-        if (rc == SR_ERR_UNKNOWN_MODEL) {
-            /* skip internal modules not known to sysrepo */
+    /* create the data tree for the data reply */
+    for (i = 0; (signed)i < filter_count; i++) {
+        rc = sr_get_items(ds, filters[i], &values, &value_count);
+        if ((rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_NOT_FOUND)) {
+            /* skip internal modules not known to sysrepo and modules without data */
             continue;
         } else if (rc != SR_ERR_OK) {
-            ERR("Getting items (/%s) from sysrepo failed (%s)", list[i], sr_strerror(rc));
-            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, np2log_lasterr(), "en");
-
-            lyd_free_withsiblings(root);
-            free(list);
-
-            return nc_server_reply_err(e);
+            ERR("Getting items (%s) from sysrepo failed (%s).", filters[i], sr_strerror(rc));
+            goto error;
         }
 
-        while (sr_get_item_next(ds, iter, &value) == SR_ERR_OK){
-            node = build_subtree(ds, ly_ctx_get_module(np2srv.ly_ctx, list[i], NULL), NULL, value);
-            sr_free_val(value);
+        for (j = 0; j < value_count; ++j) {
+            /* create subtree root */
+            ly_errno = LY_SUCCESS;
+            node = lyd_new_path(root, np2srv.ly_ctx, values[j].xpath,
+                                get_srval_value(np2srv.ly_ctx, &values[j], buf), LYD_PATH_OPT_UPDATE);
+            if (ly_errno) {
+                goto error;
+            }
 
             if (!root) {
                 root = node;
-            } else {
-                lyd_insert_after(root->prev, node);
+            }
+
+            /* create the full subtree */
+            if (build_subtree(ds, root, values[j].xpath)) {
+                goto error;
             }
         }
-        sr_free_val_iter(iter);
+
+        sr_free_values(values, value_count);
+        value_count = 0;
+        values = NULL;
     }
-    free(list);
+
+    for (i = 0; (signed)i < filter_count; ++i) {
+        free(filters[i]);
+    }
+    free(filters);
 
     /* debug
     lyd_print_file(stdout, root, LYD_XML_FORMAT, LYP_WITHSIBLINGS);
@@ -301,6 +671,20 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
     /* build RPC Reply */
     return nc_server_reply_data(root, NC_PARAMTYPE_FREE);
+
+error:
+    sr_free_values(values, value_count);
+
+    for (i = 0; (signed)i < filter_count; ++i) {
+        free(filters[i]);
+    }
+    free(filters);
+
+    lyd_free_withsiblings(root);
+
+    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+    nc_err_set_msg(e, np2log_lasterr(), "en");
+    return nc_server_reply_err(e);
 }
 
 struct nc_server_reply *
