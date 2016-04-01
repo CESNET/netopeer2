@@ -20,6 +20,7 @@ before_install:
   
   - git clone https://github.com/CESNET/libyang.git
   - cd libyang; mkdir build; cd build
+  - git checkout devel
   - cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
   - make -j2 && sudo make install
   - cd ../..
@@ -32,6 +33,7 @@ before_install:
 
   - git clone https://github.com/CESNET/libnetconf2.git
   - cd libnetconf2; mkdir build; cd build
+  - git checkout devel
   - cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
   - make -j2 && sudo make install
   - cd ../..
