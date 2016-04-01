@@ -252,7 +252,7 @@ get_default_CRL_dir(DIR **ret_dir)
 void
 load_config(void)
 {
-    char *netconf_dir, *history_file, *config_file;
+    char *netconf_dir, *history_file, *config_file = NULL;
     struct lyxml_elem *config_xml = NULL, *child;
     struct ly_ctx *ctx;
 
