@@ -116,7 +116,10 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
     char* tmpname = NULL, *input = NULL, *old_content = NULL, *ptr, *ptr2;
 
     /* Create a unique temporary file */
-    asprintf(&tmpname, "/tmp/tmpXXXXXX.xml");
+    if (asprintf(&tmpname, "/tmp/tmpXXXXXX.xml") == -1) {
+        ERROR(__func__, "asprintf() failed (%s).", strerror(errno));
+        goto fail;
+    }
     tmpfd = mkstemps(tmpname, 4);
     if (tmpfd == -1) {
         ERROR(__func__, "Failed to create a temporary file (%s).", strerror(errno));
