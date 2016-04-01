@@ -99,7 +99,7 @@ clear_arglist(struct arglist *args)
     init_arglist(args);
 }
 
-static void
+static int
 addargs(struct arglist *args, char *format, ...)
 {
     va_list arguments;
@@ -107,13 +107,14 @@ addargs(struct arglist *args, char *format, ...)
     int len;
 
     if (args == NULL) {
-        return;
+        return EXIT_FAILURE;
     }
 
     /* store arguments to aux string */
     va_start(arguments, format);
     if ((len = vasprintf(&aux, format, arguments)) == -1) {
-        perror("addargs - vasprintf");
+        ERROR(__func__, "vasprintf() failed (%s)", strerror(errno));
+        return EXIT_FAILURE;
     }
     va_end(arguments);
 
@@ -135,7 +136,8 @@ addargs(struct arglist *args, char *format, ...)
 
         if (!args->list) { /* initial memory allocation */
             if ((args->list = (char **)malloc(8 * sizeof(char *))) == NULL) {
-                perror("Fatal error while allocating memory");
+                ERROR(__func__, "Memory allocation failed (%s:%d)", __FILE__, __LINE__);
+                return EXIT_FAILURE;
             }
             args->size = 8;
             args->count = 0;
@@ -149,7 +151,8 @@ addargs(struct arglist *args, char *format, ...)
         }
         /* add word in the end of the list */
         if ((args->list[args->count] = malloc((strlen(aux) + 1) * sizeof(char))) == NULL) {
-            perror("Fatal error while allocating memory");
+            ERROR(__func__, "Memory allocation failed (%s:%d)", __FILE__, __LINE__);
+            return EXIT_FAILURE;
         }
         strcpy(args->list[args->count], aux);
         args->list[++args->count] = NULL; /* last argument */
@@ -157,6 +160,8 @@ addargs(struct arglist *args, char *format, ...)
 
     /* clean up */
     free(aux1);
+
+    return EXIT_SUCCESS;
 }
 
 static void
@@ -917,7 +922,9 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hd:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -2210,7 +2217,9 @@ cmd_connect_listen(const char *arg, int is_connect)
 
     /* process given arguments */
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     ret = -1;
 
@@ -2367,7 +2376,9 @@ cmd_cancelcommit(const char *arg, char **UNUSED(tmp_config_file))
 
     /* process given arguments */
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hi:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -2440,7 +2451,9 @@ cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
 
     /* process given arguments */
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hct:p:i:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -2523,7 +2536,9 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "ht:s:c::d:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -2700,7 +2715,9 @@ cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "ht:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -2785,7 +2802,9 @@ cmd_discardchanges(const char *arg, char **UNUSED(tmp_config_file))
 
     /* process given arguments */
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "h", long_options, &option_index)) != -1) {
         switch (c) {
@@ -2860,7 +2879,9 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "ht:o:e:r:c::u:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -3046,7 +3067,9 @@ cmd_get(const char *arg, char **tmp_config_file)
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hs::x:d:o:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -3211,7 +3234,9 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hu:s::x:d:o:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -3387,7 +3412,9 @@ cmd_killsession(const char *arg, char **UNUSED(tmp_config_file))
 
     /* process given arguments */
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hs:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -3466,7 +3493,9 @@ cmd_lock(const char *arg, char **UNUSED(tmp_config_file))
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "ht:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -3551,7 +3580,9 @@ cmd_unlock(const char *arg, char **UNUSED(tmp_config_file))
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "ht:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -3639,7 +3670,9 @@ cmd_validate(const char *arg, char **tmp_config_file)
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hs:c::", long_options, &option_index)) != -1) {
         switch (c) {
@@ -3792,7 +3825,9 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hs::x:b:e:t:o:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -3986,7 +4021,9 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "hm:v:f:o:", long_options, &option_index)) != -1) {
         switch (c) {
@@ -4089,7 +4126,9 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
     optind = 0;
 
     init_arglist(&cmd);
-    addargs(&cmd, "%s", arg);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
 
     while ((c = getopt_long(cmd.count, cmd.list, "ht:s:c::d:", long_options, &option_index)) != -1) {
         switch (c) {
