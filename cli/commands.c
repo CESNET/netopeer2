@@ -1048,14 +1048,13 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
         fseek(file, 0, SEEK_SET);
 
         text = malloc(text_len + 1);
-        text[text_len] = '\0';
-
         if (fread(text, 1, text_len, file) < (unsigned)text_len) {
             ERROR("knownhosts", "Cannot read known hosts file (%s)", strerror(ferror(file)));
             free(text);
             fclose(file);
             return EXIT_FAILURE;
         }
+        text[text_len] = '\0';
         fseek(file, 0, SEEK_SET);
 
         for (i = 0, ptr = text; (i < del_idx) && ptr; ++i, ptr = strchr(ptr + 1, '\n'));

@@ -134,11 +134,12 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
             lseek(oldfd, 0, SEEK_SET);
             if (size > 0) {
                 old_content = malloc(size+1);
-                old_content[size] = '\0';
                 ret = read(oldfd, old_content, size);
                 if (ret != size) {
                     free(old_content);
                     old_content = NULL;
+                } else {
+                    old_content[size] = '\0';
                 }
             }
             close(oldfd);
@@ -202,15 +203,14 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
     }
     lseek(tmpfd, 0, SEEK_SET);
 
-    input = malloc(size+1);
-    input[size] = '\0';
-
     /* Read the input */
+    input = malloc(size+1);
     ret = read(tmpfd, input, size);
     if (ret < size) {
         ERROR(__func__, "Failed to read from the temporary file (%s).", strerror(errno));
         goto fail;
     }
+    input[size] = '\0';
 
     /* Remove the instruction comment */
     if (!old_content && instruction) {
