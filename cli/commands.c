@@ -1111,28 +1111,19 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
     struct passwd *pw;
     unsigned short port = 0;
     int c, timeout = 0, ret;
-    struct option *long_options;
     int option_index = 0;
+    struct option long_options[] = {
+        {"ssh", 0, 0, 's'},
+        {"host", 1, 0, 'o'},
+        {"port", 1, 0, 'p'},
+        {"login", 1, 0, 'l'},
+        {"timeout", 1, 0, 'i'},
+        {0, 0, 0, 0}
+    };
 
     if (is_connect) {
-        struct option connect_long_options[] = {
-            {"ssh", 0, 0, 's'},
-            {"host", 1, 0, 'o'},
-            {"port", 1, 0, 'p'},
-            {"login", 1, 0, 'l'},
-            {0, 0, 0, 0}
-        };
-        long_options = connect_long_options;
-    } else {
-        struct option listen_long_options[] = {
-            {"ssh", 0, 0, 's'},
-            {"timeout", 1, 0, 'i'},
-            {"host", 1, 0, 'o'},
-            {"port", 1, 0, 'p'},
-            {"login", 1, 0, 'l'},
-            {0, 0, 0, 0}
-        };
-        long_options = listen_long_options;
+        /* remove timeout option for use as connect command */
+        memset(&long_options[4], 0, sizeof long_options[4]);
     }
 
     /* set back to start to be able to use getopt() repeatedly */
@@ -1858,32 +1849,21 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
     int c, n, timeout = 0, ret = EXIT_FAILURE;
     char *cert = NULL, *key = NULL, *trusted_dir = NULL, *crl_dir = NULL, *trusted_store = NULL;
     unsigned short port = 0;
-    struct option *long_options;
     int option_index = 0;
+    struct option long_options[] = {
+        {"tls", 0, 0, 't'},
+        {"host", 1, 0, 'o'},
+        {"port", 1, 0, 'p'},
+        {"cert", 1, 0, 'c'},
+        {"key", 1, 0, 'k'},
+        {"trusted", 1, 0, 'r'},
+        {"timeout", 1, 0, 'i'},
+        {0, 0, 0, 0}
+    };
 
     if (is_connect) {
-        struct option connect_long_options[] = {
-            {"tls", 0, 0, 't'},
-            {"host", 1, 0, 'o'},
-            {"port", 1, 0, 'p'},
-            {"cert", 1, 0, 'c'},
-            {"key", 1, 0, 'k'},
-            {"trusted", 1, 0, 'r'},
-            {0, 0, 0, 0}
-        };
-        long_options = connect_long_options;
-    } else {
-        struct option listen_long_options[] = {
-            {"tls", 0, 0, 't'},
-            {"timeout", 1, 0, 'i'},
-            {"host", 1, 0, 'o'},
-            {"port", 1, 0, 'p'},
-            {"cert", 1, 0, 'c'},
-            {"key", 1, 0, 'k'},
-            {"trusted", 1, 0, 'r'},
-            {0, 0, 0, 0}
-        };
-        long_options = listen_long_options;
+        /* remove timeout option for use as connect command */
+        memset(&long_options[6], 0, sizeof long_options[6]);
     }
 
     /* set back to start to be able to use getopt() repeatedly */
