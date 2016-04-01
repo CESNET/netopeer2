@@ -333,6 +333,8 @@ error:
         sr_session_stop(s->candidate);
     }
     */
+
+    free(s);
     return EXIT_FAILURE;
 }
 
