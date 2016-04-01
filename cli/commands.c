@@ -2163,6 +2163,7 @@ cmd_status(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 #endif
         case NC_TI_FD:
             s = "FD";
+            break;
         default:
             s = "Unknown";
             break;
