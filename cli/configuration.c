@@ -32,7 +32,6 @@
 #include "commands.h"
 #include "linenoise/linenoise.h"
 
-extern int done;
 extern LYD_FORMAT output_format;
 extern int output_flag;
 extern char *config_editor;
