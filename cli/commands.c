@@ -113,6 +113,7 @@ addargs(struct arglist *args, char *format, ...)
     /* store arguments to aux string */
     va_start(arguments, format);
     if ((len = vasprintf(&aux, format, arguments)) == -1) {
+        va_end(arguments);
         ERROR(__func__, "vasprintf() failed (%s)", strerror(errno));
         return EXIT_FAILURE;
     }
