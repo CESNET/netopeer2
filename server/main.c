@@ -34,7 +34,7 @@
 #include "../modules/ietf-netconf-acm.h"
 #include "../modules/ietf-netconf@2011-06-01.h"
 
-struct np2srv np2srv = {NULL, {NULL, NULL, NULL, NULL}, NULL, NULL};
+struct np2srv np2srv;
 
 /**
  * @brief Control flags for the main loop
@@ -159,6 +159,11 @@ server_init(void)
 
     /* start internal sessions with sysrepo */
     rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, SR_SESS_DEFAULT, &np2srv.sr_sess.running);
+    if (rc != SR_ERR_OK) {
+        ERR("Unable to create Netopeer session to sysrepod (%s).", sr_strerror(rc));
+        return EXIT_FAILURE;
+    }
+    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, SR_SESS_CONFIG_ONLY, &np2srv.sr_sess.running_config);
     if (rc != SR_ERR_OK) {
         ERR("Unable to create Netopeer session to sysrepod (%s).", sr_strerror(rc));
         return EXIT_FAILURE;

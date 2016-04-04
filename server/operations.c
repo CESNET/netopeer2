@@ -533,9 +533,8 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         ds = sessions->running;
     } else { /* get-config */
         nodeset = lyd_get_node(rpc, "/ietf-netconf:get-config/source/*");
-        /* TODO we want only configuration data! */
         if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
-            ds = sessions->running;
+            ds = sessions->running_config;
         } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
             ds = sessions->startup;
         } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
