@@ -241,9 +241,7 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
     if (new_tmp) {
         *new_tmp = tmpname;
     } else {
-        if (tmpname != NULL) {
-            unlink(tmpname);
-        }
+        unlink(tmpname);
         free(tmpname);
     }
 
