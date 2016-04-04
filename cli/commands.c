@@ -3112,6 +3112,11 @@ cmd_get(const char *arg, char **tmp_config_file)
             }
             break;
         case 'o':
+            if (output) {
+                ERROR(__func__, "Duplicated \"out\" option.");
+                cmd_get_help();
+                goto fail;
+            }
             output = fopen(optarg, "w");
             if (!output) {
                 ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
@@ -3287,6 +3292,11 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
             }
             break;
         case 'o':
+            if (output) {
+                ERROR(__func__, "Duplicated \"out\" option.");
+                cmd_getconfig_help();
+                goto fail;
+            }
             output = fopen(optarg, "w");
             if (!output) {
                 ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
@@ -3869,6 +3879,11 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
             stream = optarg;
             break;
         case 'o':
+            if (output) {
+                ERROR(__func__, "Duplicated \"out\" option.");
+                cmd_subscribe_help();
+                goto fail;
+            }
             output = fopen(optarg, "w");
             if (!output) {
                 ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
@@ -3994,6 +4009,11 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
             format = optarg;
             break;
         case 'o':
+            if (output) {
+                ERROR(__func__, "Duplicated \"out\" option.");
+                cmd_getschema_help();
+                goto fail;
+            }
             output = fopen(optarg, "w");
             if (!output) {
                 ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
@@ -4083,6 +4103,11 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
             ret = EXIT_SUCCESS;
             goto fail;
         case 'c':
+            if (content) {
+                ERROR(__func__, "Duplicated \"content\" option.");
+                cmd_userrpc_help();
+                goto fail;
+            }
             /* open edit configuration data from the file */
             config_fd = open(optarg, O_RDONLY);
             if (config_fd == -1) {
@@ -4111,6 +4136,11 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
             close(config_fd);
             break;
         case 'o':
+            if (output) {
+                ERROR(__func__, "Duplicated \"out\" option.");
+                cmd_userrpc_help();
+                goto fail;
+            }
             output = fopen(optarg, "w");
             if (!output) {
                 ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
