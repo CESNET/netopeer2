@@ -163,11 +163,12 @@ server_init(void)
         ERR("Unable to create Netopeer session to sysrepod (%s).", sr_strerror(rc));
         return EXIT_FAILURE;
     }
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, SR_SESS_CONFIG_ONLY, &np2srv.sr_sess.running_config);
+    /* TODO no need for this one probably */
+    /*rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, SR_SESS_CONFIG_ONLY, &np2srv.sr_sess.running_config);
     if (rc != SR_ERR_OK) {
         ERR("Unable to create Netopeer session to sysrepod (%s).", sr_strerror(rc));
         return EXIT_FAILURE;
-    }
+    }*/
     rc = sr_session_start(np2srv.sr_conn, SR_DS_STARTUP, SR_SESS_DEFAULT, &np2srv.sr_sess.startup);
     if (rc != SR_ERR_OK) {
         VRB("Startup datastore not available in sysrepod (%s).", sr_strerror(rc));
@@ -266,6 +267,9 @@ free_ds(void *ptr)
         if (s->running) {
             sr_session_stop(s->running);
         }
+        if (s->running_config) {
+            sr_session_stop(s->running_config);
+        }
         if (s->startup) {
             sr_session_stop(s->startup);
         }
@@ -302,6 +306,12 @@ connect_ds(struct nc_session *ncs)
             nc_session_get_id(ncs), sr_strerror(rc));
         goto error;
     }
+    rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_RUNNING, SR_SESS_CONFIG_ONLY, &s->running_config);
+    if (rc != SR_ERR_OK) {
+        ERR("Unable to create sysrepo running config session for NETCONF session %d (%s).",
+            nc_session_get_id(ncs), sr_strerror(rc));
+        goto error;
+    }
     if (np2srv.sr_sess.startup) {
         rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_STARTUP, SR_SESS_DEFAULT, &s->startup);
         if (rc != SR_ERR_OK) {
@@ -330,6 +340,9 @@ error:
     if (s->running) {
         sr_session_stop(s->running);
     }
+    if (s->running_config) {
+        sr_session_stop(s->running_config);
+    }
     if (s->startup) {
         sr_session_stop(s->startup);
     }
@@ -351,7 +364,7 @@ process_loop(void *arg)
     int rc;
     struct nc_session *ncs;
 
-    while(control == LOOP_CONTINUE) {
+    while (control == LOOP_CONTINUE) {
         /* listen for incomming requests on active NETCONF sessions */
         if (nc_ps_session_count(np2srv.nc_ps)) {
             rc = nc_ps_poll(np2srv.nc_ps, 500);
@@ -480,7 +493,7 @@ restart:
     pthread_create(&tid, NULL, process_loop, NULL);
 
     /* listen for new NETCONF sessions */
-    while(control == LOOP_CONTINUE) {
+    while (control == LOOP_CONTINUE) {
         rc = nc_accept(500, &ncs);
         if (rc == 1) {
             if (connect_ds(ncs)) {
