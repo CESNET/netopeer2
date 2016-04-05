@@ -513,10 +513,10 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     sr_val_t *values = NULL;
     size_t value_count = 0;
     const struct lys_module *module;
-    struct lys_node *snode;
+    const struct lys_node *snode;
     struct lyd_node *root = NULL, *node;
     struct lyd_attr *attr;
-    char **filters = NULL, buf[21], *path;
+    char **filters = NULL, buf[21], *path, *data = NULL;
     int rc, filter_count = 0;
     uint32_t i, j;
     struct lyxml_elem *subtree_filter;
@@ -573,12 +573,20 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
         if (!attr) {
             /* subtree */
-            subtree_filter = ((struct lyd_node_anyxml *)node)->value;
-            if (!subtree_filter->child) {
-                /* empty filter, fair enough */
+            if (!((struct lyd_node_anyxml *)node)->value.str) {
+                /* empty filter (checks both formats), fair enough */
                 return nc_server_reply_data(NULL, NC_PARAMTYPE_CONST);
             }
-            subtree_filter = subtree_filter->child;
+
+            if (((struct lyd_node_anyxml *)node)->xml_struct) {
+                subtree_filter = ((struct lyd_node_anyxml *)node)->value.xml;
+            } else {
+                subtree_filter = lyxml_parse_mem(np2srv.ly_ctx, ((struct lyd_node_anyxml *)node)->value.str, LYXML_PARSE_MULTIROOT);
+            }
+            if (!subtree_filter) {
+                goto error;
+            }
+
             if (build_xpath_from_subtree_filter(np2srv.ly_ctx, subtree_filter, &filters, &filter_count)) {
                 goto error;
             }
