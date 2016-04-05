@@ -33,6 +33,7 @@
 
 #include "../modules/ietf-netconf-acm.h"
 #include "../modules/ietf-netconf@2011-06-01.h"
+#include "../modules/ietf-netconf-monitoring.h"
 
 struct np2srv np2srv;
 
@@ -225,6 +226,9 @@ server_init(void)
     if (np2srv.sr_sess.candidate) {
         lys_features_enable(mod, "candidate");
     }
+
+    /* 3) add ietf-netconf-monitoring */
+    lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_monitoring_yin, LYS_IN_YIN);
 
     /* debug - list schemas
     struct lyd_node *ylib = ly_ctx_info(np2srv.ly_ctx);
