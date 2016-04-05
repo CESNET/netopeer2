@@ -565,6 +565,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                     ERR("RPC with an XPath filter without the \"select\" attribute.");
                     goto error;
                 }
+                break;
             } else if (!strcmp(attr->name, "subtree")) {
                 attr = NULL;
                 break;
