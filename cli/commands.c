@@ -200,7 +200,7 @@ cli_ntf_clb(struct nc_session *session, const struct nc_notif *notif)
 static int
 cli_send_recv(struct nc_rpc *rpc, FILE *output)
 {
-    char *str, *model_data, *ptr, *ptr2;
+    char *str, *model_data;
     int ret;
     uint16_t i, j;
     uint64_t msgid;
@@ -247,22 +247,19 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
             if (output == stdout) {
                 fprintf(output, "MODULE\n");
             }
-            ret = lyxml_print_mem(&str, ((struct lyd_node_anyxml *)data_rpl->data)->value, 0);
-            if (ret) {
-                ERROR(__func__, "Failed to get the model data from the reply.\n");
-                nc_reply_free(reply);
-                return 1;
+            if (((struct lyd_node_anyxml *)data_rpl->data)->xml_struct) {
+                ret = lyxml_print_mem(&model_data, ((struct lyd_node_anyxml *)data_rpl->data)->value.xml, 0);
+                if (ret) {
+                    ERROR(__func__, "Failed to get the model data from the reply.\n");
+                    nc_reply_free(reply);
+                    return 1;
+                }
+                fputs(model_data, output);
+                free(model_data);
+            } else {
+                fputs(((struct lyd_node_anyxml *)data_rpl->data)->value.str, output);
             }
 
-            ptr = strchr(str, '>');
-            ++ptr;
-            ptr2 = strrchr(str, '<');
-
-            model_data = strndup(ptr, strlen(ptr) - strlen(ptr2));
-            free(str);
-
-            fputs(model_data, output);
-            free(model_data);
             if (output == stdout) {
                 fprintf(output, "\n");
             }
