@@ -678,6 +678,10 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     debug */
 
     /* build RPC Reply */
+    lyd_print_mem(&data, root, LYD_XML, LYP_WITHSIBLINGS);
+    lyd_free_withsiblings(root);
+    snode = ly_ctx_get_node(np2srv.ly_ctx, rpc->schema, "output/data");
+    root = lyd_output_new_anyxml_str(snode, data);
     return nc_server_reply_data(root, NC_PARAMTYPE_FREE);
 
 error:
