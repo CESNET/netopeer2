@@ -122,19 +122,18 @@ build_subtree(sr_session_ctx_t *ds, struct lyd_node *root, const char *subtree_p
     char *subtree_children_path, buf[21];
     int rc;
 
-    /* TODO this asprintf replaces the origin al path */
-    //if (asprintf(&subtree_children_path, "%s//*", subtree_path) == -1) {
-    //    EMEM;
-    //    return -1;
-    //}
-    subtree_children_path = (char *)subtree_path;
-
-    /* TODO recursive parameter will be removed */
-    rc = sr_get_items_iter(ds, subtree_children_path, true, &iter);
-    if (rc != SR_ERR_OK) {
-        ERR("Getting items (%s) from sysrepo failed (%s).", subtree_children_path, sr_strerror(rc));
+    if (asprintf(&subtree_children_path, "%s//*", subtree_path) == -1) {
+        EMEM;
         return -1;
     }
+
+    rc = sr_get_items_iter(ds, subtree_children_path, &iter);
+    if (rc != SR_ERR_OK) {
+        ERR("Getting items (%s) from sysrepo failed (%s).", subtree_children_path, sr_strerror(rc));
+        free(subtree_children_path);
+        return -1;
+    }
+    free(subtree_children_path);
 
     ly_errno = LY_SUCCESS;
     while (sr_get_item_next(ds, iter, &value) == SR_ERR_OK) {
@@ -620,8 +619,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             }
 
             if (snode) {
-                /* TODO later add "*" at the end */
-                asprintf(&path, "/%s:", module->name);
+                asprintf(&path, "/%s:*", module->name);
                 if (xpath_add_filter(path, &filters, &filter_count)) {
                     free(path);
                     goto error;
