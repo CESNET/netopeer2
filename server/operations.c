@@ -262,7 +262,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     for (i = 0; list[i]; i++) {
-        asprintf(&xpath, "/%s:", list[i]);
+        asprintf(&xpath, "/%s:*", list[i]);
 
         /* get all list instances with their content (recursive) */
         rc = sr_get_items_iter(ds, xpath, &iter);
