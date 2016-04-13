@@ -499,7 +499,7 @@ get_edit_op(struct lyd_node *node, enum NP2_EDIT_OP parentop, enum NP2_EDIT_DEFO
 struct nc_server_reply *
 op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 {
-    struct nc_server_error *e;
+    struct nc_server_error *e = NULL;
     struct np2sr_sessions *sessions;
     sr_session_ctx_t *ds;
     struct ly_set *nodeset;
@@ -511,6 +511,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     char *str, path[1024];
     enum NP2_EDIT_OP *op = NULL, *op_new;
     int op_index, op_size, path_index = 0, missing_keys = 0;
+    int ret;
     struct lys_node_container *cont;
 
     /* init */
@@ -634,7 +635,8 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             }
         }
 
-        /* TODO apply operation */
+        /* specific work for different node types */
+        ret = -1;
         switch(iter->schema->nodetype) {
         case LYS_CONTAINER:
             cont = (struct lys_node_container *)iter->schema;
@@ -644,13 +646,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             }
 
             VRB("EDIT_CONFIG: presence container %s, operation %d", path, op[op_index]);
-            /* TODO */
-
             break;
-        case LYS_LIST:
-            missing_keys = ((struct lys_node_list *)iter->schema)->keys_size;
-            /* must be processed later when we get know keys */
-            goto dfs_continue;
         case LYS_LEAF:
             if (missing_keys) {
                 /* still processing list keys */
@@ -671,8 +667,64 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             VRB("EDIT_CONFIG: leaf %s, operation %d", path, op[op_index]);
 
             break;
+        case LYS_LEAFLIST:
+            /* TODO process insert, if any, and after regular creation apply sr_move_item() */
+            break;
+        case LYS_LIST:
+            missing_keys = ((struct lys_node_list *)iter->schema)->keys_size;
+            /* must be processed later when we get know keys */
+            goto dfs_continue;
         default:
             break;
+        }
+
+        /* apply change to sysrepo */
+        switch (op[op_index]) {
+        case NP2_EDIT_MERGE:
+        case NP2_EDIT_REPLACE:
+            /* create the node */
+            ret = sr_set_item(ds, path, NULL, 0);
+            break;
+        case NP2_EDIT_CREATE:
+            /* create the node, but it must not exists */
+            ret = sr_set_item(ds, path, NULL, SR_EDIT_STRICT);
+            break;
+        case NP2_EDIT_DELETE:
+            /* remove the node, but it must exists */
+            ret = sr_delete_item(ds, path, SR_EDIT_STRICT);
+            break;
+        case NP2_EDIT_REMOVE:
+            /* remove the node */
+            ret = sr_delete_item(ds, path, 0);
+            break;
+        default:
+            /* do nothing */
+            break;
+        }
+
+        /* check the result */
+        switch (ret) {
+        case SR_ERR_OK:
+            VRB("EDIT_CONFIG: success (%s)", path);
+            /* no break */
+        case -1:
+            /* do nothing */
+            break;
+        case SR_ERR_UNAUTHORIZED:
+            e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
+            nc_err_set_path(e, path);
+            goto cleanup;
+        case SR_ERR_DATA_EXISTS:
+            e = nc_err(NC_ERR_DATA_EXISTS, NC_ERR_TYPE_PROT);
+            nc_err_set_path(e, path);
+            goto cleanup;
+        case SR_ERR_DATA_MISSING:
+            e = nc_err(NC_ERR_DATA_MISSING, NC_ERR_TYPE_PROT);
+            nc_err_set_path(e, path);
+            goto cleanup;
+        default:
+            /* not covered error */
+            goto internalerror;
         }
 
 dfs_continue:
@@ -722,12 +774,18 @@ dfs_continue:
         /* end of modified LY_TREE_DFS_END */
     }
 
+cleanup:
     /* cleanup */
     free(op);
     lyd_free_withsiblings(config);
 
-    /* build positive RPC Reply */
-    return nc_server_reply_ok();
+    if (e) {
+        /* send error reply */
+        return nc_server_reply_err(e);
+    } else {
+        /* build positive RPC Reply */
+        return nc_server_reply_ok();
+    }
 
 internalerror:
     free(op);
