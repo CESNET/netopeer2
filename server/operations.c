@@ -8,7 +8,7 @@
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
@@ -187,7 +187,7 @@ build_subtree(sr_session_ctx_t *ds, const struct lys_module *module, struct lyd_
     }
 
     if (recursion) {
-        rc = sr_get_items_iter(ds, value->xpath, false, &iter);
+        rc = sr_get_items_iter(ds, value->xpath, &iter);
         if (rc != SR_ERR_OK) {
             ERR("Getting items (%s) from sysrepo failed (%s)", value->xpath, sr_strerror(rc));
             goto error;
@@ -265,7 +265,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         asprintf(&xpath, "/%s:", list[i]);
 
         /* get all list instances with their content (recursive) */
-        rc = sr_get_items_iter(ds, xpath, false, &iter);
+        rc = sr_get_items_iter(ds, xpath, &iter);
         free(xpath);
         if (rc == SR_ERR_UNKNOWN_MODEL) {
             /* skip internal modules not known to sysrepo */
