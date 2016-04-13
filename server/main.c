@@ -123,14 +123,12 @@ np2srv_ly_module_clb(const char *name, const char *revision, void *user_data, LY
 
     *free_module_data = NULL;
     *format = LYS_IN_YIN;
-
-    if (sr_get_schema(np2srv.sr_sess.startup, (const char *)user_data, revision, name, SR_SCHEMA_YIN,
-                      &data) == SR_ERR_OK) {
-        /* include */
-        return data;
-    } else if (sr_get_schema(np2srv.sr_sess.startup, name, revision, NULL, SR_SCHEMA_YIN,
-                             &data) == SR_ERR_OK) {
+    if (sr_get_schema(np2srv.sr_sess.startup, name, revision, NULL, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
         /* import */
+        return data;
+    } else if (sr_get_schema(np2srv.sr_sess.startup, (const char *)user_data, revision, name,
+                             SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
+        /* include */
         return data;
     }
     ERR("Unable to get %s module (as dependency of %s) from sysrepo.", name, (const char *)user_data);
@@ -238,6 +236,9 @@ server_init(void)
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get-config");
     lys_set_private(snode, op_get);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:edit-config");
+    lys_set_private(snode, op_editconfig);
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:lock");
     lys_set_private(snode, op_lock);

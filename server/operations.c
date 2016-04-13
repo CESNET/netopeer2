@@ -13,6 +13,8 @@
  */
 
 #define _GNU_SOURCE
+#include <assert.h>
+#include <errno.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,6 +25,7 @@
 #include <sysrepo.h>
 
 #include "common.h"
+#include "operations.h"
 
 /**
  * Local information about locks
@@ -336,7 +339,7 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
     */
     } else {
         ERR("Invalid <lock> target (%s)", dsname);
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
         nc_err_set_msg(e, np2log_lasterr(), "en");
         return nc_server_reply_err(e);
     }
@@ -411,7 +414,7 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
     */
     } else {
         ERR("Invalid <unlock> target (%s)", dsname);
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
         nc_err_set_msg(e, np2log_lasterr(), "en");
         return nc_server_reply_err(e);
     }
@@ -457,5 +460,280 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
 
     /* build positive RPC Reply */
     return nc_server_reply_ok();
+}
+
+static enum NP2_EDIT_OP
+get_edit_op(struct lyd_node *node, enum NP2_EDIT_OP parentop, enum NP2_EDIT_DEFOP defop)
+{
+    struct lyd_attr *attr;
+
+    assert(node);
+
+    /* TODO check conflicts between parent and current operations */
+    for (attr = node->attr; attr; attr = attr->next) {
+        if (!strcmp(attr->name, "operation") &&
+                !strcmp(attr->module->name, "ietf-netconf")) {
+            /* NETCONF operation attribute */
+            if (!strcmp(attr->value, "create")) {
+                return NP2_EDIT_CREATE;
+            } else if (!strcmp(attr->value, "delete")) {
+                return NP2_EDIT_DELETE;
+            } else if (!strcmp(attr->value, "remove")) {
+                return NP2_EDIT_REMOVE;
+            } else if (!strcmp(attr->value, "replace")) {
+                return NP2_EDIT_REPLACE;
+            } else if (!strcmp(attr->value, "merge")) {
+                return NP2_EDIT_REPLACE;
+            }
+        }
+    }
+
+    if (parentop > 0) {
+        return parentop;
+    } else {
+        return (enum NP2_EDIT_OP) defop;
+    }
+}
+
+struct nc_server_reply *
+op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
+{
+    struct nc_server_error *e;
+    struct np2sr_sessions *sessions;
+    sr_session_ctx_t *ds;
+    struct ly_set *nodeset;
+    const char *value;
+    enum NP2_EDIT_DEFOP defop;
+    enum NP2_EDIT_TESTOPT testopt;
+    struct lyxml_elem *config_xml;
+    struct lyd_node *config = NULL, *next, *iter;
+    char *str, path[1024];
+    enum NP2_EDIT_OP *op = NULL, *op_new;
+    int op_index, op_size, path_index = 0, missing_keys = 0;
+    struct lys_node_container *cont;
+
+    /* init */
+    path[path_index] = '\0';
+
+    /* get sysrepo connections for this session */
+    sessions = (struct np2sr_sessions *)nc_session_get_data(ncs);
+
+    /*
+     * parse parameters
+     */
+
+    /* target */
+    nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/target/*");
+    value = nodeset->set.d[0]->schema->name;
+    ly_set_free(nodeset);
+
+    if (!strcmp(value, "running")) {
+        ds = sessions->running;
+    /* TODO sysrepo does not support candidate
+    } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
+        ds = sessions->candidate;
+        dsl = &dslock.candidate;
+    */
+    }
+
+    /* default-operation */
+    nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/default-operation");
+    if (nodeset->number) {
+        value = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
+        if (!strcmp(value, "merge")) {
+            defop = NP2_EDIT_DEFOP_MERGE;
+        } else if (!strcmp(value, "replace")) {
+            defop = NP2_EDIT_DEFOP_REPLACE;
+        } else if (!strcmp(value, "none")) {
+            defop = NP2_EDIT_DEFOP_NONE;
+        }
+    } else {
+        /* default value for default-operation is "merge" */
+        defop = NP2_EDIT_DEFOP_MERGE;
+    }
+    ly_set_free(nodeset);
+
+    /* test-option */
+    nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/test-otion");
+    if (nodeset->number) {
+        value = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
+        if (!strcmp(value, "test-then-set")) {
+            testopt = NP2_EDIT_TESTOPT_TESTANDSET;
+        } else if (!strcmp(value, "set")) {
+            testopt = NP2_EDIT_TESTOPT_SET;
+        } else if (!strcmp(value, "test-only")) {
+            testopt = NP2_EDIT_TESTOPT_TEST;
+        }
+    } else {
+        /* default value for test-option is "test-then-set" */
+        testopt = NP2_EDIT_TESTOPT_TESTANDSET;
+    }
+    ly_set_free(nodeset);
+
+    /* error-option is ignored, rollback is always done */
+
+    /* config */
+    nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/config");
+    if (nodeset->number) {
+        config_xml = ((struct lyd_node_anyxml *)nodeset->set.d[0])->value->child;
+        ly_set_free(nodeset);
+
+        config = lyd_parse_xml(np2srv.ly_ctx, &config_xml, LYD_OPT_EDIT | LYD_OPT_DESTRUCT);
+        if (ly_errno) {
+            // TODO (libnetconf2 devel) return nc_server_reply_err(nc_err_libyang());
+            return nc_server_reply_err(nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP));
+        } else if (!config) {
+            /* nothing to do */
+            return nc_server_reply_ok();
+        }
+    } else {
+        /* TODO support for :url capability */
+        ly_set_free(nodeset);
+        goto internalerror;
+    }
+
+    lyd_print_mem(&str, config, LYD_XML, LYP_WITHSIBLINGS | LYP_FORMAT);
+    VRB("EDIT-CONFIG: ds %d, defop %d, testopt %d, config:\n%s", ds, defop, testopt, str);
+    free(str);
+
+    /*
+     * data manipulation
+     */
+
+    op_size = 16;
+    op = malloc(op_size * sizeof *op);
+    op[0] = NP2_EDIT_NONE;
+    op_index = 0;
+    LY_TREE_DFS_BEGIN(config, next, iter) {
+
+        /* maintain list of operations */
+        op_index++;
+        if (op_index == op_size) {
+            op_size += 16;
+            op_new = realloc(op, op_size * sizeof *op);
+            if (!op_new) {
+                ERR("%s: memory allocation failed (%s)", __func__, strerror(errno));
+                goto internalerror;
+            }
+            op = op_new;
+        }
+        op[op_index] = get_edit_op(iter, op[op_index - 1], defop);
+
+        /* maintain path */
+        if (!iter->parent || lyd_node_module(iter) != lyd_node_module(iter->parent)) {
+            /* with prefix */
+            path_index += sprintf(&path[path_index], "/%s:%s", lyd_node_module(iter)->name, iter->schema->name);
+        } else {
+            /* without prefix */
+            if (missing_keys) {
+                path_index += sprintf(&path[path_index], "[%s=\'%s\']", iter->schema->name,
+                                      ((struct lyd_node_leaf_list *)iter)->value_str);
+            } else {
+                path_index += sprintf(&path[path_index], "/%s", iter->schema->name);
+            }
+        }
+
+        /* TODO apply operation */
+        switch(iter->schema->nodetype) {
+        case LYS_CONTAINER:
+            cont = (struct lys_node_container *)iter->schema;
+            if (!cont->presence) {
+                /* do nothing */
+                break;
+            }
+
+            VRB("EDIT_CONFIG: presence container %s, operation %d", path, op[op_index]);
+            /* TODO */
+
+            break;
+        case LYS_LIST:
+            missing_keys = ((struct lys_node_list *)iter->schema)->keys_size;
+            /* must be processed later when we get know keys */
+            goto dfs_continue;
+        case LYS_LEAF:
+            if (missing_keys) {
+                /* still processing list keys */
+                missing_keys--;
+                if (!missing_keys) {
+                    /* the last key, create the list instance */
+                    VRB("EDIT_CONFIG: list %s, operation %d", path, op[op_index]);
+                    /* TODO */
+                }
+
+                /* make sure that LY_TREE_DFS_END does not remove the predicate */
+                path[path_index++] = '/';
+                path[path_index] = '\0';
+                goto dfs_continue;
+            }
+
+            /* regular leaf */
+            VRB("EDIT_CONFIG: leaf %s, operation %d", path, op[op_index]);
+
+            break;
+        default:
+            break;
+        }
+
+dfs_continue:
+        /* where go next? - modified LY_TREE_DFS_END */
+        if (iter->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYXML)) {
+            next = NULL;
+        } else {
+            next = iter->child;
+        }
+        if (!next) {
+            /* no children, try siblings */
+            next = iter->next;
+
+            /* maintain "stack" variables */
+            op_index--;
+            str = strrchr(path, '/');
+            if (str) {
+                *str = '\0';
+                path_index = str - path;
+            } else {
+                path[0] = '\0';
+                path_index = 0;
+            }
+        }
+        while (!next) {
+            iter = iter->parent;
+
+            /* parent is already processed, go to its sibling */
+            if (!iter) {
+                /* we are done */
+                break;
+            }
+            next = iter->next;
+
+            /* maintain "stack" variables */
+            op_index--;
+            str = strrchr(path, '/');
+            if (str) {
+                *str = '\0';
+                path_index = str - path;
+            } else {
+                path[0] = '\0';
+                path_index = 0;
+            }
+
+        }
+        /* end of modified LY_TREE_DFS_END */
+    }
+
+    /* cleanup */
+    free(op);
+    lyd_free_withsiblings(config);
+
+    /* build positive RPC Reply */
+    return nc_server_reply_ok();
+
+internalerror:
+    free(op);
+    lyd_free_withsiblings(config);
+
+    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+    nc_err_set_msg(e, np2log_lasterr(), "en");
+    return nc_server_reply_err(e);
 }
 
