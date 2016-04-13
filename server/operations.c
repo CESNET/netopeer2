@@ -553,20 +553,22 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         node = nodeset->set.d[0];
         ly_set_free(nodeset);
         LY_TREE_FOR(node->attr, attr) {
-            if (!strcmp(attr->name, "xpath")) {
-                LY_TREE_FOR(node->attr, attr) {
-                    if (!strcmp(attr->name, "select")) {
-                        break;
+            if (!strcmp(attr->name, "type")) {
+                if (!strcmp(attr->value, "xpath")) {
+                    LY_TREE_FOR(node->attr, attr) {
+                        if (!strcmp(attr->name, "select")) {
+                            break;
+                        }
                     }
+                    if (!attr) {
+                        ERR("RPC with an XPath filter without the \"select\" attribute.");
+                        goto error;
+                    }
+                    break;
+                } else if (!strcmp(attr->value, "subtree")) {
+                    attr = NULL;
+                    break;
                 }
-                if (!attr) {
-                    ERR("RPC with an XPath filter without the \"select\" attribute.");
-                    goto error;
-                }
-                break;
-            } else if (!strcmp(attr->name, "subtree")) {
-                attr = NULL;
-                break;
             }
         }
 
