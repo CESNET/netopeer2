@@ -494,7 +494,6 @@ build_xpath_from_subtree_filter(struct ly_ctx *ctx, struct lyxml_elem *elem, cha
         free(modules);
     }
 
-    free(modules);
     return 0;
 
 error:
