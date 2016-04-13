@@ -187,7 +187,8 @@ build_subtree(sr_session_ctx_t *ds, const struct lys_module *module, struct lyd_
     }
 
     if (recursion) {
-        rc = sr_get_items_iter(ds, value->xpath, &iter);
+        sprintf(buf, "%s/*", value->xpath);
+        rc = sr_get_items_iter(ds, buf, &iter);
         if (rc != SR_ERR_OK) {
             ERR("Getting items (%s) from sysrepo failed (%s)", value->xpath, sr_strerror(rc));
             goto error;
