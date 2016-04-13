@@ -576,7 +576,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             /* subtree */
             if (!((struct lyd_node_anyxml *)node)->value.str) {
                 /* empty filter (checks both formats), fair enough */
-                return nc_server_reply_data(NULL, NC_PARAMTYPE_CONST);
+                goto send_reply;
             }
 
             if (((struct lyd_node_anyxml *)node)->xml_struct) {
@@ -595,7 +595,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             /* xpath */
             if (!attr->value || !attr->value[0]) {
                 /* empty select, okay, I guess... */
-                return nc_server_reply_data(NULL, NC_PARAMTYPE_CONST);
+                goto send_reply;
             }
             path = strdup(attr->value);
             if (!path) {
@@ -618,6 +618,8 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                     break;
                 }
             }
+
+            /* TODO ietf-yang-library data generovat sami */
 
             if (snode) {
                 asprintf(&path, "/%s:*", module->name);
@@ -676,9 +678,12 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     lyd_print_file(stdout, root, LYD_XML_FORMAT, LYP_WITHSIBLINGS);
     debug */
 
+send_reply:
     /* build RPC Reply */
-    lyd_print_mem(&data, root, LYD_XML, LYP_WITHSIBLINGS);
-    lyd_free_withsiblings(root);
+    if (root) {
+        lyd_print_mem(&data, root, LYD_XML, LYP_WITHSIBLINGS);
+        lyd_free_withsiblings(root);
+    }
     snode = ly_ctx_get_node(np2srv.ly_ctx, rpc->schema, "output/data");
     root = lyd_output_new_anyxml_str(snode, data);
     return nc_server_reply_data(root, NC_PARAMTYPE_FREE);
