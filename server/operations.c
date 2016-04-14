@@ -512,6 +512,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     size_t value_count = 0;
     const struct lys_module *module;
     const struct lys_node *snode;
+    struct lyd_node_leaf_list *leaf;
     struct lyd_node *root = NULL, *node;
     struct lyd_attr *attr;
     char **filters = NULL, buf[21], *path, *data = NULL;
@@ -522,14 +523,19 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     struct ly_set *nodeset;
     sr_session_ctx_t *ds;
     struct nc_server_error *e;
+    int wd_flag, data_flag;
+    NC_WD_MODE nc_wd;
+
 
     /* get sysrepo connections for this session */
     sessions = (struct np2sr_sessions *)nc_session_get_data(ncs);
 
     /* get know which datastore is being affected */
     if (!strcmp(rpc->schema->name, "get")) {
+        data_flag = LYD_OPT_GET;
         ds = sessions->running;
     } else { /* get-config */
+        data_flag = LYD_OPT_GETCONFIG;
         nodeset = lyd_get_node(rpc, "/ietf-netconf:get-config/source/*");
         if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
             ds = sessions->running_config;
@@ -619,7 +625,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 }
             }
 
-            /* TODO ietf-yang-library data generovat sami */
+            /* TODO ietf-yang-library data should be created by us */
 
             if (snode) {
                 asprintf(&path, "/%s:*", module->name);
@@ -629,6 +635,49 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 }
             }
         }
+    }
+
+    /* get with-defaults mode */
+    nodeset = lyd_get_node(rpc, "/ietf-netconf:*/ietf-netconf-with-defaults:with-defaults");
+    if (nodeset->number) {
+        leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
+        if (!strcmp(leaf->value_str, "report-all")) {
+            nc_wd = NC_WD_ALL;
+        } else if (!strcmp(leaf->value_str, "report-all-tagged")) {
+            nc_wd = NC_WD_ALL_TAG;
+        } else if (!strcmp(leaf->value_str, "trim")) {
+            nc_wd = NC_WD_TRIM;
+        } else if (!strcmp(leaf->value_str, "explicit")) {
+            nc_wd = NC_WD_EXPLICIT;
+        } else {
+            /* we received it, so it was validated, this cannot be */
+            EINT;
+            goto error;
+        }
+    } else {
+        nc_server_get_capab_withdefaults(&nc_wd, NULL);
+    }
+    ly_set_free(nodeset);
+
+    /* transform from NC_WD_ to LYD_WD_ */
+    switch (nc_wd) {
+    case NC_WD_ALL:
+        wd_flag = LYD_WD_ALL;
+        break;
+    case NC_WD_ALL_TAG:
+        wd_flag = LYD_WD_ALL_TAG;
+        break;
+    case NC_WD_TRIM:
+        wd_flag = LYD_WD_TRIM;
+        break;
+    case NC_WD_EXPLICIT:
+        /* TODO waiting for libyang support */
+        //wd_flag = LYD_WD_EXPLICIT;
+        wd_flag = 0;
+        break;
+    default:
+        EINT;
+        goto error;
     }
 
     /* refresh sysrepo data */
@@ -681,6 +730,9 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 send_reply:
     /* build RPC Reply */
     if (root) {
+        if (lyd_wd_add(np2srv.ly_ctx, &root, wd_flag | data_flag)) {
+            goto error;
+        }
         lyd_print_mem(&data, root, LYD_XML, LYP_WITHSIBLINGS);
         lyd_free_withsiblings(root);
     }
