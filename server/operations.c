@@ -684,7 +684,9 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* refresh sysrepo data */
-    sr_session_refresh(ds);
+    if (sr_session_refresh(ds) != SR_ERR_OK) {
+        goto error;
+    }
 
     /* create the data tree for the data reply */
     for (i = 0; (signed)i < filter_count; i++) {
@@ -915,8 +917,9 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
 }
 
 static enum NP2_EDIT_OP
-get_edit_op(struct lyd_node *node, enum NP2_EDIT_OP parentop, enum NP2_EDIT_DEFOP defop)
+edit_get_op(struct lyd_node *node, enum NP2_EDIT_OP parentop, enum NP2_EDIT_DEFOP defop)
 {
+    enum NP2_EDIT_OP retval = NP2_EDIT_ERROR;
     struct lyd_attr *attr;
 
     assert(node);
@@ -927,16 +930,18 @@ get_edit_op(struct lyd_node *node, enum NP2_EDIT_OP parentop, enum NP2_EDIT_DEFO
                 !strcmp(attr->module->name, "ietf-netconf")) {
             /* NETCONF operation attribute */
             if (!strcmp(attr->value, "create")) {
-                return NP2_EDIT_CREATE;
+                retval = NP2_EDIT_CREATE;
             } else if (!strcmp(attr->value, "delete")) {
-                return NP2_EDIT_DELETE;
+                retval = NP2_EDIT_DELETE;
             } else if (!strcmp(attr->value, "remove")) {
-                return NP2_EDIT_REMOVE;
+                retval = NP2_EDIT_REMOVE;
             } else if (!strcmp(attr->value, "replace")) {
-                return NP2_EDIT_REPLACE;
+                retval = NP2_EDIT_REPLACE;
             } else if (!strcmp(attr->value, "merge")) {
-                return NP2_EDIT_REPLACE;
-            }
+                retval = NP2_EDIT_REPLACE;
+            } /* else invalid attribute checked by libyang */
+
+            goto cleanup;
         }
     }
 
@@ -945,23 +950,165 @@ get_edit_op(struct lyd_node *node, enum NP2_EDIT_OP parentop, enum NP2_EDIT_DEFO
     } else {
         return (enum NP2_EDIT_OP) defop;
     }
+
+cleanup:
+
+    lyd_free_attr(node->schema->module->ctx, node, attr, 0);
+    return retval;
+}
+
+static int
+edit_get_move(struct lyd_node *node, const char *path, sr_move_position_t *pos, char **rel)
+{
+    const char *name, *format;
+    struct lyd_attr *attr_iter;
+
+    if (node->schema->nodetype & LYS_LIST) {
+        name = "key";
+        format = "%s%s";
+    } else {
+        name = "value";
+        format = "%s[.=\'%s\']";
+    }
+
+    for(attr_iter = node->attr; attr_iter; attr_iter = attr_iter->next) {
+        if (!strcmp(attr_iter->module->name, "yang")) {
+            if (!strcmp(attr_iter->name, "insert")) {
+                if (!strcmp(attr_iter->value, "first")) {
+                    *pos = SR_MOVE_FIRST;
+                } else if (!strcmp(attr_iter->value, "last")) {
+                    *pos = SR_MOVE_LAST;
+                } else if (!strcmp(attr_iter->value, "before")) {
+                    *pos = SR_MOVE_BEFORE;
+                } else if (!strcmp(attr_iter->value, "after")) {
+                    *pos = SR_MOVE_AFTER;
+                }
+            } else if (!strcmp(attr_iter->name, name)) {
+                if (asprintf(rel, format, path, attr_iter->value)) {
+                    ERR("%s: memory allocation failed (%s) - %s:%d",
+                        __func__, strerror(errno), __FILE__, __LINE__);
+                    return EXIT_FAILURE;
+                }
+            }
+        }
+    }
+
+    return EXIT_SUCCESS;
+}
+
+static void
+edit_set_value(struct lyd_node_leaf_list *leaf, sr_val_t *value)
+{
+    int i;
+    uint8_t dig;
+    int64_t shift = 10;
+    sr_type_t map_ly2sr[] = {
+        SR_BINARY_T,      /* LY_TYPE_BINARY */
+        SR_BITS_T,        /* LY_TYPE_BITS */
+        SR_BOOL_T,        /* LY_TYPE_BOOL */
+        SR_DECIMAL64_T,   /*LY_TYPE_DEC64 */
+        SR_LEAF_EMPTY_T,  /* LY_TYPE_EMPTY */
+        SR_ENUM_T,        /* LY_TYPE_ENUM */
+        SR_IDENTITYREF_T, /* LY_TYPE_IDENT */
+        SR_INSTANCEID_T,  /* LY_TYPE_INST */
+        SR_LEAFREF_T,     /* LY_TYPE_LEAFREF */
+        SR_STRING_T,      /* LY_TYPE_STRING */
+        SR_UNION_T,       /* LY_TYPE_UNION */
+        SR_INT8_T,        /* LY_TYPE_INT8 */
+        SR_UINT8_T,       /* LY_TYPE_UINT8 */
+        SR_INT16_T,       /* LY_TYPE_INT16 */
+        SR_UINT16_T,      /* LY_TYPE_UINT16 */
+        SR_INT32_T,       /* LY_TYPE_INT32 */
+        SR_UINT32_T,      /* LY_TYPE_UINT32 */
+        SR_INT64_T,       /* LY_TYPE_INT64 */
+        SR_UINT64_T       /* LY_TYPE_UINT64 */
+    };
+
+    assert(leaf && value);
+
+    memset(value, 0, sizeof *value);
+    value->type = map_ly2sr[leaf->value_type - 1];
+    switch(leaf->value_type) {
+    case LY_TYPE_BINARY:
+    case LY_TYPE_BITS:
+    case LY_TYPE_ENUM:
+    case LY_TYPE_IDENT:
+    case LY_TYPE_INST:
+    case LY_TYPE_LEAFREF:
+    case LY_TYPE_STRING:
+        value->data.string_val = (char*)leaf->value.string;
+        VRB("EDIT_CONFIG: type string (%d), value %s", leaf->value_type, value->data.string_val);
+        break;
+    case LY_TYPE_BOOL:
+        value->data.bool_val = leaf->value.bln ? true : false;
+        VRB("EDIT_CONFIG: type bool, value %d", value->data.bool_val);
+        break;
+    case LY_TYPE_DEC64:
+        /* value = dec64 / 10^fraction-digits */
+        dig = ((struct lys_node_leaf *)leaf->schema)->type.info.dec64.dig;
+        for (i = 1; i < dig ; i++) {
+            shift *= 10;
+        }
+        value->data.decimal64_val = leaf->value.dec64 / shift;
+        VRB("EDIT_CONFIG: type dec64, value %f", value->data.decimal64_val);
+        break;
+    case LY_TYPE_INT8:
+        value->data.int8_val = leaf->value.int8;
+        VRB("EDIT_CONFIG: type int8, value %d", value->data.int8_val);
+        break;
+    case LY_TYPE_UINT8:
+        value->data.uint8_val = leaf->value.uint8;
+        VRB("EDIT_CONFIG: type uint8, value %u", value->data.uint8_val);
+        break;
+    case LY_TYPE_INT16:
+        value->data.int16_val = leaf->value.int16;
+        VRB("EDIT_CONFIG: type int16, value %d", value->data.int16_val);
+        break;
+    case LY_TYPE_UINT16:
+        value->data.uint16_val = leaf->value.uint16;
+        VRB("EDIT_CONFIG: type uint16, value %u", value->data.uint16_val);
+        break;
+    case LY_TYPE_INT32:
+        value->data.int32_val = leaf->value.int32;
+        VRB("EDIT_CONFIG: type int32, value %d", value->data.int32_val);
+        break;
+    case LY_TYPE_UINT32:
+        value->data.uint32_val = leaf->value.uint32;
+        VRB("EDIT_CONFIG: type uint32, value %u", value->data.uint32_val);
+        break;
+    case LY_TYPE_INT64:
+        value->data.int64_val = leaf->value.int64;
+        VRB("EDIT_CONFIG: type int32, value %ld", value->data.int32_val);
+        break;
+    case LY_TYPE_UINT64:
+        value->data.uint64_val = leaf->value.uint64;
+        VRB("EDIT_CONFIG: type uint64, value %lu", value->data.uint64_val);
+        break;
+    default:
+        /* empty */
+        break;
+    }
 }
 
 struct nc_server_reply *
 op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 {
     struct nc_server_error *e = NULL;
+    struct nc_server_reply *ereply = NULL;
     struct np2sr_sessions *sessions;
     sr_session_ctx_t *ds;
+    sr_move_position_t pos = SR_MOVE_LAST;
+    sr_val_t value_, *value = NULL;
     struct ly_set *nodeset;
-    const char *value;
     enum NP2_EDIT_DEFOP defop;
     enum NP2_EDIT_TESTOPT testopt;
+    enum NP2_EDIT_ERROPT erropt;
     struct lyxml_elem *config_xml;
     struct lyd_node *config = NULL, *next, *iter;
-    char *str, path[1024];
+    char *str, path[1024], *rel;
+    const char *cstr;
     enum NP2_EDIT_OP *op = NULL, *op_new;
-    int op_index, op_size, path_index = 0, missing_keys = 0;
+    int op_index, op_size, path_index = 0, missing_keys = 0, lastkey = 0;
     int ret;
     struct lys_node_container *cont;
 
@@ -977,11 +1124,14 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
     /* target */
     nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/target/*");
-    value = nodeset->set.d[0]->schema->name;
+    cstr = nodeset->set.d[0]->schema->name;
     ly_set_free(nodeset);
 
-    if (!strcmp(value, "running")) {
-        ds = sessions->running;
+    if (!strcmp(cstr, "running")) {
+        /* TODO sysrepo does not fully support running yet,
+         * so now for debugging we always use startup */
+        ds = sessions->startup;
+        //ds = sessions->running;
     /* TODO sysrepo does not support candidate
     } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
         ds = sessions->candidate;
@@ -992,13 +1142,13 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* default-operation */
     nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/default-operation");
     if (nodeset->number) {
-        value = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
-        if (!strcmp(value, "merge")) {
-            defop = NP2_EDIT_DEFOP_MERGE;
-        } else if (!strcmp(value, "replace")) {
+        cstr = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
+        if (!strcmp(cstr, "replace")) {
             defop = NP2_EDIT_DEFOP_REPLACE;
-        } else if (!strcmp(value, "none")) {
+        } else if (!strcmp(cstr, "none")) {
             defop = NP2_EDIT_DEFOP_NONE;
+        } else if (!strcmp(cstr, "merge")) {
+            defop = NP2_EDIT_DEFOP_MERGE;
         }
     } else {
         /* default value for default-operation is "merge" */
@@ -1007,15 +1157,15 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     ly_set_free(nodeset);
 
     /* test-option */
-    nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/test-otion");
+    nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/test-option");
     if (nodeset->number) {
-        value = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
-        if (!strcmp(value, "test-then-set")) {
-            testopt = NP2_EDIT_TESTOPT_TESTANDSET;
-        } else if (!strcmp(value, "set")) {
+        cstr = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
+        if (!strcmp(cstr, "set")) {
             testopt = NP2_EDIT_TESTOPT_SET;
-        } else if (!strcmp(value, "test-only")) {
+        } else if (!strcmp(cstr, "test-only")) {
             testopt = NP2_EDIT_TESTOPT_TEST;
+        } else if (!strcmp(cstr, "test-then-set")) {
+            testopt = NP2_EDIT_TESTOPT_TESTANDSET;
         }
     } else {
         /* default value for test-option is "test-then-set" */
@@ -1023,7 +1173,23 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     }
     ly_set_free(nodeset);
 
-    /* error-option is ignored, rollback is always done */
+    /* error-option */
+    nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/error-option");
+    if (nodeset->number) {
+        cstr = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
+        if (!strcmp(cstr, "rollback-on-error")) {
+            erropt = NP2_EDIT_ERROPT_ROLLBACK;
+        } else if (!strcmp(cstr, "continue-on-error")) {
+            erropt = NP2_EDIT_ERROPT_CONT;
+        } else if (!strcmp(cstr, "stop-on-error")) {
+            erropt = NP2_EDIT_ERROPT_STOP;
+        }
+    } else {
+        /* default value for error-option is "stop-on-error" */
+        erropt = NP2_EDIT_ERROPT_STOP;
+    }
+    ly_set_free(nodeset);
+
 
     /* config */
     nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/config");
@@ -1031,7 +1197,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         config_xml = ((struct lyd_node_anyxml *)nodeset->set.d[0])->value.xml;
         ly_set_free(nodeset);
 
-        config = lyd_parse_xml(np2srv.ly_ctx, &config_xml, LYD_OPT_EDIT | LYD_OPT_DESTRUCT);
+        config = lyd_parse_xml(np2srv.ly_ctx, &config_xml, LYD_OPT_EDIT);
         if (ly_errno) {
             return nc_server_reply_err(nc_err_libyang());
         } else if (!config) {
@@ -1048,6 +1214,11 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     VRB("EDIT-CONFIG: ds %d, defop %d, testopt %d, config:\n%s", ds, defop, testopt, str);
     free(str);
 
+    /* update data from sysrepo */
+    if (sr_session_refresh(ds) != SR_ERR_OK) {
+        goto internalerror;
+    }
+
     /*
      * data manipulation
      */
@@ -1059,40 +1230,38 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     LY_TREE_DFS_BEGIN(config, next, iter) {
 
         /* maintain list of operations */
-        op_index++;
-        if (op_index == op_size) {
-            op_size += 16;
-            op_new = realloc(op, op_size * sizeof *op);
-            if (!op_new) {
-                ERR("%s: memory allocation failed (%s)", __func__, strerror(errno));
-                goto internalerror;
+        if (!missing_keys) {
+            op_index++;
+            if (op_index == op_size) {
+                op_size += 16;
+                op_new = realloc(op, op_size * sizeof *op);
+                if (!op_new) {
+                    ERR("%s: memory allocation failed (%s) - %s:%d", __func__, strerror(errno), __FILE__, __LINE__);
+                    goto internalerror;
+                }
+                op = op_new;
             }
-            op = op_new;
-        }
-        op[op_index] = get_edit_op(iter, op[op_index - 1], defop);
+            op[op_index] = edit_get_op(iter, op[op_index - 1], defop);
 
-        /* maintain path */
-        if (!iter->parent || lyd_node_module(iter) != lyd_node_module(iter->parent)) {
-            /* with prefix */
-            path_index += sprintf(&path[path_index], "/%s:%s", lyd_node_module(iter)->name, iter->schema->name);
-        } else {
-            /* without prefix */
-            if (missing_keys) {
-                path_index += sprintf(&path[path_index], "[%s=\'%s\']", iter->schema->name,
-                                      ((struct lyd_node_leaf_list *)iter)->value_str);
+            /* maintain path */
+            if (!iter->parent || lyd_node_module(iter) != lyd_node_module(iter->parent)) {
+                /* with prefix */
+                path_index += sprintf(&path[path_index], "/%s:%s", lyd_node_module(iter)->name, iter->schema->name);
             } else {
+                /* without prefix */
                 path_index += sprintf(&path[path_index], "/%s", iter->schema->name);
             }
         }
 
         /* specific work for different node types */
         ret = -1;
+        rel = NULL;
         switch(iter->schema->nodetype) {
         case LYS_CONTAINER:
             cont = (struct lys_node_container *)iter->schema;
             if (!cont->presence) {
                 /* do nothing */
-                break;
+                goto dfs_continue;
             }
 
             VRB("EDIT_CONFIG: presence container %s, operation %d", path, op[op_index]);
@@ -1101,31 +1270,56 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             if (missing_keys) {
                 /* still processing list keys */
                 missing_keys--;
+                /* add key predicate into the list's path */
+                path_index += sprintf(&path[path_index], "[%s=\'%s\']", iter->schema->name,
+                                      ((struct lyd_node_leaf_list *)iter)->value_str);
                 if (!missing_keys) {
                     /* the last key, create the list instance */
+                    lastkey = 1;
                     VRB("EDIT_CONFIG: list %s, operation %d", path, op[op_index]);
-                    /* TODO */
+                    break;
                 }
-
-                /* make sure that LY_TREE_DFS_END does not remove the predicate */
-                path[path_index++] = '/';
-                path[path_index] = '\0';
                 goto dfs_continue;
             }
-
             /* regular leaf */
             VRB("EDIT_CONFIG: leaf %s, operation %d", path, op[op_index]);
 
+            /* set value for sysrepo */
+            value = &value_;
+            edit_set_value((struct lyd_node_leaf_list *)iter, value);
+
+
             break;
         case LYS_LEAFLIST:
-            /* TODO process insert, if any, and after regular creation apply sr_move_item() */
+            /* get info about inserting to a specific place */
+            if (edit_get_move(iter, path, &pos, &rel)) {
+                goto internalerror;
+            }
+
+            VRB("EDIT_CONFIG: leaflist %s, operation %d", path, op[op_index]);
+            if (pos != SR_MOVE_LAST) {
+                VRB("EDIT_CONFIG: moving leaflist %s, position %d (%s)", path, pos, rel ? rel : "absolute");
+            }
+
+            /* set value for sysrepo */
+            value = &value_;
+            edit_set_value((struct lyd_node_leaf_list *)iter, value);
+
             break;
         case LYS_LIST:
+            /* get info about inserting to a specific place */
+            if (edit_get_move(iter, path, &pos, &rel)) {
+                goto internalerror;
+            }
+
+            /* the creation must be finished later when we get know keys */
             missing_keys = ((struct lys_node_list *)iter->schema)->keys_size;
-            /* must be processed later when we get know keys */
             goto dfs_continue;
-        default:
+        case LYS_ANYXML:
             break;
+        default:
+            ERR("%s: Invalid node to process", __func__);
+            goto internalerror;
         }
 
         /* apply change to sysrepo */
@@ -1133,11 +1327,11 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         case NP2_EDIT_MERGE:
         case NP2_EDIT_REPLACE:
             /* create the node */
-            ret = sr_set_item(ds, path, NULL, 0);
+            ret = sr_set_item(ds, path, value, 0);
             break;
         case NP2_EDIT_CREATE:
             /* create the node, but it must not exists */
-            ret = sr_set_item(ds, path, NULL, SR_EDIT_STRICT);
+            ret = sr_set_item(ds, path, value, SR_EDIT_STRICT);
             break;
         case NP2_EDIT_DELETE:
             /* remove the node, but it must exists */
@@ -1151,7 +1345,9 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             /* do nothing */
             break;
         }
+        value = NULL;
 
+resultcheck:
         /* check the result */
         switch (ret) {
         case SR_ERR_OK:
@@ -1163,23 +1359,50 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         case SR_ERR_UNAUTHORIZED:
             e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
             nc_err_set_path(e, path);
-            goto cleanup;
+            break;
         case SR_ERR_DATA_EXISTS:
             e = nc_err(NC_ERR_DATA_EXISTS, NC_ERR_TYPE_PROT);
             nc_err_set_path(e, path);
-            goto cleanup;
+            break;
         case SR_ERR_DATA_MISSING:
             e = nc_err(NC_ERR_DATA_MISSING, NC_ERR_TYPE_PROT);
             nc_err_set_path(e, path);
-            goto cleanup;
+            break;
         default:
             /* not covered error */
             goto internalerror;
+        }
+        if (e) {
+            switch (erropt) {
+            case NP2_EDIT_ERROPT_CONT:
+                if (ereply) {
+                    nc_server_reply_add_err(ereply, e);
+                } else {
+                    ereply = nc_server_reply_err(e);
+                }
+                e = NULL;
+                goto dfs_nextsibling;
+            case NP2_EDIT_ERROPT_ROLLBACK:
+                sr_discard_changes(ds);
+                goto cleanup;
+            case NP2_EDIT_ERROPT_STOP:
+                sr_commit(ds);
+                goto cleanup;
+            }
+        }
+
+        /* move user-ordered list/leaflist */
+        if (pos != SR_MOVE_LAST) {
+            ret = sr_move_item(ds, path, pos, rel);
+            free(rel);
+            pos = SR_MOVE_LAST;
+            goto resultcheck;
         }
 
 dfs_continue:
         /* where go next? - modified LY_TREE_DFS_END */
         if (iter->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYXML)) {
+dfs_nextsibling:
             next = NULL;
         } else {
             next = iter->child;
@@ -1189,14 +1412,16 @@ dfs_continue:
             next = iter->next;
 
             /* maintain "stack" variables */
-            op_index--;
-            str = strrchr(path, '/');
-            if (str) {
-                *str = '\0';
-                path_index = str - path;
-            } else {
-                path[0] = '\0';
-                path_index = 0;
+            if (!missing_keys && !(lastkey--)) {
+                op_index--;
+                str = strrchr(path, '/');
+                if (str) {
+                    *str = '\0';
+                    path_index = str - path;
+                } else {
+                    path[0] = '\0';
+                    path_index = 0;
+                }
             }
         }
         while (!next) {
@@ -1210,14 +1435,16 @@ dfs_continue:
             next = iter->next;
 
             /* maintain "stack" variables */
-            op_index--;
-            str = strrchr(path, '/');
-            if (str) {
-                *str = '\0';
-                path_index = str - path;
-            } else {
-                path[0] = '\0';
-                path_index = 0;
+            if (!missing_keys) {
+                op_index--;
+                str = strrchr(path, '/');
+                if (str) {
+                    *str = '\0';
+                    path_index = str - path;
+                } else {
+                    path[0] = '\0';
+                    path_index = 0;
+                }
             }
 
         }
@@ -1229,20 +1456,36 @@ cleanup:
     free(op);
     lyd_free_withsiblings(config);
 
-    if (e) {
+    if (e || ereply) {
         /* send error reply */
-        return nc_server_reply_err(e);
+        goto errorreply;
     } else {
+        /* commit the result */
+        if (sr_commit(ds) != SR_ERR_OK) {
+            goto internalerror;
+        }
+
         /* build positive RPC Reply */
         return nc_server_reply_ok();
     }
 
 internalerror:
+    /* fatal error, so continue-on-error does not apply here,
+     * instead we rollback */
+    sr_discard_changes(ds);
+
     free(op);
     lyd_free_withsiblings(config);
 
     e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
     nc_err_set_msg(e, np2log_lasterr(), "en");
-    return nc_server_reply_err(e);
+
+errorreply:
+    if (ereply) {
+        nc_server_reply_add_err(ereply, e);
+        return ereply;
+    } else {
+        return nc_server_reply_err(e);
+    }
 }
 
