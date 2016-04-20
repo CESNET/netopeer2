@@ -45,7 +45,6 @@ else (LIBNETCONF2_LIBRARIES AND LIBNETCONF2_INCLUDE_DIRS)
     NAMES
       nc_client.h
       nc_server.h
-      nc_transapi.h
     PATHS
       /usr/include
       /usr/local/include

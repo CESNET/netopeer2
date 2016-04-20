@@ -1,5 +1,10 @@
 # Netopeer2 – The NETCONF Toolset
 
+[![BSD license](https://img.shields.io/badge/License-BSD-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
+[![Build Status](https://secure.travis-ci.org/CESNET/Netopeer2.png?branch=master)](http://travis-ci.org/CESNET/Netopeer2)
+[![Coverity Scan Build Status](https://scan.coverity.com/projects/8416/badge.svg)](https://scan.coverity.com/projects/8416)
+[![Ohloh Project Status](https://www.openhub.net/p/Netopeer2/widgets/project_thin_badge.gif)](https://www.openhub.net/p/Netopeer2)
+
 **Netopeer2** is a set of tools implementing network configuration tools based
 on the NETCONF Protocol. This is the second generation of the toolset, originally
 available as the [Netopeer project](https://github.com/CESNET/netopeer). Netopeer2

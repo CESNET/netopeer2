@@ -32,9 +32,8 @@
 #include "commands.h"
 #include "linenoise/linenoise.h"
 
-extern int done;
-extern char *search_path;
 extern LYD_FORMAT output_format;
+extern int output_flag;
 extern char *config_editor;
 
 /* NetConf Client home (appended to ~/) */
@@ -253,7 +252,7 @@ get_default_CRL_dir(DIR **ret_dir)
 void
 load_config(void)
 {
-    char *netconf_dir, *history_file, *config_file;
+    char *netconf_dir, *history_file, *config_file = NULL;
     struct lyxml_elem *config_xml = NULL, *child;
     struct ly_ctx *ctx;
 
@@ -300,16 +299,24 @@ load_config(void)
                     LY_TREE_FOR(config_xml->child, child) {
                         if (!strcmp(child->name, "editor")) {
                             /* doc -> <netconf-client> -> <editor> */
+                            if (config_editor) {
+                                free(config_editor);
+                            }
                             config_editor = strdup(child->content);
                         } else if (!strcmp(child->name, "searchpath")) {
                             /* doc -> <netconf-client> -> <searchpath> */
-                            search_path = strdup(child->content);
+                            nc_client_set_schema_searchpath(child->content);
                         } else if (!strcmp(child->name, "output-format")) {
                             /* doc -> <netconf-client> -> <output-format> */
                             if (!strcmp(child->content, "json")) {
                                 output_format = LYD_JSON;
+                                output_flag = LYP_FORMAT;
+                            } else if (!strcmp(child->content, "json_noformat")) {
+                                output_format = LYD_JSON;
+                                output_flag = 0;
                             } else if (!strcmp(child->content, "xml_noformat")) {
                                 output_format = LYD_XML;
+                                output_flag = 0;
                             } /* else default (formatted XML) */
                         }
 #ifdef NC_ENABLED_SSH
@@ -393,16 +400,24 @@ store_config(void)
         fprintf(config_f, "%*.s<editor>%s</editor>\n", indent, "", config_editor);
 
         /* search-path */
-        if (search_path) {
-            fprintf(config_f, "%*.s<searchpath>%s</searchpath>\n", indent, "", search_path);
+        if (nc_client_get_schema_searchpath()) {
+            fprintf(config_f, "%*.s<searchpath>%s</searchpath>\n", indent, "", nc_client_get_schema_searchpath());
         }
 
         /* output-format */
         fprintf(config_f, "%*.s<output-format>", indent, "");
         if (output_format == LYD_JSON) {
-            fprintf(config_f, "json");
+            if (output_flag) {
+                fprintf(config_f, "json");
+            } else {
+                fprintf(config_f, "json_noformat");
+            }
         } else {
-            fprintf(config_f, "xml");
+            if (output_flag) {
+                fprintf(config_f, "xml");
+            } else {
+                fprintf(config_f, "xml_noformat");
+            }
         }
         fprintf(config_f, "</output-format>\n");
 

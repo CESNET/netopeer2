@@ -11,13 +11,13 @@ compiler:
 
 branches:
   only:
-    - devel-server
+    - master
 
 before_install:
   - sudo apt-get update -qq
   - sudo apt-get install -y libavl-dev libev-dev
   - sudo apt-get install -y zlib1g-dev libssl-dev
-  
+
   - git clone https://github.com/CESNET/libyang.git
   - cd libyang; mkdir build; cd build
   - cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
@@ -36,12 +36,12 @@ before_install:
   - cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
   - make -j2 && sudo make install
   - cd ../..
-  
+
   - git clone https://github.com/google/protobuf.git
   - cd protobuf
   - ./autogen.sh && ./configure --prefix=/usr && make -j2 && sudo make install
   - cd ..
-  
+
   - git clone https://github.com/protobuf-c/protobuf-c.git
   - cd protobuf-c
   - ./autogen.sh && ./configure --prefix=/usr && make -j2 && sudo make install
@@ -54,5 +54,6 @@ before_install:
   - cd ../..
 
 script:
-  - mkdir build-server && cd build-server && cmake ../server && make -j2
+  - mkdir build-cli && cd build-cli && cmake ../cli && make -j2
+  - mkdir ../build-server && cd ../build-server && cmake ../server && make -j2
 
