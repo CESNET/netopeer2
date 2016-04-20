@@ -201,7 +201,7 @@ static int
 cli_send_recv(struct nc_rpc *rpc, FILE *output)
 {
     char *str, *model_data;
-    int ret;
+    int ret = 0;
     uint16_t i, j;
     uint64_t msgid;
     NC_MSG_TYPE msgtype;
@@ -237,7 +237,6 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
     switch (reply->type) {
     case NC_RPL_OK:
         fprintf(output, "OK\n");
-        ret = 0;
         break;
     case NC_RPL_DATA:
         data_rpl = (struct nc_reply_data *)reply;
@@ -273,7 +272,6 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
         if (output == stdout) {
             fprintf(output, "\n");
         }
-        ret = 0;
         break;
     case NC_RPL_ERROR:
         fprintf(output, "ERROR\n");
