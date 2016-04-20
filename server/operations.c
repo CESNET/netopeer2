@@ -132,8 +132,7 @@ build_subtree(sr_session_ctx_t *ds, struct lyd_node *root, const char *subtree_p
     //}
     subtree_children_path = (char *)subtree_path;
 
-    /* TODO recursive parameter will be removed */
-    rc = sr_get_items_iter(ds, subtree_children_path, true, &iter);
+    rc = sr_get_items_iter(ds, subtree_children_path, &iter);
     if (rc != SR_ERR_OK) {
         ERR("Getting items (%s) from sysrepo failed (%s).", subtree_children_path, sr_strerror(rc));
         return -1;
@@ -972,13 +971,12 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* config */
     nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/config");
     if (nodeset->number) {
-        config_xml = ((struct lyd_node_anyxml *)nodeset->set.d[0])->value->child;
+        config_xml = ((struct lyd_node_anyxml *)nodeset->set.d[0])->value.xml;
         ly_set_free(nodeset);
 
         config = lyd_parse_xml(np2srv.ly_ctx, &config_xml, LYD_OPT_EDIT | LYD_OPT_DESTRUCT);
         if (ly_errno) {
-            // TODO (libnetconf2 devel) return nc_server_reply_err(nc_err_libyang());
-            return nc_server_reply_err(nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP));
+            return nc_server_reply_err(nc_err_libyang());
         } else if (!config) {
             /* nothing to do */
             return nc_server_reply_ok();
