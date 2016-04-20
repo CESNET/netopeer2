@@ -8,7 +8,7 @@
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
@@ -33,8 +33,9 @@
 
 #include "../modules/ietf-netconf-acm.h"
 #include "../modules/ietf-netconf@2011-06-01.h"
+#include "../modules/ietf-netconf-monitoring.h"
 
-struct np2srv np2srv = {NULL, {NULL, NULL, NULL, NULL}, NULL, NULL};
+struct np2srv np2srv;
 
 /**
  * @brief Control flags for the main loop
@@ -161,6 +162,12 @@ server_init(void)
         ERR("Unable to create Netopeer session to sysrepod (%s).", sr_strerror(rc));
         return EXIT_FAILURE;
     }
+    /* TODO no need for this one probably */
+    /*rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, SR_SESS_CONFIG_ONLY, &np2srv.sr_sess.running_config);
+    if (rc != SR_ERR_OK) {
+        ERR("Unable to create Netopeer session to sysrepod (%s).", sr_strerror(rc));
+        return EXIT_FAILURE;
+    }*/
     rc = sr_session_start(np2srv.sr_conn, SR_DS_STARTUP, SR_SESS_DEFAULT, &np2srv.sr_sess.startup);
     if (rc != SR_ERR_OK) {
         VRB("Startup datastore not available in sysrepod (%s).", sr_strerror(rc));
@@ -218,6 +225,9 @@ server_init(void)
         lys_features_enable(mod, "candidate");
     }
 
+    /* 3) add ietf-netconf-monitoring */
+    lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_monitoring_yin, LYS_IN_YIN);
+
     /* debug - list schemas
     struct lyd_node *ylib = ly_ctx_info(np2srv.ly_ctx);
     lyd_print_file(stdout, ylib, LYD_JSON, LYP_WITHSIBLINGS);
@@ -262,6 +272,9 @@ free_ds(void *ptr)
         if (s->running) {
             sr_session_stop(s->running);
         }
+        if (s->running_config) {
+            sr_session_stop(s->running_config);
+        }
         if (s->startup) {
             sr_session_stop(s->startup);
         }
@@ -298,6 +311,12 @@ connect_ds(struct nc_session *ncs)
             nc_session_get_id(ncs), sr_strerror(rc));
         goto error;
     }
+    rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_RUNNING, SR_SESS_CONFIG_ONLY, &s->running_config);
+    if (rc != SR_ERR_OK) {
+        ERR("Unable to create sysrepo running config session for NETCONF session %d (%s).",
+            nc_session_get_id(ncs), sr_strerror(rc));
+        goto error;
+    }
     if (np2srv.sr_sess.startup) {
         rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_STARTUP, SR_SESS_DEFAULT, &s->startup);
         if (rc != SR_ERR_OK) {
@@ -326,6 +345,9 @@ error:
     if (s->running) {
         sr_session_stop(s->running);
     }
+    if (s->running_config) {
+        sr_session_stop(s->running_config);
+    }
     if (s->startup) {
         sr_session_stop(s->startup);
     }
@@ -347,7 +369,7 @@ process_loop(void *arg)
     int rc;
     struct nc_session *ncs;
 
-    while(control == LOOP_CONTINUE) {
+    while (control == LOOP_CONTINUE) {
         /* listen for incomming requests on active NETCONF sessions */
         if (nc_ps_session_count(np2srv.nc_ps)) {
             rc = nc_ps_poll(np2srv.nc_ps, 500);
@@ -476,7 +498,7 @@ restart:
     pthread_create(&tid, NULL, process_loop, NULL);
 
     /* listen for new NETCONF sessions */
-    while(control == LOOP_CONTINUE) {
+    while (control == LOOP_CONTINUE) {
         rc = nc_accept(500, &ncs);
         if (rc == 1) {
             if (connect_ds(ncs)) {
