@@ -54,5 +54,5 @@ before_install:
   - cd ../..
 
 script:
-  - mkdir build-server && cd build-server && cmake server && make -j2
+  - mkdir build-server && cd build-server && cmake ../server && make -j2
 
