@@ -8,7 +8,7 @@
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
@@ -39,6 +39,7 @@ void np2log_printf(NC_VERB_LEVEL level, const char *format, ...);
 #define DBG(format,args...) if(np2_verbose_level>=NC_VERB_DEBUG){np2log_printf(NC_VERB_DEBUG,format,##args);}
 
 #define EMEM ERR("Memory allocation failed (%s:%d)", __FILE__, __LINE__)
+#define EINT ERR("Internal error (%s:%d)", __FILE__, __LINE__)
 
 /**
  * @brief printer callback for libnetconf2

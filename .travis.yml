@@ -11,7 +11,7 @@ compiler:
 
 branches:
   only:
-    - master
+    - devel-server
 
 before_install:
   - sudo apt-get update -qq
@@ -32,6 +32,7 @@ before_install:
 
   - git clone https://github.com/CESNET/libnetconf2.git
   - cd libnetconf2; mkdir build; cd build
+  - git checkout devel
   - cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
   - make -j2 && sudo make install
   - cd ../..
@@ -53,6 +54,5 @@ before_install:
   - cd ../..
 
 script:
-  - mkdir build-cli && cd build-cli && cmake ../cli && make -j2
-  - mkdir ../build-server && cd ../build-server && cmake ../server && make -j2
+  - mkdir build-server && cd build-server && cmake ../server && make -j2
 

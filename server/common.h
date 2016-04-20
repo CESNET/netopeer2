@@ -8,7 +8,7 @@
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
@@ -20,10 +20,11 @@
 
 /* NETCONF session's sysrepo connections */
 struct np2sr_sessions {
-	sr_session_ctx_t *running;
-	sr_session_ctx_t *startup;
-	sr_session_ctx_t *candidate;
-	struct nc_session *ncs;
+    sr_session_ctx_t *running;
+    sr_session_ctx_t *running_config;
+    sr_session_ctx_t *startup;
+    sr_session_ctx_t *candidate;
+    struct nc_session *ncs;
 };
 
 /* Netopeer server internal data */
