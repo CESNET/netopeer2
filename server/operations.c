@@ -125,18 +125,18 @@ build_subtree(sr_session_ctx_t *ds, struct lyd_node *root, const char *subtree_p
     char *subtree_children_path, buf[21];
     int rc;
 
-    /* TODO this asprintf replaces the origin al path */
-    //if (asprintf(&subtree_children_path, "%s//*", subtree_path) == -1) {
-    //    EMEM;
-    //    return -1;
-    //}
-    subtree_children_path = (char *)subtree_path;
+    if (asprintf(&subtree_children_path, "%s//*", subtree_path) == -1) {
+        EMEM;
+        return -1;
+    }
 
     rc = sr_get_items_iter(ds, subtree_children_path, &iter);
     if (rc != SR_ERR_OK) {
         ERR("Getting items (%s) from sysrepo failed (%s).", subtree_children_path, sr_strerror(rc));
+        free(subtree_children_path);
         return -1;
     }
+    free(subtree_children_path);
 
     ly_errno = LY_SUCCESS;
     while (sr_get_item_next(ds, iter, &value) == SR_ERR_OK) {
@@ -497,7 +497,6 @@ build_xpath_from_subtree_filter(struct ly_ctx *ctx, struct lyxml_elem *elem, cha
         free(modules);
     }
 
-    free(modules);
     return 0;
 
 error:
@@ -516,6 +515,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     size_t value_count = 0;
     const struct lys_module *module;
     const struct lys_node *snode;
+    struct lyd_node_leaf_list *leaf;
     struct lyd_node *root = NULL, *node;
     struct lyd_attr *attr;
     char **filters = NULL, buf[21], *path, *data = NULL;
@@ -526,14 +526,19 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     struct ly_set *nodeset;
     sr_session_ctx_t *ds;
     struct nc_server_error *e;
+    int wd_flag, data_flag;
+    NC_WD_MODE nc_wd;
+
 
     /* get sysrepo connections for this session */
     sessions = (struct np2sr_sessions *)nc_session_get_data(ncs);
 
     /* get know which datastore is being affected */
     if (!strcmp(rpc->schema->name, "get")) {
+        data_flag = LYD_OPT_GET;
         ds = sessions->running;
     } else { /* get-config */
+        data_flag = LYD_OPT_GETCONFIG;
         nodeset = lyd_get_node(rpc, "/ietf-netconf:get-config/source/*");
         if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
             ds = sessions->running_config;
@@ -557,20 +562,22 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         node = nodeset->set.d[0];
         ly_set_free(nodeset);
         LY_TREE_FOR(node->attr, attr) {
-            if (!strcmp(attr->name, "xpath")) {
-                LY_TREE_FOR(node->attr, attr) {
-                    if (!strcmp(attr->name, "select")) {
-                        break;
+            if (!strcmp(attr->name, "type")) {
+                if (!strcmp(attr->value, "xpath")) {
+                    LY_TREE_FOR(node->attr, attr) {
+                        if (!strcmp(attr->name, "select")) {
+                            break;
+                        }
                     }
+                    if (!attr) {
+                        ERR("RPC with an XPath filter without the \"select\" attribute.");
+                        goto error;
+                    }
+                    break;
+                } else if (!strcmp(attr->value, "subtree")) {
+                    attr = NULL;
+                    break;
                 }
-                if (!attr) {
-                    ERR("RPC with an XPath filter without the \"select\" attribute.");
-                    goto error;
-                }
-                break;
-            } else if (!strcmp(attr->name, "subtree")) {
-                attr = NULL;
-                break;
             }
         }
 
@@ -578,7 +585,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             /* subtree */
             if (!((struct lyd_node_anyxml *)node)->value.str) {
                 /* empty filter (checks both formats), fair enough */
-                return nc_server_reply_data(NULL, NC_PARAMTYPE_CONST);
+                goto send_reply;
             }
 
             if (((struct lyd_node_anyxml *)node)->xml_struct) {
@@ -597,7 +604,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             /* xpath */
             if (!attr->value || !attr->value[0]) {
                 /* empty select, okay, I guess... */
-                return nc_server_reply_data(NULL, NC_PARAMTYPE_CONST);
+                goto send_reply;
             }
             path = strdup(attr->value);
             if (!path) {
@@ -621,15 +628,59 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 }
             }
 
+            /* TODO ietf-yang-library data should be created by us */
+
             if (snode) {
-                /* TODO later add "*" at the end */
-                asprintf(&path, "/%s:", module->name);
+                asprintf(&path, "/%s:*", module->name);
                 if (xpath_add_filter(path, &filters, &filter_count)) {
                     free(path);
                     goto error;
                 }
             }
         }
+    }
+
+    /* get with-defaults mode */
+    nodeset = lyd_get_node(rpc, "/ietf-netconf:*/ietf-netconf-with-defaults:with-defaults");
+    if (nodeset->number) {
+        leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
+        if (!strcmp(leaf->value_str, "report-all")) {
+            nc_wd = NC_WD_ALL;
+        } else if (!strcmp(leaf->value_str, "report-all-tagged")) {
+            nc_wd = NC_WD_ALL_TAG;
+        } else if (!strcmp(leaf->value_str, "trim")) {
+            nc_wd = NC_WD_TRIM;
+        } else if (!strcmp(leaf->value_str, "explicit")) {
+            nc_wd = NC_WD_EXPLICIT;
+        } else {
+            /* we received it, so it was validated, this cannot be */
+            EINT;
+            goto error;
+        }
+    } else {
+        nc_server_get_capab_withdefaults(&nc_wd, NULL);
+    }
+    ly_set_free(nodeset);
+
+    /* transform from NC_WD_ to LYD_WD_ */
+    switch (nc_wd) {
+    case NC_WD_ALL:
+        wd_flag = LYD_WD_ALL;
+        break;
+    case NC_WD_ALL_TAG:
+        wd_flag = LYD_WD_ALL_TAG;
+        break;
+    case NC_WD_TRIM:
+        wd_flag = LYD_WD_TRIM;
+        break;
+    case NC_WD_EXPLICIT:
+        /* TODO waiting for libyang support */
+        //wd_flag = LYD_WD_EXPLICIT;
+        wd_flag = 0;
+        break;
+    default:
+        EINT;
+        goto error;
     }
 
     /* refresh sysrepo data */
@@ -679,9 +730,15 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     lyd_print_file(stdout, root, LYD_XML_FORMAT, LYP_WITHSIBLINGS);
     debug */
 
+send_reply:
     /* build RPC Reply */
-    lyd_print_mem(&data, root, LYD_XML, LYP_WITHSIBLINGS);
-    lyd_free_withsiblings(root);
+    if (root) {
+        if (lyd_wd_add(np2srv.ly_ctx, &root, wd_flag | data_flag)) {
+            goto error;
+        }
+        lyd_print_mem(&data, root, LYD_XML, LYP_WITHSIBLINGS);
+        lyd_free_withsiblings(root);
+    }
     snode = ly_ctx_get_node(np2srv.ly_ctx, rpc->schema, "output/data");
     root = lyd_output_new_anyxml_str(snode, data);
     return nc_server_reply_data(root, NC_PARAMTYPE_FREE);

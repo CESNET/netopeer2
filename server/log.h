@@ -39,6 +39,7 @@ void np2log_printf(NC_VERB_LEVEL level, const char *format, ...);
 #define DBG(format,args...) if(np2_verbose_level>=NC_VERB_DEBUG){np2log_printf(NC_VERB_DEBUG,format,##args);}
 
 #define EMEM ERR("Memory allocation failed (%s:%d)", __FILE__, __LINE__)
+#define EINT ERR("Internal error (%s:%d)", __FILE__, __LINE__)
 
 /**
  * @brief printer callback for libnetconf2

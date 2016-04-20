@@ -34,6 +34,7 @@
 #include "../modules/ietf-netconf-acm.h"
 #include "../modules/ietf-netconf@2011-06-01.h"
 #include "../modules/ietf-netconf-monitoring.h"
+#include "../modules/ietf-netconf-with-defaults@2011-06-01.h"
 
 struct np2srv np2srv;
 
@@ -228,6 +229,9 @@ server_init(void)
     /* 3) add ietf-netconf-monitoring */
     lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_monitoring_yin, LYS_IN_YIN);
 
+    /* 4) add ietf-netconf-with-defaults */
+    lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_with_defaults_2011_06_01_yin, LYS_IN_YIN);
+
     /* debug - list schemas
     struct lyd_node *ylib = ly_ctx_info(np2srv.ly_ctx);
     lyd_print_file(stdout, ylib, LYD_JSON, LYP_WITHSIBLINGS);
@@ -236,6 +240,9 @@ server_init(void)
 
     /* init libnetconf2 */
     nc_server_init(np2srv.ly_ctx);
+
+    /* set with-defaults capability basic-mode */
+    nc_server_set_capab_withdefaults(NC_WD_EXPLICIT, NC_WD_ALL | NC_WD_ALL_TAG | NC_WD_TRIM | NC_WD_EXPLICIT);
 
     /* prepare poll session structure for libnetconf2 */
     np2srv.nc_ps = nc_ps_new();
