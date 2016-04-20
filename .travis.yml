@@ -11,7 +11,7 @@ compiler:
 
 branches:
   only:
-    - master
+    - devel-server
 
 before_install:
   - sudo apt-get update -qq
@@ -54,6 +54,5 @@ before_install:
   - cd ../..
 
 script:
-  - mkdir build-cli && cd build-cli && cmake ../cli && make -j2
-  - mkdir ../build-server && cd ../build-server && cmake ../server && make -j2
+  - mkdir build-server && cd build-server && cmake server && make -j2
 
