@@ -727,6 +727,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         free(filters[i]);
     }
     free(filters);
+    filter_count = 0;
 
     /* debug
     lyd_print_file(stdout, root, LYD_XML_FORMAT, LYP_WITHSIBLINGS);
@@ -1448,7 +1449,9 @@ dfs_nextsibling:
 cleanup:
     /* cleanup */
     free(op);
+    op = NULL;
     lyd_free_withsiblings(config);
+    config = NULL;
 
     if (e || ereply) {
         /* send error reply */
@@ -1464,15 +1467,15 @@ cleanup:
     }
 
 internalerror:
+    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+    nc_err_set_msg(e, np2log_lasterr(), "en");
+
     /* fatal error, so continue-on-error does not apply here,
      * instead we rollback */
     sr_discard_changes(ds);
 
     free(op);
     lyd_free_withsiblings(config);
-
-    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-    nc_err_set_msg(e, np2log_lasterr(), "en");
 
 errorreply:
     if (ereply) {
