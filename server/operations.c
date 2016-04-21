@@ -727,6 +727,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         free(filters[i]);
     }
     free(filters);
+    filters = NULL;
     filter_count = 0;
 
     /* debug
@@ -1097,7 +1098,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     struct nc_server_error *e = NULL;
     struct nc_server_reply *ereply = NULL;
     struct np2sr_sessions *sessions;
-    sr_session_ctx_t *ds;
+    sr_session_ctx_t *ds = NULL;
     sr_move_position_t pos = SR_MOVE_LAST;
     sr_val_t value_, *value = NULL;
     struct ly_set *nodeset;
