@@ -727,6 +727,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         free(filters[i]);
     }
     free(filters);
+    filters = NULL;
     filter_count = 0;
 
     /* debug
