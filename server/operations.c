@@ -1100,9 +1100,12 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     sr_move_position_t pos = SR_MOVE_LAST;
     sr_val_t value_, *value = NULL;
     struct ly_set *nodeset;
-    enum NP2_EDIT_DEFOP defop;
-    enum NP2_EDIT_TESTOPT testopt;
-    enum NP2_EDIT_ERROPT erropt;
+    /* default value for default-operation is "merge" */
+    enum NP2_EDIT_DEFOP defop = NP2_EDIT_DEFOP_MERGE;
+    /* default value for test-option is "test-then-set" */
+    enum NP2_EDIT_TESTOPT testopt = NP2_EDIT_TESTOPT_TESTANDSET;
+    /* default value for error-option is "stop-on-error" */
+    enum NP2_EDIT_ERROPT erropt = NP2_EDIT_ERROPT_STOP;
     struct lyxml_elem *config_xml;
     struct lyd_node *config = NULL, *next, *iter;
     char *str, path[1024], *rel;
@@ -1150,9 +1153,6 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         } else if (!strcmp(cstr, "merge")) {
             defop = NP2_EDIT_DEFOP_MERGE;
         }
-    } else {
-        /* default value for default-operation is "merge" */
-        defop = NP2_EDIT_DEFOP_MERGE;
     }
     ly_set_free(nodeset);
 
@@ -1167,9 +1167,6 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         } else if (!strcmp(cstr, "test-then-set")) {
             testopt = NP2_EDIT_TESTOPT_TESTANDSET;
         }
-    } else {
-        /* default value for test-option is "test-then-set" */
-        testopt = NP2_EDIT_TESTOPT_TESTANDSET;
     }
     ly_set_free(nodeset);
 
@@ -1184,9 +1181,6 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         } else if (!strcmp(cstr, "stop-on-error")) {
             erropt = NP2_EDIT_ERROPT_STOP;
         }
-    } else {
-        /* default value for error-option is "stop-on-error" */
-        erropt = NP2_EDIT_ERROPT_STOP;
     }
     ly_set_free(nodeset);
 
