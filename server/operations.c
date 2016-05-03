@@ -118,7 +118,7 @@ get_srval_value(struct ly_ctx *ctx, sr_val_t *value, char *buf)
 
 /* add subtree to root */
 static int
-build_subtree(sr_session_ctx_t *ds, struct lyd_node *root, const char *subtree_path)
+build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node *root, const char *subtree_path)
 {
     sr_val_t *value;
     sr_val_iter_t *iter;
@@ -516,7 +516,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     const struct lys_module *module;
     const struct lys_node *snode;
     struct lyd_node_leaf_list *leaf;
-    struct lyd_node *root = NULL, *node;
+    struct lyd_node *root = NULL, *node, *node2, *yang_lib = NULL;
     struct lyd_attr *attr;
     char **filters = NULL, buf[21], *path, *data = NULL;
     int rc, filter_count = 0;
@@ -628,8 +628,6 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 }
             }
 
-            /* TODO ietf-yang-library data should be created by us */
-
             if (snode) {
                 asprintf(&path, "/%s:*", module->name);
                 if (xpath_add_filter(path, &filters, &filter_count)) {
@@ -674,9 +672,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         wd_flag = LYD_WD_TRIM;
         break;
     case NC_WD_EXPLICIT:
-        /* TODO waiting for libyang support */
-        //wd_flag = LYD_WD_EXPLICIT;
-        wd_flag = 0;
+        wd_flag = LYD_WD_EXPLICIT;
         break;
     default:
         EINT;
@@ -690,6 +686,44 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
     /* create the data tree for the data reply */
     for (i = 0; (signed)i < filter_count; i++) {
+        /* special case, we have these data locally */
+        if (!strncmp(filters[i], "/ietf-yang-library:", 19)) {
+            if (!yang_lib) {
+                yang_lib = ly_ctx_info(np2srv.ly_ctx);
+                if (!yang_lib) {
+                    goto error;
+                }
+            }
+
+            nodeset = lyd_get_node(yang_lib, filters[i]);
+            for (j = 0; j < nodeset->number; ++j) {
+                if (root) {
+                    if (lyd_merge(root, nodeset->set.d[j], LYD_OPT_NOSIBLINGS)) {
+                        goto error;
+                    }
+                } else {
+                    node = nodeset->set.d[j];
+                    root = lyd_dup(node, 1);
+                    if (!root) {
+                        goto error;
+                    }
+                    for (node = node->parent; node; node = node->parent) {
+                        node2 = lyd_dup(node, 0);
+                        if (!node2) {
+                            goto error;
+                        }
+                        if (lyd_insert(node2, root)) {
+                            goto error;
+                        }
+                        root = node2;
+                    }
+                }
+            }
+            ly_set_free(nodeset);
+
+            continue;
+        }
+
         rc = sr_get_items(ds, filters[i], &values, &value_count);
         if ((rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_NOT_FOUND)) {
             /* skip internal modules not known to sysrepo and modules without data */
@@ -713,7 +747,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             }
 
             /* create the full subtree */
-            if (build_subtree(ds, root, values[j].xpath)) {
+            if (build_subtree_from_sysrepo(ds, root, values[j].xpath)) {
                 goto error;
             }
         }
@@ -722,6 +756,8 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         value_count = 0;
         values = NULL;
     }
+    lyd_free_withsiblings(yang_lib);
+    yang_lib = NULL;
 
     for (i = 0; (signed)i < filter_count; ++i) {
         free(filters[i]);
@@ -737,9 +773,9 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 send_reply:
     /* build RPC Reply */
     if (root) {
-        if (lyd_wd_add(np2srv.ly_ctx, &root, wd_flag | data_flag)) {
+        /*if (lyd_wd_add(np2srv.ly_ctx, &root, wd_flag | data_flag)) {
             goto error;
-        }
+        }*/
         lyd_print_mem(&data, root, LYD_XML, LYP_WITHSIBLINGS);
         lyd_free_withsiblings(root);
     }
@@ -755,6 +791,7 @@ error:
     }
     free(filters);
 
+    lyd_free_withsiblings(yang_lib);
     lyd_free_withsiblings(root);
 
     e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
