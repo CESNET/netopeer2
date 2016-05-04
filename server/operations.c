@@ -1516,6 +1516,7 @@ resultcheck:
         if (e) {
             switch (erropt) {
             case NP2_EDIT_ERROPT_CONT:
+                VRB("EDIT-CONFIG: continue-on-error (%s).", nc_err_get_msg(e));
                 if (ereply) {
                     nc_server_reply_add_err(ereply, e);
                 } else {
@@ -1524,9 +1525,11 @@ resultcheck:
                 e = NULL;
                 goto dfs_nextsibling;
             case NP2_EDIT_ERROPT_ROLLBACK:
+                VRB("EDIT-CONFIG: rollback-on-error (%s).", nc_err_get_msg(e));
                 sr_discard_changes(ds);
                 goto cleanup;
             case NP2_EDIT_ERROPT_STOP:
+                VRB("EDIT-CONFIG: stop-on-error (%s).", nc_err_get_msg(e));
                 if (ds != sessions->candidate) {
                     sr_commit(ds);
                 }
@@ -1613,6 +1616,7 @@ cleanup:
         } /* in case of candidate, it is applied by an explicit commit operation */
 
         /* build positive RPC Reply */
+        VRB("EDIT-CONFIG: done.");
         return nc_server_reply_ok();
     }
 
@@ -1622,6 +1626,7 @@ internalerror:
 
     /* fatal error, so continue-on-error does not apply here,
      * instead we rollback */
+    VRB("EDIT-CONFIG: fatal error, rolling back.");
     sr_discard_changes(ds);
 
     free(op);
