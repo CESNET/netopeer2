@@ -209,7 +209,7 @@ server_init(void)
     }
     sr_free_schemas(schemas, count);
 
-    /* 2) add ietf-netconf with ietf-netconf-acm - TODO do it correctly as sysrepo's southbound app */
+    /* 2) internally used schemas: ietf-netconf with ietf-netconf-acm, */
     lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_acm_yin, LYS_IN_YIN);
     mod = lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_2011_06_01_yin, LYS_IN_YIN);
     lys_features_enable(mod, "writable-running");
@@ -220,10 +220,10 @@ server_init(void)
         lys_features_enable(mod, "candidate");
     }
 
-    /* 3) add ietf-netconf-monitoring */
+    /* ietf-netconf-monitoring, */
     lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_monitoring_yin, LYS_IN_YIN);
 
-    /* 4) add ietf-netconf-with-defaults */
+    /* ietf-netconf-with-defaults */
     lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_with_defaults_2011_06_01_yin, LYS_IN_YIN);
 
     /* debug - list schemas
