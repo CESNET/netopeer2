@@ -116,12 +116,106 @@ get_srval_value(struct ly_ctx *ctx, sr_val_t *value, char *buf)
 
 }
 
+/* return: -1 = discard, 0 = keep, 1 = keep and add the attribute */
+static int
+opget_dflt_data_inspect(sr_val_t *value, NC_WD_MODE wd)
+{
+    const struct lys_node_leaf *sleaf;
+    struct lys_tpdf *tpdf;
+    const char *dflt_val = NULL;
+    char buf[256], *val;
+
+    /* NC_WD_ALL HANDLED */
+    if (wd == NC_WD_ALL) {
+        /* we keep it all */
+        return 0;
+    }
+
+    if ((wd == NC_WD_EXPLICIT) && !value->dflt) {
+        return 0;
+    }
+
+    /*
+     * we need the schema node now
+     */
+
+    sleaf = (const struct lys_node_leaf *)ly_ctx_get_node2(np2srv.ly_ctx, NULL, value->xpath, 0);
+    if (!sleaf) {
+        EINT;
+        return -1;
+    }
+
+    if (sleaf->nodetype != LYS_LEAF) {
+        return 0;
+    }
+
+    /* NC_WD_EXPLICIT HANDLED */
+    if (wd == NC_WD_EXPLICIT) {
+        if (sleaf->flags & LYS_CONFIG_W) {
+            return -1;
+        }
+        return 0;
+    }
+
+    if (value->dflt) {
+        switch (wd) {
+        case NC_WD_TRIM:
+            return -1;
+        case NC_WD_ALL_TAG:
+            return 1;
+        default:
+            EINT;
+            return -1;
+        }
+    }
+
+    /*
+     * we need to actually examine the value now
+     */
+
+    /* leaf's default value */
+    dflt_val = sleaf->dflt;
+
+    /* typedef's default value */
+    if (!dflt_val) {
+        tpdf = sleaf->type.der;
+        while (tpdf && !tpdf->dflt) {
+            tpdf = tpdf->type.der;
+        }
+        if (tpdf) {
+            dflt_val = tpdf->dflt;
+        }
+    }
+
+    /* value itself */
+    val = get_srval_value(np2srv.ly_ctx, value, buf);
+
+    switch (wd) {
+    case NC_WD_TRIM:
+        if (dflt_val && !strcmp(dflt_val, val)) {
+            return -1;
+        }
+        break;
+    case NC_WD_ALL_TAG:
+        if (dflt_val && !strcmp(dflt_val, val)) {
+            return 1;
+        }
+        break;
+    default:
+        EINT;
+        return -1;
+    }
+
+    return 0;
+}
+
 /* add subtree to root */
 static int
-build_subtree(sr_session_ctx_t *ds, struct lyd_node *root, const char *subtree_path)
+opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node *root, const char *subtree_path, NC_WD_MODE wd)
 {
     sr_val_t *value;
     sr_val_iter_t *iter;
+    struct lyd_node *node;
     char *subtree_children_path, buf[21];
     int rc;
 
@@ -140,12 +234,27 @@ build_subtree(sr_session_ctx_t *ds, struct lyd_node *root, const char *subtree_p
 
     ly_errno = LY_SUCCESS;
     while (sr_get_item_next(ds, iter, &value) == SR_ERR_OK) {
-        lyd_new_path(root, np2srv.ly_ctx, value->xpath,
-                     get_srval_value(np2srv.ly_ctx, value, buf), LYD_PATH_OPT_UPDATE);
+        rc = opget_dflt_data_inspect(value, wd);
+        if (rc < 0) {
+            continue;
+        }
+
+        node = lyd_new_path(root, np2srv.ly_ctx, value->xpath,
+                            get_srval_value(np2srv.ly_ctx, value, buf), LYD_PATH_OPT_UPDATE);
         sr_free_val(value);
         if (ly_errno) {
             sr_free_val_iter(iter);
             return -1;
+        }
+
+        if (rc) {
+            assert(node);
+            while (node->schema->nodetype & (LYS_CONTAINER | LYS_LIST)) {
+                node = node->child;
+                assert(node);
+            }
+            assert(node->schema->nodetype == LYS_LEAF);
+            node->dflt = 1;
         }
     }
     sr_free_val_iter(iter);
@@ -167,7 +276,7 @@ strws(const char *str)
 }
 
 static int
-xpath_add_filter(char *new_filter, char ***filters, int *filter_count)
+opget_xpath_add_filter(char *new_filter, char ***filters, int *filter_count)
 {
     char **filters_new;
 
@@ -184,7 +293,7 @@ xpath_add_filter(char *new_filter, char ***filters, int *filter_count)
 }
 
 static int
-xpath_buf_add_attrs(struct ly_ctx *ctx, struct lyxml_attr *attr, char **buf, int size)
+opget_xpath_buf_add_attrs(struct ly_ctx *ctx, struct lyxml_attr *attr, char **buf, int size)
 {
     const struct lys_module *module;
     struct lyxml_attr *next;
@@ -219,8 +328,8 @@ xpath_buf_add_attrs(struct ly_ctx *ctx, struct lyxml_attr *attr, char **buf, int
 
 /* top-level content node with namespace and attributes */
 static int
-xpath_buf_add_top_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name, char ***filters,
-                          int *filter_count)
+opget_xpath_buf_add_top_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name,
+                                char ***filters, int *filter_count)
 {
     int size, len;
     const char *start;
@@ -238,7 +347,7 @@ xpath_buf_add_top_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const cha
     }
     sprintf(buf, "/%s:%s[text()='%.*s']", elem_module_name, elem->name, len, start);
 
-    size = xpath_buf_add_attrs(ctx, elem->attr, &buf, size);
+    size = opget_xpath_buf_add_attrs(ctx, elem->attr, &buf, size);
     if (!size) {
         free(buf);
         return 0;
@@ -247,7 +356,7 @@ xpath_buf_add_top_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const cha
         return -1;
     }
 
-    if (xpath_add_filter(buf, filters, filter_count)) {
+    if (opget_xpath_add_filter(buf, filters, filter_count)) {
         free(buf);
         return -1;
     }
@@ -257,8 +366,8 @@ xpath_buf_add_top_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const cha
 
 /* content node with namespace and attributes */
 static int
-xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name, const char **last_ns,
-                      char **buf, int size)
+opget_xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name,
+                            const char **last_ns, char **buf, int size)
 {
     const struct lys_module *module;
     int new_size, len;
@@ -288,7 +397,7 @@ xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *e
             elem->name);
     size = new_size;
 
-    size = xpath_buf_add_attrs(ctx, elem->attr, buf, size);
+    size = opget_xpath_buf_add_attrs(ctx, elem->attr, buf, size);
     if (!size) {
         return 0;
     } else if (size < 1) {
@@ -313,8 +422,8 @@ xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *e
 
 /* containment/selection node with namespace and attributes */
 static int
-xpath_buf_add_node(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name, const char **last_ns,
-                   char **buf, int size)
+opget_xpath_buf_add_node(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name,
+                         const char **last_ns, char **buf, int size)
 {
     const struct lys_module *module;
     int new_size;
@@ -343,22 +452,22 @@ xpath_buf_add_node(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem
             elem->name);
     size = new_size;
 
-    size = xpath_buf_add_attrs(ctx, elem->attr, buf, size);
+    size = opget_xpath_buf_add_attrs(ctx, elem->attr, buf, size);
 
     return size;
 }
 
 /* buf is spent in the function, removes content match nodes from elem->child list! */
 static int
-xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name, const char *last_ns,
-              char **buf, int size, char ***filters, int *filter_count)
+opget_xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name, const char *last_ns,
+                    char **buf, int size, char ***filters, int *filter_count)
 {
     struct lyxml_elem *temp, *child;
     int new_size;
     char *buf_new;
 
     /* containment node, selection node */
-    size = xpath_buf_add_node(ctx, elem, elem_module_name, &last_ns, buf, size);
+    size = opget_xpath_buf_add_node(ctx, elem, elem_module_name, &last_ns, buf, size);
     if (!size) {
         free(*buf);
         *buf = NULL;
@@ -370,7 +479,7 @@ xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_modu
     /* content match node */
     LY_TREE_FOR_SAFE(elem->child, temp, child) {
         if (!child->child && child->content && !strws(child->content)) {
-            size = xpath_buf_add_content(ctx, child, elem_module_name, &last_ns, buf, size);
+            size = opget_xpath_buf_add_content(ctx, child, elem_module_name, &last_ns, buf, size);
             if (!size) {
                 free(*buf);
                 *buf = NULL;
@@ -384,7 +493,7 @@ xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_modu
 
     /* that is it, it seems */
     if (!elem->child) {
-        if (xpath_add_filter(*buf, filters, filter_count)) {
+        if (opget_xpath_add_filter(*buf, filters, filter_count)) {
             goto error;
         }
         *buf = NULL;
@@ -407,11 +516,11 @@ xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_modu
 
         /* child containment node */
         if (child->child) {
-            xpath_buf_add(ctx, child, NULL, last_ns, &buf_new, new_size, filters, filter_count);
+            opget_xpath_buf_add(ctx, child, NULL, last_ns, &buf_new, new_size, filters, filter_count);
 
         /* child selection node */
         } else {
-            new_size = xpath_buf_add_node(ctx, child, NULL, &last_ns, &buf_new, new_size);
+            new_size = opget_xpath_buf_add_node(ctx, child, NULL, &last_ns, &buf_new, new_size);
             if (!new_size) {
                 free(buf_new);
                 continue;
@@ -420,7 +529,7 @@ xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_modu
                 goto error;
             }
 
-            if (xpath_add_filter(buf_new, filters, filter_count)) {
+            if (opget_xpath_add_filter(buf_new, filters, filter_count)) {
                 goto error;
             }
         }
@@ -435,7 +544,7 @@ error:
 
 /* modifies elem XML tree! */
 static int
-build_xpath_from_subtree_filter(struct ly_ctx *ctx, struct lyxml_elem *elem, char ***filters, int *filter_count)
+opget_build_xpath_from_subtree_filter(struct ly_ctx *ctx, struct lyxml_elem *elem, char ***filters, int *filter_count)
 {
     const struct lys_module *module, **modules, **modules_new;
     const struct lys_node *node;
@@ -484,12 +593,12 @@ build_xpath_from_subtree_filter(struct ly_ctx *ctx, struct lyxml_elem *elem, cha
         for (i = 0; i < module_count; ++i) {
             if (!next->child && next->content && !strws(next->content)) {
                 /* special case of top-level content match node */
-                if (xpath_buf_add_top_content(ctx, next, modules[i]->name, filters, filter_count)) {
+                if (opget_xpath_buf_add_top_content(ctx, next, modules[i]->name, filters, filter_count)) {
                     goto error;
                 }
             } else {
                 /* containment or selection node */
-                if (xpath_buf_add(ctx, next, modules[i]->name, modules[i]->ns, &buf, 1, filters, filter_count)) {
+                if (opget_xpath_buf_add(ctx, next, modules[i]->name, modules[i]->ns, &buf, 1, filters, filter_count)) {
                     goto error;
                 }
             }
@@ -516,29 +625,27 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     const struct lys_module *module;
     const struct lys_node *snode;
     struct lyd_node_leaf_list *leaf;
-    struct lyd_node *root = NULL, *node;
+    struct lyd_node *root = NULL, *node, *node2, *yang_lib = NULL;
     struct lyd_attr *attr;
     char **filters = NULL, buf[21], *path, *data = NULL;
-    int rc, filter_count = 0;
+    int rc, filter_count = 0, config_only;
     uint32_t i, j;
     struct lyxml_elem *subtree_filter;
     struct np2sr_sessions *sessions;
     struct ly_set *nodeset;
     sr_session_ctx_t *ds;
     struct nc_server_error *e;
-    int wd_flag, data_flag;
     NC_WD_MODE nc_wd;
-
 
     /* get sysrepo connections for this session */
     sessions = (struct np2sr_sessions *)nc_session_get_data(ncs);
 
     /* get know which datastore is being affected */
     if (!strcmp(rpc->schema->name, "get")) {
-        data_flag = LYD_OPT_GET;
+        config_only = 0;
         ds = sessions->running;
     } else { /* get-config */
-        data_flag = LYD_OPT_GETCONFIG;
+        config_only = 1;
         nodeset = lyd_get_node(rpc, "/ietf-netconf:get-config/source/*");
         if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
             ds = sessions->running_config;
@@ -597,7 +704,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 goto error;
             }
 
-            if (build_xpath_from_subtree_filter(np2srv.ly_ctx, subtree_filter, &filters, &filter_count)) {
+            if (opget_build_xpath_from_subtree_filter(np2srv.ly_ctx, subtree_filter, &filters, &filter_count)) {
                 goto error;
             }
         } else {
@@ -611,7 +718,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 EMEM;
                 goto error;
             }
-            if (xpath_add_filter(path, &filters, &filter_count)) {
+            if (opget_xpath_add_filter(path, &filters, &filter_count)) {
                 free(path);
                 goto error;
             }
@@ -628,11 +735,9 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 }
             }
 
-            /* TODO ietf-yang-library data should be created by us */
-
             if (snode) {
                 asprintf(&path, "/%s:*", module->name);
-                if (xpath_add_filter(path, &filters, &filter_count)) {
+                if (opget_xpath_add_filter(path, &filters, &filter_count)) {
                     free(path);
                     goto error;
                 }
@@ -662,34 +767,66 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     }
     ly_set_free(nodeset);
 
-    /* transform from NC_WD_ to LYD_WD_ */
-    switch (nc_wd) {
-    case NC_WD_ALL:
-        wd_flag = LYD_WD_ALL;
-        break;
-    case NC_WD_ALL_TAG:
-        wd_flag = LYD_WD_ALL_TAG;
-        break;
-    case NC_WD_TRIM:
-        wd_flag = LYD_WD_TRIM;
-        break;
-    case NC_WD_EXPLICIT:
-        /* TODO waiting for libyang support */
-        //wd_flag = LYD_WD_EXPLICIT;
-        wd_flag = 0;
-        break;
-    default:
-        EINT;
-        goto error;
-    }
-
     /* refresh sysrepo data */
     if (sr_session_refresh(ds) != SR_ERR_OK) {
         goto error;
     }
 
-    /* create the data tree for the data reply */
+    /*
+     * create the data tree for the data reply
+     */
     for (i = 0; (signed)i < filter_count; i++) {
+        /* special case, we have these data locally */
+        if (!strncmp(filters[i], "/ietf-yang-library:", 19)) {
+            if (config_only) {
+                /* these are all state data */
+                continue;
+            }
+
+            if (!yang_lib) {
+                yang_lib = ly_ctx_info(np2srv.ly_ctx);
+                if (!yang_lib) {
+                    goto error;
+                }
+            }
+
+            nodeset = lyd_get_node(yang_lib, filters[i]);
+            for (j = 0; j < nodeset->number; ++j) {
+                if (root) {
+                    if (lyd_merge(root, nodeset->set.d[j], LYD_OPT_NOSIBLINGS)) {
+                        goto error;
+                    }
+                } else {
+                    node = nodeset->set.d[j];
+                    root = lyd_dup(node, 1);
+                    if (!root) {
+                        goto error;
+                    }
+                    for (node = node->parent; node; node = node->parent) {
+                        node2 = lyd_dup(node, 0);
+                        if (!node2) {
+                            goto error;
+                        }
+                        if (lyd_insert(node2, root)) {
+                            goto error;
+                        }
+                        root = node2;
+                    }
+                }
+            }
+            ly_set_free(nodeset);
+
+            continue;
+        } else if (!strncmp(filters[i], "/ietf-netconf-monitoring:", 25)) {
+            if (config_only) {
+                /* these are all state data */
+                continue;
+            }
+
+            /* TODO create state monitoring data */
+            continue;
+        }
+
         rc = sr_get_items(ds, filters[i], &values, &value_count);
         if ((rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_NOT_FOUND)) {
             /* skip internal modules not known to sysrepo and modules without data */
@@ -700,6 +837,11 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         }
 
         for (j = 0; j < value_count; ++j) {
+            rc = opget_dflt_data_inspect(&values[j], nc_wd);
+            if (rc < 0) {
+                continue;
+            }
+
             /* create subtree root */
             ly_errno = LY_SUCCESS;
             node = lyd_new_path(root, np2srv.ly_ctx, values[j].xpath,
@@ -708,12 +850,23 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 goto error;
             }
 
+            if (rc) {
+                /* add the default attribute */
+                assert(node);
+                while (node->schema->nodetype & (LYS_CONTAINER | LYS_LIST)) {
+                    node = node->child;
+                    assert(node);
+                }
+                assert(node->schema->nodetype == LYS_LEAF);
+                node->dflt = 1;
+            }
+
             if (!root) {
                 root = node;
             }
 
             /* create the full subtree */
-            if (build_subtree(ds, root, values[j].xpath)) {
+            if (opget_build_subtree_from_sysrepo(ds, root, values[j].xpath, nc_wd)) {
                 goto error;
             }
         }
@@ -722,6 +875,8 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         value_count = 0;
         values = NULL;
     }
+    lyd_free_withsiblings(yang_lib);
+    yang_lib = NULL;
 
     for (i = 0; (signed)i < filter_count; ++i) {
         free(filters[i]);
@@ -737,9 +892,6 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 send_reply:
     /* build RPC Reply */
     if (root) {
-        if (lyd_wd_add(np2srv.ly_ctx, &root, wd_flag | data_flag)) {
-            goto error;
-        }
         lyd_print_mem(&data, root, LYD_XML, LYP_WITHSIBLINGS);
         lyd_free_withsiblings(root);
     }
@@ -755,6 +907,7 @@ error:
     }
     free(filters);
 
+    lyd_free_withsiblings(yang_lib);
     lyd_free_withsiblings(root);
 
     e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
@@ -793,11 +946,6 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
         ds = sessions->candidate;
         dsl = &dslock.candidate;
     */
-    } else {
-        ERR("Invalid <lock> target (%s)", dsname);
-        e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
-        nc_err_set_msg(e, np2log_lasterr(), "en");
-        return nc_server_reply_err(e);
     }
 
     pthread_rwlock_rdlock(&dslock_rwl);
@@ -864,15 +1012,10 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
         ds = sessions->startup;
         dsl = &dslock.startup;
     /* TODO sysrepo does not support candidate
-    } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
+    } else if (!strcmp(dsname, "candidate")) {
         ds = sessions->candidate;
         dsl = &dslock.candidate;
     */
-    } else {
-        ERR("Invalid <unlock> target (%s)", dsname);
-        e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
-        nc_err_set_msg(e, np2log_lasterr(), "en");
-        return nc_server_reply_err(e);
     }
 
     pthread_rwlock_rdlock(&dslock_rwl);
@@ -1133,16 +1276,13 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     ly_set_free(nodeset);
 
     if (!strcmp(cstr, "running")) {
-        /* TODO sysrepo does not fully support running yet,
-         * so now for debugging we always use startup */
-        ds = sessions->startup;
-        //ds = sessions->running;
+        ds = sessions->running;
     /* TODO sysrepo does not support candidate
     } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
         ds = sessions->candidate;
-        dsl = &dslock.candidate;
     */
     }
+    /* edit-config on startup is not allowed by RFC 6241 */
 
     /* default-operation */
     nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/default-operation");
@@ -1210,9 +1350,11 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     VRB("EDIT-CONFIG: ds %d, defop %d, testopt %d, config:\n%s", ds, defop, testopt, str);
     free(str);
 
-    /* update data from sysrepo */
-    if (sr_session_refresh(ds) != SR_ERR_OK) {
-        goto internalerror;
+    if (ds != sessions->candidate || !(sessions->flags & NP2SRV_CAND_MODIFIED)) {
+        /* update data from sysrepo */
+        if (sr_session_refresh(ds) != SR_ERR_OK) {
+            goto internalerror;
+        }
     }
 
     /*
@@ -1348,6 +1490,9 @@ resultcheck:
         switch (ret) {
         case SR_ERR_OK:
             VRB("EDIT_CONFIG: success (%s)", path);
+            if (ds == sessions->candidate) {
+                sessions->flags |= NP2SRV_CAND_MODIFIED;
+            }
             /* no break */
         case -1:
             /* do nothing */
@@ -1371,6 +1516,7 @@ resultcheck:
         if (e) {
             switch (erropt) {
             case NP2_EDIT_ERROPT_CONT:
+                VRB("EDIT-CONFIG: continue-on-error (%s).", nc_err_get_msg(e));
                 if (ereply) {
                     nc_server_reply_add_err(ereply, e);
                 } else {
@@ -1379,10 +1525,14 @@ resultcheck:
                 e = NULL;
                 goto dfs_nextsibling;
             case NP2_EDIT_ERROPT_ROLLBACK:
+                VRB("EDIT-CONFIG: rollback-on-error (%s).", nc_err_get_msg(e));
                 sr_discard_changes(ds);
                 goto cleanup;
             case NP2_EDIT_ERROPT_STOP:
-                sr_commit(ds);
+                VRB("EDIT-CONFIG: stop-on-error (%s).", nc_err_get_msg(e));
+                if (ds != sessions->candidate) {
+                    sr_commit(ds);
+                }
                 goto cleanup;
             }
         }
@@ -1458,12 +1608,15 @@ cleanup:
         /* send error reply */
         goto errorreply;
     } else {
-        /* commit the result */
-        if (sr_commit(ds) != SR_ERR_OK) {
-            goto internalerror;
-        }
+        if (ds != sessions->candidate) {
+            /* commit the result */
+            if (sr_commit(ds) != SR_ERR_OK) {
+                goto internalerror;
+            }
+        } /* in case of candidate, it is applied by an explicit commit operation */
 
         /* build positive RPC Reply */
+        VRB("EDIT-CONFIG: done.");
         return nc_server_reply_ok();
     }
 
@@ -1473,6 +1626,7 @@ internalerror:
 
     /* fatal error, so continue-on-error does not apply here,
      * instead we rollback */
+    VRB("EDIT-CONFIG: fatal error, rolling back.");
     sr_discard_changes(ds);
 
     free(op);
@@ -1487,3 +1641,54 @@ errorreply:
     }
 }
 
+struct nc_server_reply *
+op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
+{
+    struct np2sr_sessions *sessions;
+    sr_datastore_t target, source;
+    struct ly_set *nodeset;
+    const char *dsname;
+    struct nc_server_error *e;
+    int rc;
+
+    /* get sysrepo connections for this session */
+    sessions = (struct np2sr_sessions *)nc_session_get_data(ncs);
+
+    /* get know which datastore is being affected */
+    nodeset = lyd_get_node(rpc, "/ietf-netconf:copy-config/target/*");
+    dsname = nodeset->set.d[0]->schema->name;
+    ly_set_free(nodeset);
+
+    if (!strcmp(dsname, "startup")) {
+        target = SR_DS_STARTUP;
+    /* TODO support other datastores */
+    } else {
+        e = nc_err(NC_ERR_OP_NOT_SUPPORTED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, "<copy-config> is currently supported only from <running/> to <startup/>.", "en");
+        return nc_server_reply_err(e);
+    }
+
+    /* get source */
+    nodeset = lyd_get_node(rpc, "/ietf-netconf:copy-config/source/*");
+    dsname = nodeset->set.d[0]->schema->name;
+    ly_set_free(nodeset);
+
+    if (!strcmp(dsname, "running")) {
+        source = SR_DS_RUNNING;
+    /* TODO support other datastores */
+    } else {
+        e = nc_err(NC_ERR_OP_NOT_SUPPORTED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, "<copy-config> is currently supported only from <running/> to <startup/>.", "en");
+        return nc_server_reply_err(e);
+    }
+
+    /* perform operation */
+    rc = sr_copy_config(sessions->running, NULL, source, target);
+    if (rc != SR_ERR_OK) {
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, np2log_lasterr(), "en");
+        return nc_server_reply_err(e);
+    }
+
+    return nc_server_reply_ok();
+}

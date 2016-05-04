@@ -163,13 +163,7 @@ server_init(void)
         ERR("Unable to create Netopeer session to sysrepod (%s).", sr_strerror(rc));
         return EXIT_FAILURE;
     }
-    /* TODO no need for this one probably */
-    /*rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, SR_SESS_CONFIG_ONLY, &np2srv.sr_sess.running_config);
-    if (rc != SR_ERR_OK) {
-        ERR("Unable to create Netopeer session to sysrepod (%s).", sr_strerror(rc));
-        return EXIT_FAILURE;
-    }*/
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_STARTUP, SR_SESS_DEFAULT, &np2srv.sr_sess.startup);
+    rc = sr_session_start(np2srv.sr_conn, SR_DS_STARTUP, SR_SESS_CONFIG_ONLY, &np2srv.sr_sess.startup);
     if (rc != SR_ERR_OK) {
         VRB("Startup datastore not available in sysrepod (%s).", sr_strerror(rc));
     }
@@ -215,7 +209,7 @@ server_init(void)
     }
     sr_free_schemas(schemas, count);
 
-    /* 2) add ietf-netconf with ietf-netconf-acm - TODO do it correctly as sysrepo's southbound app */
+    /* 2) internally used schemas: ietf-netconf with ietf-netconf-acm, */
     lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_acm_yin, LYS_IN_YIN);
     mod = lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_2011_06_01_yin, LYS_IN_YIN);
     lys_features_enable(mod, "writable-running");
@@ -226,10 +220,10 @@ server_init(void)
         lys_features_enable(mod, "candidate");
     }
 
-    /* 3) add ietf-netconf-monitoring */
+    /* ietf-netconf-monitoring, */
     lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_monitoring_yin, LYS_IN_YIN);
 
-    /* 4) add ietf-netconf-with-defaults */
+    /* ietf-netconf-with-defaults */
     lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_with_defaults_2011_06_01_yin, LYS_IN_YIN);
 
     /* debug - list schemas
@@ -256,6 +250,9 @@ server_init(void)
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:edit-config");
     lys_set_private(snode, op_editconfig);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:copy-config");
+    lys_set_private(snode, op_copyconfig);
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:lock");
     lys_set_private(snode, op_lock);
@@ -325,7 +322,7 @@ connect_ds(struct nc_session *ncs)
         goto error;
     }
     if (np2srv.sr_sess.startup) {
-        rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_STARTUP, SR_SESS_DEFAULT, &s->startup);
+        rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_STARTUP, SR_SESS_CONFIG_ONLY, &s->startup);
         if (rc != SR_ERR_OK) {
             ERR("Unable to create sysrepo startup session for NETCONF session %d (%s).",
                 nc_session_get_id(ncs), sr_strerror(rc));
