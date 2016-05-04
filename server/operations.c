@@ -1286,10 +1286,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     ly_set_free(nodeset);
 
     if (!strcmp(cstr, "running")) {
-        /* TODO sysrepo does not fully support running yet,
-         * so now for debugging we always use startup */
-        ds = sessions->startup;
-        //ds = sessions->running;
+        ds = sessions->running;
     /* TODO sysrepo does not support candidate
     } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
         ds = sessions->candidate;
