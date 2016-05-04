@@ -1053,11 +1053,6 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
         ds = sessions->candidate;
         dsl = &dslock.candidate;
     */
-    } else {
-        ERR("Invalid <lock> target (%s)", dsname);
-        e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
-        nc_err_set_msg(e, np2log_lasterr(), "en");
-        return nc_server_reply_err(e);
     }
 
     pthread_rwlock_rdlock(&dslock_rwl);
@@ -1124,15 +1119,10 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
         ds = sessions->startup;
         dsl = &dslock.startup;
     /* TODO sysrepo does not support candidate
-    } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
+    } else if (!strcmp(dsname, "candidate")) {
         ds = sessions->candidate;
         dsl = &dslock.candidate;
     */
-    } else {
-        ERR("Invalid <unlock> target (%s)", dsname);
-        e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
-        nc_err_set_msg(e, np2log_lasterr(), "en");
-        return nc_server_reply_err(e);
     }
 
     pthread_rwlock_rdlock(&dslock_rwl);
@@ -1397,9 +1387,9 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* TODO sysrepo does not support candidate
     } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
         ds = sessions->candidate;
-        dsl = &dslock.candidate;
     */
     }
+    /* edit-config on startup is not allowed by RFC 6241 */
 
     /* default-operation */
     nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/default-operation");
@@ -1467,9 +1457,11 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     VRB("EDIT-CONFIG: ds %d, defop %d, testopt %d, config:\n%s", ds, defop, testopt, str);
     free(str);
 
-    /* update data from sysrepo */
-    if (sr_session_refresh(ds) != SR_ERR_OK) {
-        goto internalerror;
+    if (ds != sessions->candidate || !(sessions->flags & NP2SRV_CAND_MODIFIED)) {
+        /* update data from sysrepo */
+        if (sr_session_refresh(ds) != SR_ERR_OK) {
+            goto internalerror;
+        }
     }
 
     /*
@@ -1605,6 +1597,9 @@ resultcheck:
         switch (ret) {
         case SR_ERR_OK:
             VRB("EDIT_CONFIG: success (%s)", path);
+            if (ds == sessions->candidate) {
+                sessions->flags |= NP2SRV_CAND_MODIFIED;
+            }
             /* no break */
         case -1:
             /* do nothing */
@@ -1628,6 +1623,7 @@ resultcheck:
         if (e) {
             switch (erropt) {
             case NP2_EDIT_ERROPT_CONT:
+                VRB("EDIT-CONFIG: continue-on-error (%s).", nc_err_get_msg(e));
                 if (ereply) {
                     nc_server_reply_add_err(ereply, e);
                 } else {
@@ -1636,10 +1632,14 @@ resultcheck:
                 e = NULL;
                 goto dfs_nextsibling;
             case NP2_EDIT_ERROPT_ROLLBACK:
+                VRB("EDIT-CONFIG: rollback-on-error (%s).", nc_err_get_msg(e));
                 sr_discard_changes(ds);
                 goto cleanup;
             case NP2_EDIT_ERROPT_STOP:
-                sr_commit(ds);
+                VRB("EDIT-CONFIG: stop-on-error (%s).", nc_err_get_msg(e));
+                if (ds != sessions->candidate) {
+                    sr_commit(ds);
+                }
                 goto cleanup;
             }
         }
@@ -1715,12 +1715,15 @@ cleanup:
         /* send error reply */
         goto errorreply;
     } else {
-        /* commit the result */
-        if (sr_commit(ds) != SR_ERR_OK) {
-            goto internalerror;
-        }
+        if (ds != sessions->candidate) {
+            /* commit the result */
+            if (sr_commit(ds) != SR_ERR_OK) {
+                goto internalerror;
+            }
+        } /* in case of candidate, it is applied by an explicit commit operation */
 
         /* build positive RPC Reply */
+        VRB("EDIT-CONFIG: done.");
         return nc_server_reply_ok();
     }
 
@@ -1730,6 +1733,7 @@ internalerror:
 
     /* fatal error, so continue-on-error does not apply here,
      * instead we rollback */
+    VRB("EDIT-CONFIG: fatal error, rolling back.");
     sr_discard_changes(ds);
 
     free(op);
@@ -1744,3 +1748,54 @@ errorreply:
     }
 }
 
+struct nc_server_reply *
+op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
+{
+    struct np2sr_sessions *sessions;
+    sr_datastore_t target, source;
+    struct ly_set *nodeset;
+    const char *dsname;
+    struct nc_server_error *e;
+    int rc;
+
+    /* get sysrepo connections for this session */
+    sessions = (struct np2sr_sessions *)nc_session_get_data(ncs);
+
+    /* get know which datastore is being affected */
+    nodeset = lyd_get_node(rpc, "/ietf-netconf:copy-config/target/*");
+    dsname = nodeset->set.d[0]->schema->name;
+    ly_set_free(nodeset);
+
+    if (!strcmp(dsname, "startup")) {
+        target = SR_DS_STARTUP;
+    /* TODO support other datastores */
+    } else {
+        e = nc_err(NC_ERR_OP_NOT_SUPPORTED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, "<copy-config> is currently supported only from <running/> to <startup/>.", "en");
+        return nc_server_reply_err(e);
+    }
+
+    /* get source */
+    nodeset = lyd_get_node(rpc, "/ietf-netconf:copy-config/source/*");
+    dsname = nodeset->set.d[0]->schema->name;
+    ly_set_free(nodeset);
+
+    if (!strcmp(dsname, "running")) {
+        source = SR_DS_RUNNING;
+    /* TODO support other datastores */
+    } else {
+        e = nc_err(NC_ERR_OP_NOT_SUPPORTED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, "<copy-config> is currently supported only from <running/> to <startup/>.", "en");
+        return nc_server_reply_err(e);
+    }
+
+    /* perform operation */
+    rc = sr_copy_config(sessions->running, NULL, source, target);
+    if (rc != SR_ERR_OK) {
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, np2log_lasterr(), "en");
+        return nc_server_reply_err(e);
+    }
+
+    return nc_server_reply_ok();
+}
