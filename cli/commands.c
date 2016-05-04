@@ -221,6 +221,7 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
         return -1;
     }
 
+recv_reply:
     msgtype = nc_recv_reply(session, rpc, msgid, 1000,
                             LYD_OPT_DESTRUCT | LYD_OPT_NOSIBLINGS, &reply);
     if (msgtype == NC_MSG_ERROR) {
@@ -321,8 +322,13 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
         nc_reply_free(reply);
         return -1;
     }
-
     nc_reply_free(reply);
+
+    if (msgtype == NC_MSG_REPLY_ERR_MSGID) {
+        ERROR(__func__, "Trying to receive another message...\n");
+        goto recv_reply;
+    }
+
     return ret;
 }
 
