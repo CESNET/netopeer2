@@ -262,6 +262,136 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node *root, co
     return 0;
 }
 
+/* wd == 0 - skip all default value processing (if we know the module of data does not define any) */
+static int
+opget_build_tree_from_data(struct lyd_node **root, struct lyd_node *data, const char *subtree_path, NC_WD_MODE wd)
+{
+    struct ly_set *nodeset;
+    struct lyd_node *node, *node2, *key, *key2, *child;
+    struct lys_node_list *slist;
+    uint16_t i, j;
+    int lyd_wd;
+
+    switch (wd) {
+    case NC_WD_TRIM:
+        lyd_wd = LYD_WD_TRIM;
+        break;
+    case NC_WD_EXPLICIT:
+        lyd_wd = LYD_WD_EXPLICIT;
+        break;
+    case NC_WD_ALL:
+        lyd_wd = LYD_WD_ALL;
+        break;
+    case NC_WD_ALL_TAG:
+        lyd_wd = LYD_WD_ALL_TAG;
+        break;
+    default:
+        lyd_wd = 0;
+        break;
+    }
+
+    nodeset = lyd_get_node(data, subtree_path);
+    for (i = 0; i < nodeset->number; ++i) {
+        if (*root) {
+            if (lyd_merge(*root, nodeset->set.d[i], LYD_OPT_NOSIBLINGS)) {
+                return -1;
+            }
+        } else {
+            node = nodeset->set.d[i];
+            *root = lyd_dup(node, 1);
+            if (!(*root)) {
+                EMEM;
+                return -1;
+            }
+            for (node = node->parent; node; node = node->parent) {
+                node2 = lyd_dup(node, 0);
+                if (!node2) {
+                    EMEM;
+                    return -1;
+                }
+                if (lyd_insert(node2, *root)) {
+                    EINT;
+                    lyd_free(node2);
+                    return -1;
+                }
+                *root = node2;
+
+                /* we want to include all list keys in the result */
+                if (node2->schema->nodetype == LYS_LIST) {
+                    slist = (struct lys_node_list *)node2->schema;
+                    for (j = 0, key = node->child; j < slist->keys_size; ++j, key = key->next) {
+                        assert((struct lys_node *)slist->keys[j] == key->schema);
+
+                        /* was the key already duplicated? */
+                        LY_TREE_FOR(node2->child, child) {
+                            if (child->schema == (struct lys_node *)slist->keys[j]) {
+                                break;
+                            }
+                        }
+
+                        /* it wasn't */
+                        if (!child) {
+                            key2 = lyd_dup(key, 0);
+                            if (!key2) {
+                                EMEM;
+                                return -1;
+                            }
+                            if (lyd_insert(node2, key2)) {
+                                EINT;
+                                lyd_free(key2);
+                                return -1;
+                            }
+                        }
+                    }
+
+                    /* we added those keys at the end, if some existed before the order is wrong */
+                    if (lyd_schema_sort(node2->child, 0)) {
+                        return -1;
+                    }
+                }
+            }
+        }
+    }
+    ly_set_free(nodeset);
+
+    /* add the default values for this module only */
+    if (lyd_wd) {
+        if (*root) {
+            LY_TREE_FOR(*root, node) {
+                if (lyd_node_module(node) == lyd_node_module(data)) {
+                    break;
+                }
+            }
+        }
+
+        if (node) {
+            /* add default values just for this module */
+            if (lyd_wd_add(NULL, &node, LYD_OPT_NOSIBLINGS | lyd_wd)) {
+                EINT;
+                return -1;
+            }
+        } else {
+            /* we need to manually filter out any default values of our module */
+            if (lyd_wd_add(np2srv.ly_ctx, &node, lyd_wd)) {
+                EINT;
+                return -1;
+            }
+
+            LY_TREE_FOR(node, node2) {
+                if (lyd_node_module(node2) == lyd_node_module(data)) {
+                    if (lyd_merge(*root, node2, LYD_OPT_NOSIBLINGS | LYD_OPT_DESTRUCT)) {
+                        EINT;
+                        return -1;
+                    }
+                }
+            }
+            lyd_free_withsiblings(node);
+        }
+    }
+
+    return 0;
+}
+
 static int
 strws(const char *str)
 {
@@ -625,7 +755,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     const struct lys_module *module;
     const struct lys_node *snode;
     struct lyd_node_leaf_list *leaf;
-    struct lyd_node *root = NULL, *node, *node2, *yang_lib = NULL;
+    struct lyd_node *root = NULL, *node, *yang_lib = NULL;
     struct lyd_attr *attr;
     char **filters = NULL, buf[21], *path, *data = NULL;
     int rc, filter_count = 0, config_only;
@@ -790,32 +920,9 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 }
             }
 
-            nodeset = lyd_get_node(yang_lib, filters[i]);
-            for (j = 0; j < nodeset->number; ++j) {
-                if (root) {
-                    if (lyd_merge(root, nodeset->set.d[j], LYD_OPT_NOSIBLINGS)) {
-                        goto error;
-                    }
-                } else {
-                    node = nodeset->set.d[j];
-                    root = lyd_dup(node, 1);
-                    if (!root) {
-                        goto error;
-                    }
-                    for (node = node->parent; node; node = node->parent) {
-                        node2 = lyd_dup(node, 0);
-                        if (!node2) {
-                            goto error;
-                        }
-                        if (lyd_insert(node2, root)) {
-                            goto error;
-                        }
-                        root = node2;
-                    }
-                }
+            if (opget_build_tree_from_data(&root, yang_lib, filters[i], 0)) {
+                goto error;
             }
-            ly_set_free(nodeset);
-
             continue;
         } else if (!strncmp(filters[i], "/ietf-netconf-monitoring:", 25)) {
             if (config_only) {
