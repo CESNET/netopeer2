@@ -163,12 +163,6 @@ server_init(void)
         ERR("Unable to create Netopeer session to sysrepod (%s).", sr_strerror(rc));
         return EXIT_FAILURE;
     }
-    /* TODO no need for this one probably */
-    /*rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, SR_SESS_CONFIG_ONLY, &np2srv.sr_sess.running_config);
-    if (rc != SR_ERR_OK) {
-        ERR("Unable to create Netopeer session to sysrepod (%s).", sr_strerror(rc));
-        return EXIT_FAILURE;
-    }*/
     rc = sr_session_start(np2srv.sr_conn, SR_DS_STARTUP, SR_SESS_DEFAULT, &np2srv.sr_sess.startup);
     if (rc != SR_ERR_OK) {
         VRB("Startup datastore not available in sysrepod (%s).", sr_strerror(rc));
