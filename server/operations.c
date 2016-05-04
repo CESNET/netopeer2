@@ -1360,9 +1360,11 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     VRB("EDIT-CONFIG: ds %d, defop %d, testopt %d, config:\n%s", ds, defop, testopt, str);
     free(str);
 
-    /* update data from sysrepo */
-    if (sr_session_refresh(ds) != SR_ERR_OK) {
-        goto internalerror;
+    if (ds != sessions->candidate || !(sessions->flags & NP2SRV_CAND_MODIFIED)) {
+        /* update data from sysrepo */
+        if (sr_session_refresh(ds) != SR_ERR_OK) {
+            goto internalerror;
+        }
     }
 
     /*
@@ -1498,6 +1500,9 @@ resultcheck:
         switch (ret) {
         case SR_ERR_OK:
             VRB("EDIT_CONFIG: success (%s)", path);
+            if (ds == sessions->candidate) {
+                sessions->flags |= NP2SRV_CAND_MODIFIED;
+            }
             /* no break */
         case -1:
             /* do nothing */
@@ -1532,7 +1537,9 @@ resultcheck:
                 sr_discard_changes(ds);
                 goto cleanup;
             case NP2_EDIT_ERROPT_STOP:
-                sr_commit(ds);
+                if (ds != sessions->candidate) {
+                    sr_commit(ds);
+                }
                 goto cleanup;
             }
         }
@@ -1608,10 +1615,12 @@ cleanup:
         /* send error reply */
         goto errorreply;
     } else {
-        /* commit the result */
-        if (sr_commit(ds) != SR_ERR_OK) {
-            goto internalerror;
-        }
+        if (ds != sessions->candidate) {
+            /* commit the result */
+            if (sr_commit(ds) != SR_ERR_OK) {
+                goto internalerror;
+            }
+        } /* in case of candidate, it is applied by an explicit commit operation */
 
         /* build positive RPC Reply */
         return nc_server_reply_ok();
