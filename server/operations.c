@@ -1026,8 +1026,8 @@ struct nc_server_reply *
 op_lock(struct lyd_node *rpc, struct nc_session *ncs)
 {
     struct np2sr_sessions *sessions;
-    sr_session_ctx_t *ds;
-    struct nc_session **dsl;
+    sr_session_ctx_t *ds = NULL;
+    struct nc_session **dsl = NULL;
     struct ly_set *nodeset;
     struct nc_server_error *e;
     const char *dsname;
@@ -1097,8 +1097,8 @@ struct nc_server_reply *
 op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
 {
     struct np2sr_sessions *sessions;
-    sr_session_ctx_t *ds;
-    struct nc_session **dsl;
+    sr_session_ctx_t *ds = NULL;
+    struct nc_session **dsl = NULL;
     struct ly_set *nodeset;
     const char *dsname;
     struct nc_server_error *e;
