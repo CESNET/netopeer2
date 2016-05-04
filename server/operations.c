@@ -946,11 +946,6 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
         ds = sessions->candidate;
         dsl = &dslock.candidate;
     */
-    } else {
-        ERR("Invalid <lock> target (%s)", dsname);
-        e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
-        nc_err_set_msg(e, np2log_lasterr(), "en");
-        return nc_server_reply_err(e);
     }
 
     pthread_rwlock_rdlock(&dslock_rwl);
@@ -1017,15 +1012,10 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
         ds = sessions->startup;
         dsl = &dslock.startup;
     /* TODO sysrepo does not support candidate
-    } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
+    } else if (!strcmp(dsname, "candidate")) {
         ds = sessions->candidate;
         dsl = &dslock.candidate;
     */
-    } else {
-        ERR("Invalid <unlock> target (%s)", dsname);
-        e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
-        nc_err_set_msg(e, np2log_lasterr(), "en");
-        return nc_server_reply_err(e);
     }
 
     pthread_rwlock_rdlock(&dslock_rwl);
@@ -1290,9 +1280,9 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* TODO sysrepo does not support candidate
     } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
         ds = sessions->candidate;
-        dsl = &dslock.candidate;
     */
     }
+    /* edit-config on startup is not allowed by RFC 6241 */
 
     /* default-operation */
     nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/default-operation");
