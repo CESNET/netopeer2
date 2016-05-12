@@ -1003,7 +1003,8 @@ send_reply:
         lyd_free_withsiblings(root);
     }
     snode = ly_ctx_get_node(np2srv.ly_ctx, rpc->schema, "output/data");
-    root = lyd_output_new_anyxml_str(snode, data);
+    root = lyd_dup(rpc, 0);
+    lyd_new_output_anyxml_str(root, NULL, "data", data);
     return nc_server_reply_data(root, NC_PARAMTYPE_FREE);
 
 error:
