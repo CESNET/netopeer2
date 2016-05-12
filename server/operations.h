@@ -17,6 +17,15 @@
 
 #include <nc_server.h>
 
+struct np2srv_dslock {
+    struct nc_session *running;
+    struct nc_session *startup;
+    struct nc_session *candidate;
+};
+
+extern struct np2srv_dslock dslock;
+extern pthread_rwlock_t dslock_rwl;
+
 enum NP2_EDIT_ERROPT {
     NP2_EDIT_ERROPT_STOP,
     NP2_EDIT_ERROPT_CONT,
@@ -44,12 +53,6 @@ enum NP2_EDIT_OP {
     NP2_EDIT_DELETE,
     NP2_EDIT_REMOVE
 };
-
-/**
- * @brief Use when the session is being terminated to 'release' all its locks
- * @param[in] ncs NETCONF session being terminated.
- */
-void np2srv_clean_dslock(struct nc_session *ncs);
 
 struct nc_server_reply *op_get(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_lock(struct lyd_node *rpc, struct nc_session *ncs);

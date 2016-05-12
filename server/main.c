@@ -37,6 +37,8 @@
 #include "../modules/ietf-netconf-with-defaults@2011-06-01.h"
 
 struct np2srv np2srv;
+struct np2srv_dslock dslock;
+pthread_rwlock_t dslock_rwl = PTHREAD_RWLOCK_INITIALIZER;
 
 /**
  * @brief Control flags for the main loop
@@ -264,6 +266,24 @@ server_init(void)
     nc_server_ssh_endpt_set_hostkey("main", "/etc/ssh/ssh_host_rsa_key");
 
     return EXIT_SUCCESS;
+}
+
+static void
+np2srv_clean_dslock(struct nc_session *ncs)
+{
+    pthread_rwlock_wrlock(&dslock_rwl);
+
+    if (dslock.running == ncs) {
+        dslock.running = NULL;
+    }
+    if (dslock.startup == ncs) {
+        dslock.startup = NULL;
+    }
+    if (dslock.candidate == ncs) {
+        dslock.candidate = NULL;
+    }
+
+    pthread_rwlock_unlock(&dslock_rwl);
 }
 
 void
