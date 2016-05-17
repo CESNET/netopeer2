@@ -119,6 +119,7 @@ signal_handler(int sig)
         break;
     }
 }
+
 char *
 np2srv_ly_module_clb(const char *name, const char *revision, void *user_data, LYS_INFORMAT *format,
                      void (**free_module_data)(void *model_data))
@@ -207,6 +208,12 @@ server_init(void)
             WRN("Getting %s (%s) schema from sysrepo failed, data from this module won't be available.",
                 schemas[i].module_name,
                 schemas[i].revision.revision ? schemas[i].revision.revision : "no revision");
+        } else {
+            LY_TREE_FOR(mod->data, snode) {
+                if (snode->nodetype == LYS_RPC) {
+                    lys_set_private(snode, op_generic);
+                }
+            }
         }
     }
     sr_free_schemas(schemas, count);
@@ -222,7 +229,7 @@ server_init(void)
         lys_features_enable(mod, "candidate");
     }
 
-    /* ietf-netconf-monitoring, */
+    /* ietf-netconf-monitoring (leave get-schema RPC empty, libnetconf2 will use its callback), */
     lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_monitoring_yin, LYS_IN_YIN);
 
     /* ietf-netconf-with-defaults */
@@ -244,9 +251,6 @@ server_init(void)
     np2srv.nc_ps = nc_ps_new();
 
     /* set NETCONF operations callbacks */
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get");
-    lys_set_private(snode, op_get);
-
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get-config");
     lys_set_private(snode, op_get);
 
@@ -256,12 +260,38 @@ server_init(void)
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:copy-config");
     lys_set_private(snode, op_copyconfig);
 
+    /* TODO
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:delete-config");
+    lys_set_private(snode, op_delete);*/
+
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:lock");
     lys_set_private(snode, op_lock);
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:unlock");
     lys_set_private(snode, op_unlock);
 
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get");
+    lys_set_private(snode, op_get);
+
+    /* leave close-session RPC empty, libnetconf2 will use its callback */
+
+    /* TODO
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:kill-session");
+    lys_set_private(snode, op_kill);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:commit");
+    lys_set_private(snode, op_commit);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:discard-changes");
+    lys_set_private(snode, op_discard);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:cancel-commit");
+    lys_set_private(snode, op_cancel);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:validate");
+    lys_set_private(snode, op_validate);*/
+
+    /* set SSH server options */
     nc_server_ssh_add_endpt_listen("main", "0.0.0.0", 6001);
     nc_server_ssh_endpt_set_hostkey("main", "/etc/ssh/ssh_host_rsa_key");
 
