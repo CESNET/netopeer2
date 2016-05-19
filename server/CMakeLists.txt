@@ -32,6 +32,7 @@ configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_SOURCE_DIR}/config
 # source files
 set(srcs
 	main.c
+	operations.c
 	op_get_config.c
 	op_editconfig.c
 	op_copyconfig.c

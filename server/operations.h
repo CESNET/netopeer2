@@ -54,6 +54,11 @@ enum NP2_EDIT_OP {
     NP2_EDIT_REMOVE
 };
 
+char *op_get_srval_value(struct ly_ctx *ctx, sr_val_t *value, char *buf);
+
+/* return: -1 = discard, 0 = keep, 1 = keep and add the attribute */
+int op_dflt_data_inspect(struct ly_ctx *ctx, sr_val_t *value, NC_WD_MODE wd);
+
 struct nc_server_reply *op_get(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_lock(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_unlock(struct lyd_node *rpc, struct nc_session *ncs);

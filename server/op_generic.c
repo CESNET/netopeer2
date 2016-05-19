@@ -72,8 +72,7 @@ create_sr_value(struct lyd_node *node, sr_val_t *val)
     uint32_t i;
     struct lyd_node_leaf_list *leaf;
 
-    /* TODO build xpath from node */
-    val->xpath = strdup("/test-module:activate-software-image/image-name");
+    val->xpath = lyd_path(node);
     val->dflt = 0;
     val->data.int64_val = 0;
 
@@ -192,79 +191,37 @@ create_sr_value(struct lyd_node *node, sr_val_t *val)
     return 0;
 }
 
-static char *
-get_srval_value(struct ly_ctx *ctx, sr_val_t *value, char *buf)
-{
-    const struct lys_node *snode;
-
-    if (!value) {
-        return NULL;
-    }
-
-    switch (value->type) {
-    case SR_STRING_T:
-    case SR_BINARY_T:
-    case SR_BITS_T:
-    case SR_ENUM_T:
-    case SR_IDENTITYREF_T:
-    case SR_INSTANCEID_T:
-    case SR_LEAFREF_T:
-        return (value->data.string_val);
-    case SR_LEAF_EMPTY_T:
-        return NULL;
-    case SR_BOOL_T:
-        return value->data.bool_val ? "true" : "false";
-    case SR_DECIMAL64_T:
-        /* get fraction-digits */
-        snode = ly_ctx_get_node(ctx, NULL, value->xpath);
-        if (!snode) {
-            return NULL;
-        }
-        sprintf(buf, "%.*f", ((struct lys_node_leaf *)snode)->type.info.dec64.dig, value->data.decimal64_val);
-        return buf;
-    case SR_UINT8_T:
-        sprintf(buf, "%u", value->data.uint8_val);
-        return buf;
-    case SR_UINT16_T:
-        sprintf(buf, "%u", value->data.uint16_val);
-        return buf;
-    case SR_UINT32_T:
-        sprintf(buf, "%u", value->data.uint32_val);
-        return buf;
-    case SR_UINT64_T:
-        sprintf(buf, "%lu", value->data.uint64_val);
-        return buf;
-    case SR_INT8_T:
-        sprintf(buf, "%d", value->data.int8_val);
-        return buf;
-    case SR_INT16_T:
-        sprintf(buf, "%d", value->data.int16_val);
-        return buf;
-    case SR_INT32_T:
-        sprintf(buf, "%d", value->data.int32_val);
-        return buf;
-    case SR_INT64_T:
-        sprintf(buf, "%ld", value->data.int64_val);
-        return buf;
-    default:
-        return NULL;
-    }
-}
-
 static int
-build_rpc_from_output(struct lyd_node *rpc, sr_val_t *output, size_t out_count)
+build_rpc_from_output(struct lyd_node *rpc, sr_val_t *output, size_t out_count, NC_WD_MODE wd)
 {
+    struct lyd_node *node;
     uint32_t i;
+    int rc;
     char buf[21];
 
     for (i = 0; i < out_count; ++i) {
-        lyd_new_path(rpc, np2srv.ly_ctx, output[i].xpath,
-                     get_srval_value(np2srv.ly_ctx, &output[i], buf), LYD_PATH_OPT_UPDATE | LYD_PATH_OPT_OUTPUT);
+        /* default values */
+        rc = op_dflt_data_inspect(np2srv.ly_ctx, &output[i], wd);
+        if (rc < 0) {
+            continue;
+        }
+
+        node = lyd_new_path(rpc, np2srv.ly_ctx, output[i].xpath, op_get_srval_value(np2srv.ly_ctx, &output[i], buf),
+                            LYD_PATH_OPT_UPDATE | LYD_PATH_OPT_OUTPUT);
         if (ly_errno) {
             return -1;
         }
 
-        /* TODO when sysrepo provides default values, correct them like in op_get */
+        if (rc) {
+            /* add the default attribute */
+            assert(node);
+            while (node->schema->nodetype & (LYS_CONTAINER | LYS_LIST)) {
+                node = node->child;
+                assert(node);
+            }
+            assert(node->schema->nodetype == LYS_LEAF);
+            node->dflt = 1;
+        }
     }
 
     return 0;
@@ -283,6 +240,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     struct nc_server_error *e;
     struct ly_set *set = NULL;
     struct lyd_node *reply_data;
+    NC_WD_MODE nc_wd;
 
     /* get sysrepo connections for this session */
     sessions = (struct np2sr_sessions *)nc_session_get_data(ncs);
@@ -311,8 +269,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     ly_set_free(set);
     set = NULL;
 
-    /* TODO build xpath from RPC */
-    rpc_xpath = strdup("/test-module:activate-software-image");
+    rpc_xpath = lyd_path(rpc);
 
     rc = sr_rpc_send(ds, rpc_xpath, input, in_count, &output, &out_count);
     free(rpc_xpath);
@@ -327,7 +284,8 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
 
     reply_data = lyd_dup(rpc, 0);
 
-    rc = build_rpc_from_output(reply_data, output, out_count);
+    nc_server_get_capab_withdefaults(&nc_wd, NULL);
+    rc = build_rpc_from_output(reply_data, output, out_count, nc_wd);
     sr_free_values(output, out_count);
 
     if (rc) {
