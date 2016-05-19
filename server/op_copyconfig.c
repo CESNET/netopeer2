@@ -31,7 +31,7 @@
 struct nc_server_reply *
 op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 {
-    struct np2sr_sessions *sessions;
+    struct np2_sessions *sessions;
     sr_datastore_t target, source;
     struct ly_set *nodeset;
     const char *dsname;
@@ -39,7 +39,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     int rc;
 
     /* get sysrepo connections for this session */
-    sessions = (struct np2sr_sessions *)nc_session_get_data(ncs);
+    sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
     /* get know which datastore is being affected */
     nodeset = lyd_get_node(rpc, "/ietf-netconf:copy-config/target/*");
@@ -70,7 +70,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* perform operation */
-    rc = sr_copy_config(sessions->running, NULL, source, target);
+    rc = sr_copy_config(sessions->srs, NULL, source, target);
     if (rc != SR_ERR_OK) {
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
         nc_err_set_msg(e, np2log_lasterr(), "en");

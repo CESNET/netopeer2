@@ -235,17 +235,20 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     char *rpc_xpath;
     sr_val_t *input, *output = NULL;
     size_t in_count, out_count = 0;
-    struct np2sr_sessions *sessions;
-    sr_session_ctx_t *ds;
+    struct np2_sessions *sessions;
     struct nc_server_error *e;
     struct ly_set *set = NULL;
     struct lyd_node *reply_data;
     NC_WD_MODE nc_wd;
 
     /* get sysrepo connections for this session */
-    sessions = (struct np2sr_sessions *)nc_session_get_data(ncs);
+    sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    ds = sessions->running;
+    /* perform operation on running to make notification
+     * for the sysrepo's subscriber implementing the RPC */
+    if (sessions->ds != SR_DS_RUNNING) {
+        sr_session_switch_ds(sessions->srs, SR_DS_RUNNING);
+    }
 
     /* process input into sysrepo format */
     set = lyd_get_node(rpc, "//*");
@@ -271,7 +274,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
 
     rpc_xpath = lyd_path(rpc);
 
-    rc = sr_rpc_send(ds, rpc_xpath, input, in_count, &output, &out_count);
+    rc = sr_rpc_send(sessions->srs, rpc_xpath, input, in_count, &output, &out_count);
     free(rpc_xpath);
     sr_free_values(input, in_count);
 

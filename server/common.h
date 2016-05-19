@@ -18,22 +18,18 @@
 #include "config.h"
 #include "log.h"
 
-/* NETCONF session's sysrepo connections */
-struct np2sr_sessions {
-    sr_session_ctx_t *running;
-    sr_session_ctx_t *running_config;
-    sr_session_ctx_t *startup;
-    sr_session_ctx_t *candidate;
-    int flags;
-    struct nc_session *ncs;
+/* NETCONF - SYSREPO connections */
+struct np2_sessions {
+    struct nc_session *ncs; /* NETCONF session */
+    sr_session_ctx_t *srs;  /* SYSREPO session */
+    sr_datastore_t ds;      /* current SYSREPO datastore */
+    sr_sess_options_t opts; /* current SYSREPO session options */
 };
-
-#define NP2SRV_CAND_MODIFIED 0x01  /**< candidate datastore modified (candidate is being committed explicitly) */
 
 /* Netopeer server internal data */
 struct np2srv {
     sr_conn_ctx_t *sr_conn;        /**< sysrepo connection */
-    struct np2sr_sessions sr_sess; /**< Netopeer's sysrepo sessions */
+    struct np2_sessions sr_sess; /**< Netopeer's sysrepo sessions */
 
     struct ly_ctx *ly_ctx;         /**< libyang's context */
 

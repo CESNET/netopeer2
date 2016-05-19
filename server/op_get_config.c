@@ -578,39 +578,41 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     struct lyd_node *root = NULL, *node, *yang_lib = NULL;
     struct lyd_attr *attr;
     char **filters = NULL, buf[21], *path, *data = NULL;
-    int rc, filter_count = 0, config_only;
+    int rc, filter_count = 0;
+    unsigned int config_only;
     uint32_t i, j;
     struct lyxml_elem *subtree_filter;
-    struct np2sr_sessions *sessions;
+    struct np2_sessions *sessions;
     struct ly_set *nodeset;
-    sr_session_ctx_t *ds;
+    sr_datastore_t ds;
     struct nc_server_error *e;
     NC_WD_MODE nc_wd;
 
     /* get sysrepo connections for this session */
-    sessions = (struct np2sr_sessions *)nc_session_get_data(ncs);
+    sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
     /* get know which datastore is being affected */
     if (!strcmp(rpc->schema->name, "get")) {
         config_only = 0;
-        ds = sessions->running;
+        ds = SR_DS_RUNNING;
     } else { /* get-config */
-        config_only = 1;
+        config_only = SR_SESS_CONFIG_ONLY;
         nodeset = lyd_get_node(rpc, "/ietf-netconf:get-config/source/*");
         if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
-            ds = sessions->running_config;
+            ds = SR_DS_RUNNING;
         } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
-            ds = sessions->startup;
+            ds = SR_DS_STARTUP;
         } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
-            ds = sessions->candidate;
-        } else {
-            ERR("Invalid <get-config> source (%s)", nodeset->set.d[0]->schema->name);
-            ly_set_free(nodeset);
-            goto error;
+            ds = SR_DS_CANDIDATE;
         }
         /* TODO URL capability */
 
         ly_set_free(nodeset);
+    }
+    if (ds != sessions->ds || (sessions->opts & SR_SESS_CONFIG_ONLY) != config_only) {
+        /* update sysrepo session */
+        sr_session_switch_ds(sessions->srs, ds);
+        /* TODO reflect config status */
     }
 
     /* create filters */
@@ -718,7 +720,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     ly_set_free(nodeset);
 
     /* refresh sysrepo data */
-    if (sr_session_refresh(ds) != SR_ERR_OK) {
+    if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
         goto error;
     }
 
@@ -754,7 +756,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             continue;
         }
 
-        rc = sr_get_items(ds, filters[i], &values, &value_count);
+        rc = sr_get_items(sessions->srs, filters[i], &values, &value_count);
         if ((rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_NOT_FOUND)) {
             /* skip internal modules not known to sysrepo and modules without data */
             continue;
@@ -793,7 +795,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             }
 
             /* create the full subtree */
-            if (opget_build_subtree_from_sysrepo(ds, root, values[j].xpath, nc_wd)) {
+            if (opget_build_subtree_from_sysrepo(sessions->srs, root, values[j].xpath, nc_wd)) {
                 goto error;
             }
         }

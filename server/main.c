@@ -120,7 +120,7 @@ signal_handler(int sig)
     }
 }
 
-char *
+static char *
 np2srv_ly_module_clb(const char *name, const char *revision, void *user_data, LYS_INFORMAT *format,
                      void (**free_module_data)(void *model_data))
 {
@@ -128,10 +128,10 @@ np2srv_ly_module_clb(const char *name, const char *revision, void *user_data, LY
 
     *free_module_data = NULL;
     *format = LYS_IN_YIN;
-    if (sr_get_schema(np2srv.sr_sess.startup, name, revision, NULL, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
+    if (sr_get_schema(np2srv.sr_sess.srs, name, revision, NULL, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
         /* import */
         return data;
-    } else if (sr_get_schema(np2srv.sr_sess.startup, (const char *)user_data, revision, name,
+    } else if (sr_get_schema(np2srv.sr_sess.srs, (const char *)user_data, revision, name,
                              SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
         /* include */
         return data;
@@ -161,23 +161,16 @@ server_init(void)
     VRB("Netopeer2 connected to sysrepod.");
 
     /* start internal sessions with sysrepo */
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, SR_SESS_DEFAULT, &np2srv.sr_sess.running);
+    np2srv.sr_sess.ds = SR_DS_STARTUP;
+    np2srv.sr_sess.opts = SR_SESS_DEFAULT;
+    rc = sr_session_start(np2srv.sr_conn, np2srv.sr_sess.ds, np2srv.sr_sess.opts, &np2srv.sr_sess.srs);
     if (rc != SR_ERR_OK) {
-        ERR("Unable to create Netopeer session to sysrepod (%s).", sr_strerror(rc));
+        ERR("Unable to create Netopeer session with sysrepod (%s).", sr_strerror(rc));
         return EXIT_FAILURE;
     }
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_STARTUP, SR_SESS_CONFIG_ONLY, &np2srv.sr_sess.startup);
-    if (rc != SR_ERR_OK) {
-        VRB("Startup datastore not available in sysrepod (%s).", sr_strerror(rc));
-    }
-    /* TODO sysrepo does not support candidate
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_CANDIDATE, &np2srv.sr_sess.candidate);
-    if (rc != SR_ERR_OK) {
-        VRB("Candidate datastore not available in sysrepod (%s).", sr_strerror(rc));
-    }
-    */
 
-    rc = sr_list_schemas(np2srv.sr_sess.startup, &schemas, &count);
+    /* get the list of schemas from sysrepo */
+    rc = sr_list_schemas(np2srv.sr_sess.srs, &schemas, &count);
     if (rc != SR_ERR_OK) {
         ERR("Unable to get list of schemas supported by sysrepo (%s).", sr_strerror(rc));
         return EXIT_FAILURE;
@@ -189,7 +182,7 @@ server_init(void)
         return EXIT_FAILURE;
     }
 
-    /* 1) with modules from sysrepo */
+    /* 1) use modules from sysrepo */
     for (i = 0; i < count; i++) {
         ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_module_clb, (void*)schemas[i].module_name);
         data = NULL;
@@ -198,7 +191,7 @@ server_init(void)
         if ((mod = ly_ctx_get_module(np2srv.ly_ctx, schemas[i].module_name, schemas[i].revision.revision))) {
             VRB("Module %s (%s) already present in context.", schemas[i].module_name,
                 schemas[i].revision.revision ? schemas[i].revision.revision : "no revision");
-        } else if (sr_get_schema(np2srv.sr_sess.running, schemas[i].module_name,
+        } else if (sr_get_schema(np2srv.sr_sess.srs, schemas[i].module_name,
                                  schemas[i].revision.revision, NULL, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
             mod = lys_parse_mem(np2srv.ly_ctx, data, LYS_IN_YIN);
             free(data);
@@ -218,16 +211,12 @@ server_init(void)
     }
     sr_free_schemas(schemas, count);
 
-    /* 2) internally used schemas: ietf-netconf with ietf-netconf-acm, */
+    /* 2) add internally used schemas: ietf-netconf with ietf-netconf-acm, */
     lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_acm_yin, LYS_IN_YIN);
     mod = lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_2011_06_01_yin, LYS_IN_YIN);
     lys_features_enable(mod, "writable-running");
-    if (np2srv.sr_sess.startup) {
-        lys_features_enable(mod, "startup");
-    }
-    if (np2srv.sr_sess.candidate) {
-        lys_features_enable(mod, "candidate");
-    }
+    lys_features_enable(mod, "startup");
+    lys_features_enable(mod, "candidate");
 
     /* ietf-netconf-monitoring (leave get-schema RPC empty, libnetconf2 will use its callback), */
     lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_monitoring_yin, LYS_IN_YIN);
@@ -291,7 +280,8 @@ server_init(void)
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:validate");
     lys_set_private(snode, op_validate);*/
 
-    /* set SSH server options */
+    /* set SSH server options
+     * TODO - implement server config with YANG configuration data */
     nc_server_ssh_add_endpt_listen("main", "0.0.0.0", 6001);
     nc_server_ssh_endpt_set_hostkey("main", "/etc/ssh/ssh_host_rsa_key");
 
@@ -319,24 +309,13 @@ np2srv_clean_dslock(struct nc_session *ncs)
 void
 free_ds(void *ptr)
 {
-    struct np2sr_sessions *s;
+    struct np2_sessions *s;
 
     if (ptr) {
-        s = (struct np2sr_sessions *)ptr;
-        if (s->running) {
-            sr_session_stop(s->running);
+        s = (struct np2_sessions *)ptr;
+        if (s->srs) {
+            sr_session_stop(s->srs);
         }
-        if (s->running_config) {
-            sr_session_stop(s->running_config);
-        }
-        if (s->startup) {
-            sr_session_stop(s->startup);
-        }
-        /* TODO sysrepo does not support candidate
-        if (s->candidate) {
-            sr_session_stop(s->candidate);
-        }
-        */
         np2srv_clean_dslock(s->ncs);
         free(s);
     }
@@ -345,7 +324,7 @@ free_ds(void *ptr)
 static int
 connect_ds(struct nc_session *ncs)
 {
-    struct np2sr_sessions *s;
+    struct np2_sessions *s;
     int rc;
 
     if (!ncs) {
@@ -358,37 +337,14 @@ connect_ds(struct nc_session *ncs)
         return EXIT_FAILURE;
     }
     s->ncs = ncs;
-
-    rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_RUNNING, SR_SESS_DEFAULT, &s->running);
+    s->ds = SR_DS_RUNNING;
+    s->opts = SR_SESS_DEFAULT;
+    rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), s->ds, s->opts, &s->srs);
     if (rc != SR_ERR_OK) {
-        ERR("Unable to create sysrepo running session for NETCONF session %d (%s).",
-            nc_session_get_id(ncs), sr_strerror(rc));
+        ERR("Unable to create sysrepo session for NETCONF session %d (%s; datastore %d; options %d).",
+            nc_session_get_id(ncs), sr_strerror(rc), s->ds, s->opts);
         goto error;
     }
-    rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_RUNNING, SR_SESS_CONFIG_ONLY, &s->running_config);
-    if (rc != SR_ERR_OK) {
-        ERR("Unable to create sysrepo running config session for NETCONF session %d (%s).",
-            nc_session_get_id(ncs), sr_strerror(rc));
-        goto error;
-    }
-    if (np2srv.sr_sess.startup) {
-        rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_STARTUP, SR_SESS_CONFIG_ONLY, &s->startup);
-        if (rc != SR_ERR_OK) {
-            ERR("Unable to create sysrepo startup session for NETCONF session %d (%s).",
-                nc_session_get_id(ncs), sr_strerror(rc));
-            goto error;
-        }
-    }
-    /* TODO sysrepo does not support candidate
-    if (np2srv.sr_sess.candidate) {
-        rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_CANDIDATE, &s->candidate);
-        if (rc != SR_ERR_OK) {
-            ERR("Unable to create sysrepo candidate session for NETCONF session %d (%s).",
-                nc_session_get_id(ncs), sr_strerror(rc));
-            goto error;
-        }
-    }
-    */
 
     /* connect sysrepo sessions (datastore) with NETCONF session */
     nc_session_set_data(ncs, s);
@@ -396,21 +352,9 @@ connect_ds(struct nc_session *ncs)
     return EXIT_SUCCESS;
 
 error:
-    if (s->running) {
-        sr_session_stop(s->running);
+    if (s->srs) {
+        sr_session_stop(s->srs);
     }
-    if (s->running_config) {
-        sr_session_stop(s->running_config);
-    }
-    if (s->startup) {
-        sr_session_stop(s->startup);
-    }
-    /* TODO sysrepo does not support candidate
-    if (s->candidate) {
-        sr_session_stop(s->candidate);
-    }
-    */
-
     free(s);
     return EXIT_FAILURE;
 }
@@ -572,17 +516,9 @@ restart:
 cleanup:
 
     /* disconnect from sysrepo */
-    if (np2srv.sr_sess.running) {
-        sr_session_stop(np2srv.sr_sess.running);
+    if (np2srv.sr_sess.srs) {
+        sr_session_stop(np2srv.sr_sess.srs);
     }
-    if (np2srv.sr_sess.startup) {
-        sr_session_stop(np2srv.sr_sess.startup);
-    }
-    /* TODO sysrepo does not support candidate
-    if (np2srv.sr_sess.candidate) {
-        sr_session_stop(np2srv.sr_sess.candidate);
-    }
-    */
     sr_disconnect(np2srv.sr_conn);
 
     /* libnetconf2 cleanup */

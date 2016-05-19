@@ -31,8 +31,8 @@
 struct nc_server_reply *
 op_lock(struct lyd_node *rpc, struct nc_session *ncs)
 {
-    struct np2sr_sessions *sessions;
-    sr_session_ctx_t *ds = NULL;
+    struct np2_sessions *sessions;
+    sr_datastore_t ds = 0;
     struct nc_session **dsl = NULL;
     struct ly_set *nodeset;
     struct nc_server_error *e;
@@ -40,7 +40,7 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
     int rc;
 
     /* get sysrepo connections for this session */
-    sessions = (struct np2sr_sessions *)nc_session_get_data(ncs);
+    sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
     /* get know which datastore is being affected */
     nodeset = lyd_get_node(rpc, "/ietf-netconf:lock/target/*");
@@ -49,16 +49,19 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
 
     if (!strcmp(dsname, "running")) {
         /* TODO additional requirements in case of supporting confirmed-commit */
-        ds = sessions->running;
+        ds = SR_DS_RUNNING;
         dsl = &dslock.running;
     } else if (!strcmp(dsname, "startup")) {
-        ds = sessions->startup;
+        ds = SR_DS_STARTUP;
         dsl = &dslock.startup;
-    /* TODO sysrepo does not support candidate, RFC 6020 has some addition requirements here
     } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
-        ds = sessions->candidate;
+        /* TODO RFC 6020 has some addition requirements here */
+        ds = SR_DS_CANDIDATE;
         dsl = &dslock.candidate;
-    */
+    }
+    if (ds != sessions->ds) {
+        /* update sysrepo session */
+        sr_session_switch_ds(sessions->srs, ds);
     }
 
     pthread_rwlock_rdlock(&dslock_rwl);
@@ -80,7 +83,7 @@ lock_held:
         goto lock_held;
     }
 
-    rc = sr_lock_datastore(ds);
+    rc = sr_lock_datastore(sessions->srs);
     if (rc != SR_ERR_OK) {
         /* lock is held outside Netopeer */
         pthread_rwlock_unlock(&dslock_rwl);
@@ -102,8 +105,8 @@ lock_held:
 struct nc_server_reply *
 op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
 {
-    struct np2sr_sessions *sessions;
-    sr_session_ctx_t *ds = NULL;
+    struct np2_sessions *sessions;
+    sr_datastore_t ds = 0;
     struct nc_session **dsl = NULL;
     struct ly_set *nodeset;
     const char *dsname;
@@ -111,7 +114,7 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
     int rc;
 
     /* get sysrepo connections for this session */
-    sessions = (struct np2sr_sessions *)nc_session_get_data(ncs);
+    sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
     /* get know which datastore is being affected */
     nodeset = lyd_get_node(rpc, "/ietf-netconf:unlock/target/*");
@@ -119,16 +122,18 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
     ly_set_free(nodeset);
 
     if (!strcmp(dsname, "running")) {
-        ds = sessions->running;
+        ds = SR_DS_RUNNING;
         dsl = &dslock.running;
     } else if (!strcmp(dsname, "startup")) {
-        ds = sessions->startup;
+        ds = SR_DS_STARTUP;
         dsl = &dslock.startup;
-    /* TODO sysrepo does not support candidate
     } else if (!strcmp(dsname, "candidate")) {
-        ds = sessions->candidate;
+        ds = SR_DS_CANDIDATE;
         dsl = &dslock.candidate;
-    */
+    }
+    if (ds != sessions->ds) {
+        /* update sysrepo session */
+        sr_session_switch_ds(sessions->srs, ds);
     }
 
     pthread_rwlock_rdlock(&dslock_rwl);
@@ -155,7 +160,7 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
     pthread_rwlock_unlock(&dslock_rwl);
     pthread_rwlock_wrlock(&dslock_rwl);
 
-    rc = sr_unlock_datastore(ds);
+    rc = sr_unlock_datastore(sessions->srs);
     if (rc != SR_ERR_OK) {
         /* lock is held outside Netopeer */
         pthread_rwlock_unlock(&dslock_rwl);

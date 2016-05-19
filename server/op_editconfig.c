@@ -207,8 +207,8 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 {
     struct nc_server_error *e = NULL;
     struct nc_server_reply *ereply = NULL;
-    struct np2sr_sessions *sessions;
-    sr_session_ctx_t *ds = NULL;
+    struct np2_sessions *sessions;
+    sr_datastore_t ds = 0;
     sr_move_position_t pos = SR_MOVE_LAST;
     sr_val_t value_, *value = NULL;
     struct ly_set *nodeset;
@@ -231,7 +231,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     path[path_index] = '\0';
 
     /* get sysrepo connections for this session */
-    sessions = (struct np2sr_sessions *)nc_session_get_data(ncs);
+    sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
     /*
      * parse parameters
@@ -243,13 +243,16 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     ly_set_free(nodeset);
 
     if (!strcmp(cstr, "running")) {
-        ds = sessions->running;
-    /* TODO sysrepo does not support candidate
-    } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
-        ds = sessions->candidate;
-    */
+        ds = SR_DS_RUNNING;
+    } else if (!strcmp(cstr, "candidate")) {
+        ds = SR_DS_CANDIDATE;
     }
     /* edit-config on startup is not allowed by RFC 6241 */
+    if (ds != sessions->ds || !(sessions->opts & SR_SESS_CONFIG_ONLY)) {
+        /* update sysrepo session */
+        sr_session_switch_ds(sessions->srs, ds);
+        /* TODO reflect config status */
+    }
 
     /* default-operation */
     nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/default-operation");
@@ -314,14 +317,12 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     lyd_print_mem(&str, config, LYD_XML, LYP_WITHSIBLINGS | LYP_FORMAT);
-    VRB("EDIT-CONFIG: ds %d, defop %d, testopt %d, config:\n%s", ds, defop, testopt, str);
+    VRB("EDIT-CONFIG: ds %d, defop %d, testopt %d, config:\n%s", sessions->srs, defop, testopt, str);
     free(str);
 
-    if (ds != sessions->candidate || !(sessions->flags & NP2SRV_CAND_MODIFIED)) {
-        /* update data from sysrepo */
-        if (sr_session_refresh(ds) != SR_ERR_OK) {
-            goto internalerror;
-        }
+    /* update data from sysrepo */
+    if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
+        goto internalerror;
     }
 
     /*
@@ -432,19 +433,19 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         case NP2_EDIT_MERGE:
         case NP2_EDIT_REPLACE:
             /* create the node */
-            ret = sr_set_item(ds, path, value, 0);
+            ret = sr_set_item(sessions->srs, path, value, 0);
             break;
         case NP2_EDIT_CREATE:
             /* create the node, but it must not exists */
-            ret = sr_set_item(ds, path, value, SR_EDIT_STRICT);
+            ret = sr_set_item(sessions->srs, path, value, SR_EDIT_STRICT);
             break;
         case NP2_EDIT_DELETE:
             /* remove the node, but it must exists */
-            ret = sr_delete_item(ds, path, SR_EDIT_STRICT);
+            ret = sr_delete_item(sessions->srs, path, SR_EDIT_STRICT);
             break;
         case NP2_EDIT_REMOVE:
             /* remove the node */
-            ret = sr_delete_item(ds, path, 0);
+            ret = sr_delete_item(sessions->srs, path, 0);
             break;
         default:
             /* do nothing */
@@ -457,9 +458,6 @@ resultcheck:
         switch (ret) {
         case SR_ERR_OK:
             VRB("EDIT_CONFIG: success (%s)", path);
-            if (ds == sessions->candidate) {
-                sessions->flags |= NP2SRV_CAND_MODIFIED;
-            }
             /* no break */
         case -1:
             /* do nothing */
@@ -493,20 +491,18 @@ resultcheck:
                 goto dfs_nextsibling;
             case NP2_EDIT_ERROPT_ROLLBACK:
                 VRB("EDIT-CONFIG: rollback-on-error (%s).", nc_err_get_msg(e));
-                sr_discard_changes(ds);
+                sr_discard_changes(sessions->srs);
                 goto cleanup;
             case NP2_EDIT_ERROPT_STOP:
                 VRB("EDIT-CONFIG: stop-on-error (%s).", nc_err_get_msg(e));
-                if (ds != sessions->candidate) {
-                    sr_commit(ds);
-                }
+                sr_commit(sessions->srs);
                 goto cleanup;
             }
         }
 
         /* move user-ordered list/leaflist */
         if (pos != SR_MOVE_LAST) {
-            ret = sr_move_item(ds, path, pos, rel);
+            ret = sr_move_item(sessions->srs, path, pos, rel);
             free(rel);
             pos = SR_MOVE_LAST;
             goto resultcheck;
@@ -575,12 +571,10 @@ cleanup:
         /* send error reply */
         goto errorreply;
     } else {
-        if (ds != sessions->candidate) {
-            /* commit the result */
-            if (sr_commit(ds) != SR_ERR_OK) {
-                goto internalerror;
-            }
-        } /* in case of candidate, it is applied by an explicit commit operation */
+        /* commit the result */
+        if (sr_commit(sessions->srs) != SR_ERR_OK) {
+            goto internalerror;
+        }
 
         /* build positive RPC Reply */
         VRB("EDIT-CONFIG: done.");
@@ -594,7 +588,7 @@ internalerror:
     /* fatal error, so continue-on-error does not apply here,
      * instead we rollback */
     VRB("EDIT-CONFIG: fatal error, rolling back.");
-    sr_discard_changes(ds);
+    sr_discard_changes(sessions->srs);
 
     free(op);
     lyd_free_withsiblings(config);
