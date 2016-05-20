@@ -54,7 +54,7 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
     } else if (!strcmp(dsname, "startup")) {
         ds = SR_DS_STARTUP;
         dsl = &dslock.startup;
-    } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
+    } else if (!strcmp(dsname, "candidate")) {
         /* TODO RFC 6020 has some addition requirements here */
         ds = SR_DS_CANDIDATE;
         dsl = &dslock.candidate;
