@@ -60,7 +60,7 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node *root, co
         }
 
         node = lyd_new_path(root, np2srv.ly_ctx, value->xpath,
-                            op_get_srval_value(np2srv.ly_ctx, value, buf), LYD_PATH_OPT_UPDATE);
+                            op_get_srval(np2srv.ly_ctx, value, buf), LYD_PATH_OPT_UPDATE);
         sr_free_val(value);
         if (ly_errno) {
             sr_free_val_iter(iter);
@@ -774,7 +774,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             /* create subtree root */
             ly_errno = LY_SUCCESS;
             node = lyd_new_path(root, np2srv.ly_ctx, values[j].xpath,
-                                op_get_srval_value(np2srv.ly_ctx, &values[j], buf), LYD_PATH_OPT_UPDATE);
+                                op_get_srval(np2srv.ly_ctx, &values[j], buf), LYD_PATH_OPT_UPDATE);
             if (ly_errno) {
                 goto error;
             }

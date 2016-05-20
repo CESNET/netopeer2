@@ -29,169 +29,6 @@
 #include "operations.h"
 
 static int
-copy_bits(const struct lyd_node_leaf_list *leaf, char **dest)
-{
-    int i;
-    struct lys_node_leaf *sch = (struct lys_node_leaf *) leaf->schema;
-    char *bits_str = NULL;
-    int bits_count = sch->type.info.bits.count;
-    struct lys_type_bit **bits = leaf->value.bit;
-
-    size_t length = 1; /* terminating NULL byte*/
-    for (i = 0; i < bits_count; i++) {
-        if (NULL != bits[i] && NULL != bits[i]->name) {
-            length += strlen(bits[i]->name);
-            length++; /*space after bit*/
-        }
-    }
-    bits_str = calloc(length, sizeof(*bits_str));
-    if (NULL == bits_str) {
-        EMEM;
-        return -1;
-    }
-    size_t offset = 0;
-    for (i = 0; i < bits_count; i++) {
-        if (NULL != bits[i] && NULL != bits[i]->name) {
-            strcpy(bits_str + offset, bits[i]->name);
-            offset += strlen(bits[i]->name);
-            bits_str[offset] = ' ';
-            offset++;
-        }
-    }
-    if (0 != offset) {
-        bits_str[offset - 1] = '\0';
-    }
-
-    *dest = bits_str;
-    return 0;
-}
-
-static int
-create_sr_value(struct lyd_node *node, sr_val_t *val)
-{
-    uint32_t i;
-    struct lyd_node_leaf_list *leaf;
-
-    val->xpath = lyd_path(node);
-    val->dflt = 0;
-    val->data.int64_val = 0;
-
-    switch (node->schema->nodetype) {
-    case LYS_CONTAINER:
-        val->type = ((struct lys_node_container *)node->schema)->presence ? SR_CONTAINER_PRESENCE_T : SR_CONTAINER_T;
-        break;
-    case LYS_LIST:
-        val->type = SR_LIST_T;
-        break;
-    case LYS_LEAF:
-    case LYS_LEAFLIST:
-        leaf = (struct lyd_node_leaf_list *)node;
-
-        switch (((struct lys_node_leaf *)node->schema)->type.base) {
-        case LY_TYPE_BINARY:
-            val->type = SR_BINARY_T;
-            val->data.binary_val = strdup(leaf->value.binary);
-            if (NULL == val->data.binary_val) {
-                EMEM;
-                return -1;
-            }
-            break;
-        case LY_TYPE_BITS:
-            val->type = SR_BITS_T;
-            if (copy_bits(leaf, &(val->data.bits_val))) {
-                ERR("Copy value failed for leaf '%s' of type 'bits'", leaf->schema->name);
-                return -1;
-            }
-            break;
-        case LY_TYPE_BOOL:
-            val->type = SR_BOOL_T;
-            val->data.bool_val = leaf->value.bln;
-            break;
-        case LY_TYPE_DEC64:
-            val->type = SR_DECIMAL64_T;
-            val->data.decimal64_val = (double)leaf->value.dec64;
-            for (i = 0; i < ((struct lys_node_leaf *)node->schema)->type.info.dec64.dig; i++) {
-                /* shift decimal point */
-                val->data.decimal64_val *= 0.1;
-            }
-            break;
-        case LY_TYPE_EMPTY:
-            val->type = SR_LEAF_EMPTY_T;
-            break;
-        case LY_TYPE_ENUM:
-            val->type = SR_ENUM_T;
-            val->data.enum_val = strdup(leaf->value.enm->name);
-            if (NULL == val->data.enum_val) {
-                EMEM;
-                return -1;
-            }
-            break;
-        case LY_TYPE_IDENT:
-            val->type = SR_IDENTITYREF_T;
-            val->data.identityref_val = strdup(leaf->value.ident->name);
-            if (NULL == val->data.identityref_val) {
-                EMEM;
-                return -1;
-            }
-            break;
-        case LY_TYPE_INST:
-            val->type = SR_INSTANCEID_T;
-            break;
-        case LY_TYPE_STRING:
-            val->type = SR_STRING_T;
-            val->data.string_val = strdup(leaf->value.string);
-            if (NULL == val->data.string_val) {
-                EMEM;
-                return -1;
-            }
-            break;
-        case LY_TYPE_INT8:
-            val->type = SR_INT8_T;
-            val->data.int8_val = leaf->value.int8;
-            break;
-        case LY_TYPE_UINT8:
-            val->type = SR_UINT8_T;
-            val->data.uint8_val = leaf->value.uint8;
-            break;
-        case LY_TYPE_INT16:
-            val->type = SR_INT16_T;
-            val->data.int16_val = leaf->value.int16;
-            break;
-        case LY_TYPE_UINT16:
-            val->type = SR_UINT16_T;
-            val->data.uint16_val = leaf->value.uint16;
-            break;
-        case LY_TYPE_INT32:
-            val->type = SR_INT32_T;
-            val->data.int32_val = leaf->value.int32;
-            break;
-        case LY_TYPE_UINT32:
-            val->type = SR_UINT32_T;
-            val->data.uint32_val = leaf->value.uint32;
-            break;
-        case LY_TYPE_INT64:
-            val->type = SR_INT64_T;
-            val->data.int64_val = leaf->value.int64;
-            break;
-        case LY_TYPE_UINT64:
-            val->type = SR_UINT64_T;
-            val->data.uint64_val = leaf->value.uint64;
-            break;
-        default:
-            //LY_LEAFREF, LY_DERIVED, LY_UNION
-            val->type = SR_UNKNOWN_T;
-            break;
-        }
-        break;
-    default:
-        val->type = SR_UNKNOWN_T;
-        break;
-    }
-
-    return 0;
-}
-
-static int
 build_rpc_from_output(struct lyd_node *rpc, sr_val_t *output, size_t out_count, NC_WD_MODE wd)
 {
     struct lyd_node *node;
@@ -206,7 +43,7 @@ build_rpc_from_output(struct lyd_node *rpc, sr_val_t *output, size_t out_count, 
             continue;
         }
 
-        node = lyd_new_path(rpc, np2srv.ly_ctx, output[i].xpath, op_get_srval_value(np2srv.ly_ctx, &output[i], buf),
+        node = lyd_new_path(rpc, np2srv.ly_ctx, output[i].xpath, op_get_srval(np2srv.ly_ctx, &output[i], buf),
                             LYD_PATH_OPT_UPDATE | LYD_PATH_OPT_OUTPUT);
         if (ly_errno) {
             return -1;
@@ -264,7 +101,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
             goto error;
         }
         for (i = 0; i < in_count; ++i) {
-            if (create_sr_value(set->set.d[i + 1], &input[i])) {
+            if (op_set_srval(set->set.d[i + 1], lyd_path(set->set.d[i + 1]), 1, &input[i])) {
                 goto error;
             }
         }

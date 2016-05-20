@@ -54,7 +54,18 @@ enum NP2_EDIT_OP {
     NP2_EDIT_REMOVE
 };
 
-char *op_get_srval_value(struct ly_ctx *ctx, sr_val_t *value, char *buf);
+char *op_get_srval(struct ly_ctx *ctx, sr_val_t *value, char *buf);
+
+/**
+ * @brief Fill sr_val_t for communication with sysrepo
+ *
+ * @param[in] node Node from which the value is filled
+ * @param[in] path Node's path, NULL value is not invalid since sysrepo allows NULL
+ *                 path in sr_val_t for specific use.
+ * @param[in] dup Flag if the \p path and values from \p node are supposed to be duplicated into \p value.
+ * @param[in,out] val Pointer to the structure to fill.
+ */
+int op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val);
 
 /* return: -1 = discard, 0 = keep, 1 = keep and add the attribute */
 int op_dflt_data_inspect(struct ly_ctx *ctx, sr_val_t *value, NC_WD_MODE wd);

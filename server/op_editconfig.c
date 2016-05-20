@@ -108,100 +108,6 @@ edit_get_move(struct lyd_node *node, const char *path, sr_move_position_t *pos, 
     return EXIT_SUCCESS;
 }
 
-static void
-edit_set_value(struct lyd_node_leaf_list *leaf, sr_val_t *value)
-{
-    int i;
-    uint8_t dig;
-    int64_t shift = 10;
-    sr_type_t map_ly2sr[] = {
-        SR_BINARY_T,      /* LY_TYPE_BINARY */
-        SR_BITS_T,        /* LY_TYPE_BITS */
-        SR_BOOL_T,        /* LY_TYPE_BOOL */
-        SR_DECIMAL64_T,   /*LY_TYPE_DEC64 */
-        SR_LEAF_EMPTY_T,  /* LY_TYPE_EMPTY */
-        SR_ENUM_T,        /* LY_TYPE_ENUM */
-        SR_IDENTITYREF_T, /* LY_TYPE_IDENT */
-        SR_INSTANCEID_T,  /* LY_TYPE_INST */
-        SR_LEAFREF_T,     /* LY_TYPE_LEAFREF */
-        SR_STRING_T,      /* LY_TYPE_STRING */
-        SR_UNION_T,       /* LY_TYPE_UNION */
-        SR_INT8_T,        /* LY_TYPE_INT8 */
-        SR_UINT8_T,       /* LY_TYPE_UINT8 */
-        SR_INT16_T,       /* LY_TYPE_INT16 */
-        SR_UINT16_T,      /* LY_TYPE_UINT16 */
-        SR_INT32_T,       /* LY_TYPE_INT32 */
-        SR_UINT32_T,      /* LY_TYPE_UINT32 */
-        SR_INT64_T,       /* LY_TYPE_INT64 */
-        SR_UINT64_T       /* LY_TYPE_UINT64 */
-    };
-
-    assert(leaf && value);
-
-    memset(value, 0, sizeof *value);
-    value->type = map_ly2sr[leaf->value_type - 1];
-    switch(leaf->value_type) {
-    case LY_TYPE_BINARY:
-    case LY_TYPE_BITS:
-    case LY_TYPE_ENUM:
-    case LY_TYPE_IDENT:
-    case LY_TYPE_INST:
-    case LY_TYPE_LEAFREF:
-    case LY_TYPE_STRING:
-        value->data.string_val = (char*)leaf->value.string;
-        VRB("EDIT_CONFIG: type string (%d), value %s", leaf->value_type, value->data.string_val);
-        break;
-    case LY_TYPE_BOOL:
-        value->data.bool_val = leaf->value.bln ? true : false;
-        VRB("EDIT_CONFIG: type bool, value %d", value->data.bool_val);
-        break;
-    case LY_TYPE_DEC64:
-        /* value = dec64 / 10^fraction-digits */
-        dig = ((struct lys_node_leaf *)leaf->schema)->type.info.dec64.dig;
-        for (i = 1; i < dig ; i++) {
-            shift *= 10;
-        }
-        value->data.decimal64_val = leaf->value.dec64 / shift;
-        VRB("EDIT_CONFIG: type dec64, value %f", value->data.decimal64_val);
-        break;
-    case LY_TYPE_INT8:
-        value->data.int8_val = leaf->value.int8;
-        VRB("EDIT_CONFIG: type int8, value %d", value->data.int8_val);
-        break;
-    case LY_TYPE_UINT8:
-        value->data.uint8_val = leaf->value.uint8;
-        VRB("EDIT_CONFIG: type uint8, value %u", value->data.uint8_val);
-        break;
-    case LY_TYPE_INT16:
-        value->data.int16_val = leaf->value.int16;
-        VRB("EDIT_CONFIG: type int16, value %d", value->data.int16_val);
-        break;
-    case LY_TYPE_UINT16:
-        value->data.uint16_val = leaf->value.uint16;
-        VRB("EDIT_CONFIG: type uint16, value %u", value->data.uint16_val);
-        break;
-    case LY_TYPE_INT32:
-        value->data.int32_val = leaf->value.int32;
-        VRB("EDIT_CONFIG: type int32, value %d", value->data.int32_val);
-        break;
-    case LY_TYPE_UINT32:
-        value->data.uint32_val = leaf->value.uint32;
-        VRB("EDIT_CONFIG: type uint32, value %u", value->data.uint32_val);
-        break;
-    case LY_TYPE_INT64:
-        value->data.int64_val = leaf->value.int64;
-        VRB("EDIT_CONFIG: type int32, value %ld", value->data.int32_val);
-        break;
-    case LY_TYPE_UINT64:
-        value->data.uint64_val = leaf->value.uint64;
-        VRB("EDIT_CONFIG: type uint64, value %lu", value->data.uint64_val);
-        break;
-    default:
-        /* empty */
-        break;
-    }
-}
-
 struct nc_server_reply *
 op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 {
@@ -210,7 +116,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     struct np2_sessions *sessions;
     sr_datastore_t ds = 0;
     sr_move_position_t pos = SR_MOVE_LAST;
-    sr_val_t value_, *value = NULL;
+    sr_val_t value;
     struct ly_set *nodeset;
     /* default value for default-operation is "merge" */
     enum NP2_EDIT_DEFOP defop = NP2_EDIT_DEFOP_MERGE;
@@ -357,6 +263,9 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 /* without prefix */
                 path_index += sprintf(&path[path_index], "/%s", iter->schema->name);
             }
+
+            /* erase value */
+            memset(&value, 0, sizeof value);
         }
 
         /* specific work for different node types */
@@ -371,6 +280,10 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             }
 
             VRB("EDIT_CONFIG: presence container %s, operation %d", path, op[op_index]);
+
+            /* set value for sysrepo */
+            op_set_srval(iter, NULL, 0, &value);
+
             break;
         case LYS_LEAF:
             if (missing_keys) {
@@ -391,9 +304,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             VRB("EDIT_CONFIG: leaf %s, operation %d", path, op[op_index]);
 
             /* set value for sysrepo */
-            value = &value_;
-            edit_set_value((struct lyd_node_leaf_list *)iter, value);
-
+            op_set_srval(iter, NULL, 0, &value);
 
             break;
         case LYS_LEAFLIST:
@@ -408,8 +319,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             }
 
             /* set value for sysrepo */
-            value = &value_;
-            edit_set_value((struct lyd_node_leaf_list *)iter, value);
+            op_set_srval(iter, NULL, 0, &value);
 
             break;
         case LYS_LIST:
@@ -418,10 +328,16 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 goto internalerror;
             }
 
+            /* set value for sysrepo, it will be used as soon as all the keys are processed */
+            op_set_srval(iter, NULL, 0, &value);
+
             /* the creation must be finished later when we get know keys */
             missing_keys = ((struct lys_node_list *)iter->schema)->keys_size;
             goto dfs_continue;
         case LYS_ANYXML:
+            /* set value for sysrepo */
+            op_set_srval(iter, NULL, 0, &value);
+
             break;
         default:
             ERR("%s: Invalid node to process", __func__);
@@ -433,11 +349,11 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         case NP2_EDIT_MERGE:
         case NP2_EDIT_REPLACE:
             /* create the node */
-            ret = sr_set_item(sessions->srs, path, value, 0);
+            ret = sr_set_item(sessions->srs, path, &value, 0);
             break;
         case NP2_EDIT_CREATE:
             /* create the node, but it must not exists */
-            ret = sr_set_item(sessions->srs, path, value, SR_EDIT_STRICT);
+            ret = sr_set_item(sessions->srs, path, &value, SR_EDIT_STRICT);
             break;
         case NP2_EDIT_DELETE:
             /* remove the node, but it must exists */
@@ -451,7 +367,6 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             /* do nothing */
             break;
         }
-        value = NULL;
 
 resultcheck:
         /* check the result */
