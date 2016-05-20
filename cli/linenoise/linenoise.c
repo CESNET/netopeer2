@@ -158,7 +158,7 @@ enum KEY_ACTION{
 };
 
 static void linenoiseAtExit(void);
-int linenoiseHistoryAdd(const char *line);
+int linenoiseHistoryAdd(const char *line, void *data);
 
 /* Debugging macro. */
 #if 0
@@ -777,8 +777,13 @@ void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
     if (l->history_len > 1) {
         /* Update the current history entry before to
          * overwrite it with the next one. */
-        free(l->history[l->history_len - 1 - l->history_index]);
-        l->history[l->history_len - 1 - l->history_index] = strdup(l->buf);
+        free(l->history[l->history_len - 1 - l->history_index].line);
+        if (l->hist_data_free) {
+            l->hist_data_free(l->history[l->history_len - 1 - l->history_index].data);
+        }
+
+        l->history[l->history_len - 1 - l->history_index].line = strdup(l->buf);
+        l->history[l->history_len - 1 - l->history_index].data = NULL;
         /* Show the new entry */
         l->history_index += (dir == LINENOISE_HISTORY_PREV) ? 1 : -1;
         if (l->history_index < 0) {
@@ -788,10 +793,22 @@ void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
             l->history_index = l->history_len-1;
             return;
         }
-        strncpy(l->buf,l->history[l->history_len - 1 - l->history_index],l->buflen);
+        strncpy(l->buf,l->history[l->history_len - 1 - l->history_index].line,l->buflen);
         l->buf[l->buflen-1] = '\0';
         l->len = l->pos = strlen(l->buf);
         linenoiseRefreshLine();
+    }
+}
+
+/* Callback used for freeing user history data. */
+void linenoiseHistoryDataFree(void (*hist_data_free)(void *data)) {
+    ls.hist_data_free = hist_data_free;
+}
+
+static void linenoiseHistItemFree(int hist_idx) {
+    free(ls.history[hist_idx].line);
+    if (ls.hist_data_free) {
+        ls.hist_data_free(ls.history[hist_idx].data);
     }
 }
 
@@ -863,7 +880,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
 
     /* The latest history entry is always our current buffer, that
      * initially is just an empty string. */
-    linenoiseHistoryAdd("");
+    linenoiseHistoryAdd("", NULL);
 
     if (write(ls.ofd,prompt,ls.plen) == -1) return -1;
     while(1) {
@@ -888,7 +905,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
         switch(c) {
         case ENTER:    /* enter */
             ls.history_len--;
-            free(ls.history[ls.history_len]);
+            linenoiseHistItemFree(ls.history_len);
             if (mlmode) linenoiseEditMoveEnd(&ls);
             return (int)ls.len;
         case CTRL_C:     /* ctrl-c */
@@ -904,7 +921,7 @@ static int linenoiseEdit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, 
                 linenoiseEditDelete(&ls);
             } else {
                 ls.history_len--;
-                free(ls.history[ls.history_len]);
+                linenoiseHistItemFree(ls.history_len);
                 return -1;
             }
             break;
@@ -1104,10 +1121,11 @@ char *linenoise(const char *prompt) {
  * exit() to avoid memory leaks are reported by valgrind & co. */
 static void freeHistory(void) {
     if (ls.history) {
-        int j;
+        int i;
 
-        for (j = 0; j < ls.history_len; j++)
-            free(ls.history[j]);
+        for (i = 0; i < ls.history_len; i++) {
+            linenoiseHistItemFree(i);
+        }
         free(ls.history);
     }
 }
@@ -1125,31 +1143,38 @@ static void linenoiseAtExit(void) {
  * histories, but will work well for a few hundred of entries.
  *
  * Using a circular buffer is smarter, but a bit more complex to handle. */
-int linenoiseHistoryAdd(const char *line) {
+int linenoiseHistoryAdd(const char *line, void *data) {
     char *linecopy;
 
     if (history_max_len == 0) return 0;
 
     /* Initialization on first call. */
     if (ls.history == NULL) {
-        ls.history = malloc(sizeof(char*)*history_max_len);
+        ls.history = malloc(history_max_len*sizeof *ls.history);
         if (ls.history == NULL) return 0;
-        memset(ls.history,0,(sizeof(char*)*history_max_len));
+        memset(ls.history,0,(history_max_len*sizeof *ls.history));
     }
 
     /* Don't add duplicated lines. */
-    if (ls.history_len && !strcmp(ls.history[ls.history_len-1], line)) return 0;
+    if (ls.history_len && !strcmp(ls.history[ls.history_len-1].line, line)) {
+        if (ls.hist_data_free) {
+            ls.hist_data_free(ls.history[ls.history_len-1].data);
+        }
+        ls.history[ls.history_len-1].data = data;
+        return 0;
+    }
 
     /* Add an heap allocated copy of the line in the history.
      * If we reached the max length, remove the older line. */
     linecopy = strdup(line);
     if (!linecopy) return 0;
     if (ls.history_len == history_max_len) {
-        free(ls.history[0]);
-        memmove(ls.history,ls.history+1,sizeof(char*)*(history_max_len-1));
+        linenoiseHistItemFree(0);
+        memmove(ls.history,ls.history+1,(history_max_len-1)*sizeof *ls.history);
         ls.history_len--;
     }
-    ls.history[ls.history_len] = linecopy;
+    ls.history[ls.history_len].line = linecopy;
+    ls.history[ls.history_len].data = data;
     ls.history_len++;
     return 1;
 }
@@ -1159,24 +1184,24 @@ int linenoiseHistoryAdd(const char *line) {
  * just the latest 'len' elements if the new history length value is smaller
  * than the amount of items already inside the history. */
 int linenoiseHistorySetMaxLen(int len) {
-    char **new;
+    struct linenoiseHistItem *new;
 
     if (len < 1) return 0;
     if (ls.history) {
         int tocopy = ls.history_len;
 
-        new = malloc(sizeof(char*)*len);
+        new = malloc(len*sizeof *new);
         if (new == NULL) return 0;
 
         /* If we can't copy everything, free the elements we'll not use. */
         if (len < tocopy) {
             int j;
 
-            for (j = 0; j < tocopy-len; j++) free(ls.history[j]);
+            for (j = 0; j < tocopy-len; j++) linenoiseHistItemFree(j);
             tocopy = len;
         }
-        memset(new,0,sizeof(char*)*len);
-        memcpy(new,ls.history+(ls.history_len-tocopy), sizeof(char*)*tocopy);
+        memset(new,0,len*sizeof *new);
+        memcpy(new,ls.history+(ls.history_len-tocopy), tocopy*sizeof *ls.history);
         free(ls.history);
         ls.history = new;
     }
@@ -1194,7 +1219,7 @@ int linenoiseHistorySave(const char *filename) {
 
     if (fp == NULL) return -1;
     for (j = 0; j < ls.history_len; j++)
-        fprintf(fp,"%s\n",ls.history[j]);
+        fprintf(fp,"%s\n",ls.history[j].line);
     fclose(fp);
     return 0;
 }
@@ -1216,7 +1241,7 @@ int linenoiseHistoryLoad(const char *filename) {
         p = strchr(buf,'\r');
         if (!p) p = strchr(buf,'\n');
         if (p) *p = '\0';
-        linenoiseHistoryAdd(buf);
+        linenoiseHistoryAdd(buf,NULL);
     }
     fclose(fp);
     return 0;
