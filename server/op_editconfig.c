@@ -273,6 +273,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         /* specific work for different node types */
         ret = -1;
         rel = NULL;
+        lastkey = 0;
         switch(iter->schema->nodetype) {
         case LYS_CONTAINER:
             cont = (struct lys_node_container *)iter->schema;
@@ -297,6 +298,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 if (!missing_keys) {
                     /* the last key, create the list instance */
                     lastkey = 1;
+
                     VRB("EDIT_CONFIG: list %s, operation %d", path, op[op_index]);
                     break;
                 }
@@ -440,7 +442,7 @@ dfs_nextsibling:
             next = iter->next;
 
             /* maintain "stack" variables */
-            if (!missing_keys && !(lastkey--)) {
+            if (!missing_keys && !lastkey) {
                 op_index--;
                 str = strrchr(path, '/');
                 if (str) {
