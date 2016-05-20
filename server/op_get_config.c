@@ -612,6 +612,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     if (ds != sessions->ds || (sessions->opts & SR_SESS_CONFIG_ONLY) != config_only) {
         /* update sysrepo session */
         sr_session_switch_ds(sessions->srs, ds);
+        sessions->ds = ds;
         /* TODO reflect config status */
     }
 
@@ -719,9 +720,12 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     }
     ly_set_free(nodeset);
 
-    /* refresh sysrepo data */
-    if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
-        goto error;
+
+    if (sessions->ds != SR_DS_CANDIDATE) {
+        /* refresh sysrepo data */
+        if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
+            goto error;
+        }
     }
 
     /*

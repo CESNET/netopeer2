@@ -62,6 +62,7 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
     if (ds != sessions->ds) {
         /* update sysrepo session */
         sr_session_switch_ds(sessions->srs, ds);
+        sessions->ds = ds;
     }
 
     pthread_rwlock_rdlock(&dslock_rwl);
@@ -134,6 +135,7 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
     if (ds != sessions->ds) {
         /* update sysrepo session */
         sr_session_switch_ds(sessions->srs, ds);
+        sessions->ds = ds;
     }
 
     pthread_rwlock_rdlock(&dslock_rwl);

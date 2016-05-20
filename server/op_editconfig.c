@@ -154,10 +154,10 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         ds = SR_DS_CANDIDATE;
     }
     /* edit-config on startup is not allowed by RFC 6241 */
-    if (ds != sessions->ds || !(sessions->opts & SR_SESS_CONFIG_ONLY)) {
+    if (ds != sessions->ds) {
         /* update sysrepo session */
         sr_session_switch_ds(sessions->srs, ds);
-        /* TODO reflect config status */
+        sessions->ds = ds;
     }
 
     /* default-operation */
@@ -226,9 +226,11 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     VRB("EDIT-CONFIG: ds %d, defop %d, testopt %d, config:\n%s", sessions->srs, defop, testopt, str);
     free(str);
 
-    /* update data from sysrepo */
-    if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
-        goto internalerror;
+    if (sessions->ds != SR_DS_CANDIDATE) {
+        /* update data from sysrepo */
+        if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
+            goto internalerror;
+        }
     }
 
     /*
@@ -410,7 +412,9 @@ resultcheck:
                 goto cleanup;
             case NP2_EDIT_ERROPT_STOP:
                 VRB("EDIT-CONFIG: stop-on-error (%s).", nc_err_get_msg(e));
-                sr_commit(sessions->srs);
+                if (sessions->ds != SR_DS_CANDIDATE) {
+                    sr_commit(sessions->srs);
+                }
                 goto cleanup;
             }
         }
@@ -487,8 +491,11 @@ cleanup:
         goto errorreply;
     } else {
         /* commit the result */
-        if (sr_commit(sessions->srs) != SR_ERR_OK) {
-            goto internalerror;
+        if (sessions->ds != SR_DS_CANDIDATE) {
+            /* commit in candidate causes copy to running */
+            if (sr_commit(sessions->srs) != SR_ERR_OK) {
+                goto internalerror;
+            }
         }
 
         /* build positive RPC Reply */

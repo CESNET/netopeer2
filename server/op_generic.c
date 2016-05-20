@@ -85,6 +85,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
      * for the sysrepo's subscriber implementing the RPC */
     if (sessions->ds != SR_DS_RUNNING) {
         sr_session_switch_ds(sessions->srs, SR_DS_RUNNING);
+        sessions->ds = SR_DS_RUNNING;
     }
 
     /* process input into sysrepo format */
