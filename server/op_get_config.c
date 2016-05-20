@@ -56,6 +56,7 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node *root, co
     while (sr_get_item_next(ds, iter, &value) == SR_ERR_OK) {
         rc = op_dflt_data_inspect(np2srv.ly_ctx, value, wd);
         if (rc < 0) {
+            sr_free_val(value);
             continue;
         }
 
