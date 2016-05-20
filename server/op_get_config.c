@@ -88,7 +88,7 @@ static int
 opget_build_tree_from_data(struct lyd_node **root, struct lyd_node *data, const char *subtree_path, NC_WD_MODE wd)
 {
     struct ly_set *nodeset;
-    struct lyd_node *node, *node2, *key, *key2, *child;
+    struct lyd_node *node, *node2, *key, *key2, *child, *tmp_root;
     struct lys_node_list *slist;
     uint16_t i, j;
     int lyd_wd;
@@ -113,64 +113,66 @@ opget_build_tree_from_data(struct lyd_node **root, struct lyd_node *data, const 
 
     nodeset = lyd_get_node(data, subtree_path);
     for (i = 0; i < nodeset->number; ++i) {
-        if (*root) {
-            if (lyd_merge(*root, nodeset->set.d[i], LYD_OPT_NOSIBLINGS)) {
-                return -1;
-            }
-        } else {
-            node = nodeset->set.d[i];
-            *root = lyd_dup(node, 1);
-            if (!(*root)) {
+        node = nodeset->set.d[i];
+        tmp_root = lyd_dup(node, 1);
+        if (!tmp_root) {
+            EMEM;
+            return -1;
+        }
+        for (node = node->parent; node; node = node->parent) {
+            node2 = lyd_dup(node, 0);
+            if (!node2) {
                 EMEM;
                 return -1;
             }
-            for (node = node->parent; node; node = node->parent) {
-                node2 = lyd_dup(node, 0);
-                if (!node2) {
-                    EMEM;
-                    return -1;
-                }
-                if (lyd_insert(node2, *root)) {
-                    EINT;
-                    lyd_free(node2);
-                    return -1;
-                }
-                *root = node2;
+            if (lyd_insert(node2, tmp_root)) {
+                EINT;
+                lyd_free(node2);
+                return -1;
+            }
+            tmp_root = node2;
 
-                /* we want to include all list keys in the result */
-                if (node2->schema->nodetype == LYS_LIST) {
-                    slist = (struct lys_node_list *)node2->schema;
-                    for (j = 0, key = node->child; j < slist->keys_size; ++j, key = key->next) {
-                        assert((struct lys_node *)slist->keys[j] == key->schema);
+            /* we want to include all list keys in the result */
+            if (node2->schema->nodetype == LYS_LIST) {
+                slist = (struct lys_node_list *)node2->schema;
+                for (j = 0, key = node->child; j < slist->keys_size; ++j, key = key->next) {
+                    assert((struct lys_node *)slist->keys[j] == key->schema);
 
-                        /* was the key already duplicated? */
-                        LY_TREE_FOR(node2->child, child) {
-                            if (child->schema == (struct lys_node *)slist->keys[j]) {
-                                break;
-                            }
-                        }
-
-                        /* it wasn't */
-                        if (!child) {
-                            key2 = lyd_dup(key, 0);
-                            if (!key2) {
-                                EMEM;
-                                return -1;
-                            }
-                            if (lyd_insert(node2, key2)) {
-                                EINT;
-                                lyd_free(key2);
-                                return -1;
-                            }
+                    /* was the key already duplicated? */
+                    LY_TREE_FOR(node2->child, child) {
+                        if (child->schema == (struct lys_node *)slist->keys[j]) {
+                            break;
                         }
                     }
 
-                    /* we added those keys at the end, if some existed before the order is wrong */
-                    if (lyd_schema_sort(node2->child, 0)) {
-                        return -1;
+                    /* it wasn't */
+                    if (!child) {
+                        key2 = lyd_dup(key, 0);
+                        if (!key2) {
+                            EMEM;
+                            return -1;
+                        }
+                        if (lyd_insert(node2, key2)) {
+                            EINT;
+                            lyd_free(key2);
+                            return -1;
+                        }
                     }
+                }
+
+                /* we added those keys at the end, if some existed before the order is wrong */
+                if (lyd_schema_sort(node2->child, 0)) {
+                    return -1;
                 }
             }
+        }
+
+        if (*root) {
+            if (lyd_merge(*root, tmp_root, LYD_OPT_DESTRUCT)) {
+                return -1;
+            }
+        } else {
+            *root = tmp_root;
         }
     }
     ly_set_free(nodeset);
