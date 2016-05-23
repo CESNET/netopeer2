@@ -277,8 +277,8 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         switch(iter->schema->nodetype) {
         case LYS_CONTAINER:
             cont = (struct lys_node_container *)iter->schema;
-            if (!cont->presence) {
-                /* do nothing */
+            if (op[op_index] < NP2_EDIT_DELETE && !cont->presence) {
+                /* do nothing, creating non-presence containers is not necessary */
                 goto dfs_continue;
             }
 
