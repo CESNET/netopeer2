@@ -778,12 +778,8 @@ void linenoiseEditHistoryNext(struct linenoiseState *l, int dir) {
         /* Update the current history entry before to
          * overwrite it with the next one. */
         free(l->history[l->history_len - 1 - l->history_index].line);
-        if (l->hist_data_free) {
-            l->hist_data_free(l->history[l->history_len - 1 - l->history_index].data);
-        }
 
         l->history[l->history_len - 1 - l->history_index].line = strdup(l->buf);
-        l->history[l->history_len - 1 - l->history_index].data = NULL;
         /* Show the new entry */
         l->history_index += (dir == LINENOISE_HISTORY_PREV) ? 1 : -1;
         if (l->history_index < 0) {
