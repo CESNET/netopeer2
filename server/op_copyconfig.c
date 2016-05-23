@@ -242,18 +242,18 @@ dfs_continue:
                 }
             }
         }
+
+        /* commit the result */
+        if (sessions->ds != SR_DS_CANDIDATE) {
+            /* commit in candidate causes copy to running,
+             * so do it here only on non-candidate datastores */
+            rc = sr_commit(sessions->srs);
+        }
     } else {
         rc = sr_copy_config(sessions->srs, NULL, source, target);
-        if (rc != SR_ERR_OK) {
-            goto error;
-        }
+        /* commit is done implicitely by sr_copy_config() */
     }
 
-    /* commit the result */
-    if (sessions->ds != SR_DS_CANDIDATE) {
-        /* commit in candidate causes copy to running */
-        rc = sr_commit(sessions->srs);
-    }
 
 error:
     if (rc != SR_ERR_OK) {
