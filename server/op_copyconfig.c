@@ -253,9 +253,6 @@ dfs_continue:
     if (sessions->ds != SR_DS_CANDIDATE) {
         /* commit in candidate causes copy to running */
         rc = sr_commit(sessions->srs);
-    } else {
-        /* update data from sysrepo */
-        rc = sr_session_refresh(sessions->srs);
     }
 
 error:
