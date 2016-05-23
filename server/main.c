@@ -212,17 +212,29 @@ server_init(void)
     sr_free_schemas(schemas, count);
 
     /* 2) add internally used schemas: ietf-netconf with ietf-netconf-acm, */
-    lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_acm_yin, LYS_IN_YIN);
-    mod = lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_2011_06_01_yin, LYS_IN_YIN);
+    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-acm", "2012-02-22") &&
+            !lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_acm_yin, LYS_IN_YIN)) {
+        goto error;
+    }
+    mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf", "2011-06-01");
+    if (!mod && !(mod = lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_2011_06_01_yin, LYS_IN_YIN))) {
+        goto error;
+    }
     lys_features_enable(mod, "writable-running");
     lys_features_enable(mod, "startup");
     lys_features_enable(mod, "candidate");
 
     /* ietf-netconf-monitoring (leave get-schema RPC empty, libnetconf2 will use its callback), */
-    lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_monitoring_yin, LYS_IN_YIN);
+    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-monitoring", "2010-10-04") &&
+            !lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_monitoring_yin, LYS_IN_YIN)) {
+        goto error;
+    }
 
     /* ietf-netconf-with-defaults */
-    lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_with_defaults_2011_06_01_yin, LYS_IN_YIN);
+    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-with-defaults", "2011-06-01") &&
+            !lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_with_defaults_2011_06_01_yin, LYS_IN_YIN)) {
+        goto error;
+    }
 
     /* debug - list schemas
     struct lyd_node *ylib = ly_ctx_info(np2srv.ly_ctx);
@@ -231,7 +243,9 @@ server_init(void)
     */
 
     /* init libnetconf2 */
-    nc_server_init(np2srv.ly_ctx);
+    if (nc_server_init(np2srv.ly_ctx)) {
+        goto error;
+    }
 
     /* set with-defaults capability basic-mode */
     nc_server_set_capab_withdefaults(NC_WD_EXPLICIT, NC_WD_ALL | NC_WD_ALL_TAG | NC_WD_TRIM | NC_WD_EXPLICIT);
@@ -285,6 +299,11 @@ server_init(void)
     nc_server_ssh_endpt_set_hostkey("main", "/etc/ssh/ssh_host_rsa_key");
 
     return EXIT_SUCCESS;
+
+error:
+    ly_ctx_destroy(np2srv.ly_ctx, NULL);
+    ERR("Server init failed (%s).", np2log_lasterr());
+    return EXIT_FAILURE;
 }
 
 static void
