@@ -105,9 +105,8 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
             ly_set_add(nodeset, iter->schema->module);
         }
         for (i = 0; i < nodeset->number; i++) {
-            asprintf(&str, "/%s:*", ((struct lys_module *)nodeset->set.g[i])->name);
-            sr_delete_item(sessions->srs, str, 0);
-            free(str);
+            snprintf(path, 1024, "/%s:*", ((struct lys_module *)nodeset->set.g[i])->name);
+            sr_delete_item(sessions->srs, path, 0);
         }
         ly_set_free(nodeset);
 
