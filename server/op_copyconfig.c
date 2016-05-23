@@ -84,7 +84,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
         source = SR_DS_CANDIDATE;
     } else if (!strcmp(dsname, "config")) {
         axml = (struct lyd_node_anyxml *)nodeset->set.d[0];
-        config = lyd_parse_xml(rpc->schema->module->ctx, &axml->value.xml, LYD_OPT_CONFIG);
+        config = lyd_parse_xml(rpc->schema->module->ctx, &axml->value.xml, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT);
         if (!config) {
             if (ly_errno != LY_SUCCESS) {
                 ly_set_free(nodeset);
