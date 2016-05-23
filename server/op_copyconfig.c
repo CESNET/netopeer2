@@ -51,8 +51,8 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     dsname = nodeset->set.d[0]->schema->name;
     ly_set_free(nodeset);
 
-    if (!strcmp(dsname, "startup")) {
-        target = SR_DS_STARTUP;
+    if (!strcmp(dsname, "running")) {
+        target = SR_DS_RUNNING;
     } else if (!strcmp(dsname, "startup")) {
         target = SR_DS_STARTUP;
     } else if (!strcmp(dsname, "candidate")) {
