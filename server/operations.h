@@ -75,6 +75,7 @@ struct nc_server_reply *op_lock(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_unlock(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_editconfig(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs);
+struct nc_server_reply *op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_generic(struct lyd_node *rpc, struct nc_session *ncs);
 
 #endif /* NP2SRV_OPERATIONS_H_ */

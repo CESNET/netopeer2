@@ -36,6 +36,7 @@ set(srcs
 	op_get_config.c
 	op_editconfig.c
 	op_copyconfig.c
+	op_deleteconfig.c
 	op_un_lock.c
 	op_generic.c
 	log.c)

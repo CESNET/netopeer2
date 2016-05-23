@@ -249,9 +249,8 @@ server_init(void)
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:copy-config");
     lys_set_private(snode, op_copyconfig);
 
-    /* TODO
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:delete-config");
-    lys_set_private(snode, op_delete);*/
+    lys_set_private(snode, op_deleteconfig);
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:lock");
     lys_set_private(snode, op_lock);
