@@ -54,7 +54,7 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node *root, co
 
     ly_errno = LY_SUCCESS;
     while (sr_get_item_next(ds, iter, &value) == SR_ERR_OK) {
-        rc = op_dflt_data_inspect(np2srv.ly_ctx, value, wd);
+        rc = op_dflt_data_inspect(np2srv.ly_ctx, value, wd, 0);
         if (rc < 0) {
             sr_free_val(value);
             continue;
@@ -773,7 +773,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         }
 
         for (j = 0; j < value_count; ++j) {
-            rc = op_dflt_data_inspect(np2srv.ly_ctx, &values[j], nc_wd);
+            rc = op_dflt_data_inspect(np2srv.ly_ctx, &values[j], nc_wd, 0);
             if (rc < 0) {
                 continue;
             }
