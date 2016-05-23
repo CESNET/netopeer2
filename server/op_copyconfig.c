@@ -75,7 +75,6 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* get source */
     nodeset = lyd_get_node(rpc, "/ietf-netconf:copy-config/source/*");
     dsname = nodeset->set.d[0]->schema->name;
-    ly_set_free(nodeset);
 
     if (!strcmp(dsname, "running")) {
         source = SR_DS_RUNNING;
@@ -88,6 +87,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
         config = lyd_parse_xml(rpc->schema->module->ctx, &axml->value.xml, LYD_OPT_CONFIG);
         if (!config) {
             if (ly_errno != LY_SUCCESS) {
+                ly_set_free(nodeset);
                 goto error;
             } else {
                 /* TODO delete-config ??? */
@@ -95,6 +95,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
         }
     }
     /* TODO URL capability */
+    ly_set_free(nodeset);
 
     /* perform operation */
     if (config) {
