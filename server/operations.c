@@ -248,7 +248,7 @@ op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val)
 
 /* return: -1 = discard, 0 = keep, 1 = keep and add the attribute */
 int
-op_dflt_data_inspect(struct ly_ctx *ctx, sr_val_t *value, NC_WD_MODE wd)
+op_dflt_data_inspect(struct ly_ctx *ctx, sr_val_t *value, NC_WD_MODE wd, int rpc_output)
 {
     const struct lys_node_leaf *sleaf;
     struct lys_tpdf *tpdf;
@@ -269,7 +269,7 @@ op_dflt_data_inspect(struct ly_ctx *ctx, sr_val_t *value, NC_WD_MODE wd)
      * we need the schema node now
      */
 
-    sleaf = (const struct lys_node_leaf *)ly_ctx_get_node2(ctx, NULL, value->xpath, 0);
+    sleaf = (const struct lys_node_leaf *)ly_ctx_get_node2(ctx, NULL, value->xpath, rpc_output);
     if (!sleaf) {
         EINT;
         return -1;
@@ -281,7 +281,7 @@ op_dflt_data_inspect(struct ly_ctx *ctx, sr_val_t *value, NC_WD_MODE wd)
 
     /* NC_WD_EXPLICIT HANDLED */
     if (wd == NC_WD_EXPLICIT) {
-        if (sleaf->flags & LYS_CONFIG_W) {
+        if ((sleaf->flags & LYS_CONFIG_W) && !rpc_output) {
             return -1;
         }
         return 0;

@@ -38,7 +38,7 @@ build_rpc_from_output(struct lyd_node *rpc, sr_val_t *output, size_t out_count, 
 
     for (i = 0; i < out_count; ++i) {
         /* default values */
-        rc = op_dflt_data_inspect(np2srv.ly_ctx, &output[i], wd);
+        rc = op_dflt_data_inspect(np2srv.ly_ctx, &output[i], wd, 1);
         if (rc < 0) {
             continue;
         }
