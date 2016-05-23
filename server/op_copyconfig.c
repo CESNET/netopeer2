@@ -243,6 +243,8 @@ dfs_continue:
                 }
             }
         }
+        /* cleanup */
+        lyd_free_withsiblings(config);
 
         /* commit the result */
         if (sessions->ds != SR_DS_CANDIDATE) {
@@ -255,13 +257,17 @@ dfs_continue:
         /* commit is done implicitely by sr_copy_config() */
     }
 
-
-error:
     if (rc != SR_ERR_OK) {
+error:
+        /* handle error */
         if (!e) {
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
             nc_err_set_msg(e, np2log_lasterr(), "en");
         }
+
+        /* cleanup */
+        lyd_free_withsiblings(config);
+
         return nc_server_reply_err(e);
     }
 
