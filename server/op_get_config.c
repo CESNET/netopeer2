@@ -587,7 +587,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     struct lyxml_elem *subtree_filter;
     struct np2_sessions *sessions;
     struct ly_set *nodeset;
-    sr_datastore_t ds;
+    sr_datastore_t ds = 0;
     struct nc_server_error *e;
     NC_WD_MODE nc_wd;
 

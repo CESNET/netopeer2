@@ -25,7 +25,7 @@ struct nc_server_reply *
 op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
 {
     struct np2_sessions *sessions;
-    sr_datastore_t target;
+    sr_datastore_t target = 0;
     const char *dsname;
     uint32_t index;
     int rc;

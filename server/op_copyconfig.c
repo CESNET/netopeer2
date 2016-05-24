@@ -32,7 +32,7 @@ struct nc_server_reply *
 op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 {
     struct np2_sessions *sessions;
-    sr_datastore_t target, source;
+    sr_datastore_t target = 0, source = 0;
     struct ly_set *nodeset;
     struct lyd_node *config = NULL, *iter, *next;
     struct lyd_node_anyxml *axml;
