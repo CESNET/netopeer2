@@ -429,15 +429,26 @@ resultcheck:
             goto resultcheck;
         }
 
+        if (op[op_index] > NP2_EDIT_CREATE) {
+            /* when delete, remove or replace subtree
+             * no need to go into children */
+            if (lastkey) {
+                /* we were processing list's keys */
+                goto dfs_parent;
+            } else {
+                goto dfs_nextsibling;
+            }
+        }
+
 dfs_continue:
         /* where go next? - modified LY_TREE_DFS_END */
         if (iter->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYXML)) {
-dfs_nextsibling:
             next = NULL;
         } else {
             next = iter->child;
         }
         if (!next) {
+dfs_nextsibling:
             /* no children, try siblings */
             next = iter->next;
 
@@ -455,6 +466,7 @@ dfs_nextsibling:
             }
         }
         while (!next) {
+dfs_parent:
             iter = iter->parent;
 
             /* parent is already processed, go to its sibling */
