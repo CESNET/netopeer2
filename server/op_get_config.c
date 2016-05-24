@@ -731,7 +731,8 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         }
     } else if (!(sessions->flags & NP2S_CAND_CHANGED)) {
         /* update candidate to be the same as running */
-        if (sr_discard_changes(sessions->srs)) {
+        if (sr_session_refresh(sessions->srs)) {
+        //working hack: if (sr_discard_changes(sessions->srs)) {
             goto error;
         }
     }
