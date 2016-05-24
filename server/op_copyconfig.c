@@ -270,5 +270,10 @@ error:
         return nc_server_reply_err(e);
     }
 
+    if (sessions->ds == SR_DS_CANDIDATE) {
+        /* mark candidate as modified */
+        sessions->flags |= NP2S_CAND_CHANGED;
+    }
+
     return nc_server_reply_ok();
 }

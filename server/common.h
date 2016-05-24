@@ -30,6 +30,9 @@ struct np2_sessions {
     sr_session_ctx_t *srs;  /* SYSREPO session */
     sr_datastore_t ds;      /* current SYSREPO datastore */
     sr_sess_options_t opts; /* current SYSREPO session options */
+
+    int flags;              /* various flags */
+#define NP2S_CAND_CHANGED 0x01
 };
 
 /* Netopeer server internal data */
