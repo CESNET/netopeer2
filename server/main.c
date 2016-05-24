@@ -277,15 +277,15 @@ server_init(void)
 
     /* leave close-session RPC empty, libnetconf2 will use its callback */
 
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:discard-changes");
+    lys_set_private(snode, op_discardchanges);
+
     /* TODO
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:kill-session");
     lys_set_private(snode, op_kill);
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:commit");
     lys_set_private(snode, op_commit);
-
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:discard-changes");
-    lys_set_private(snode, op_discard);
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:cancel-commit");
     lys_set_private(snode, op_cancel);
