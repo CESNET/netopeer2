@@ -18,6 +18,12 @@
 #include "config.h"
 #include "log.h"
 
+#ifdef __GNUC__
+#  define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
+#else
+#  define UNUSED(x) UNUSED_ ## x
+#endif
+
 /* NETCONF - SYSREPO connections */
 struct np2_sessions {
     struct nc_session *ncs; /* NETCONF session */
