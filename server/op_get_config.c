@@ -28,6 +28,7 @@
 
 #include "common.h"
 #include "operations.h"
+#include "netconf_monitoring.h"
 
 /* add subtree to root */
 static int
@@ -578,7 +579,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     const struct lys_module *module;
     const struct lys_node *snode;
     struct lyd_node_leaf_list *leaf;
-    struct lyd_node *root = NULL, *node, *yang_lib = NULL;
+    struct lyd_node *root = NULL, *node, *yang_lib_data = NULL, *ncm_data = NULL;
     struct lyd_attr *attr;
     char **filters = NULL, buf[21], *path, *data = NULL;
     int rc, filter_count = 0;
@@ -748,14 +749,14 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 continue;
             }
 
-            if (!yang_lib) {
-                yang_lib = ly_ctx_info(np2srv.ly_ctx);
-                if (!yang_lib) {
+            if (!yang_lib_data) {
+                yang_lib_data = ly_ctx_info(np2srv.ly_ctx);
+                if (!yang_lib_data) {
                     goto error;
                 }
             }
 
-            if (opget_build_tree_from_data(&root, yang_lib, filters[i], 0)) {
+            if (opget_build_tree_from_data(&root, yang_lib_data, filters[i], 0)) {
                 goto error;
             }
             continue;
@@ -765,7 +766,16 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 continue;
             }
 
-            /* TODO create state monitoring data */
+            if (!ncm_data) {
+                ncm_data = ncm_get_data();
+                if (!ncm_data) {
+                    goto error;
+                }
+            }
+
+            if (opget_build_tree_from_data(&root, ncm_data, filters[i], 0)) {
+                goto error;
+            }
             continue;
         }
 
@@ -817,15 +827,13 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         value_count = 0;
         values = NULL;
     }
-    lyd_free_withsiblings(yang_lib);
-    yang_lib = NULL;
+    lyd_free_withsiblings(yang_lib_data);
+    lyd_free_withsiblings(ncm_data);
 
     for (i = 0; (signed)i < filter_count; ++i) {
         free(filters[i]);
     }
     free(filters);
-    filters = NULL;
-    filter_count = 0;
 
     /* debug
     lyd_print_file(stdout, root, LYD_XML_FORMAT, LYP_WITHSIBLINGS);
@@ -850,7 +858,8 @@ error:
     }
     free(filters);
 
-    lyd_free_withsiblings(yang_lib);
+    lyd_free_withsiblings(yang_lib_data);
+    lyd_free_withsiblings(ncm_data);
     lyd_free_withsiblings(root);
 
     e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);

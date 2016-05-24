@@ -30,6 +30,7 @@
 
 #include "common.h"
 #include "operations.h"
+#include "netconf_monitoring.h"
 
 #include "../modules/ietf-netconf-acm.h"
 #include "../modules/ietf-netconf@2011-06-01.h"
@@ -243,6 +244,9 @@ server_init(void)
     lyd_free(ylib);
     */
 
+    /* init monitoring */
+    ncm_init();
+
     /* init libnetconf2 */
     if (nc_server_init(np2srv.ly_ctx)) {
         goto error;
@@ -385,28 +389,44 @@ process_loop(void *arg)
 {
     (void)arg; /* UNUSED */
 
+    NC_MSG_TYPE msgtype;
     int rc;
     struct nc_session *ncs;
 
     while (control == LOOP_CONTINUE) {
         /* listen for incomming requests on active NETCONF sessions */
         if (nc_ps_session_count(np2srv.nc_ps)) {
-            rc = nc_ps_poll(np2srv.nc_ps, 500);
+            rc = nc_ps_poll(np2srv.nc_ps, 500, &ncs);
         } else {
             /* if there is no active session, rest for a while */
             usleep(100);
             continue;
         }
 
-        /* process the result of nc_ps_poll() */
-        if (rc == -1 || rc == 3) {
-            /* some session changed its status and should be removed */
-            nc_ps_clear(np2srv.nc_ps, 0, free_ds);
+        /* process the result of nc_ps_poll(), increase counters */
+        if (rc & NC_PSPOLL_BAD_RPC) {
+            ncm_session_bad_rpc(ncs);
+        }
+        if (rc & NC_PSPOLL_RPC) {
+            ncm_session_rpc(ncs);
+        }
+        if (rc & NC_PSPOLL_REPLY_ERROR) {
+            ncm_session_rpc_reply_error(ncs);
+        }
+        if (rc & NC_PSPOLL_SESSION_TERM) {
+            nc_ps_del_session(np2srv.nc_ps, ncs);
+            ncm_session_del(ncs, (rc & NC_PSPOLL_SESSION_ERROR ? 1 : 0));
+            nc_session_free(ncs, free_ds);
             usleep(250);
-        } else if (rc == 5) {
+        } else if (rc & NC_PSPOLL_SSH_CHANNEL) {
             /* a new SSH channel on existing session was created */
-            nc_ps_accept_ssh_channel(np2srv.nc_ps, &ncs);
-            nc_ps_add_session(np2srv.nc_ps, ncs);
+            msgtype = nc_session_accept_ssh_channel(ncs, &ncs);
+            if (msgtype == NC_MSG_HELLO) {
+                nc_ps_add_session(np2srv.nc_ps, ncs);
+                ncm_session_add(ncs);
+            } else if (msgtype == NC_MSG_BAD_HELLO) {
+                ncm_bad_hello();
+            }
         }
     }
 
@@ -519,7 +539,7 @@ restart:
     /* listen for new NETCONF sessions */
     while (control == LOOP_CONTINUE) {
         rc = nc_accept(500, &ncs);
-        if (rc == 1) {
+        if (rc == NC_MSG_HELLO) {
             if (connect_ds(ncs)) {
                 /* error */
                 ERR("Terminating session %d due to failure when connecting to sysrepo.",
@@ -527,6 +547,7 @@ restart:
                 nc_session_free(ncs, free_ds);
                 continue;
             }
+            ncm_session_add(ncs);
             nc_ps_add_session(np2srv.nc_ps, ncs);
         }
     }
@@ -545,6 +566,9 @@ cleanup:
     /* libnetconf2 cleanup */
     nc_ps_free(np2srv.nc_ps);
     nc_server_destroy();
+
+    /* monitoring cleanup */
+    ncm_destroy();
 
     /* libyang cleanup */
     ly_ctx_destroy(np2srv.ly_ctx, NULL);
