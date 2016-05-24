@@ -12,14 +12,7 @@
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
-#define _GNU_SOURCE
-#include <assert.h>
-#include <errno.h>
-#include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 #include <libyang/libyang.h>
 #include <nc_server.h>
