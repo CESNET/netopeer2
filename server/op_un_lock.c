@@ -55,7 +55,6 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
         ds = SR_DS_STARTUP;
         dsl = &dslock.startup;
     } else if (!strcmp(dsname, "candidate")) {
-        /* TODO RFC 6020 has some addition requirements here */
         ds = SR_DS_CANDIDATE;
         dsl = &dslock.candidate;
     }
@@ -173,8 +172,12 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
         return nc_server_reply_err(e);
     }
 
+    /* according to RFC 6241 8.3.5.2, discard changes */
+    sr_discard_changes(sessions->srs);
+
     /* update local information about locks */
     *dsl = NULL;
+
     pthread_rwlock_unlock(&dslock_rwl);
 
     /* build positive RPC Reply */
