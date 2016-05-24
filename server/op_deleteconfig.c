@@ -67,8 +67,8 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* perform operation
-     * - iterate over all schemas and try to remove all top-level
-     * data nodes that can be present in configuration data tree */
+     * - iterate over all schemas and remove all top-level data nodes.
+     * sysrepo does not accept '/\asterisk' since it splits data */
     index = 0;
     while ((mod = ly_ctx_get_module_iter(np2srv.ly_ctx, &index))) {
         LY_TREE_FOR(mod->data, iter) {
