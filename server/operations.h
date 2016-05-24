@@ -76,6 +76,7 @@ struct nc_server_reply *op_unlock(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_editconfig(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs);
+struct nc_server_reply *op_commit(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_discardchanges(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_generic(struct lyd_node *rpc, struct nc_session *ncs);
 
