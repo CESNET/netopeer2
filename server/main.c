@@ -223,6 +223,7 @@ server_init(void)
     lys_features_enable(mod, "writable-running");
     lys_features_enable(mod, "startup");
     lys_features_enable(mod, "candidate");
+    lys_features_enable(mod, "validate");
 
     /* ietf-netconf-monitoring (leave get-schema RPC empty, libnetconf2 will use its callback), */
     if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-monitoring", "2010-10-04") &&
@@ -283,6 +284,9 @@ server_init(void)
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:discard-changes");
     lys_set_private(snode, op_discardchanges);
 
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:validate");
+    lys_set_private(snode, op_validate);
+
     /* TODO
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:kill-session");
     lys_set_private(snode, op_kill);
@@ -290,8 +294,7 @@ server_init(void)
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:cancel-commit");
     lys_set_private(snode, op_cancel);
 
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:validate");
-    lys_set_private(snode, op_validate);*/
+     */
 
     /* set SSH server options
      * TODO - implement server config with YANG configuration data */

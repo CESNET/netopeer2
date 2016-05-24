@@ -38,6 +38,7 @@ set(srcs
 	op_copyconfig.c
 	op_deleteconfig.c
 	op_candidate.c
+	op_validate.c
 	op_un_lock.c
 	op_generic.c
 	log.c)
