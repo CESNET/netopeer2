@@ -45,6 +45,7 @@ op_commit(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
 
     /* remove modify flag */
     sessions->flags &= ~NP2S_CAND_CHANGED;
+
     return nc_server_reply_ok();
 }
 
@@ -71,6 +72,9 @@ op_discardchanges(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
         nc_err_set_msg(e, np2log_lasterr(), "en");
         return nc_server_reply_err(e);
     }
+
+    /* remove modify flag */
+    sessions->flags &= ~NP2S_CAND_CHANGED;
 
     return nc_server_reply_ok();
 }
