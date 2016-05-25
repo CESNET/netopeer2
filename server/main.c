@@ -312,8 +312,7 @@ server_init(void)
     return EXIT_SUCCESS;
 
 error:
-    ly_ctx_destroy(np2srv.ly_ctx, NULL);
-    ERR("Server init failed (%s).", np2log_lasterr());
+    ERR("Server init failed.");
     return EXIT_FAILURE;
 }
 
