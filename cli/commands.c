@@ -3872,9 +3872,9 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
                     ERROR(__func__, "Begin time cannot be set to future.");
                     goto fail;
                 }
-                start = nc_time2datetime(t, NULL);
+                start = nc_time2datetime(t, NULL, NULL);
             } else { /* c == 'e' */
-                stop = nc_time2datetime(t, NULL);
+                stop = nc_time2datetime(t, NULL, NULL);
             }
             break;
         case 't':
