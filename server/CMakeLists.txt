@@ -19,6 +19,14 @@ set(CMAKE_C_FLAGS         "${CMAKE_C_FLAGS} -Wall -Wextra")
 set(CMAKE_C_FLAGS_RELEASE "-O2")
 set(CMAKE_C_FLAGS_DEBUG   "-g -O0")
 
+if(CMAKE_BUILD_TYPE STREQUAL debug)
+    option(ENABLE_BUILD_TESTS "Build tests" ON)
+    option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" ON)
+else()
+    option(ENABLE_BUILD_TESTS "Build tests" OFF)
+    option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" OFF)
+endif()
+
 # set version
 set(NP2SRV_VERSION 0.1.44)
 
@@ -90,3 +98,15 @@ add_custom_target(cleancache
                   COMMAND find . -iname '*cmake*' -not -name CMakeLists.txt -exec rm -rf {} +
                   COMMAND rm -rf Makefile Doxyfile
                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+if(ENABLE_VALGRIND_TESTS)
+    set(ENABLE_BUILD_TESTS ON)
+endif()
+
+if(ENABLE_BUILD_TESTS)
+    find_package(CMocka 1.0.0)
+    if(CMOCKA_FOUND)
+        enable_testing()
+        add_subdirectory(tests)
+    endif(CMOCKA_FOUND)
+endif(ENABLE_BUILD_TESTS)
