@@ -20,7 +20,7 @@ set(CMAKE_C_FLAGS_RELEASE "-O2")
 set(CMAKE_C_FLAGS_DEBUG   "-g -O0")
 
 # set version
-set(NP2SRV_VERSION 0.1.42)
+set(NP2SRV_VERSION 0.1.43)
 
 # set prefix for the PID file
 if (NOT PIDFILE_PREFIX)
