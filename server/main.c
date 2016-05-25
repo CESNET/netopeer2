@@ -302,8 +302,12 @@ server_init(void)
 
     /* set SSH server options
      * TODO - implement server config with YANG configuration data */
-    nc_server_ssh_add_endpt_listen("main", "0.0.0.0", 6001);
-    nc_server_ssh_endpt_set_hostkey("main", "/etc/ssh/ssh_host_rsa_key");
+    if (nc_server_ssh_add_endpt_listen("main", "0.0.0.0", 6001)) {
+        goto error;
+    }
+    if (nc_server_ssh_endpt_set_hostkey("main", "/etc/ssh/ssh_host_rsa_key")) {
+        goto error;
+    }
 
     return EXIT_SUCCESS;
 
