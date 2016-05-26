@@ -444,10 +444,11 @@ int
 main(int argc, char *argv[])
 {
     int ret = EXIT_SUCCESS;
-    int c, rc;
+    int c;
     int daemonize = 1;
     int pidfd;
     char pid[8];
+    NC_MSG_TYPE msgtype;
     struct sigaction action;
     sigset_t block_mask;
     struct nc_session *ncs;
@@ -541,8 +542,8 @@ restart:
 
     /* listen for new NETCONF sessions */
     while (control == LOOP_CONTINUE) {
-        rc = nc_accept(500, &ncs);
-        if (rc == NC_MSG_HELLO) {
+        msgtype = nc_accept(500, &ncs);
+        if (msgtype == NC_MSG_HELLO) {
             if (connect_ds(ncs)) {
                 /* error */
                 ERR("Terminating session %d due to failure when connecting to sysrepo.",
