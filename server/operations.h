@@ -19,8 +19,11 @@
 
 struct np2srv_dslock {
     struct nc_session *running;
+    time_t running_time;
     struct nc_session *startup;
+    time_t startup_time;
     struct nc_session *candidate;
+    time_t candidate_time;
 };
 
 extern struct np2srv_dslock dslock;

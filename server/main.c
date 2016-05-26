@@ -30,6 +30,7 @@
 
 #include "common.h"
 #include "operations.h"
+#include "netconf_monitoring.h"
 
 #include "../modules/ietf-netconf-acm.h"
 #include "../modules/ietf-netconf@2011-06-01.h"
@@ -243,6 +244,9 @@ server_init(void)
     lyd_free(ylib);
     */
 
+    /* init monitoring */
+    ncm_init();
+
     /* init libnetconf2 */
     if (nc_server_init(np2srv.ly_ctx)) {
         goto error;
@@ -298,14 +302,17 @@ server_init(void)
 
     /* set SSH server options
      * TODO - implement server config with YANG configuration data */
-    nc_server_ssh_add_endpt_listen("main", "0.0.0.0", 6001);
-    nc_server_ssh_endpt_set_hostkey("main", "/etc/ssh/ssh_host_rsa_key");
+    if (nc_server_ssh_add_endpt_listen("main", "0.0.0.0", 6001)) {
+        goto error;
+    }
+    if (nc_server_ssh_endpt_set_hostkey("main", NP2SRV_HOST_KEY)) {
+        goto error;
+    }
 
     return EXIT_SUCCESS;
 
 error:
-    ly_ctx_destroy(np2srv.ly_ctx, NULL);
-    ERR("Server init failed (%s).", np2log_lasterr());
+    ERR("Server init failed.");
     return EXIT_FAILURE;
 }
 
@@ -385,28 +392,44 @@ process_loop(void *arg)
 {
     (void)arg; /* UNUSED */
 
+    NC_MSG_TYPE msgtype;
     int rc;
     struct nc_session *ncs;
 
     while (control == LOOP_CONTINUE) {
         /* listen for incomming requests on active NETCONF sessions */
         if (nc_ps_session_count(np2srv.nc_ps)) {
-            rc = nc_ps_poll(np2srv.nc_ps, 500);
+            rc = nc_ps_poll(np2srv.nc_ps, 500, &ncs);
         } else {
             /* if there is no active session, rest for a while */
             usleep(100);
             continue;
         }
 
-        /* process the result of nc_ps_poll() */
-        if (rc == -1 || rc == 3) {
-            /* some session changed its status and should be removed */
-            nc_ps_clear(np2srv.nc_ps, 0, free_ds);
+        /* process the result of nc_ps_poll(), increase counters */
+        if (rc & NC_PSPOLL_BAD_RPC) {
+            ncm_session_bad_rpc(ncs);
+        }
+        if (rc & NC_PSPOLL_RPC) {
+            ncm_session_rpc(ncs);
+        }
+        if (rc & NC_PSPOLL_REPLY_ERROR) {
+            ncm_session_rpc_reply_error(ncs);
+        }
+        if (rc & NC_PSPOLL_SESSION_TERM) {
+            nc_ps_del_session(np2srv.nc_ps, ncs);
+            ncm_session_del(ncs, (rc & NC_PSPOLL_SESSION_ERROR ? 1 : 0));
+            nc_session_free(ncs, free_ds);
             usleep(250);
-        } else if (rc == 5) {
+        } else if (rc & NC_PSPOLL_SSH_CHANNEL) {
             /* a new SSH channel on existing session was created */
-            nc_ps_accept_ssh_channel(np2srv.nc_ps, &ncs);
-            nc_ps_add_session(np2srv.nc_ps, ncs);
+            msgtype = nc_session_accept_ssh_channel(ncs, &ncs);
+            if (msgtype == NC_MSG_HELLO) {
+                nc_ps_add_session(np2srv.nc_ps, ncs);
+                ncm_session_add(ncs);
+            } else if (msgtype == NC_MSG_BAD_HELLO) {
+                ncm_bad_hello();
+            }
         }
     }
 
@@ -421,10 +444,11 @@ int
 main(int argc, char *argv[])
 {
     int ret = EXIT_SUCCESS;
-    int c, rc;
+    int c;
     int daemonize = 1;
     int pidfd;
     char pid[8];
+    NC_MSG_TYPE msgtype;
     struct sigaction action;
     sigset_t block_mask;
     struct nc_session *ncs;
@@ -518,8 +542,8 @@ restart:
 
     /* listen for new NETCONF sessions */
     while (control == LOOP_CONTINUE) {
-        rc = nc_accept(500, &ncs);
-        if (rc == 1) {
+        msgtype = nc_accept(500, &ncs);
+        if (msgtype == NC_MSG_HELLO) {
             if (connect_ds(ncs)) {
                 /* error */
                 ERR("Terminating session %d due to failure when connecting to sysrepo.",
@@ -527,6 +551,7 @@ restart:
                 nc_session_free(ncs, free_ds);
                 continue;
             }
+            ncm_session_add(ncs);
             nc_ps_add_session(np2srv.nc_ps, ncs);
         }
     }
@@ -545,6 +570,9 @@ cleanup:
     /* libnetconf2 cleanup */
     nc_ps_free(np2srv.nc_ps);
     nc_server_destroy();
+
+    /* monitoring cleanup */
+    ncm_destroy();
 
     /* libyang cleanup */
     ly_ctx_destroy(np2srv.ly_ctx, NULL);

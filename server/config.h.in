@@ -24,4 +24,8 @@
  */
 #define NP2SRV_PIDFILE "@PIDFILE_PREFIX@/netopeer2-server.pid"
 
+/** @brief Netopeer2 Server SSH default RSA host key path
+ */
+#define NP2SRV_HOST_KEY "/etc/ssh/ssh_host_rsa_key"
+
 #endif /* NP2SRV_CONFIG_H_ */

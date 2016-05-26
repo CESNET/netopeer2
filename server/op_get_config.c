@@ -28,10 +28,11 @@
 
 #include "common.h"
 #include "operations.h"
+#include "netconf_monitoring.h"
 
 /* add subtree to root */
 static int
-opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node *root, const char *subtree_path, NC_WD_MODE wd)
+opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, const char *subtree_path, NC_WD_MODE wd)
 {
     sr_val_t *value;
     sr_val_iter_t *iter;
@@ -54,18 +55,29 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node *root, co
 
     ly_errno = LY_SUCCESS;
     while (sr_get_item_next(ds, iter, &value) == SR_ERR_OK) {
+        if (value->type == SR_CONTAINER_T) {
+            /* useless to create containers, we would have to check later that there is
+             * really something inside */
+            sr_free_val(value);
+            continue;
+        }
+
         rc = op_dflt_data_inspect(np2srv.ly_ctx, value, wd, 0);
         if (rc < 0) {
             sr_free_val(value);
             continue;
         }
 
-        node = lyd_new_path(root, np2srv.ly_ctx, value->xpath,
+        node = lyd_new_path(*root, np2srv.ly_ctx, value->xpath,
                             op_get_srval(np2srv.ly_ctx, value, buf), LYD_PATH_OPT_UPDATE);
         sr_free_val(value);
         if (ly_errno) {
             sr_free_val_iter(iter);
             return -1;
+        }
+
+        if (!(*root)) {
+            *root = node;
         }
 
         if (rc) {
@@ -578,7 +590,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     const struct lys_module *module;
     const struct lys_node *snode;
     struct lyd_node_leaf_list *leaf;
-    struct lyd_node *root = NULL, *node, *yang_lib = NULL;
+    struct lyd_node *root = NULL, *node, *yang_lib_data = NULL, *ncm_data = NULL;
     struct lyd_attr *attr;
     char **filters = NULL, buf[21], *path, *data = NULL;
     int rc, filter_count = 0;
@@ -748,14 +760,14 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 continue;
             }
 
-            if (!yang_lib) {
-                yang_lib = ly_ctx_info(np2srv.ly_ctx);
-                if (!yang_lib) {
+            if (!yang_lib_data) {
+                yang_lib_data = ly_ctx_info(np2srv.ly_ctx);
+                if (!yang_lib_data) {
                     goto error;
                 }
             }
 
-            if (opget_build_tree_from_data(&root, yang_lib, filters[i], 0)) {
+            if (opget_build_tree_from_data(&root, yang_lib_data, filters[i], 0)) {
                 goto error;
             }
             continue;
@@ -765,7 +777,16 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 continue;
             }
 
-            /* TODO create state monitoring data */
+            if (!ncm_data) {
+                ncm_data = ncm_get_data();
+                if (!ncm_data) {
+                    goto error;
+                }
+            }
+
+            if (opget_build_tree_from_data(&root, ncm_data, filters[i], 0)) {
+                goto error;
+            }
             continue;
         }
 
@@ -779,36 +800,38 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         }
 
         for (j = 0; j < value_count; ++j) {
-            rc = op_dflt_data_inspect(np2srv.ly_ctx, &values[j], nc_wd, 0);
-            if (rc < 0) {
-                continue;
-            }
-
-            /* create subtree root */
-            ly_errno = LY_SUCCESS;
-            node = lyd_new_path(root, np2srv.ly_ctx, values[j].xpath,
-                                op_get_srval(np2srv.ly_ctx, &values[j], buf), LYD_PATH_OPT_UPDATE);
-            if (ly_errno) {
-                goto error;
-            }
-
-            if (rc) {
-                /* add the default attribute */
-                assert(node);
-                while (node->schema->nodetype & (LYS_CONTAINER | LYS_LIST)) {
-                    node = node->child;
-                    assert(node);
+            if (values[j].type != SR_CONTAINER_T) {
+                rc = op_dflt_data_inspect(np2srv.ly_ctx, &values[j], nc_wd, 0);
+                if (rc < 0) {
+                    continue;
                 }
-                assert(node->schema->nodetype == LYS_LEAF);
-                node->dflt = 1;
-            }
 
-            if (!root) {
-                root = node;
+                /* create subtree root */
+                ly_errno = LY_SUCCESS;
+                node = lyd_new_path(root, np2srv.ly_ctx, values[j].xpath,
+                                    op_get_srval(np2srv.ly_ctx, &values[j], buf), LYD_PATH_OPT_UPDATE);
+                if (ly_errno) {
+                    goto error;
+                }
+
+                if (!root) {
+                    root = node;
+                }
+
+                if (rc) {
+                    /* add the default attribute */
+                    assert(node);
+                    while (node->schema->nodetype & (LYS_CONTAINER | LYS_LIST)) {
+                        node = node->child;
+                        assert(node);
+                    }
+                    assert(node->schema->nodetype == LYS_LEAF);
+                    node->dflt = 1;
+                }
             }
 
             /* create the full subtree */
-            if (opget_build_subtree_from_sysrepo(sessions->srs, root, values[j].xpath, nc_wd)) {
+            if (opget_build_subtree_from_sysrepo(sessions->srs, &root, values[j].xpath, nc_wd)) {
                 goto error;
             }
         }
@@ -817,15 +840,13 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         value_count = 0;
         values = NULL;
     }
-    lyd_free_withsiblings(yang_lib);
-    yang_lib = NULL;
+    lyd_free_withsiblings(yang_lib_data);
+    lyd_free_withsiblings(ncm_data);
 
     for (i = 0; (signed)i < filter_count; ++i) {
         free(filters[i]);
     }
     free(filters);
-    filters = NULL;
-    filter_count = 0;
 
     /* debug
     lyd_print_file(stdout, root, LYD_XML_FORMAT, LYP_WITHSIBLINGS);
@@ -850,7 +871,8 @@ error:
     }
     free(filters);
 
-    lyd_free_withsiblings(yang_lib);
+    lyd_free_withsiblings(yang_lib_data);
+    lyd_free_withsiblings(ncm_data);
     lyd_free_withsiblings(root);
 
     e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
