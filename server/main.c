@@ -305,7 +305,7 @@ server_init(void)
     if (nc_server_ssh_add_endpt_listen("main", "0.0.0.0", 6001)) {
         goto error;
     }
-    if (nc_server_ssh_endpt_set_hostkey("main", "/etc/ssh/ssh_host_rsa_key")) {
+    if (nc_server_ssh_endpt_set_hostkey("main", NP2SRV_HOST_KEY)) {
         goto error;
     }
 
