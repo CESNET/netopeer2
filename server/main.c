@@ -222,9 +222,13 @@ server_init(void)
         goto error;
     }
     lys_features_enable(mod, "writable-running");
-    lys_features_enable(mod, "startup");
     lys_features_enable(mod, "candidate");
+    /* TODO lys_features_enable(mod, "confirmed-commit"); */
+    lys_features_enable(mod, "rollback-on-error");
     lys_features_enable(mod, "validate");
+    lys_features_enable(mod, "startup");
+    /* TODO lys_features_enable(mod, "url"); */
+    lys_features_enable(mod, "xpath");
 
     /* ietf-netconf-monitoring (leave get-schema RPC empty, libnetconf2 will use its callback), */
     if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-monitoring", "2010-10-04") &&
