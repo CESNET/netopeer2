@@ -658,8 +658,9 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
         if (!attr) {
             /* subtree */
-            if (!((struct lyd_node_anyxml *)node)->value.str) {
-                /* empty filter (checks both formats), fair enough */
+            if (!((struct lyd_node_anyxml *)node)->value.str
+                    || (!((struct lyd_node_anyxml *)node)->xml_struct && !((struct lyd_node_anyxml *)node)->value.str[0])) {
+                /* empty filter, fair enough */
                 goto send_reply;
             }
 
