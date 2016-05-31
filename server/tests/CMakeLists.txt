@@ -1,13 +1,18 @@
 cmake_minimum_required(VERSION 2.6)
 
-set(tests test_start)
-set(sysrepo_wrap_link_flags "-Wl,--wrap=sr_connect,--wrap=sr_session_start,--wrap=sr_list_schemas,--wrap=sr_get_schema,--wrap=sr_free_schemas,--wrap=sr_session_start_user,--wrap=sr_session_stop,--wrap=sr_disconnect")
-set(libnetconf2_wrap_link_flags "-Wl,--wrap=nc_server_ssh_add_endpt_listen,--wrap=nc_server_ssh_endpt_set_hostkey")
+set(tests test_close_session)
+
+set(test test_close_session)
+set(${test}_mock_funcs sr_connect sr_session_start sr_list_schemas sr_get_schema sr_free_schemas sr_session_start_user sr_session_stop sr_disconnect nc_server_ssh_add_endpt_listen nc_server_ssh_endpt_set_hostkey nc_accept nc_session_free nc_ps_clear)
+set(${test}_wrap_link_flags "-Wl")
+foreach(mock_func IN LISTS ${test}_mock_funcs)
+    set(${test}_wrap_link_flags "${${test}_wrap_link_flags},--wrap=${mock_func}")
+endforeach()
 
 foreach(test_name IN LISTS tests)
     add_executable(${test_name} ${test_name}.c ../netconf_monitoring.c ../operations.c ../op_get_config.c ../op_editconfig.c ../op_copyconfig.c ../op_deleteconfig.c ../op_candidate.c ../op_validate.c ../op_un_lock.c ../op_generic.c ../log.c)
     target_link_libraries(${test_name} ${CMOCKA_LIBRARIES} pthread yang netconf2 sysrepo)
-    set_target_properties(${test_name} PROPERTIES LINK_FLAGS "${sysrepo_wrap_link_flags} ${libnetconf2_wrap_link_flags}")
+    set_target_properties(${test_name} PROPERTIES LINK_FLAGS "${${test_name}_wrap_link_flags}")
     add_test(NAME ${test_name} COMMAND $<TARGET_FILE:${test_name}>)
 endforeach(test_name)
 
