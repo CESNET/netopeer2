@@ -454,6 +454,30 @@ opget_xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *ele
             } else if (size < 1) {
                 goto error;
             }
+
+            /* this content match node must be present in the final output, so add it as a selection node as well */
+            /* TODO optimization: needed only if child is not key and we have a sibling containment/selection node */
+            buf_new = malloc(size * sizeof(char));
+            if (!buf_new) {
+                EMEM;
+                goto error;
+            }
+            memcpy(buf_new, *buf, size * sizeof(char));
+            new_size = size;
+
+            new_size = opget_xpath_buf_add_node(ctx, child, elem_module_name, &last_ns, &buf_new, new_size);
+            if (!new_size) {
+                free(*buf);
+                *buf = NULL;
+                free(buf_new);
+                return 0;
+            } else if (size < 1) {
+                goto error;
+            }
+            if (opget_xpath_add_filter(buf_new, filters, filter_count)) {
+                goto error;
+            }
+
             lyxml_free(ctx, child);
         }
     }
