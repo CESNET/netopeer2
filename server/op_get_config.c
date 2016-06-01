@@ -174,6 +174,7 @@ opget_build_tree_from_data(struct lyd_node **root, struct lyd_node *data, const 
 
                 /* we added those keys at the end, if some existed before the order is wrong */
                 if (lyd_schema_sort(node2->child, 0)) {
+                    EINT;
                     return -1;
                 }
             }
@@ -181,6 +182,7 @@ opget_build_tree_from_data(struct lyd_node **root, struct lyd_node *data, const 
 
         if (*root) {
             if (lyd_merge(*root, tmp_root, LYD_OPT_DESTRUCT)) {
+                EINT;
                 return -1;
             }
         } else {
@@ -473,6 +475,7 @@ opget_xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *ele
         } else {
             buf_new = malloc(size * sizeof(char));
             if (!buf_new) {
+                EMEM;
                 goto error;
             }
             memcpy(buf_new, *buf, size * sizeof(char));
