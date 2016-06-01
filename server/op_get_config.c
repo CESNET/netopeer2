@@ -293,7 +293,7 @@ opget_xpath_buf_add_attrs(struct ly_ctx *ctx, struct lyxml_attr *attr, char **bu
     return size;
 }
 
-/* top-level content node with namespace and attributes */
+/* top-level content node with optional namespace and attributes */
 static int
 opget_xpath_buf_add_top_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name,
                                 char ***filters, int *filter_count)
@@ -331,7 +331,7 @@ opget_xpath_buf_add_top_content(struct ly_ctx *ctx, struct lyxml_elem *elem, con
     return 0;
 }
 
-/* content node with namespace and attributes */
+/* content node with optional namespace and attributes */
 static int
 opget_xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name,
                             const char **last_ns, char **buf, int size)
@@ -387,7 +387,7 @@ opget_xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const c
     return new_size;
 }
 
-/* containment/selection node with namespace and attributes */
+/* containment/selection node with optional namespace and attributes */
 static int
 opget_xpath_buf_add_node(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name,
                          const char **last_ns, char **buf, int size)
