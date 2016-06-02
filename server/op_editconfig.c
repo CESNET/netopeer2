@@ -50,7 +50,7 @@ edit_get_op(struct lyd_node *node, enum NP2_EDIT_OP parentop, enum NP2_EDIT_DEFO
             } else if (!strcmp(attr->value, "replace")) {
                 retval = NP2_EDIT_REPLACE;
             } else if (!strcmp(attr->value, "merge")) {
-                retval = NP2_EDIT_REPLACE;
+                retval = NP2_EDIT_MERGE;
             } /* else invalid attribute checked by libyang */
 
             goto cleanup;
