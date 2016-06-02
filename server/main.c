@@ -150,7 +150,7 @@ server_init(void)
     const struct lys_module *mod;
     int rc;
     char *data;
-    size_t count, i;
+    size_t count, i, j;
 
     /* connect to the sysrepo */
     rc = sr_connect("netopeer2", false, &np2srv.sr_conn);
@@ -207,6 +207,10 @@ server_init(void)
                 if (snode->nodetype == LYS_RPC) {
                     lys_set_private(snode, op_generic);
                 }
+            }
+
+            for (j = 0; j < schemas[i].enabled_feature_cnt; ++j) {
+                lys_features_enable(mod, schemas[i].enabled_features[j]);
             }
         }
     }
