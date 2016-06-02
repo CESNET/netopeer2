@@ -37,7 +37,7 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, c
     sr_val_t *value;
     sr_val_iter_t *iter;
     struct lyd_node *node;
-    char *subtree_children_path, buf[21];
+    char *subtree_children_path, buf[128];
     int rc;
 
     if (asprintf(&subtree_children_path, "%s//*", subtree_path) == -1) {
