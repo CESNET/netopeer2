@@ -181,11 +181,21 @@ op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val)
             break;
         case LY_TYPE_IDENT:
             val->type = SR_IDENTITYREF_T;
-            str = leaf->value.ident->name;
-            val->data.identityref_val = (dup && str) ? strdup(str) : (char*)str;
-            if (NULL == val->data.identityref_val) {
-                EMEM;
-                return -1;
+            if (leaf->value.ident->module == leaf->schema->module) {
+                str = leaf->value.ident->name;
+                val->data.identityref_val = (dup && str) ? strdup(str) : (char*)str;
+                if (NULL == val->data.identityref_val) {
+                    EMEM;
+                    return -1;
+                }
+            } else {
+                str = malloc(strlen(lys_main_module(leaf->value.ident->module)->name) + 1 + strlen(leaf->value.ident->name) + 1);
+                if (NULL == str) {
+                    EMEM;
+                    return -1;
+                }
+                sprintf((char *)str, "%s:%s", lys_main_module(leaf->value.ident->module)->name, leaf->value.ident->name);
+                val->data.identityref_val = (char *)str;
             }
             break;
         case LY_TYPE_INST:
