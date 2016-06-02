@@ -82,13 +82,6 @@ __wrap_sr_get_schema(sr_session_ctx_t *session, const char *module_name, const c
     return SR_ERR_OK;
 }
 
-void
-__wrap_sr_free_schemas(sr_schema_t *schemas, size_t count)
-{
-    (void)schemas;
-    (void)count;
-}
-
 int
 __wrap_sr_session_start_user(sr_conn_ctx_t *conn_ctx, const char *user_name, const sr_datastore_t datastore,
                              const sr_sess_options_t opts, sr_session_ctx_t **session)

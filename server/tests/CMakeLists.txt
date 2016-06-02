@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.6)
 set(tests test_close_session test_get)
 
 set(test test_close_session)
-set(${test}_mock_funcs sr_connect sr_session_start sr_list_schemas sr_get_schema sr_free_schemas sr_session_start_user sr_session_stop sr_disconnect nc_server_ssh_add_endpt_listen nc_server_ssh_endpt_set_hostkey nc_accept nc_session_free nc_ps_clear)
+set(${test}_mock_funcs sr_connect sr_session_start sr_list_schemas sr_get_schema sr_session_start_user sr_session_stop sr_disconnect nc_server_ssh_add_endpt_listen nc_server_ssh_endpt_set_hostkey nc_accept nc_session_free nc_ps_clear)
 set(${test}_wrap_link_flags "-Wl")
 foreach(mock_func IN LISTS ${test}_mock_funcs)
     set(${test}_wrap_link_flags "${${test}_wrap_link_flags},--wrap=${mock_func}")
