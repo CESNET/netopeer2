@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.6)
 
-set(tests test_close_session test_get)
+set(tests test_close_session test_get test_edit_get_config)
 
 set(test test_close_session)
 set(${test}_mock_funcs sr_connect sr_session_start sr_list_schemas sr_get_schema sr_session_start_user sr_session_stop sr_disconnect nc_server_ssh_add_endpt_listen nc_server_ssh_endpt_set_hostkey nc_accept nc_session_free nc_ps_clear)
@@ -13,6 +13,13 @@ set(test test_get)
 set(${test}_mock_funcs sr_session_refresh sr_get_items)
 set(${test}_wrap_link_flags "-Wl")
 foreach(mock_func IN LISTS test_close_session_mock_funcs ${test}_mock_funcs)
+    set(${test}_wrap_link_flags "${${test}_wrap_link_flags},--wrap=${mock_func}")
+endforeach()
+
+set(test test_edit_get_config)
+set(${test}_mock_funcs sr_session_switch_ds sr_get_items_iter sr_get_item_next sr_free_val_iter sr_set_item sr_delete_item sr_move_item sr_commit)
+set(${test}_wrap_link_flags "-Wl")
+foreach(mock_func IN LISTS test_close_session_mock_funcs test_get_mock_funcs ${test}_mock_funcs)
     set(${test}_wrap_link_flags "${${test}_wrap_link_flags},--wrap=${mock_func}")
 endforeach()
 
