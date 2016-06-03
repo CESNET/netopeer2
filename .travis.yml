@@ -59,6 +59,8 @@ before_install:
   - make -j2 && sudo make install
   - cd ../..
 
+  - if [ "${CC}" = "gcc" ]; then pip install --user codecov; export CFLAGS="-coverage"; fi
+
 script:
   - mkdir build-server && cd build-server && cmake ../server && make -j2 && ctest -V
 
