@@ -71,7 +71,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     uint32_t i;
     char *rpc_xpath;
     sr_val_t *input = NULL, *output = NULL;
-    size_t in_count, out_count = 0;
+    size_t in_count = 0, out_count = 0;
     struct np2_sessions *sessions;
     struct nc_server_error *e;
     struct ly_set *set = NULL;
