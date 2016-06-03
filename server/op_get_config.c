@@ -471,7 +471,7 @@ opget_xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *ele
                 *buf = NULL;
                 free(buf_new);
                 return 0;
-            } else if (size < 1) {
+            } else if (new_size < 1) {
                 goto error;
             }
             if (opget_xpath_add_filter(buf_new, filters, filter_count)) {
