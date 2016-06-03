@@ -135,7 +135,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
                     goto dfs_continue;
                 }
                 /* set value for sysrepo */
-                op_set_srval(iter, NULL, 0, &value);
+                op_set_srval(iter, NULL, 0, &value, &str);
 
                 break;
             case LYS_LEAF:
@@ -155,24 +155,24 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 /* regular leaf */
 
                 /* set value for sysrepo */
-                op_set_srval(iter, NULL, 0, &value);
+                op_set_srval(iter, NULL, 0, &value, &str);
 
                 break;
             case LYS_LEAFLIST:
                 /* set value for sysrepo */
-                op_set_srval(iter, NULL, 0, &value);
+                op_set_srval(iter, NULL, 0, &value, &str);
 
                 break;
             case LYS_LIST:
                 /* set value for sysrepo, it will be used as soon as all the keys are processed */
-                op_set_srval(iter, NULL, 0, &value);
+                op_set_srval(iter, NULL, 0, &value, &str);
 
                 /* the creation must be finished later when we get know keys */
                 missing_keys = ((struct lys_node_list *)iter->schema)->keys_size;
                 goto dfs_continue;
             case LYS_ANYXML:
                 /* set value for sysrepo */
-                op_set_srval(iter, NULL, 0, &value);
+                op_set_srval(iter, NULL, 0, &value, &str);
 
                 break;
             default:
@@ -182,6 +182,10 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
             /* create the iter in sysrepo */
             rc = sr_set_item(sessions->srs, path, &value, 0);
+            if (str) {
+                free(str);
+                str = NULL;
+            }
             switch (rc) {
             case SR_ERR_OK:
                 break;

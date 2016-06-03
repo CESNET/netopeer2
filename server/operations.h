@@ -67,8 +67,12 @@ char *op_get_srval(struct ly_ctx *ctx, sr_val_t *value, char *buf);
  *                 path in sr_val_t for specific use.
  * @param[in] dup Flag if the \p path and values from \p node are supposed to be duplicated into \p value.
  * @param[in,out] val Pointer to the structure to fill.
+ * @param[out] val_buf Duplication avoidance is not always possible. If the function needs to allocate
+ *                 some data to fill the \p val structure, the allocated memory is returned as pointer
+ *                 to char and can be freed with free(). The parameter to store the pointer is required
+ *                 only if the \p dup is zero.
  */
-int op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val);
+int op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val, char **val_buf);
 
 /* return: -1 = discard, 0 = keep, 1 = keep and add the attribute */
 int op_dflt_data_inspect(struct ly_ctx *ctx, sr_val_t *value, NC_WD_MODE wd, int rpc_output);

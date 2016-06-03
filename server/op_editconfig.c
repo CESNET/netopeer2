@@ -291,7 +291,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             VRB("EDIT_CONFIG: presence container %s, operation %d", path, op[op_index]);
 
             /* set value for sysrepo */
-            op_set_srval(iter, NULL, 0, &value);
+            op_set_srval(iter, NULL, 0, &value, &str);
 
             break;
         case LYS_LEAF:
@@ -314,7 +314,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             VRB("EDIT_CONFIG: leaf %s, operation %d", path, op[op_index]);
 
             /* set value for sysrepo */
-            op_set_srval(iter, NULL, 0, &value);
+            op_set_srval(iter, NULL, 0, &value, &str);
 
             break;
         case LYS_LEAFLIST:
@@ -329,7 +329,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             }
 
             /* set value for sysrepo */
-            op_set_srval(iter, NULL, 0, &value);
+            op_set_srval(iter, NULL, 0, &value, &str);
 
             break;
         case LYS_LIST:
@@ -339,14 +339,14 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             }
 
             /* set value for sysrepo, it will be used as soon as all the keys are processed */
-            op_set_srval(iter, NULL, 0, &value);
+            op_set_srval(iter, NULL, 0, &value, &str);
 
             /* the creation must be finished later when we get know keys */
             missing_keys = ((struct lys_node_list *)iter->schema)->keys_size;
             goto dfs_continue;
         case LYS_ANYXML:
             /* set value for sysrepo */
-            op_set_srval(iter, NULL, 0, &value);
+            op_set_srval(iter, NULL, 0, &value, &str);
 
             break;
         default:
@@ -376,6 +376,10 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         default:
             /* do nothing */
             break;
+        }
+        if (str) {
+            free(str);
+            str = NULL;
         }
 
 resultcheck:
