@@ -333,5 +333,8 @@ main(void)
                     cmocka_unit_test_setup_teardown(test_new_session, np_start, np_stop),
     };
 
+    if (setenv("CMOCKA_TEST_ABORT", "1", 1)) {
+        fprintf(stderr, "Cannot set Cmocka thread environment variable.\n");
+    }
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
