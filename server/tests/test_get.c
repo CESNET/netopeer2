@@ -341,7 +341,7 @@ test_read(int fd, const char *template, int line)
     do {
         ret = read(fd, buf + red, to_read - red);
         if (line == 759) {
-            printf("READ ret=%d\n", ret);
+            printf("READ ret=%d, errno=%d, strerror=\"%s\"\n", ret, errno, strerror(errno));
         }
         if (ret == -1) {
             if (errno != EAGAIN) {
