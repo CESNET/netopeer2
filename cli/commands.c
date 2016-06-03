@@ -221,6 +221,7 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
         return -1;
     }
 
+recv_reply:
     msgtype = nc_recv_reply(session, rpc, msgid, 1000,
                             LYD_OPT_DESTRUCT | LYD_OPT_NOSIBLINGS, &reply);
     if (msgtype == NC_MSG_ERROR) {
@@ -321,8 +322,13 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
         nc_reply_free(reply);
         return -1;
     }
-
     nc_reply_free(reply);
+
+    if (msgtype == NC_MSG_REPLY_ERR_MSGID) {
+        ERROR(__func__, "Trying to receive another message...\n");
+        goto recv_reply;
+    }
+
     return ret;
 }
 
@@ -748,7 +754,7 @@ cmd_userrpc_help(void)
 void
 cmd_auth_help(void)
 {
-    printf("auth (--help | pref [(publickey | interactive | password) <preference>] | keys [add <private_key_path>] [remove <key_index>])\n");
+    printf("auth (--help | pref [(publickey | interactive | password) <preference>] | keys [add <public_key_path> <private_key_path>] [remove <key_index>])\n");
 }
 
 void
@@ -855,14 +861,18 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
         } else if (strcmp(cmd, "add") == 0) {
             cmd = strtok_r(NULL, " ", &ptr);
             if (cmd == NULL) {
-                ERROR("auth keys add", "Missing the key path");
+                ERROR("auth keys add", "Missing the private key path");
                 return EXIT_FAILURE;
             }
+            str = cmd;
 
-            asprintf(&str, "%s.pub", cmd);
+            cmd = strtok_r(NULL, " ", &ptr);
+            if (cmd == NULL) {
+                ERROR("auth keys add", "Missing the public key path");
+                return EXIT_FAILURE;
+            }
             if (nc_client_ssh_add_keypair(str, cmd) != EXIT_SUCCESS) {
-                ERROR("auth keys add", "Failed to add key");
-                free(str);
+                ERROR("auth keys add", "Failed to add keys");
                 return EXIT_FAILURE;
             }
 
@@ -872,7 +882,6 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
             if (eaccess(str, R_OK) != 0) {
                 ERROR("auth keys add", "The public key for the new private key is not accessible (%s), but added anyway", strerror(errno));
             }
-            free(str);
 
         } else if (strcmp(cmd, "remove") == 0) {
             cmd = strtok_r(NULL, " ", &ptr);
@@ -3866,9 +3875,9 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
                     ERROR(__func__, "Begin time cannot be set to future.");
                     goto fail;
                 }
-                start = nc_time2datetime(t, NULL);
+                start = nc_time2datetime(t, NULL, NULL);
             } else { /* c == 'e' */
-                stop = nc_time2datetime(t, NULL);
+                stop = nc_time2datetime(t, NULL, NULL);
             }
             break;
         case 't':

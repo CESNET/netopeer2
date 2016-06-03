@@ -257,8 +257,8 @@ load_config(void)
     struct ly_ctx *ctx;
 
 #ifdef NC_ENABLED_SSH
-    char *key_pub;
-    struct lyxml_elem *auth_child, *pref_child, *key_child;
+    const char *key_pub, *key_priv;
+    struct lyxml_elem *auth_child, *pref_child, *key_child, *pair_child;
 #endif
 
     if ((netconf_dir = get_netconf_dir()) == NULL) {
@@ -335,14 +335,19 @@ load_config(void)
                                     }
                                 } else if (!strcmp(auth_child->name, "keys")) {
                                     LY_TREE_FOR(auth_child->child, key_child) {
-                                        if (!strcmp(key_child->name, "key-path")) {
-                                            if (asprintf(&key_pub, "%s.pub", key_child->content) == -1) {
-                                                ERROR(__func__, "asprintf() failed (%s:%d).", __FILE__, __LINE__);
-                                                ERROR(__func__, "Unable to set SSH keys pair due to the previous error.");
-                                                continue;
+                                        if (!strcmp(key_child->name, "pair")) {
+                                            key_pub = NULL;
+                                            key_priv = NULL;
+                                            LY_TREE_FOR(key_child->child, pair_child) {
+                                                if (!strcmp(pair_child->name, "public")) {
+                                                    key_pub = pair_child->content;
+                                                } else if (!strcmp(pair_child->name, "private")) {
+                                                    key_priv = pair_child->content;
+                                                }
                                             }
-                                            nc_client_ssh_add_keypair(key_pub, key_child->content);
-                                            free(key_pub);
+                                            if (key_pub && key_priv) {
+                                                nc_client_ssh_add_keypair(key_pub, key_priv);
+                                            }
                                         }
                                     }
                                 }
@@ -366,7 +371,7 @@ void
 store_config(void)
 {
     char *netconf_dir, *history_file, *config_file;
-    const char *priv_key;
+    const char *priv_key, *pub_key;
     int i, indent;
     FILE *config_f = NULL;
 
@@ -441,10 +446,17 @@ store_config(void)
             fprintf(config_f, "%*.s<keys>\n", indent, "");
             ++indent;
 
-            /* key-pair */
+            /* pair(s) */
             for (i = 0; i < nc_client_ssh_get_keypair_count(); ++i) {
-                nc_client_ssh_get_keypair(i, NULL, &priv_key);
-                fprintf(config_f, "%*.s<key-path>%s</key-path>\n", indent, "", priv_key);
+                nc_client_ssh_get_keypair(i, &pub_key, &priv_key);
+                fprintf(config_f, "%*.s<pair>\n", indent, "");
+                ++indent;
+
+                fprintf(config_f, "%*.s<public>%s</public>\n", indent, "", pub_key);
+                fprintf(config_f, "%*.s<private>%s</private>\n", indent, "", priv_key);
+
+                --indent;
+                fprintf(config_f, "%*.s</pair>\n", indent, "");
             }
 
             --indent;

@@ -57,8 +57,12 @@ struct linenoiseState {
     size_t maxrows;     /* Maximum num of rows used so far (multiline mode) */
     int rawmode;
     int history_index;  /* The history index we are currently editing. */
-    char **history;
+    struct linenoiseHistItem {
+        char *line;
+        void *data;
+    } *history;
     int history_len;
+    void (*hist_data_free)(void *data);
 };
 
 extern struct linenoiseState ls;
@@ -74,10 +78,11 @@ void linenoiseSetCompletionCallback(linenoiseCompletionCallback *);
 void linenoiseAddCompletion(linenoiseCompletions *, const char *);
 
 char *linenoise(const char *prompt);
-int linenoiseHistoryAdd(const char *line);
+int linenoiseHistoryAdd(const char *line, void *data);
 int linenoiseHistorySetMaxLen(int len);
 int linenoiseHistorySave(const char *filename);
 int linenoiseHistoryLoad(const char *filename);
+void linenoiseHistoryDataFree(void (*hist_data_free)(void *data));
 void linenoiseClearScreen(void);
 void linenoiseSetMultiLine(int ml);
 void linenoisePrintKeyCodes(void);

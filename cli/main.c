@@ -35,66 +35,9 @@
 
 int done;
 
-struct history_file {
-    int *hist_idx;
-    char **file;
-    int count;
-} hist_file;
-
 extern char *config_editor;
 extern struct nc_session *session;
 extern pthread_t ntf_tid;
-
-static const char *
-get_hist_file(int hist_idx)
-{
-    int i;
-
-    if (!hist_idx) {
-        return NULL;
-    }
-
-    for (i = 0; i < hist_file.count; ++i) {
-        if (hist_file.hist_idx[i] == hist_idx) {
-            return hist_file.file[i];
-        }
-    }
-
-    return NULL;
-}
-
-static void
-set_hist_file(int hist_idx, const char *file)
-{
-    int i;
-
-    for (i = 0; i < hist_file.count; ++i) {
-        if (hist_file.hist_idx[i] == hist_idx) {
-            free(hist_file.file[i]);
-            hist_file.file[i] = strdup(file);
-            return;
-        }
-    }
-
-    ++hist_file.count;
-    hist_file.hist_idx = realloc(hist_file.hist_idx, hist_file.count * sizeof *hist_file.hist_idx);
-    hist_file.file = realloc(hist_file.file, hist_file.count * sizeof *hist_file.file);
-
-    hist_file.hist_idx[hist_file.count - 1] = hist_idx;
-    hist_file.file[hist_file.count - 1] = strdup(file);
-}
-
-static void
-free_hist_file(void)
-{
-    int i;
-
-    for (i = 0; i < hist_file.count; ++i) {
-        free(hist_file.file[i]);
-    }
-    free(hist_file.hist_idx);
-    free(hist_file.file);
-}
 
 void
 lnc2_print_clb(NC_VERB_LEVEL level, const char *msg)
@@ -187,6 +130,7 @@ main(void)
     nc_set_print_clb(lnc2_print_clb);
     ly_set_log_clb(ly_print_clb, 1);
     linenoiseSetCompletionCallback(complete_cmd);
+    linenoiseHistoryDataFree(free);
 
     load_config();
 
@@ -240,20 +184,18 @@ main(void)
                     printf("%s\n", commands[i].helpstring);
                 }
             } else {
-                tmp_config_file = (char *)get_hist_file(ls.history_len - ls.history_index);
+                tmp_config_file = (char *)ls.history[ls.history_len - ls.history_index].data;
                 commands[i].func((const char *)cmdstart, &tmp_config_file);
             }
         } else {
             /* if unknown command specified, tell it to user */
             fprintf(stderr, "%s: No such command, type 'help' for more information.\n", cmd);
         }
-        i = linenoiseHistoryAdd(cmdline);
-        if (tmp_config_file) {
-            set_hist_file(ls.history_len - 1 - i, tmp_config_file);
-            free(tmp_config_file);
-            tmp_config_file = NULL;
+        if (!done) {
+            linenoiseHistoryAdd(cmdline, tmp_config_file);
         }
 
+        tmp_config_file = NULL;
         free(cmd);
         free(cmdline);
     }
@@ -261,7 +203,6 @@ main(void)
     store_config();
 
     free(config_editor);
-    free_hist_file();
 
     ntf_tid = 0;
     if (session) {
