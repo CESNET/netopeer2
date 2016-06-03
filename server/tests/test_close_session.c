@@ -277,12 +277,109 @@ server_thread(void *arg)
 /*
  * TEST
  */
+static void
+test_write(int fd, const char *data, int line)
+{
+    int ret, written, to_write;
+
+    written = 0;
+    to_write = strlen(data);
+    do {
+        ret = write(fd, data + written, to_write - written);
+        if (ret == -1) {
+            if (errno != EAGAIN) {
+                fprintf(stderr, "write fail (%s, line %d)\n", strerror(errno), line);
+                fail();
+            }
+            usleep(100000);
+            ret = 0;
+        }
+        written += ret;
+    } while (written < to_write);
+
+    while (((ret = write(fd, "]]>]]>", 6)) == -1) && (errno == EAGAIN));
+    if (ret == -1) {
+        fprintf(stderr, "write fail (%s, line %d)\n", strerror(errno), line);
+        fail();
+    } else if (ret < 6) {
+        fprintf(stderr, "write fail (end tag, written only %d bytes, line %d)\n", ret, line);
+        fail();
+    }
+}
+
+static void
+test_read(int fd, const char *template, int line)
+{
+    char *buf, *ptr;
+    int ret, red, to_read;
+
+    red = 0;
+    to_read = strlen(template);
+    buf = malloc(to_read + 1);
+    do {
+        ret = read(fd, buf + red, to_read - red);
+        if (ret == -1) {
+            if (errno != EAGAIN) {
+                fprintf(stderr, "read fail (%s, line %d)\n", strerror(errno), line);
+                fail();
+            }
+            usleep(100000);
+            ret = 0;
+        }
+        red += ret;
+
+        /* premature ending tag check */
+        if ((red > 5) && !strncmp((buf + red) - 6, "]]>]]>", 6)) {
+            break;
+        }
+    } while (red < to_read);
+    buf[red] = '\0';
+
+    /* unify all datetimes */
+    for (ptr = strstr(buf, "+02:00"); ptr; ptr = strstr(ptr + 1, "+02:00")) {
+        if ((ptr[-3] == ':') && (ptr[-6] == ':') && (ptr[-9] == 'T') && (ptr[-12] == '-') && (ptr[-15] == '-')) {
+            strncpy(ptr - 19, "0000-00-00T00:00:00", 19);
+        }
+    }
+
+    for (red = 0; buf[red]; ++red) {
+        if (buf[red] != template[red]) {
+            fprintf(stderr, "read fail (non-matching template, line %d)\n\"%s\"(%d)\nvs. template\n\"%s\"\n",
+                    line, buf + red, red, template + red);
+            fail();
+        }
+    }
+
+    /* read ending tag */
+    while (((ret = read(fd, buf, 6)) == -1) && (errno == EAGAIN));
+    if (ret == -1) {
+        fprintf(stderr, "read fail (%s, line %d)\n", strerror(errno), line);
+        fail();
+    }
+    buf[ret] = '\0';
+    if ((ret < 6) || strcmp(buf, "]]>]]>")) {
+        fprintf(stderr, "read fail (end tag \"%s\", line %d)\n", buf, line);
+        fail();
+    }
+
+    free(buf);
+}
+
 static int
 np_start(void **state)
 {
     (void)state; /* unused */
 
-    return pthread_create(&server_tid, NULL, server_thread, NULL);
+    optind = 1;
+    control = LOOP_CONTINUE;
+    initialized = 0;
+    assert_int_equal(pthread_create(&server_tid, NULL, server_thread, NULL), 0);
+
+    while (!initialized) {
+        usleep(100000);
+    }
+
+    return 0;
 }
 
 static int
@@ -293,44 +390,29 @@ np_stop(void **state)
 
     control = LOOP_STOP;
     assert_int_equal(pthread_join(server_tid, (void **)&ret), 0);
-    return ret;
-}
-
-static void
-test_new_session(void **state)
-{
-    (void)state; /* unused */
-    const char *close_session_rpc = "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\"><close-session/></rpc>";
-    const char *close_session_rpl = "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\"><ok/></rpc-reply>";
-    char buf[1024];
-
-    while (!initialized) {
-        usleep(100000);
-    }
-
-    assert_int_equal(write(p_out, close_session_rpc, strlen(close_session_rpc)), strlen(close_session_rpc));
-    assert_int_equal(write(p_out, "]]>]]>", 6), 6);
-
-    while ((read(p_in, buf, strlen(close_session_rpl)) == -1) && (errno == EAGAIN)) {
-        usleep(100000);
-    }
-    buf[strlen(close_session_rpl)] = '\0';
-    assert_string_equal(buf, close_session_rpl);
-    assert_int_equal(read(p_in, buf, 6), 6);
-    buf[6] = '\0';
-    assert_string_equal(buf, "]]>]]>");
-
     close(pipes[0][0]);
     close(pipes[0][1]);
     close(pipes[1][0]);
     close(pipes[1][1]);
+    return ret;
+}
+
+static void
+test_close_session(void **state)
+{
+    (void)state; /* unused */
+    const char *close_session_rpc = "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\"><close-session/></rpc>";
+    const char *close_session_rpl = "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\"><ok/></rpc-reply>";
+
+    test_write(p_out, close_session_rpc, __LINE__);
+    test_read(p_in, close_session_rpl, __LINE__);
 }
 
 int
 main(void)
 {
     const struct CMUnitTest tests[] = {
-                    cmocka_unit_test_setup_teardown(test_new_session, np_start, np_stop),
+                    cmocka_unit_test_setup_teardown(test_close_session, np_start, np_stop),
     };
 
     if (setenv("CMOCKA_TEST_ABORT", "1", 1)) {
