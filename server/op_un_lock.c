@@ -61,6 +61,11 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
         ds = SR_DS_CANDIDATE;
         dsl = &dslock.candidate;
         dst = &dslock.candidate_time;
+    } else {
+        EINT;
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_PROT);
+        nc_err_set_msg(e, np2log_lasterr(), "en");
+        return nc_server_reply_err(e);
     }
     if (ds != sessions->ds) {
         /* update sysrepo session */
@@ -139,6 +144,11 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
         ds = SR_DS_CANDIDATE;
         dsl = &dslock.candidate;
         dst = &dslock.candidate_time;
+    } else {
+        EINT;
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_PROT);
+        nc_err_set_msg(e, np2log_lasterr(), "en");
+        return nc_server_reply_err(e);
     }
     if (ds != sessions->ds) {
         /* update sysrepo session */
