@@ -298,9 +298,6 @@ test_write(int fd, const char *data, int line)
 {
     int ret, written, to_write;
 
-    if (line == 767) {
-        printf("WRITE\n");
-    }
     written = 0;
     to_write = strlen(data);
     do {
@@ -316,9 +313,6 @@ test_write(int fd, const char *data, int line)
         written += ret;
     } while (written < to_write);
 
-    if (line == 767) {
-        printf("WRITE 1\n");
-    }
     while (((ret = write(fd, "]]>]]>", 6)) == -1) && (errno == EAGAIN));
     if (ret == -1) {
         fprintf(stderr, "write fail (%s, line %d)\n", strerror(errno), line);
@@ -326,9 +320,6 @@ test_write(int fd, const char *data, int line)
     } else if (ret < 6) {
         fprintf(stderr, "write fail (end tag, written only %d bytes, line %d)\n", ret, line);
         fail();
-    }
-    if (line == 767) {
-        printf("WRITE 2\n");
     }
 }
 
@@ -338,14 +329,20 @@ test_read(int fd, const char *template, int line)
     char *buf, *ptr;
     int ret, red, to_read;
 
-    if (line == 768) {
+    if (line == 759) {
         printf("READ\n");
     }
     red = 0;
     to_read = strlen(template);
+    if (line == 759) {
+        printf("READ to_read=%d\n", to_read);
+    }
     buf = malloc(to_read + 1);
     do {
         ret = read(fd, buf + red, to_read - red);
+        if (line == 759) {
+            printf("READ ret=%d\n", ret);
+        }
         if (ret == -1) {
             if (errno != EAGAIN) {
                 fprintf(stderr, "read fail (%s, line %d)\n", strerror(errno), line);
@@ -355,6 +352,9 @@ test_read(int fd, const char *template, int line)
             ret = 0;
         }
         red += ret;
+        if (line == 759) {
+            printf("READ red=%d\n", red);
+        }
 
         /* premature ending tag check */
         if ((red > 5) && !strncmp((buf + red) - 6, "]]>]]>", 6)) {
@@ -362,8 +362,8 @@ test_read(int fd, const char *template, int line)
         }
     } while (red < to_read);
     buf[red] = '\0';
-    if (line == 768) {
-        printf("READ 1\n%s\nREAD 1\n", buf);
+    if (line == 759) {
+        printf("READ 1\n");
     }
 
     /* unify all datetimes */
@@ -373,9 +373,6 @@ test_read(int fd, const char *template, int line)
         }
     }
 
-    if (line == 768) {
-        printf("READ 2\n");
-    }
     for (red = 0; buf[red]; ++red) {
         if (buf[red] != template[red]) {
             fprintf(stderr, "read fail (non-matching template, line %d)\n\"%s\"(%d)\nvs. template\n\"%s\"\n",
@@ -384,9 +381,6 @@ test_read(int fd, const char *template, int line)
         }
     }
 
-    if (line == 768) {
-        printf("READ 3\n");
-    }
     /* read ending tag */
     while (((ret = read(fd, buf, 6)) == -1) && (errno == EAGAIN));
     if (ret == -1) {
@@ -400,9 +394,6 @@ test_read(int fd, const char *template, int line)
     }
 
     free(buf);
-    if (line == 768) {
-        printf("READ 4\n");
-    }
 }
 
 static int
