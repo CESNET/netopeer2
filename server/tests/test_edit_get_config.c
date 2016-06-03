@@ -226,7 +226,7 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
 
         path = lyd_path(ietf_if_set->set.d[0]);
         *value = malloc(sizeof **value);
-        op_set_srval(ietf_if_set->set.d[0], path, 1, *value);
+        op_set_srval(ietf_if_set->set.d[0], path, 1, *value, NULL);
         free(path);
 
         --ietf_if_set->number;

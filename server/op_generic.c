@@ -74,7 +74,8 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     size_t in_count = 0, out_count = 0;
     struct np2_sessions *sessions;
     struct nc_server_error *e;
-    struct ly_set *set = NULL;
+    char *str;
+    struct ly_set *set = NULL, *strs = NULL;
     struct lyd_node *reply_data;
     NC_WD_MODE nc_wd;
 
@@ -97,13 +98,18 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     in_count = set->number - 1;
     if (in_count) {
         input = calloc(in_count, sizeof *input);
-        if (!input) {
+        strs = ly_set_new();
+        if (!input || !strs) {
             EMEM;
             goto error;
         }
         for (i = 0; i < in_count; ++i) {
-            if (op_set_srval(set->set.d[i + 1], lyd_path(set->set.d[i + 1]), 1, &input[i])) {
+            if (op_set_srval(set->set.d[i + 1], lyd_path(set->set.d[i + 1]), 0, &input[i], &str)) {
                 goto error;
+            }
+            if (str) {
+                /* keep pointer to additional memory needed for input[i] */
+                ly_set_add(strs, str);
             }
         }
     }
@@ -114,7 +120,13 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
 
     rc = sr_rpc_send(sessions->srs, rpc_xpath, input, in_count, &output, &out_count);
     free(rpc_xpath);
-    sr_free_values(input, in_count);
+    free(input);
+    /* free the additional memory chunks used in input[] */
+    for (i = 0; i < strs->number; i++) {
+        free(strs->set.g[i]);
+    }
+    ly_set_free(strs);
+    strs = NULL;
     input = NULL;
     in_count = 0;
 
@@ -140,7 +152,13 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
 
 error:
     ly_set_free(set);
-    sr_free_values(input, in_count);
+    if (strs) {
+        for (i = 0; i < strs->number; i++) {
+            free(strs->set.g[i]);
+        }
+        ly_set_free(strs);
+    }
+    free(input);
     sr_free_values(output, out_count);
 
     e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
