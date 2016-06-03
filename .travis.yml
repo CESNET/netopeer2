@@ -56,3 +56,6 @@ before_install:
 script:
   - mkdir build-server && cd build-server && cmake ../server && make -j2
 
+after_success:
+  - if [ "${CC}" = "gcc" ]; bash <(curl -s https://codecov.io/bash); fi
+
