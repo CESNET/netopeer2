@@ -96,7 +96,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     }
     in_count = set->number - 1;
     if (in_count) {
-        input = malloc(in_count * sizeof *input);
+        input = calloc(in_count, sizeof *input);
         if (!input) {
             EMEM;
             goto error;
@@ -115,6 +115,8 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     rc = sr_rpc_send(sessions->srs, rpc_xpath, input, in_count, &output, &out_count);
     free(rpc_xpath);
     sr_free_values(input, in_count);
+    input = NULL;
+    in_count = 0;
 
     if ((rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_NOT_FOUND)) {
         return nc_server_reply_err(nc_err(NC_ERR_OP_NOT_SUPPORTED, NC_ERR_TYPE_PROT));
@@ -138,6 +140,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
 
 error:
     ly_set_free(set);
+    sr_free_values(input, in_count);
     sr_free_values(output, out_count);
 
     e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
