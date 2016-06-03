@@ -12,6 +12,7 @@
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
+#include <inttypes.h>
 #include <string.h>
 #include <sysrepo.h>
 
@@ -58,7 +59,7 @@ op_get_srval(struct ly_ctx *ctx, sr_val_t *value, char *buf)
         sprintf(buf, "%u", value->data.uint32_val);
         return buf;
     case SR_UINT64_T:
-        sprintf(buf, "%lu", value->data.uint64_val);
+        sprintf(buf, "%"PRIu64, value->data.uint64_val);
         return buf;
     case SR_INT8_T:
         sprintf(buf, "%d", value->data.int8_val);
@@ -70,7 +71,7 @@ op_get_srval(struct ly_ctx *ctx, sr_val_t *value, char *buf)
         sprintf(buf, "%d", value->data.int32_val);
         return buf;
     case SR_INT64_T:
-        sprintf(buf, "%ld", value->data.int64_val);
+        sprintf(buf, "%"PRId64, value->data.int64_val);
         return buf;
     default:
         return NULL;
