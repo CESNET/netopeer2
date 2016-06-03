@@ -329,40 +329,52 @@ test_read(int fd, const char *template, int line)
     char *buf, *ptr;
     int ret, red, to_read;
 
-    if (line == 759) {
+    if (line == 771) {
         printf("READ\n");
     }
     red = 0;
     to_read = strlen(template);
-    if (line == 759) {
+    if (line == 771) {
         printf("READ to_read=%d\n", to_read);
     }
     buf = malloc(to_read + 1);
     do {
         ret = read(fd, buf + red, to_read - red);
-        if (line == 759) {
+        if (line == 771) {
             printf("READ ret=%d, errno=%d, strerror=\"%s\"\n", ret, errno, strerror(errno));
         }
         if (ret == -1) {
+            if (line == 771) {
+                printf("READ %d\n", __LINE__);
+            }
             if (errno != EAGAIN) {
+                if (line == 771) {
+                    printf("READ %d\n", __LINE__);
+                }
                 fprintf(stderr, "read fail (%s, line %d)\n", strerror(errno), line);
                 fail();
+            }
+            if (line == 771) {
+                printf("READ %d\n", __LINE__);
             }
             usleep(100000);
             ret = 0;
         }
         red += ret;
-        if (line == 759) {
+        if (line == 771) {
             printf("READ red=%d\n", red);
         }
 
         /* premature ending tag check */
         if ((red > 5) && !strncmp((buf + red) - 6, "]]>]]>", 6)) {
+            if (line == 771) {
+                printf("READ %d\n", __LINE__);
+            }
             break;
         }
     } while (red < to_read);
     buf[red] = '\0';
-    if (line == 759) {
+    if (line == 771) {
         printf("READ 1\n");
     }
 
