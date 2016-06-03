@@ -504,6 +504,7 @@ main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
     if (lockf(pidfd, F_TLOCK, 0) < 0) {
+        close(pidfd);
         if (errno == EACCES || errno == EAGAIN) {
             ERR("Another instance of the Netopeer2 server is running.");
         } else {
@@ -514,6 +515,7 @@ main(int argc, char *argv[])
     ftruncate(pidfd, 0);
     c = snprintf(pid, sizeof(pid), "%d\n", getpid());
     write(pidfd, pid, c);
+    close(pidfd);
 
     /* set the signal handler */
     sigfillset (&block_mask);
