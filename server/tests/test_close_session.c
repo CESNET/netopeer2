@@ -308,9 +308,6 @@ test_new_session(void **state)
         usleep(100000);
     }
 
-    fprintf(stdout, "STDOUT TEST PRINT\n");
-    fprintf(stderr, "STDERR TEST PRINT\n");
-
     assert_int_equal(write(p_out, close_session_rpc, strlen(close_session_rpc)), strlen(close_session_rpc));
     assert_int_equal(write(p_out, "]]>]]>", 6), 6);
 
