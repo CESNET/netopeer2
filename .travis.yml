@@ -71,10 +71,10 @@ before_install:
   - cd ..; mkdir build; cd build
   - cmake .. && make
   - cp src/libcmocka.so* ../../
-  - cd ../..
+  - cd ../..; pw; ls -l
 
 script:
-  - mkdir build-server && cd build-server && cmake ../server && make -j2 && LD_PRELOAD=`pwd`/../libcmocka.so.0 ctest -V
+  - mkdir build-server && cd build-server && cmake ../server && make -j2 && LD_PRELOAD=/home/travis/build/CESNET/Netopeer2/libcmocka.so.0 ctest -V
 
 after_success:
   - if [ "${CC}" = "gcc" ]; then bash <(curl -s https://codecov.io/bash); fi
