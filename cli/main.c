@@ -192,7 +192,7 @@ main(void)
             fprintf(stderr, "%s: No such command, type 'help' for more information.\n", cmd);
         }
         if (!done) {
-            i = linenoiseHistoryAdd(cmdline, tmp_config_file);
+            linenoiseHistoryAdd(cmdline, tmp_config_file);
         }
 
         tmp_config_file = NULL;
