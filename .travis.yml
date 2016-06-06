@@ -68,23 +68,8 @@ before_install:
 
 script:
 # debugging - use patched get
-  - echo "diff --git a/server/op_get_config.c b/server/op_get_config.c
-index 9301483..d1f488e 100644
---- a/server/op_get_config.c
-+++ b/server/op_get_config.c
-@@ -181,6 +181,10 @@ opget_build_tree_from_data(struct lyd_node **root, struct lyd_node *data, const
-         }
-
-         if (*root) {
-+            fprintf(stderr, "Merge:\n\"");
-+            lyd_print_file(stderr, *root, LYD_XML, LYP_FORMAT);
-+            fprintf(stderr, "\" with \n\"");
-+            lyd_print_file(stderr, tmp_root, LYD_XML, LYP_FORMAT);
-             if (lyd_merge(*root, tmp_root, LYD_OPT_DESTRUCT)) {
-                 EINT;
-                 return -1;
-" > debug.patch
-  - git apply debug.patch
+  - wget http://www.liberouter.org/~krejci/server_debug.patch
+  - git apply server_debug.patch
   - mkdir build-server && cd build-server && cmake ../server && make -j2 && ctest -V
 
 after_success:
