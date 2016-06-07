@@ -13,6 +13,7 @@
  */
 
 #include <errno.h>
+#include <execinfo.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
@@ -30,6 +31,7 @@
 
 #include "common.h"
 #include "operations.h"
+#include "netconf_monitoring.h"
 
 #include "../modules/ietf-netconf-acm.h"
 #include "../modules/ietf-netconf@2011-06-01.h"
@@ -37,6 +39,8 @@
 #include "../modules/ietf-netconf-with-defaults@2011-06-01.h"
 
 struct np2srv np2srv;
+struct np2srv_dslock dslock;
+pthread_rwlock_t dslock_rwl = PTHREAD_RWLOCK_INITIALIZER;
 
 /**
  * @brief Control flags for the main loop
@@ -90,6 +94,11 @@ print_usage(char* progname)
 void
 signal_handler(int sig)
 {
+#ifdef DEBUG
+#   define STACK_DEPTH 20
+    void *stack_buf[STACK_DEPTH];
+    int depth;
+#endif
     static int quit = 0;
 
     switch (sig) {
@@ -112,12 +121,19 @@ signal_handler(int sig)
         /* restart the process */
         control = LOOP_RESTART;
         break;
+#ifdef DEBUG
+    case SIGSEGV:
+        depth = backtrace(stack_buf, STACK_DEPTH);
+        fprintf(stderr, "Segmentation fault, backtrace:\n");
+        backtrace_symbols_fd(stack_buf, depth, STDERR_FILENO);
+        /* fall through */
+#endif
     default:
         exit(EXIT_FAILURE);
-        break;
     }
 }
-char *
+
+static char *
 np2srv_ly_module_clb(const char *name, const char *revision, void *user_data, LYS_INFORMAT *format,
                      void (**free_module_data)(void *model_data))
 {
@@ -125,10 +141,10 @@ np2srv_ly_module_clb(const char *name, const char *revision, void *user_data, LY
 
     *free_module_data = NULL;
     *format = LYS_IN_YIN;
-    if (sr_get_schema(np2srv.sr_sess.startup, name, revision, NULL, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
+    if (sr_get_schema(np2srv.sr_sess.srs, name, revision, NULL, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
         /* import */
         return data;
-    } else if (sr_get_schema(np2srv.sr_sess.startup, (const char *)user_data, revision, name,
+    } else if (sr_get_schema(np2srv.sr_sess.srs, (const char *)user_data, revision, name,
                              SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
         /* include */
         return data;
@@ -146,7 +162,7 @@ server_init(void)
     const struct lys_module *mod;
     int rc;
     char *data;
-    size_t count, i;
+    size_t count, i, j;
 
     /* connect to the sysrepo */
     rc = sr_connect("netopeer2", false, &np2srv.sr_conn);
@@ -158,23 +174,16 @@ server_init(void)
     VRB("Netopeer2 connected to sysrepod.");
 
     /* start internal sessions with sysrepo */
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, SR_SESS_DEFAULT, &np2srv.sr_sess.running);
+    np2srv.sr_sess.ds = SR_DS_STARTUP;
+    np2srv.sr_sess.opts = SR_SESS_DEFAULT;
+    rc = sr_session_start(np2srv.sr_conn, np2srv.sr_sess.ds, np2srv.sr_sess.opts, &np2srv.sr_sess.srs);
     if (rc != SR_ERR_OK) {
-        ERR("Unable to create Netopeer session to sysrepod (%s).", sr_strerror(rc));
+        ERR("Unable to create Netopeer session with sysrepod (%s).", sr_strerror(rc));
         return EXIT_FAILURE;
     }
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_STARTUP, SR_SESS_CONFIG_ONLY, &np2srv.sr_sess.startup);
-    if (rc != SR_ERR_OK) {
-        VRB("Startup datastore not available in sysrepod (%s).", sr_strerror(rc));
-    }
-    /* TODO sysrepo does not support candidate
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_CANDIDATE, &np2srv.sr_sess.candidate);
-    if (rc != SR_ERR_OK) {
-        VRB("Candidate datastore not available in sysrepod (%s).", sr_strerror(rc));
-    }
-    */
 
-    rc = sr_list_schemas(np2srv.sr_sess.startup, &schemas, &count);
+    /* get the list of schemas from sysrepo */
+    rc = sr_list_schemas(np2srv.sr_sess.srs, &schemas, &count);
     if (rc != SR_ERR_OK) {
         ERR("Unable to get list of schemas supported by sysrepo (%s).", sr_strerror(rc));
         return EXIT_FAILURE;
@@ -186,7 +195,7 @@ server_init(void)
         return EXIT_FAILURE;
     }
 
-    /* 1) with modules from sysrepo */
+    /* 1) use modules from sysrepo */
     for (i = 0; i < count; i++) {
         ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_module_clb, (void*)schemas[i].module_name);
         data = NULL;
@@ -195,7 +204,7 @@ server_init(void)
         if ((mod = ly_ctx_get_module(np2srv.ly_ctx, schemas[i].module_name, schemas[i].revision.revision))) {
             VRB("Module %s (%s) already present in context.", schemas[i].module_name,
                 schemas[i].revision.revision ? schemas[i].revision.revision : "no revision");
-        } else if (sr_get_schema(np2srv.sr_sess.running, schemas[i].module_name,
+        } else if (sr_get_schema(np2srv.sr_sess.srs, schemas[i].module_name,
                                  schemas[i].revision.revision, NULL, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
             mod = lys_parse_mem(np2srv.ly_ctx, data, LYS_IN_YIN);
             free(data);
@@ -205,26 +214,49 @@ server_init(void)
             WRN("Getting %s (%s) schema from sysrepo failed, data from this module won't be available.",
                 schemas[i].module_name,
                 schemas[i].revision.revision ? schemas[i].revision.revision : "no revision");
+        } else {
+            LY_TREE_FOR(mod->data, snode) {
+                if (snode->nodetype == LYS_RPC) {
+                    lys_set_private(snode, op_generic);
+                }
+            }
+
+            for (j = 0; j < schemas[i].enabled_feature_cnt; ++j) {
+                lys_features_enable(mod, schemas[i].enabled_features[j]);
+            }
         }
     }
     sr_free_schemas(schemas, count);
 
-    /* 2) internally used schemas: ietf-netconf with ietf-netconf-acm, */
-    lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_acm_yin, LYS_IN_YIN);
-    mod = lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_2011_06_01_yin, LYS_IN_YIN);
+    /* 2) add internally used schemas: ietf-netconf with ietf-netconf-acm, */
+    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-acm", "2012-02-22") &&
+            !lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_acm_yin, LYS_IN_YIN)) {
+        goto error;
+    }
+    mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf", "2011-06-01");
+    if (!mod && !(mod = lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_2011_06_01_yin, LYS_IN_YIN))) {
+        goto error;
+    }
     lys_features_enable(mod, "writable-running");
-    if (np2srv.sr_sess.startup) {
-        lys_features_enable(mod, "startup");
-    }
-    if (np2srv.sr_sess.candidate) {
-        lys_features_enable(mod, "candidate");
-    }
+    lys_features_enable(mod, "candidate");
+    /* TODO lys_features_enable(mod, "confirmed-commit"); */
+    lys_features_enable(mod, "rollback-on-error");
+    lys_features_enable(mod, "validate");
+    lys_features_enable(mod, "startup");
+    /* TODO lys_features_enable(mod, "url"); */
+    lys_features_enable(mod, "xpath");
 
-    /* ietf-netconf-monitoring, */
-    lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_monitoring_yin, LYS_IN_YIN);
+    /* ietf-netconf-monitoring (leave get-schema RPC empty, libnetconf2 will use its callback), */
+    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-monitoring", "2010-10-04") &&
+            !lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_monitoring_yin, LYS_IN_YIN)) {
+        goto error;
+    }
 
     /* ietf-netconf-with-defaults */
-    lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_with_defaults_2011_06_01_yin, LYS_IN_YIN);
+    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-with-defaults", "2011-06-01") &&
+            !lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_with_defaults_2011_06_01_yin, LYS_IN_YIN)) {
+        goto error;
+    }
 
     /* debug - list schemas
     struct lyd_node *ylib = ly_ctx_info(np2srv.ly_ctx);
@@ -232,8 +264,13 @@ server_init(void)
     lyd_free(ylib);
     */
 
+    /* init monitoring */
+    ncm_init();
+
     /* init libnetconf2 */
-    nc_server_init(np2srv.ly_ctx);
+    if (nc_server_init(np2srv.ly_ctx)) {
+        goto error;
+    }
 
     /* set with-defaults capability basic-mode */
     nc_server_set_capab_withdefaults(NC_WD_EXPLICIT, NC_WD_ALL | NC_WD_ALL_TAG | NC_WD_TRIM | NC_WD_EXPLICIT);
@@ -242,9 +279,6 @@ server_init(void)
     np2srv.nc_ps = nc_ps_new();
 
     /* set NETCONF operations callbacks */
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get");
-    lys_set_private(snode, op_get);
-
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get-config");
     lys_set_private(snode, op_get);
 
@@ -254,39 +288,82 @@ server_init(void)
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:copy-config");
     lys_set_private(snode, op_copyconfig);
 
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:delete-config");
+    lys_set_private(snode, op_deleteconfig);
+
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:lock");
     lys_set_private(snode, op_lock);
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:unlock");
     lys_set_private(snode, op_unlock);
 
-    nc_server_ssh_add_endpt_listen("main", "0.0.0.0", 6001);
-    nc_server_ssh_endpt_set_hostkey("main", "/etc/ssh/ssh_host_rsa_key");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get");
+    lys_set_private(snode, op_get);
+
+    /* leave close-session RPC empty, libnetconf2 will use its callback */
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:commit");
+    lys_set_private(snode, op_commit);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:discard-changes");
+    lys_set_private(snode, op_discardchanges);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:validate");
+    lys_set_private(snode, op_validate);
+
+    /* TODO
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:kill-session");
+    lys_set_private(snode, op_kill);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:cancel-commit");
+    lys_set_private(snode, op_cancel);
+
+     */
+
+    /* set SSH server options
+     * TODO - implement server config with YANG configuration data */
+    if (nc_server_ssh_add_endpt_listen("main", "0.0.0.0", 6001)) {
+        goto error;
+    }
+    if (nc_server_ssh_endpt_set_hostkey("main", NP2SRV_HOST_KEY)) {
+        goto error;
+    }
 
     return EXIT_SUCCESS;
+
+error:
+    ERR("Server init failed.");
+    return EXIT_FAILURE;
+}
+
+static void
+np2srv_clean_dslock(struct nc_session *ncs)
+{
+    pthread_rwlock_wrlock(&dslock_rwl);
+
+    if (dslock.running == ncs) {
+        dslock.running = NULL;
+    }
+    if (dslock.startup == ncs) {
+        dslock.startup = NULL;
+    }
+    if (dslock.candidate == ncs) {
+        dslock.candidate = NULL;
+    }
+
+    pthread_rwlock_unlock(&dslock_rwl);
 }
 
 void
 free_ds(void *ptr)
 {
-    struct np2sr_sessions *s;
+    struct np2_sessions *s;
 
     if (ptr) {
-        s = (struct np2sr_sessions *)ptr;
-        if (s->running) {
-            sr_session_stop(s->running);
+        s = (struct np2_sessions *)ptr;
+        if (s->srs) {
+            sr_session_stop(s->srs);
         }
-        if (s->running_config) {
-            sr_session_stop(s->running_config);
-        }
-        if (s->startup) {
-            sr_session_stop(s->startup);
-        }
-        /* TODO sysrepo does not support candidate
-        if (s->candidate) {
-            sr_session_stop(s->candidate);
-        }
-        */
         np2srv_clean_dslock(s->ncs);
         free(s);
     }
@@ -295,7 +372,7 @@ free_ds(void *ptr)
 static int
 connect_ds(struct nc_session *ncs)
 {
-    struct np2sr_sessions *s;
+    struct np2_sessions *s;
     int rc;
 
     if (!ncs) {
@@ -308,37 +385,14 @@ connect_ds(struct nc_session *ncs)
         return EXIT_FAILURE;
     }
     s->ncs = ncs;
-
-    rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_RUNNING, SR_SESS_DEFAULT, &s->running);
+    s->ds = SR_DS_RUNNING;
+    s->opts = SR_SESS_DEFAULT;
+    rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), s->ds, s->opts, &s->srs);
     if (rc != SR_ERR_OK) {
-        ERR("Unable to create sysrepo running session for NETCONF session %d (%s).",
-            nc_session_get_id(ncs), sr_strerror(rc));
+        ERR("Unable to create sysrepo session for NETCONF session %d (%s; datastore %d; options %d).",
+            nc_session_get_id(ncs), sr_strerror(rc), s->ds, s->opts);
         goto error;
     }
-    rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_RUNNING, SR_SESS_CONFIG_ONLY, &s->running_config);
-    if (rc != SR_ERR_OK) {
-        ERR("Unable to create sysrepo running config session for NETCONF session %d (%s).",
-            nc_session_get_id(ncs), sr_strerror(rc));
-        goto error;
-    }
-    if (np2srv.sr_sess.startup) {
-        rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_STARTUP, SR_SESS_CONFIG_ONLY, &s->startup);
-        if (rc != SR_ERR_OK) {
-            ERR("Unable to create sysrepo startup session for NETCONF session %d (%s).",
-                nc_session_get_id(ncs), sr_strerror(rc));
-            goto error;
-        }
-    }
-    /* TODO sysrepo does not support candidate
-    if (np2srv.sr_sess.candidate) {
-        rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), SR_DS_CANDIDATE, &s->candidate);
-        if (rc != SR_ERR_OK) {
-            ERR("Unable to create sysrepo candidate session for NETCONF session %d (%s).",
-                nc_session_get_id(ncs), sr_strerror(rc));
-            goto error;
-        }
-    }
-    */
 
     /* connect sysrepo sessions (datastore) with NETCONF session */
     nc_session_set_data(ncs, s);
@@ -346,21 +400,9 @@ connect_ds(struct nc_session *ncs)
     return EXIT_SUCCESS;
 
 error:
-    if (s->running) {
-        sr_session_stop(s->running);
+    if (s->srs) {
+        sr_session_stop(s->srs);
     }
-    if (s->running_config) {
-        sr_session_stop(s->running_config);
-    }
-    if (s->startup) {
-        sr_session_stop(s->startup);
-    }
-    /* TODO sysrepo does not support candidate
-    if (s->candidate) {
-        sr_session_stop(s->candidate);
-    }
-    */
-
     free(s);
     return EXIT_FAILURE;
 }
@@ -370,28 +412,44 @@ process_loop(void *arg)
 {
     (void)arg; /* UNUSED */
 
+    NC_MSG_TYPE msgtype;
     int rc;
     struct nc_session *ncs;
 
     while (control == LOOP_CONTINUE) {
         /* listen for incomming requests on active NETCONF sessions */
         if (nc_ps_session_count(np2srv.nc_ps)) {
-            rc = nc_ps_poll(np2srv.nc_ps, 500);
+            rc = nc_ps_poll(np2srv.nc_ps, 500, &ncs);
         } else {
             /* if there is no active session, rest for a while */
             usleep(100);
             continue;
         }
 
-        /* process the result of nc_ps_poll() */
-        if (rc == -1 || rc == 3) {
-            /* some session changed its status and should be removed */
-            nc_ps_clear(np2srv.nc_ps, 0, free_ds);
+        /* process the result of nc_ps_poll(), increase counters */
+        if (rc & NC_PSPOLL_BAD_RPC) {
+            ncm_session_bad_rpc(ncs);
+        }
+        if (rc & NC_PSPOLL_RPC) {
+            ncm_session_rpc(ncs);
+        }
+        if (rc & NC_PSPOLL_REPLY_ERROR) {
+            ncm_session_rpc_reply_error(ncs);
+        }
+        if (rc & NC_PSPOLL_SESSION_TERM) {
+            nc_ps_del_session(np2srv.nc_ps, ncs);
+            ncm_session_del(ncs, (rc & NC_PSPOLL_SESSION_ERROR ? 1 : 0));
+            nc_session_free(ncs, free_ds);
             usleep(250);
-        } else if (rc == 5) {
+        } else if (rc & NC_PSPOLL_SSH_CHANNEL) {
             /* a new SSH channel on existing session was created */
-            nc_ps_accept_ssh_channel(np2srv.nc_ps, &ncs);
-            nc_ps_add_session(np2srv.nc_ps, ncs);
+            msgtype = nc_session_accept_ssh_channel(ncs, &ncs);
+            if (msgtype == NC_MSG_HELLO) {
+                nc_ps_add_session(np2srv.nc_ps, ncs);
+                ncm_session_add(ncs);
+            } else if (msgtype == NC_MSG_BAD_HELLO) {
+                ncm_bad_hello();
+            }
         }
     }
 
@@ -406,10 +464,11 @@ int
 main(int argc, char *argv[])
 {
     int ret = EXIT_SUCCESS;
-    int c, rc;
+    int c;
     int daemonize = 1;
     int pidfd;
     char pid[8];
+    NC_MSG_TYPE msgtype;
     struct sigaction action;
     sigset_t block_mask;
     struct nc_session *ncs;
@@ -457,6 +516,7 @@ main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
     if (lockf(pidfd, F_TLOCK, 0) < 0) {
+        close(pidfd);
         if (errno == EACCES || errno == EAGAIN) {
             ERR("Another instance of the Netopeer2 server is running.");
         } else {
@@ -467,6 +527,7 @@ main(int argc, char *argv[])
     ftruncate(pidfd, 0);
     c = snprintf(pid, sizeof(pid), "%d\n", getpid());
     write(pidfd, pid, c);
+    close(pidfd);
 
     /* set the signal handler */
     sigfillset (&block_mask);
@@ -479,6 +540,9 @@ main(int argc, char *argv[])
     sigaction(SIGTERM, &action, NULL);
     sigaction(SIGHUP, &action, NULL);
     sigaction(SIGUSR1, &action, NULL);
+#ifdef DEBUG
+    sigaction(SIGSEGV, &action, NULL);
+#endif
     /* ignore SIGPIPE */
     action.sa_handler = SIG_IGN;
     sigaction(SIGPIPE, &action, NULL);
@@ -503,8 +567,8 @@ restart:
 
     /* listen for new NETCONF sessions */
     while (control == LOOP_CONTINUE) {
-        rc = nc_accept(500, &ncs);
-        if (rc == 1) {
+        msgtype = nc_accept(500, &ncs);
+        if (msgtype == NC_MSG_HELLO) {
             if (connect_ds(ncs)) {
                 /* error */
                 ERR("Terminating session %d due to failure when connecting to sysrepo.",
@@ -512,6 +576,7 @@ restart:
                 nc_session_free(ncs, free_ds);
                 continue;
             }
+            ncm_session_add(ncs);
             nc_ps_add_session(np2srv.nc_ps, ncs);
         }
     }
@@ -522,22 +587,17 @@ restart:
 cleanup:
 
     /* disconnect from sysrepo */
-    if (np2srv.sr_sess.running) {
-        sr_session_stop(np2srv.sr_sess.running);
+    if (np2srv.sr_sess.srs) {
+        sr_session_stop(np2srv.sr_sess.srs);
     }
-    if (np2srv.sr_sess.startup) {
-        sr_session_stop(np2srv.sr_sess.startup);
-    }
-    /* TODO sysrepo does not support candidate
-    if (np2srv.sr_sess.candidate) {
-        sr_session_stop(np2srv.sr_sess.candidate);
-    }
-    */
     sr_disconnect(np2srv.sr_conn);
 
     /* libnetconf2 cleanup */
     nc_ps_free(np2srv.nc_ps);
     nc_server_destroy();
+
+    /* monitoring cleanup */
+    ncm_destroy();
 
     /* libyang cleanup */
     ly_ctx_destroy(np2srv.ly_ctx, NULL);

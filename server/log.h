@@ -17,6 +17,7 @@
 
 #include <libyang/libyang.h>
 #include <nc_server.h>
+#include <sysrepo.h>
 
 /**
  * @brief Verbose level variable
