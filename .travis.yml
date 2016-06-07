@@ -27,7 +27,7 @@ before_install:
 
   - git clone https://github.com/CESNET/libyang.git
   - cd libyang; mkdir build; cd build
-  - cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Debug ..
+  - cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
   - make -j2 && sudo make install
   - cd ../..
 
