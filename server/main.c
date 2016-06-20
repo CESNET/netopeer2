@@ -139,7 +139,7 @@ np2srv_ly_module_clb(const char *name, const char *revision, void *user_data, LY
 {
     char *data = NULL;
 
-    *free_module_data = NULL;
+    *free_module_data = free;
     *format = LYS_IN_YIN;
     if (sr_get_schema(np2srv.sr_sess.srs, name, revision, NULL, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
         /* import */
