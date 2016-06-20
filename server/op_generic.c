@@ -109,7 +109,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
             }
             if (str) {
                 /* keep pointer to additional memory needed for input[i] */
-                ly_set_add(strs, str);
+                ly_set_add(strs, str, LY_SET_OPT_USEASLIST);
             }
         }
     }
