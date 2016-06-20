@@ -102,7 +102,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
         /* remove all the data from the models mentioned in the <config> ... */
         nodeset = ly_set_new();
         LY_TREE_FOR(config, iter) {
-            ly_set_add(nodeset, iter->schema->module);
+            ly_set_add(nodeset, iter->schema->module, 0);
         }
         for (i = 0; i < nodeset->number; i++) {
             snprintf(path, 1024, "/%s:*", ((struct lys_module *)nodeset->set.g[i])->name);
