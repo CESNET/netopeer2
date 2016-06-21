@@ -56,7 +56,7 @@ before_install:
 
   - git clone https://github.com/sysrepo/sysrepo.git
   - cd sysrepo; mkdir build; cd build
-  - cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=/usr -DREPOSITORY_LOC:PATH=/etc/sysrepo ..
+  - cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=$HOME/local -DREPOSITORY_LOC:PATH=/etc/sysrepo ..
   - make -j2 && sudo make install
   - cd ../..
 
