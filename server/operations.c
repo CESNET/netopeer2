@@ -36,7 +36,6 @@ op_get_srval(struct ly_ctx *ctx, sr_val_t *value, char *buf)
     case SR_ENUM_T:
     case SR_IDENTITYREF_T:
     case SR_INSTANCEID_T:
-    case SR_LEAFREF_T:
         return (value->data.string_val);
     case SR_LEAF_EMPTY_T:
         return NULL;
