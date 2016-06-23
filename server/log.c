@@ -151,6 +151,9 @@ np2log_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
     case LY_LLDBG:
         facility = LOG_DEBUG;
         break;
+    default:
+        /* silent, just to cover enum, shouldn't be here in real world */
+        return;
     }
 
     if (level == LY_LLERR) {

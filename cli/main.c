@@ -111,6 +111,9 @@ ly_print_clb(LY_LOG_LEVEL level, const char *msg, const char *path)
             fprintf(stderr, "ly DEBUG: %s\n", msg);
         }
         break;
+    default:
+        /* silent, just to cover enum, shouldn't be here in real world */
+        return;
     }
 
     if (was_rawmode) {
