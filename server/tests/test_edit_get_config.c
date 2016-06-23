@@ -108,7 +108,6 @@ __wrap_sr_get_schema(sr_session_ctx_t *session, const char *module_name, const c
                      const char *submodule_name, sr_schema_format_t format, char **schema_content)
 {
     int fd;
-    char *path;
     struct stat st;
     (void)session;
     (void)revision;
@@ -118,10 +117,15 @@ __wrap_sr_get_schema(sr_session_ctx_t *session, const char *module_name, const c
         fail();
     }
 
-    asprintf(&path, TESTS_DIR"/files/%s.yin", module_name);
-
-    fd = open(path, O_RDONLY);
-    free(path);
+    if (!strcmp(module_name, "iana-if-type")) {
+        fd = open(TESTS_DIR "/files/iana-if-type.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "ietf-interfaces")) {
+        fd = open(TESTS_DIR "/files/ietf-interfaces.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "ietf-ip")) {
+        fd = open(TESTS_DIR "/files/ietf-ip.yin", O_RDONLY);
+    } else {
+        return SR_ERR_NOT_FOUND;
+    }
     assert_int_not_equal(fd, -1);
 
     assert_int_equal(fstat(fd, &st), 0);
