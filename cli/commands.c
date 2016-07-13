@@ -4186,7 +4186,7 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
     }
 
     /* create requests */
-    rpc = nc_rpc_generic_xml(content, NC_PARAMTYPE_CONST);
+    rpc = nc_rpc_act_generic_xml(content, NC_PARAMTYPE_CONST);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
