@@ -158,7 +158,7 @@ static int
 server_init(void)
 {
     sr_schema_t *schemas = NULL;
-    const struct lys_node *snode;
+    const struct lys_node *snode, *next;
     const struct lys_module *mod;
     int rc;
     char *data;
@@ -215,10 +215,11 @@ server_init(void)
                 schemas[i].module_name,
                 schemas[i].revision.revision ? schemas[i].revision.revision : "no revision");
         } else {
-            LY_TREE_FOR(mod->data, snode) {
-                if (snode->nodetype == LYS_RPC) {
+            LY_TREE_DFS_BEGIN(mod->data, next, snode) {
+                if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
                     lys_set_private(snode, op_generic);
                 }
+                LY_TREE_DFS_END(mod->data, next, snode);
             }
 
             for (j = 0; j < schemas[i].enabled_feature_cnt; ++j) {

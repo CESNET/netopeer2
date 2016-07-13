@@ -92,6 +92,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     /* process input into sysrepo format */
     set = lyd_get_node(rpc, "//*");
     if (!set->number || (set->set.d[0]->schema->nodetype != LYS_RPC)) {
+        /* TODO action always goes here */
         EINT;
         goto error;
     }
