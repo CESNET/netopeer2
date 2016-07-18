@@ -122,11 +122,13 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     free(rpc_xpath);
     free(input);
     /* free the additional memory chunks used in input[] */
-    for (i = 0; i < strs->number; i++) {
-        free(strs->set.g[i]);
+    if (strs) {
+        for (i = 0; i < strs->number; i++) {
+            free(strs->set.g[i]);
+        }
+        ly_set_free(strs);
+        strs = NULL;
     }
-    ly_set_free(strs);
-    strs = NULL;
     input = NULL;
     in_count = 0;
 
