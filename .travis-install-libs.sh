@@ -5,6 +5,8 @@ sudo apt-get install -y libavl-dev libev-dev
 sudo apt-get install -y zlib1g-dev libssl-dev
 sudo apt-get install -y valgrind
 
+echo "$PWD pwd"
+echo "$HOME home"
 if [ ! -d "$PWD/cmocka-1.0.1" ]; then
     echo "Building cmocka from source."
     wget https://cmocka.org/files/1.0/cmocka-1.0.1.tar.xz
