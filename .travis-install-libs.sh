@@ -9,7 +9,7 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
 make -j2 && sudo make install
 cd ../..
 
-if [ ! -d "libssh-0.7.3" ]; then
+if [  -d "libssh-0.7.3" ]; then
     echo "Building libssh from source."
     wget https://git.libssh.org/projects/libssh.git/snapshot/libssh-0.7.3.tar.bz2
     tar -xjf libssh-0.7.3.tar.bz2
