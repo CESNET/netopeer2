@@ -7,8 +7,8 @@ sudo apt-get install -y valgrind
 
 echo "pwd"
 ls -l $PWD
-echo "home"
-ls -l $HOME
+echo "pwd/cmocka-1.0.1"
+ls -l $PWD/cmocka-1.0.1
 if [ ! -d "$PWD/cmocka-1.0.1" ]; then
     echo "Building cmocka from source."
     wget https://cmocka.org/files/1.0/cmocka-1.0.1.tar.xz
