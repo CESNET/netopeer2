@@ -15,6 +15,7 @@ branches:
 
 cache:
   directories:
+    - cmocka-1.0.1
     - libssh-0.7.3
     - protobuf
     - protobuf-c
