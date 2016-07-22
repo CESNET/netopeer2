@@ -20,7 +20,7 @@ set(CMAKE_C_FLAGS_RELEASE "-O2")
 set(CMAKE_C_FLAGS_DEBUG   "-g -O0")
 
 # set version
-set(NP2CLI_VERSION 2.0.22)
+set(NP2CLI_VERSION 2.0.23)
 configure_file("${PROJECT_SOURCE_DIR}/version.h.in" "${PROJECT_SOURCE_DIR}/version.h" ESCAPE_QUOTES @ONLY)
 
 # source files
