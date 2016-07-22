@@ -204,6 +204,7 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
     int ret = 0;
     uint16_t i, j;
     uint64_t msgid;
+    struct lyd_node_anyxml *axml;
     NC_MSG_TYPE msgtype;
     struct nc_reply *reply;
     struct nc_reply_data *data_rpl;
@@ -247,17 +248,23 @@ recv_reply:
             if (output == stdout) {
                 fprintf(output, "MODULE\n");
             }
-            if (((struct lyd_node_anyxml *)data_rpl->data)->xml_struct) {
-                ret = lyxml_print_mem(&model_data, ((struct lyd_node_anyxml *)data_rpl->data)->value.xml, 0);
+            if ((data_rpl->data->schema->nodetype != LYS_RPC) || (data_rpl->data->child->schema->nodetype != LYS_ANYXML)) {
+                ERROR(__func__, "Unexpected data reply to <get-schema> RPC.");
+                ret = -1;
+                break;
+            }
+            axml = (struct lyd_node_anyxml *)data_rpl->data->child;
+            if (axml->xml_struct) {
+                ret = lyxml_print_mem(&model_data, axml->value.xml, 0);
                 if (ret) {
                     ERROR(__func__, "Failed to get the model data from the reply.\n");
-                    nc_reply_free(reply);
-                    return 1;
+                    ret = 1;
+                    break;
                 }
                 fputs(model_data, output);
                 free(model_data);
             } else {
-                fputs(((struct lyd_node_anyxml *)data_rpl->data)->value.str, output);
+                fputs(axml->value.str, output);
             }
 
             if (output == stdout) {
