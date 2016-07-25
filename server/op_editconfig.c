@@ -547,7 +547,6 @@ internalerror:
 
 errorreply:
     if (ereply) {
-        nc_server_reply_add_err(ereply, e);
         return ereply;
     } else {
         return nc_server_reply_err(e);
