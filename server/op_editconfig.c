@@ -229,7 +229,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     lyd_print_mem(&str, config, LYD_XML, LYP_WITHSIBLINGS | LYP_FORMAT);
-    VRB("EDIT-CONFIG: ds %d, defop %d, testopt %d, config:\n%s", sessions->srs, defop, testopt, str);
+    DBG("EDIT_CONFIG: ds %d, defop %d, testopt %d, config:\n%s", sessions->srs, defop, testopt, str);
     free(str);
 
     if (sessions->ds != SR_DS_CANDIDATE) {
@@ -288,7 +288,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 goto dfs_continue;
             }
 
-            VRB("EDIT_CONFIG: presence container %s, operation %d", path, op[op_index]);
+            DBG("EDIT_CONFIG: presence container %s, operation %d", path, op[op_index]);
 
             /* set value for sysrepo */
             op_set_srval(iter, NULL, 0, &value, &str);
@@ -305,13 +305,13 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                     /* the last key, create the list instance */
                     lastkey = 1;
 
-                    VRB("EDIT_CONFIG: list %s, operation %d", path, op[op_index]);
+                    DBG("EDIT_CONFIG: list %s, operation %d", path, op[op_index]);
                     break;
                 }
                 goto dfs_continue;
             }
             /* regular leaf */
-            VRB("EDIT_CONFIG: leaf %s, operation %d", path, op[op_index]);
+            DBG("EDIT_CONFIG: leaf %s, operation %d", path, op[op_index]);
 
             /* set value for sysrepo */
             op_set_srval(iter, NULL, 0, &value, &str);
@@ -323,9 +323,9 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 goto internalerror;
             }
 
-            VRB("EDIT_CONFIG: leaflist %s, operation %d", path, op[op_index]);
+            DBG("EDIT_CONFIG: leaflist %s, operation %d", path, op[op_index]);
             if (pos != SR_MOVE_LAST) {
-                VRB("EDIT_CONFIG: moving leaflist %s, position %d (%s)", path, pos, rel ? rel : "absolute");
+                DBG("EDIT_CONFIG: moving leaflist %s, position %d (%s)", path, pos, rel ? rel : "absolute");
             }
 
             /* set value for sysrepo */
@@ -386,7 +386,7 @@ resultcheck:
         /* check the result */
         switch (ret) {
         case SR_ERR_OK:
-            VRB("EDIT_CONFIG: success (%s)", path);
+            DBG("EDIT_CONFIG: success (%s).", path);
             /* no break */
         case -1:
             /* do nothing */
@@ -410,7 +410,7 @@ resultcheck:
         if (e) {
             switch (erropt) {
             case NP2_EDIT_ERROPT_CONT:
-                VRB("EDIT-CONFIG: continue-on-error (%s).", nc_err_get_msg(e));
+                DBG("EDIT_CONFIG: continue-on-error (%s).", nc_err_get_msg(e));
                 if (ereply) {
                     nc_server_reply_add_err(ereply, e);
                 } else {
@@ -419,11 +419,11 @@ resultcheck:
                 e = NULL;
                 goto dfs_nextsibling;
             case NP2_EDIT_ERROPT_ROLLBACK:
-                VRB("EDIT-CONFIG: rollback-on-error (%s).", nc_err_get_msg(e));
+                DBG("EDIT_CONFIG: rollback-on-error (%s).", nc_err_get_msg(e));
                 sr_discard_changes(sessions->srs);
                 goto cleanup;
             case NP2_EDIT_ERROPT_STOP:
-                VRB("EDIT-CONFIG: stop-on-error (%s).", nc_err_get_msg(e));
+                DBG("EDIT_CONFIG: stop-on-error (%s).", nc_err_get_msg(e));
                 if (sessions->ds != SR_DS_CANDIDATE) {
                     sr_commit(sessions->srs);
                 } else {
@@ -529,7 +529,7 @@ cleanup:
         }
 
         /* build positive RPC Reply */
-        VRB("EDIT-CONFIG: done.");
+        DBG("EDIT_CONFIG: done.");
         return nc_server_reply_ok();
     }
 
@@ -539,7 +539,7 @@ internalerror:
 
     /* fatal error, so continue-on-error does not apply here,
      * instead we rollback */
-    VRB("EDIT-CONFIG: fatal error, rolling back.");
+    DBG("EDIT_CONFIG: fatal error, rolling back.");
     sr_discard_changes(sessions->srs);
 
     free(op);
