@@ -134,22 +134,21 @@ signal_handler(int sig)
 }
 
 static char *
-np2srv_ly_module_clb(const char *name, const char *revision, void *user_data, LYS_INFORMAT *format,
-                     void (**free_module_data)(void *model_data))
+np2srv_ly_module_clb(const char *mod_name, const char *mod_rev, const char *submod_name, const char *UNUSED(submod_rev),
+                     void *UNUSED(user_data), LYS_INFORMAT *format, void (**free_module_data)(void *model_data))
 {
     char *data = NULL;
 
     *free_module_data = free;
-    *format = LYS_IN_YIN;
-    if (sr_get_schema(np2srv.sr_sess.srs, name, revision, NULL, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
-        /* import */
-        return data;
-    } else if (user_data && (sr_get_schema(np2srv.sr_sess.srs, (const char *)user_data, revision, name,
-                                           SR_SCHEMA_YIN, &data) == SR_ERR_OK)) {
-        /* include */
+    *format = LYS_YIN;
+    if (sr_get_schema(np2srv.sr_sess.srs, mod_name, mod_rev, submod_name, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
         return data;
     }
-    ERR("Unable to get %s module (as dependency of %s) from sysrepo.", name, (const char *)user_data);
+    if (submod_name) {
+        ERR("Unable to get %s module (as dependency of %s) from sysrepo.", mod_name, submod_name);
+    } else {
+        ERR("Unable to get %s module from sysrepo.", mod_name);
+    }
 
     return NULL;
 }
@@ -194,10 +193,10 @@ server_init(void)
     if (!np2srv.ly_ctx) {
         return EXIT_FAILURE;
     }
+    ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_module_clb, NULL);
 
     /* 1) use modules from sysrepo */
     for (i = 0; i < count; i++) {
-        ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_module_clb, (void*)schemas[i].module_name);
         data = NULL;
         mod = NULL;
 
@@ -227,7 +226,6 @@ server_init(void)
             }
         }
     }
-    ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_module_clb, NULL);
     sr_free_schemas(schemas, count);
 
     /* 2) add internally used schemas: ietf-netconf with ietf-netconf-acm, */
