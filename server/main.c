@@ -144,8 +144,8 @@ np2srv_ly_module_clb(const char *name, const char *revision, void *user_data, LY
     if (sr_get_schema(np2srv.sr_sess.srs, name, revision, NULL, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
         /* import */
         return data;
-    } else if (sr_get_schema(np2srv.sr_sess.srs, (const char *)user_data, revision, name,
-                             SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
+    } else if (user_data && (sr_get_schema(np2srv.sr_sess.srs, (const char *)user_data, revision, name,
+                                           SR_SCHEMA_YIN, &data) == SR_ERR_OK)) {
         /* include */
         return data;
     }
@@ -226,6 +226,7 @@ server_init(void)
             }
         }
     }
+    ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_module_clb, NULL);
     sr_free_schemas(schemas, count);
 
     /* 2) add internally used schemas: ietf-netconf with ietf-netconf-acm, */
