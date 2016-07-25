@@ -133,6 +133,8 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     int ret;
     struct lys_node_container *cont;
     struct lyd_node_anyxml *axml;
+    const sr_error_info_t *err_info;
+    size_t err_count, i;
 
     /* init */
     path[path_index] = '\0';
@@ -517,15 +519,46 @@ cleanup:
         /* send error reply */
         goto errorreply;
     } else {
-        /* commit the result */
-        if (sessions->ds != SR_DS_CANDIDATE) {
-            /* commit in candidate causes copy to running */
-            if (sr_commit(sessions->srs) != SR_ERR_OK) {
-                goto internalerror;
+        switch (testopt) {
+        case NP2_EDIT_TESTOPT_SET:
+            VRB("edit-config test-option \"set\" not supported, validation will be performed.");
+            /* fallthrough */
+        case NP2_EDIT_TESTOPT_TESTANDSET:
+            if (sessions->ds != SR_DS_CANDIDATE) {
+                /* commit in candidate causes copy to running */
+                ret =  sr_commit(sessions->srs);
+                switch (ret) {
+                case SR_ERR_OK:
+                    break;
+                case SR_ERR_VALIDATION_FAILED:
+                    sr_get_last_errors(sessions->srs, &err_info, &err_count);
+                    for (i = 0; i < err_count; ++i) {
+                        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_PROT);
+                        nc_err_set_msg(e, err_info[i].message, "en");
+                        nc_err_set_path(e, err_info[i].xpath);
+
+                        if (ereply) {
+                            nc_server_reply_add_err(ereply, e);
+                        } else {
+                            ereply = nc_server_reply_err(e);
+                        }
+                        e = NULL;
+                    }
+                    break;
+                default:
+                    goto internalerror;
+                }
+            } else {
+                /* mark candidate as modified */
+                sessions->flags |= NP2S_CAND_CHANGED;
             }
-        } else {
-            /* mark candidate as modified */
-            sessions->flags |= NP2S_CAND_CHANGED;
+            break;
+        case NP2_EDIT_TESTOPT_TEST:
+            sr_discard_changes(sessions->srs);
+            break;
+        default:
+            EINT;
+            goto internalerror;
         }
 
         /* build positive RPC Reply */
