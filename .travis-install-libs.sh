@@ -39,7 +39,7 @@ else
     cd ../..
 fi
 
-git clone -b travis_dbg https://github.com/CESNET/libnetconf2.git
+git clone https://github.com/CESNET/libnetconf2.git
 cd libnetconf2; mkdir build; cd build
 cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
 make -j2 && sudo make install
