@@ -588,7 +588,7 @@ restart:
 
             if (c == 3) {
                 /* there is some serious problem in synchronization/system planner */
-                ERRINT;
+                EINT;
                 ncm_session_del(ncs, 1);
                 nc_session_free(ncs, free_ds);
             }
