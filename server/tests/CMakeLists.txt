@@ -32,7 +32,7 @@ endforeach()
 
 foreach(test_name IN LISTS tests)
     add_executable(${test_name} ${test_name}.c ../netconf_monitoring.c ../operations.c ../op_get_config.c ../op_editconfig.c ../op_copyconfig.c ../op_deleteconfig.c ../op_candidate.c ../op_validate.c ../op_un_lock.c ../op_generic.c ../log.c)
-    target_link_libraries(${test_name} ${CMOCKA_LIBRARIES} pthread yang netconf2 sysrepo)
+    target_link_libraries(${test_name} ${CMOCKA_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${LIBYANG_LIBRARIES} ${LIBNETCONF2_LIBRARIES}  ${SYSREPO_LIBRARIES})
     set_target_properties(${test_name} PROPERTIES LINK_FLAGS "${${test_name}_wrap_link_flags}")
     add_test(NAME ${test_name} COMMAND $<TARGET_FILE:${test_name}>)
 endforeach(test_name)
