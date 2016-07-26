@@ -419,10 +419,10 @@ process_loop(void *arg)
 
     while (control == LOOP_CONTINUE) {
         /* listen for incomming requests on active NETCONF sessions */
-        if (nc_ps_session_count(np2srv.nc_ps)) {
+        if (nc_ps_session_count(np2srv.nc_ps) > 0) {
             rc = nc_ps_poll(np2srv.nc_ps, 500, &ncs);
         } else {
-            /* if there is no active session, rest for a while */
+            /* if there is no active session or timeout, rest for a while */
             usleep(100);
             continue;
         }
@@ -578,7 +578,20 @@ restart:
                 continue;
             }
             ncm_session_add(ncs);
-            nc_ps_add_session(np2srv.nc_ps, ncs);
+
+            c = 0;
+            while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, ncs)) {
+                /* presumably timeout, give it a shot 2 times */
+                usleep(10000);
+                ++c;
+            }
+
+            if (c == 3) {
+                /* there is some serious problem in synchronization/system planner */
+                ERRINT;
+                ncm_session_del(ncs, 1);
+                nc_session_free(ncs, free_ds);
+            }
         }
     }
 
