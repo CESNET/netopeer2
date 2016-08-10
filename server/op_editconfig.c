@@ -333,6 +333,9 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             /* set value for sysrepo */
             op_set_srval(iter, NULL, 0, &value, &str);
 
+            /* in leaf-list, the value is also the key, so add it into the path */
+            path_index += sprintf(&path[path_index], "[.=\'%s\']", ((struct lyd_node_leaf_list *)iter)->value_str);
+
             break;
         case LYS_LIST:
             /* get info about inserting to a specific place */
