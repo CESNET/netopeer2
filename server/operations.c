@@ -123,6 +123,7 @@ op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val, char **v
     uint32_t i;
     struct lyd_node_leaf_list *leaf;
     const char *str;
+    LY_DATA_TYPE type;
 
     if (!dup) {
         assert(val_buf);
@@ -143,8 +144,9 @@ op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val, char **v
     case LYS_LEAF:
     case LYS_LEAFLIST:
         leaf = (struct lyd_node_leaf_list *)node;
-
-        switch (((struct lys_node_leaf *)node->schema)->type.base) {
+settype:
+        type = leaf->value_type;
+        switch (type & LY_DATA_TYPE_MASK) {
         case LY_TYPE_BINARY:
             val->type = SR_BINARY_T;
             str = leaf->value.binary;
@@ -168,7 +170,7 @@ op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val, char **v
         case LY_TYPE_DEC64:
             val->type = SR_DECIMAL64_T;
             val->data.decimal64_val = (double)leaf->value.dec64;
-            for (i = 0; i < ((struct lys_node_leaf *)node->schema)->type.info.dec64.dig; i++) {
+            for (i = 0; i < ((struct lys_node_leaf *)leaf->schema)->type.info.dec64.dig; i++) {
                 /* shift decimal point */
                 val->data.decimal64_val *= 0.1;
             }
@@ -209,6 +211,7 @@ op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val, char **v
             break;
         case LY_TYPE_INST:
             val->type = SR_INSTANCEID_T;
+            val->data.instanceid_val = dup ? strdup(leaf->value_str) : (char*)leaf->value_str;
             break;
         case LY_TYPE_STRING:
             val->type = SR_STRING_T;
@@ -251,8 +254,11 @@ op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val, char **v
             val->type = SR_UINT64_T;
             val->data.uint64_val = leaf->value.uint64;
             break;
+        case LY_TYPE_LEAFREF:
+            leaf = (struct lyd_node_leaf_list *)leaf->value.leafref;
+            goto settype;
         default:
-            //LY_LEAFREF, LY_DERIVED, LY_UNION
+            //LY_DERIVED, LY_UNION
             val->type = SR_UNKNOWN_T;
             break;
         }
