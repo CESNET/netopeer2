@@ -547,7 +547,7 @@ cleanup:
                         }
                         e = NULL;
                     }
-                    break;
+                    goto errorreply;
                 default:
                     goto internalerror;
                 }
