@@ -40,6 +40,7 @@ configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_SOURCE_DIR}/config
 # source files
 set(srcs
 	main.c
+	ietf_netconf_server.c
 	netconf_monitoring.c
 	operations.c
 	op_get_config.c
