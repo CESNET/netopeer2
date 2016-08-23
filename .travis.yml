@@ -24,7 +24,7 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then bash .travis-install-libs.sh; fi
 
 script:
-  - mkdir build-server && cd build-server && cmake ../server && make -j2 && ctest -V
+  - mkdir build-server && cd build-server && cmake ../server && make -j2 && sudo ctest -V
 
 after_success:
   - if [ "${CC}" = "gcc" ]; then bash <(curl -s https://codecov.io/bash); fi
