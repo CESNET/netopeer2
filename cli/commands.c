@@ -204,7 +204,7 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output)
     int ret = 0;
     uint16_t i, j;
     uint64_t msgid;
-    struct lyd_node_anyxml *axml;
+    struct lyd_node_anydata *any;
     NC_MSG_TYPE msgtype;
     struct nc_reply *reply;
     struct nc_reply_data *data_rpl;
@@ -253,18 +253,21 @@ recv_reply:
                 ret = -1;
                 break;
             }
-            axml = (struct lyd_node_anyxml *)data_rpl->data->child;
-            if (axml->xml_struct) {
-                ret = lyxml_print_mem(&model_data, axml->value.xml, 0);
-                if (ret) {
-                    ERROR(__func__, "Failed to get the model data from the reply.\n");
-                    ret = 1;
-                    break;
-                }
+            any = (struct lyd_node_anydata *)data_rpl->data->child;
+            switch (any->value_type) {
+            case LYD_ANYDATA_CONSTSTRING:
+            case LYD_ANYDATA_STRING:
+                fputs(any->value.str, output);
+                break;
+            case LYD_ANYDATA_DATATREE:
+                lyd_print_mem(&model_data, any->value.tree, LYD_XML, LYP_FORMAT | LYP_WITHSIBLINGS);
                 fputs(model_data, output);
                 free(model_data);
-            } else {
-                fputs(axml->value.str, output);
+                break;
+            case LYD_ANYDATA_XML:
+                lyxml_print_mem(&model_data, any->value.xml, LYXML_PRINT_SIBLINGS);
+                fputs(model_data, output);
+                free(model_data);
             }
 
             if (output == stdout) {
