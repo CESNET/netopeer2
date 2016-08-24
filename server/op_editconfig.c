@@ -124,7 +124,6 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     enum NP2_EDIT_TESTOPT testopt = NP2_EDIT_TESTOPT_TESTANDSET;
     /* default value for error-option is "stop-on-error" */
     enum NP2_EDIT_ERROPT erropt = NP2_EDIT_ERROPT_STOP;
-    struct lyxml_elem *config_xml;
     struct lyd_node *config = NULL, *next, *iter;
     char *str, path[1024], *rel;
     const char *cstr;
@@ -132,7 +131,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     int op_index, op_size, path_index = 0, missing_keys = 0, lastkey = 0;
     int ret;
     struct lys_node_container *cont;
-    struct lyd_node_anyxml *axml;
+    struct lyd_node_anydata *any;
     const sr_error_info_t *err_info;
     size_t err_count, i;
 
@@ -209,13 +208,19 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* config */
     nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/config");
     if (nodeset->number) {
-        axml = (struct lyd_node_anyxml *)nodeset->set.d[0];
-        if (axml->xml_struct) {
-            config_xml = axml->value.xml;
-            config = lyd_parse_xml(np2srv.ly_ctx, &config_xml, LYD_OPT_EDIT);
-        } else {
-            cstr = axml->value.str;
-            config = lyd_parse_mem(np2srv.ly_ctx, cstr, LYD_XML, LYD_OPT_EDIT);
+        any = (struct lyd_node_anydata *)nodeset->set.d[0];
+        switch (any->value_type) {
+        case LYD_ANYDATA_CONSTSTRING:
+        case LYD_ANYDATA_STRING:
+            config = lyd_parse_mem(np2srv.ly_ctx, any->value.str, LYD_XML, LYD_OPT_EDIT);
+            break;
+        case LYD_ANYDATA_DATATREE:
+            config = any->value.tree;
+            any->value.tree = NULL; /* "unlink" data tree from anydata to have full control */
+            break;
+        case LYD_ANYDATA_XML:
+            config = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, LYD_OPT_EDIT);
+            break;
         }
         ly_set_free(nodeset);
         if (ly_errno) {

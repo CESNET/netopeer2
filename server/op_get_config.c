@@ -69,7 +69,7 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, c
         }
 
         node = lyd_new_path(*root, np2srv.ly_ctx, value->xpath,
-                            op_get_srval(np2srv.ly_ctx, value, buf), LYD_PATH_OPT_UPDATE);
+                            op_get_srval(np2srv.ly_ctx, value, buf), 0, LYD_PATH_OPT_UPDATE);
         sr_free_val(value);
         if (ly_errno) {
             sr_free_val_iter(iter);
@@ -619,7 +619,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     struct lyd_node_leaf_list *leaf;
     struct lyd_node *root = NULL, *node, *yang_lib_data = NULL, *ncm_data = NULL;
     struct lyd_attr *attr;
-    char **filters = NULL, buf[21], *path, *data = NULL;
+    char **filters = NULL, buf[21], *path;
     int rc, filter_count = 0;
     unsigned int config_only;
     uint32_t i, j;
@@ -685,16 +685,24 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
         if (!attr) {
             /* subtree */
-            if (!((struct lyd_node_anyxml *)node)->value.str
-                    || (!((struct lyd_node_anyxml *)node)->xml_struct && !((struct lyd_node_anyxml *)node)->value.str[0])) {
+            if (!((struct lyd_node_anydata *)node)->value.str
+                    || (((struct lyd_node_anydata *)node)->value_type <= LYD_ANYDATA_STRING &&
+                        !((struct lyd_node_anydata *)node)->value.str[0])) {
                 /* empty filter, fair enough */
                 goto send_reply;
             }
 
-            if (((struct lyd_node_anyxml *)node)->xml_struct) {
-                subtree_filter = ((struct lyd_node_anyxml *)node)->value.xml;
-            } else {
-                subtree_filter = lyxml_parse_mem(np2srv.ly_ctx, ((struct lyd_node_anyxml *)node)->value.str, LYXML_PARSE_MULTIROOT);
+            switch (((struct lyd_node_anydata *)node)->value_type) {
+            case LYD_ANYDATA_CONSTSTRING:
+            case LYD_ANYDATA_STRING:
+                subtree_filter = lyxml_parse_mem(np2srv.ly_ctx, ((struct lyd_node_anydata *)node)->value.str, LYXML_PARSE_MULTIROOT);
+                break;
+            case LYD_ANYDATA_XML:
+                subtree_filter = ((struct lyd_node_anydata *)node)->value.xml;
+                break;
+            default:
+                /* filter cannot be parsed as lyd_node tree */
+                goto error;
             }
             if (!subtree_filter) {
                 goto error;
@@ -837,7 +845,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 /* create subtree root */
                 ly_errno = LY_SUCCESS;
                 node = lyd_new_path(root, np2srv.ly_ctx, values[j].xpath,
-                                    op_get_srval(np2srv.ly_ctx, &values[j], buf), LYD_PATH_OPT_UPDATE);
+                                    op_get_srval(np2srv.ly_ctx, &values[j], buf), 0, LYD_PATH_OPT_UPDATE);
                 if (ly_errno) {
                     goto error;
                 }
@@ -882,13 +890,9 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
 send_reply:
     /* build RPC Reply */
-    if (root) {
-        lyd_print_mem(&data, root, LYD_XML, LYP_WITHSIBLINGS);
-        lyd_free_withsiblings(root);
-    }
-    snode = ly_ctx_get_node(np2srv.ly_ctx, rpc->schema, "output/data");
+    node = root;
     root = lyd_dup(rpc, 0);
-    lyd_new_output_anyxml_str(root, NULL, "data", data);
+    lyd_new_output_anydata(root, NULL, "data", node, LYD_ANYDATA_DATATREE);
     return nc_server_reply_data(root, NC_PARAMTYPE_FREE);
 
 error:

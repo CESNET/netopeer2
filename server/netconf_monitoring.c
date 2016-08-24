@@ -191,7 +191,7 @@ ncm_get_data(void)
     char buf[26];
     uint32_t i;
 
-    root = lyd_new_path(NULL, np2srv.ly_ctx, "/ietf-netconf-monitoring:netconf-state", NULL, 0);
+    root = lyd_new_path(NULL, np2srv.ly_ctx, "/ietf-netconf-monitoring:netconf-state", NULL, 0, 0);
     if (!root) {
         goto error;
     }

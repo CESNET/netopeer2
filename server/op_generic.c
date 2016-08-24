@@ -44,7 +44,7 @@ build_rpc_from_output(struct lyd_node *rpc, sr_val_t *output, size_t out_count, 
         }
 
         node = lyd_new_path(rpc, np2srv.ly_ctx, output[i].xpath, op_get_srval(np2srv.ly_ctx, &output[i], buf),
-                            LYD_PATH_OPT_UPDATE | LYD_PATH_OPT_OUTPUT);
+                            0, LYD_PATH_OPT_UPDATE | LYD_PATH_OPT_OUTPUT);
         if (ly_errno) {
             return -1;
         }

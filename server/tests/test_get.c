@@ -667,7 +667,7 @@ test_get_filter1(void **state)
     "</rpc>";
     const char *get_rpl =
     "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
-        "<data xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\"></data>"
+        "<data xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\"/>"
     "</rpc-reply>";
 
     test_write(p_out, get_rpc, __LINE__);

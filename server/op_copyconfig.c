@@ -35,7 +35,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     sr_datastore_t target = 0, source = 0;
     struct ly_set *nodeset;
     struct lyd_node *config = NULL, *iter, *next;
-    struct lyd_node_anyxml *axml;
+    struct lyd_node_anydata *any;
     const char *dsname;
     char *str, path[1024];
     sr_val_t value;
@@ -83,8 +83,20 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     } else if (!strcmp(dsname, "candidate")) {
         source = SR_DS_CANDIDATE;
     } else if (!strcmp(dsname, "config")) {
-        axml = (struct lyd_node_anyxml *)nodeset->set.d[0];
-        config = lyd_parse_xml(rpc->schema->module->ctx, &axml->value.xml, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT);
+        any = (struct lyd_node_anydata *)nodeset->set.d[0];
+        switch (any->value_type) {
+        case LYD_ANYDATA_CONSTSTRING:
+        case LYD_ANYDATA_STRING:
+            config = lyd_parse_mem(np2srv.ly_ctx, any->value.str, LYD_XML, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT);
+            break;
+        case LYD_ANYDATA_DATATREE:
+            config = any->value.tree;
+            any->value.tree = NULL; /* "unlink" data tree from anydata to have full control */
+            break;
+        case LYD_ANYDATA_XML:
+            config = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT);
+            break;
+        }
         if (!config) {
             if (ly_errno != LY_SUCCESS) {
                 ly_set_free(nodeset);
