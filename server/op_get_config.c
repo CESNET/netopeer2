@@ -32,11 +32,11 @@
 
 /* add subtree to root */
 static int
-opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, const char *subtree_path, NC_WD_MODE wd)
+opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, const char *subtree_path)
 {
     sr_val_t *value;
-    sr_val_iter_t *iter;
-    struct lyd_node *node;
+    sr_val_iter_t *sriter;
+    struct lyd_node *node, *iter;
     char *subtree_children_path, buf[128];
     int rc;
 
@@ -45,7 +45,7 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, c
         return -1;
     }
 
-    rc = sr_get_items_iter(ds, subtree_children_path, &iter);
+    rc = sr_get_items_iter(ds, subtree_children_path, &sriter);
     if (rc != SR_ERR_OK) {
         ERR("Getting items (%s) from sysrepo failed (%s).", subtree_children_path, sr_strerror(rc));
         free(subtree_children_path);
@@ -54,25 +54,13 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, c
     free(subtree_children_path);
 
     ly_errno = LY_SUCCESS;
-    while (sr_get_item_next(ds, iter, &value) == SR_ERR_OK) {
-        if (value->type == SR_CONTAINER_T) {
-            /* useless to create containers, we would have to check later that there is
-             * really something inside */
-            sr_free_val(value);
-            continue;
-        }
-
-        rc = op_dflt_data_inspect(np2srv.ly_ctx, value, wd, 0);
-        if (rc < 0) {
-            sr_free_val(value);
-            continue;
-        }
-
+    while (sr_get_item_next(ds, sriter, &value) == SR_ERR_OK) {
+        ly_errno = LY_SUCCESS;
         node = lyd_new_path(*root, np2srv.ly_ctx, value->xpath,
                             op_get_srval(np2srv.ly_ctx, value, buf), 0, LYD_PATH_OPT_UPDATE);
-        sr_free_val(value);
         if (ly_errno) {
-            sr_free_val_iter(iter);
+            sr_free_val(value);
+            sr_free_val_iter(sriter);
             return -1;
         }
 
@@ -80,48 +68,48 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, c
             *root = node;
         }
 
-        if (rc) {
-            assert(node);
-            while (node->schema->nodetype & (LYS_CONTAINER | LYS_LIST)) {
-                node = node->child;
-                assert(node);
+        if (node) {
+            /* propagate default flag */
+            if (value->dflt) {
+                /* go down */
+                for (iter = node;
+                     !(iter->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYXML)) && iter->child;
+                     iter = iter->child);
+                /* go up, back to the node */
+                for (; ; iter = iter->parent) {
+                    if (iter->schema->nodetype == LYS_CONTAINER && ((struct lys_node_container *)iter->schema)->presence) {
+                        /* presence container */
+                        break;
+                    } else if (iter->schema->nodetype == LYS_LIST && ((struct lys_node_list *)iter->schema)->keys_size) {
+                        /* list with keys */
+                        break;
+                    }
+                    iter->dflt = 1;
+                    if (iter == node) {
+                        /* done */
+                        break;
+                    }
+                }
+            } else { /* non default node, propagate it to the parents */
+                for (iter = node->parent; iter && iter->dflt; iter = iter->parent) {
+                    iter->dflt = 0;
+                }
             }
-            assert(node->schema->nodetype == LYS_LEAF);
-            node->dflt = 1;
         }
+        sr_free_val(value);
     }
-    sr_free_val_iter(iter);
+    sr_free_val_iter(sriter);
 
     return 0;
 }
 
-/* wd == 0 - skip all default value processing (if we know the module of data does not define any) */
 static int
-opget_build_tree_from_data(struct lyd_node **root, struct lyd_node *data, const char *subtree_path, NC_WD_MODE wd)
+opget_build_tree_from_data(struct lyd_node **root, struct lyd_node *data, const char *subtree_path)
 {
     struct ly_set *nodeset;
     struct lyd_node *node, *node2, *key, *key2, *child, *tmp_root;
     struct lys_node_list *slist;
     uint16_t i, j;
-    int lyd_wd;
-
-    switch (wd) {
-    case NC_WD_TRIM:
-        lyd_wd = LYD_WD_TRIM;
-        break;
-    case NC_WD_EXPLICIT:
-        lyd_wd = LYD_WD_EXPLICIT;
-        break;
-    case NC_WD_ALL:
-        lyd_wd = LYD_WD_ALL;
-        break;
-    case NC_WD_ALL_TAG:
-        lyd_wd = LYD_WD_ALL_TAG;
-        break;
-    default:
-        lyd_wd = 0;
-        break;
-    }
 
     nodeset = lyd_get_node(data, subtree_path);
     for (i = 0; i < nodeset->number; ++i) {
@@ -190,41 +178,6 @@ opget_build_tree_from_data(struct lyd_node **root, struct lyd_node *data, const 
         }
     }
     ly_set_free(nodeset);
-
-    /* add the default values for this module only */
-    if (lyd_wd) {
-        if (*root) {
-            LY_TREE_FOR(*root, node) {
-                if (lyd_node_module(node) == lyd_node_module(data)) {
-                    break;
-                }
-            }
-        }
-
-        if (node) {
-            /* add default values just for this module */
-            if (lyd_wd_add(NULL, &node, LYD_OPT_NOSIBLINGS | lyd_wd)) {
-                EINT;
-                return -1;
-            }
-        } else {
-            /* we need to manually filter out any default values of our module */
-            if (lyd_wd_add(np2srv.ly_ctx, &node, lyd_wd)) {
-                EINT;
-                return -1;
-            }
-
-            LY_TREE_FOR(node, node2) {
-                if (lyd_node_module(node2) == lyd_node_module(data)) {
-                    if (lyd_merge(*root, node2, LYD_OPT_NOSIBLINGS | LYD_OPT_DESTRUCT)) {
-                        EINT;
-                        return -1;
-                    }
-                }
-            }
-            lyd_free_withsiblings(node);
-        }
-    }
 
     return 0;
 }
@@ -617,7 +570,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     const struct lys_module *module;
     const struct lys_node *snode;
     struct lyd_node_leaf_list *leaf;
-    struct lyd_node *root = NULL, *node, *yang_lib_data = NULL, *ncm_data = NULL;
+    struct lyd_node *root = NULL, *node, *yang_lib_data = NULL, *ncm_data = NULL, *iter;
     struct lyd_attr *attr;
     char **filters = NULL, buf[21], *path;
     int rc, filter_count = 0;
@@ -632,6 +585,9 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
+
+    /* get default value for with-defaults */
+    nc_server_get_capab_withdefaults(&nc_wd, NULL);
 
     /* get know which datastore is being affected */
     if (!strcmp(rpc->schema->name, "get")) {
@@ -766,8 +722,6 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             EINT;
             goto error;
         }
-    } else {
-        nc_server_get_capab_withdefaults(&nc_wd, NULL);
     }
     ly_set_free(nodeset);
 
@@ -803,7 +757,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 }
             }
 
-            if (opget_build_tree_from_data(&root, yang_lib_data, filters[i], 0)) {
+            if (opget_build_tree_from_data(&root, yang_lib_data, filters[i])) {
                 goto error;
             }
             continue;
@@ -820,7 +774,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 }
             }
 
-            if (opget_build_tree_from_data(&root, ncm_data, filters[i], 0)) {
+            if (opget_build_tree_from_data(&root, ncm_data, filters[i])) {
                 goto error;
             }
             continue;
@@ -836,38 +790,52 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         }
 
         for (j = 0; j < value_count; ++j) {
-            if (values[j].type != SR_CONTAINER_T) {
-                rc = op_dflt_data_inspect(np2srv.ly_ctx, &values[j], nc_wd, 0);
-                if (rc < 0) {
-                    continue;
-                }
+            node = NULL;
+            /* create subtree root */
+            ly_errno = LY_SUCCESS;
+            node = lyd_new_path(root, np2srv.ly_ctx, values[j].xpath, op_get_srval(np2srv.ly_ctx, &values[j], buf), 0,
+                                LYD_PATH_OPT_UPDATE);
+            if (ly_errno) {
+                goto error;
+            }
 
-                /* create subtree root */
-                ly_errno = LY_SUCCESS;
-                node = lyd_new_path(root, np2srv.ly_ctx, values[j].xpath,
-                                    op_get_srval(np2srv.ly_ctx, &values[j], buf), 0, LYD_PATH_OPT_UPDATE);
-                if (ly_errno) {
-                    goto error;
-                }
+            if (!root) {
+                /* node cannot be NULL */
+                assert(node);
+                root = node;
+            }
 
-                if (!root) {
-                    root = node;
-                }
-
-                if (rc) {
-                    /* add the default attribute */
-                    assert(node);
-                    while (node->schema->nodetype & (LYS_CONTAINER | LYS_LIST)) {
-                        node = node->child;
-                        assert(node);
+            if (node) {
+                /* propagate default flag */
+                if (values[j].dflt) {
+                    /* go down */
+                    for (iter = node;
+                         !(iter->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYXML)) && iter->child;
+                         iter = iter->child);
+                    /* go up, back to the node */
+                    for (; ; iter = iter->parent) {
+                        if (iter->schema->nodetype == LYS_CONTAINER && ((struct lys_node_container *)iter->schema)->presence) {
+                            /* presence container */
+                            break;
+                        } else if (iter->schema->nodetype == LYS_LIST && ((struct lys_node_list *)iter->schema)->keys_size) {
+                            /* list with keys */
+                            break;
+                        }
+                        iter->dflt = 1;
+                        if (iter == node) {
+                            /* done */
+                            break;
+                        }
                     }
-                    assert(node->schema->nodetype == LYS_LEAF);
-                    node->dflt = 1;
+                } else { /* non default node, propagate it to the parents */
+                    for (iter = node->parent; iter && iter->dflt; iter = iter->parent) {
+                        iter->dflt = 0;
+                    }
                 }
             }
 
             /* create the full subtree */
-            if (opget_build_subtree_from_sysrepo(sessions->srs, &root, values[j].xpath, nc_wd)) {
+            if (opget_build_subtree_from_sysrepo(sessions->srs, &root, values[j].xpath)) {
                 goto error;
             }
         }
@@ -893,7 +861,7 @@ send_reply:
     node = root;
     root = lyd_dup(rpc, 0);
     lyd_new_output_anydata(root, NULL, "data", node, LYD_ANYDATA_DATATREE);
-    return nc_server_reply_data(root, NC_PARAMTYPE_FREE);
+    return nc_server_reply_data(root, nc_wd, NC_PARAMTYPE_FREE);
 
 error:
     sr_free_values(values, value_count);

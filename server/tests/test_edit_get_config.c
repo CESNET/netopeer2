@@ -231,6 +231,7 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
         path = lyd_path(ietf_if_set->set.d[0]);
         *value = malloc(sizeof **value);
         op_set_srval(ietf_if_set->set.d[0], path, 1, *value, NULL);
+        (*value)->dflt = ietf_if_set->set.d[0]->dflt;
         free(path);
 
         --ietf_if_set->number;
@@ -736,7 +737,7 @@ np_stop(void **state)
     (void)state; /* unused */
     int64_t ret;
 
-    lyd_free(data);
+    lyd_free_withsiblings(data);
 
     control = LOOP_STOP;
     assert_int_equal(pthread_join(server_tid, (void **)&ret), 0);

@@ -331,7 +331,7 @@ ncm_get_data(void)
 
     pthread_mutex_unlock(&stats.lock);
 
-    if (lyd_validate(&root, LYD_OPT_GET)) {
+    if (lyd_validate(&root, LYD_OPT_NOSIBLINGS)) {
         goto error;
     }
 
