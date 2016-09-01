@@ -71,7 +71,7 @@ else
     cd ..
 fi
 
-git clone https://github.com/sysrepo/sysrepo.git
+git clone -b devel https://github.com/sysrepo/sysrepo.git
 cd sysrepo; mkdir build; cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=/usr -DENABLE_TESTS=False -DREPOSITORY_LOC:PATH=/ets/sysrepo ..
 make -j2 && sudo make install
