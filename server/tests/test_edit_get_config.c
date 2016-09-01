@@ -1379,17 +1379,27 @@ test_edit_merge(void **state)
     test_read(p_in, get_config_rpl, __LINE__);
 }
 
+static void
+test_startstop(void **state)
+{
+    (void)state; /* unused */
+    return;
+}
+
+
 int
 main(void)
 {
     const struct CMUnitTest tests[] = {
-                    cmocka_unit_test_setup(test_edit_delete1, np_start),
+                    cmocka_unit_test_setup(test_startstop, np_start),
+                    cmocka_unit_test(test_edit_delete1),
                     cmocka_unit_test(test_edit_delete2),
                     cmocka_unit_test(test_edit_delete3),
                     cmocka_unit_test(test_edit_create1),
                     cmocka_unit_test(test_edit_create2),
                     cmocka_unit_test(test_edit_create3),
-                    cmocka_unit_test_teardown(test_edit_merge, np_stop),
+                    cmocka_unit_test(test_edit_merge),
+                    cmocka_unit_test_teardown(test_startstop, np_stop),
     };
 
     if (setenv("CMOCKA_TEST_ABORT", "1", 1)) {
