@@ -111,7 +111,7 @@ opget_build_tree_from_data(struct lyd_node **root, struct lyd_node *data, const 
     struct lys_node_list *slist;
     uint16_t i, j;
 
-    nodeset = lyd_get_node(data, subtree_path);
+    nodeset = lyd_find_xpath(data, subtree_path);
     for (i = 0; i < nodeset->number; ++i) {
         node = nodeset->set.d[i];
         tmp_root = lyd_dup(node, 1);
@@ -595,7 +595,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         ds = SR_DS_RUNNING;
     } else { /* get-config */
         config_only = SR_SESS_CONFIG_ONLY;
-        nodeset = lyd_get_node(rpc, "/ietf-netconf:get-config/source/*");
+        nodeset = lyd_find_xpath(rpc, "/ietf-netconf:get-config/source/*");
         if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
             ds = SR_DS_RUNNING;
         } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
@@ -615,7 +615,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* create filters */
-    nodeset = lyd_get_node(rpc, "/ietf-netconf:*/filter");
+    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:*/filter");
     if (nodeset->number) {
         node = nodeset->set.d[0];
         ly_set_free(nodeset);
@@ -706,7 +706,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* get with-defaults mode */
-    nodeset = lyd_get_node(rpc, "/ietf-netconf:*/ietf-netconf-with-defaults:with-defaults");
+    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:*/ietf-netconf-with-defaults:with-defaults");
     if (nodeset->number) {
         leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
         if (!strcmp(leaf->value_str, "report-all")) {

@@ -219,7 +219,7 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
 
     if (!strcmp(xpath, "/ietf-interfaces:interfaces//*")) {
         if (!ietf_if_set) {
-            ietf_if_set = lyd_get_node(data, xpath);
+            ietf_if_set = lyd_find_xpath(data, xpath);
         }
 
         if (!ietf_if_set->number) {
@@ -300,7 +300,7 @@ __wrap_sr_delete_item(sr_session_ctx_t *session, const char *xpath, const sr_edi
     struct ly_set *set;
     uint32_t i;
 
-    set = lyd_get_node(data, xpath);
+    set = lyd_find_xpath(data, xpath);
     assert_ptr_not_equal(set, NULL);
 
     if ((opts & SR_EDIT_STRICT) && !set->number) {
@@ -327,20 +327,20 @@ __wrap_sr_move_item(sr_session_ctx_t *session, const char *xpath, const sr_move_
     struct ly_set *set, *set2 = NULL;
     struct lyd_node *node;
 
-    set = lyd_get_node(data, xpath);
+    set = lyd_find_xpath(data, xpath);
     assert_ptr_not_equal(set, NULL);
     assert_int_equal(set->number, 1);
 
     switch (position) {
     case SR_MOVE_BEFORE:
-        set2 = lyd_get_node(data, relative_item);
+        set2 = lyd_find_xpath(data, relative_item);
         assert_ptr_not_equal(set2, NULL);
         assert_int_equal(set2->number, 1);
 
         assert_int_equal(lyd_insert_before(set2->set.d[0], set->set.d[0]), 0);
         break;
     case SR_MOVE_AFTER:
-        set2 = lyd_get_node(data, relative_item);
+        set2 = lyd_find_xpath(data, relative_item);
         assert_ptr_not_equal(set2, NULL);
         assert_int_equal(set2->number, 1);
 

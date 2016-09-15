@@ -44,7 +44,7 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
     /* get know which datastore is being affected */
-    nodeset = lyd_get_node(rpc, "/ietf-netconf:lock/target/*");
+    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:lock/target/*");
     dsname = nodeset->set.d[0]->schema->name;
     ly_set_free(nodeset);
 
@@ -128,7 +128,7 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
     /* get know which datastore is being affected */
-    nodeset = lyd_get_node(rpc, "/ietf-netconf:unlock/target/*");
+    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:unlock/target/*");
     dsname = nodeset->set.d[0]->schema->name;
     ly_set_free(nodeset);
 

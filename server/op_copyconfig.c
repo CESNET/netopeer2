@@ -47,7 +47,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
     /* get know which datastore is being affected */
-    nodeset = lyd_get_node(rpc, "/ietf-netconf:copy-config/target/*");
+    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:copy-config/target/*");
     dsname = nodeset->set.d[0]->schema->name;
     ly_set_free(nodeset);
 
@@ -73,7 +73,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* get source */
-    nodeset = lyd_get_node(rpc, "/ietf-netconf:copy-config/source/*");
+    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:copy-config/source/*");
     dsname = nodeset->set.d[0]->schema->name;
 
     if (!strcmp(dsname, "running")) {

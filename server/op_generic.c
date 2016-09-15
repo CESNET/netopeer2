@@ -72,7 +72,7 @@ build_rpc_from_output(struct lyd_node *rpc, sr_val_t *output, size_t out_count)
             }
         }
     }
-    if (lyd_validate(&rpc, LYD_OPT_RPCREPLY)) {
+    if (lyd_validate(&rpc, LYD_OPT_RPCREPLY, NULL)) {
         return -1;
     }
 
@@ -105,7 +105,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* process input into sysrepo format */
-    set = lyd_get_node(rpc, "//*");
+    set = lyd_find_xpath(rpc, "//*");
     if (!set->number || (set->set.d[0]->schema->nodetype != LYS_RPC)) {
         /* TODO action always goes here */
         EINT;
