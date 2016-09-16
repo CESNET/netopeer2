@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <stdarg.h>
+#include <ctype.h>
 
 #include <libyang/libyang.h>
 #include <nc_client.h>
@@ -278,10 +279,32 @@ recv_reply:
 
         if (output == stdout) {
             fprintf(output, "DATA\n");
+        } else {
+            switch (nc_rpc_get_type(rpc)) {
+            case NC_RPC_GETCONFIG:
+                fprintf(output, "<config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n");
+                break;
+            case NC_RPC_GET:
+                fprintf(output, "<data xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n");
+                break;
+            default:
+                break;
+            }
         }
         lyd_print_file(output, data_rpl->data, output_format, LYP_WITHSIBLINGS | output_flag);
         if (output == stdout) {
             fprintf(output, "\n");
+        } else {
+            switch (nc_rpc_get_type(rpc)) {
+            case NC_RPC_GETCONFIG:
+                fprintf(output, "</config>\n");
+                break;
+            case NC_RPC_GET:
+                fprintf(output, "</data>\n");
+                break;
+            default:
+                break;
+            }
         }
         break;
     case NC_RPL_ERROR:
@@ -340,6 +363,168 @@ recv_reply:
     }
 
     return ret;
+}
+
+static char *
+trim_top_elem(char *data, const char *top_elem, const char *top_elem_ns)
+{
+    char *ptr, *prefix = NULL, *buf;
+    int pref_len, state = 0, quote;
+
+    /* state: -2 - syntax error,
+     *        -1 - top_elem not found,
+     *        0 - start,
+     *        1 - parsing prefix,
+     *        2 - prefix just parsed,
+     *        3 - top-elem found and parsed, looking for namespace,
+     *        4 - top_elem and top_elem_ns found (success)
+     */
+
+    while (isspace(data[0])) {
+        ++data;
+    }
+
+    if (data[0] != '<') {
+        return data;
+    }
+
+    for (ptr = data + 1; (ptr[0] != '\0') && (ptr[0] != '>'); ++ptr) {
+        switch (state) {
+        case 0:
+            if (!strncmp(ptr, top_elem, strlen(top_elem))) {
+                state = 3;
+                ptr += strlen(top_elem);
+            } else if ((ptr[0] != ':') && !isdigit(ptr[0])) {
+                state = 1;
+                prefix = ptr;
+                pref_len = 1;
+            } else {
+                state = -1;
+            }
+            break;
+        case 1:
+            if (ptr[0] == ':') {
+                /* prefix parsed */
+                state = 2;
+            } else if (ptr[0] != ' ') {
+                ++pref_len;
+            } else {
+                state = -1;
+            }
+            break;
+        case 2:
+            if (!strncmp(ptr, top_elem, strlen(top_elem))) {
+                state = 3;
+                ptr += strlen(top_elem);
+            } else {
+                state = -1;
+            }
+            break;
+        case 3:
+            if (!strncmp(ptr, "xmlns", 5)) {
+                ptr += 5;
+                if (prefix) {
+                    if ((ptr[0] != ':') || strncmp(ptr + 1, prefix, pref_len) || (ptr[1 + pref_len] != '='))  {
+                        /* it's not the right prefix, look further */
+                        break;
+                    }
+                    /* we found our prefix, does the namespace match? */
+                    ptr += 1 + pref_len;
+                }
+
+                if (ptr[0] != '=') {
+                    if (prefix) {
+                        /* fail for sure */
+                        state = -1;
+                    } else {
+                        /* it may not be xmlns attribute, but something longer... */
+                    }
+                    break;
+                }
+                ++ptr;
+
+                if ((ptr[0] != '\"') && (ptr[0] != '\'')) {
+                    state = -2;
+                    break;
+                }
+                quote = ptr[0];
+                ++ptr;
+
+                if (strncmp(ptr, top_elem_ns, strlen(top_elem_ns))) {
+                    if (prefix) {
+                        state = -1;
+                    }
+                    break;
+                }
+                ptr += strlen(top_elem_ns);
+
+                if (ptr[0] != quote) {
+                    if (prefix) {
+                        state = -1;
+                    }
+                    break;
+                }
+
+                /* success */
+                ptr = strchrnul(ptr, '>');
+                state = 4;
+            }
+            break;
+        }
+
+        if ((state < 0) || (state == 4)) {
+            break;
+        }
+    }
+
+    if ((state == -2) || (ptr[0] == '\0')) {
+        return NULL;
+    } else if (state != 4) {
+        return data;
+    }
+
+    /* skip the first elem, ... */
+    ++ptr;
+    while (isspace(ptr[0])) {
+        ++ptr;
+    }
+    data = ptr;
+
+    /* ... but also its ending tag */
+    if (prefix) {
+        asprintf(&buf, "</%.*s:%s>", pref_len, prefix, top_elem);
+    } else {
+        asprintf(&buf, "</%s>", top_elem);
+    }
+
+    ptr = strstr(data, buf);
+
+    if (!ptr) {
+        /* syntax error */
+        free(buf);
+        return NULL;
+    } else {
+        /* reuse it */
+        prefix = ptr;
+    }
+    ptr += strlen(buf);
+    free(buf);
+
+    while (isspace(ptr[0])) {
+        ++ptr;
+    }
+    if (ptr[0] != '\0') {
+        /* there should be nothing more */
+        return NULL;
+    }
+
+    /* ending tag and all syntax seems fine, so cut off the ending tag */
+    while (isspace(prefix[-1]) && (prefix > data)) {
+        --prefix;
+    }
+    prefix[0] = '\0';
+
+    return data;
 }
 
 void
@@ -2512,7 +2697,7 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE;
     struct stat config_stat;
-    char *src = NULL, *config_m = NULL;
+    char *src = NULL, *config_m = NULL, *src_start;
     const char *trg = NULL;
     NC_DATASTORE target = NC_DATASTORE_ERROR, source = NC_DATASTORE_ERROR;
     struct nc_rpc *rpc;
@@ -2671,8 +2856,15 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
         }
     }
 
+    /* trim top-level element if needed */
+    src_start = trim_top_elem(src, "config", "urn:ietf:params:xml:ns:netconf:base:1.0");
+    if (!src_start) {
+        ERROR(__func__, "Provided configuration content is invalid.");
+        goto fail;
+    }
+
     /* create requests */
-    rpc = nc_rpc_copy(target, trg, source, src, wd, NC_PARAMTYPE_CONST);
+    rpc = nc_rpc_copy(target, trg, source, src_start, wd, NC_PARAMTYPE_CONST);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -2845,7 +3037,7 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE, content_param = 0;
     struct stat config_stat;
-    char *content = NULL, *config_m = NULL;
+    char *content = NULL, *config_m = NULL, *cont_start;
     NC_DATASTORE target = NC_DATASTORE_ERROR;
     struct nc_rpc *rpc;
     NC_RPC_EDIT_DFLTOP op = NC_RPC_EDIT_DFLTOP_UNKNOWN;
@@ -3013,7 +3205,14 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
         }
     }
 
-    rpc = nc_rpc_edit(target, op, test, err, content, NC_PARAMTYPE_CONST);
+    /* trim top-level element if needed */
+    cont_start = trim_top_elem(content, "config", "urn:ietf:params:xml:ns:netconf:base:1.0");
+    if (!cont_start) {
+        ERROR(__func__, "Provided configuration content is invalid.");
+        goto fail;
+    }
+
+    rpc = nc_rpc_edit(target, op, test, err, cont_start, NC_PARAMTYPE_CONST);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -3642,7 +3841,7 @@ cmd_validate(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE;
     struct stat config_stat;
-    char *src = NULL, *config_m = NULL;
+    char *src = NULL, *config_m = NULL, *src_start;
     NC_DATASTORE source = NC_DATASTORE_ERROR;
     struct nc_rpc *rpc;
     struct arglist cmd;
@@ -3767,8 +3966,15 @@ cmd_validate(const char *arg, char **tmp_config_file)
         }
     }
 
+    /* trim top-level element if needed */
+    src_start = trim_top_elem(src, "config", "urn:ietf:params:xml:ns:netconf:base:1.0");
+    if (!src_start) {
+        ERROR(__func__, "Provided configuration content is invalid.");
+        goto fail;
+    }
+
     /* create requests */
-    rpc = nc_rpc_validate(source, src, NC_PARAMTYPE_CONST);
+    rpc = nc_rpc_validate(source, src_start, NC_PARAMTYPE_CONST);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
