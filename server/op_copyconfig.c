@@ -96,6 +96,11 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
         case LYD_ANYDATA_XML:
             config = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT);
             break;
+        case LYD_ANYDATA_JSON:
+        case LYD_ANYDATA_JSOND:
+            EINT;
+            ly_set_free(nodeset);
+            goto error;
         }
         if (!config) {
             if (ly_errno != LY_SUCCESS) {

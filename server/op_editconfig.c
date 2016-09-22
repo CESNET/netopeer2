@@ -221,6 +221,10 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         case LYD_ANYDATA_XML:
             config = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, LYD_OPT_EDIT);
             break;
+        case LYD_ANYDATA_JSON:
+        case LYD_ANYDATA_JSOND:
+            EINT;
+            break;
         }
         ly_set_free(nodeset);
         if (ly_errno) {
