@@ -229,7 +229,7 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
         }
 
         path = lyd_path(ietf_if_set->set.d[0]);
-        *value = malloc(sizeof **value);
+        *value = calloc(1, sizeof **value);
         op_set_srval(ietf_if_set->set.d[0], path, 1, *value, NULL);
         (*value)->dflt = ietf_if_set->set.d[0]->dflt;
         free(path);
