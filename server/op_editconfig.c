@@ -242,6 +242,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     lyd_print_mem(&str, config, LYD_XML, LYP_WITHSIBLINGS | LYP_FORMAT);
     DBG("EDIT_CONFIG: ds %d, defop %d, testopt %d, config:\n%s", sessions->srs, defop, testopt, str);
     free(str);
+    str = NULL;
 
     if (sessions->ds != SR_DS_CANDIDATE) {
         /* update data from sysrepo */
