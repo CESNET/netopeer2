@@ -342,7 +342,6 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             missing_keys = ((struct lys_node_list *)iter->schema)->keys_size;
             goto dfs_continue;
         case LYS_ANYXML:
-        case LYS_ANYDATA:
             /* nothing special needed, not even supported by sysrepo */
             break;
         default:
