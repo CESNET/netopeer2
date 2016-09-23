@@ -300,10 +300,6 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             }
 
             DBG("EDIT_CONFIG: presence container %s, operation %d", path, op[op_index]);
-
-            /* set value for sysrepo */
-            op_set_srval(iter, NULL, 0, &value, &str);
-
             break;
         case LYS_LEAF:
             if (missing_keys) {
@@ -324,9 +320,6 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             /* regular leaf */
             DBG("EDIT_CONFIG: leaf %s, operation %d", path, op[op_index]);
 
-            /* set value for sysrepo */
-            op_set_srval(iter, NULL, 0, &value, &str);
-
             break;
         case LYS_LEAFLIST:
             /* get info about inserting to a specific place */
@@ -339,9 +332,6 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 DBG("EDIT_CONFIG: moving leaflist %s, position %d (%s)", path, pos, rel ? rel : "absolute");
             }
 
-            /* set value for sysrepo */
-            op_set_srval(iter, NULL, 0, &value, &str);
-
             /* in leaf-list, the value is also the key, so add it into the path */
             path_index += sprintf(&path[path_index], "[.=\'%s\']", ((struct lyd_node_leaf_list *)iter)->value_str);
 
@@ -352,20 +342,26 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 goto internalerror;
             }
 
-            /* set value for sysrepo, it will be used as soon as all the keys are processed */
-            op_set_srval(iter, NULL, 0, &value, &str);
+            if (op[op_index] < NP2_EDIT_DELETE) {
+                /* set value for sysrepo, it will be used as soon as all the keys are processed */
+                op_set_srval(iter, NULL, 0, &value, &str);
+            }
 
             /* the creation must be finished later when we get know keys */
             missing_keys = ((struct lys_node_list *)iter->schema)->keys_size;
             goto dfs_continue;
         case LYS_ANYXML:
-            /* set value for sysrepo */
-            op_set_srval(iter, NULL, 0, &value, &str);
-
+        case LYS_ANYDATA:
+            /* nothing special needed, not even supported by sysrepo */
             break;
         default:
             ERR("%s: Invalid node to process", __func__);
             goto internalerror;
+        }
+
+        if (op[op_index] < NP2_EDIT_DELETE && !lastkey) {
+            /* set value for sysrepo */
+            op_set_srval(iter, NULL, 0, &value, &str);
         }
 
         /* apply change to sysrepo */
