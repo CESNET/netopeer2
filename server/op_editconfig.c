@@ -245,7 +245,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /*
      * data manipulation
      */
-
+    valbuf = NULL;
     op_size = 16;
     op = malloc(op_size * sizeof *op);
     op[0] = NP2_EDIT_NONE;
