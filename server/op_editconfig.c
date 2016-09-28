@@ -125,7 +125,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* default value for error-option is "stop-on-error" */
     enum NP2_EDIT_ERROPT erropt = NP2_EDIT_ERROPT_STOP;
     struct lyd_node *config = NULL, *next, *iter;
-    char *str, path[1024], *rel;
+    char *str, path[1024], *rel, *valbuf;
     const char *cstr;
     enum NP2_EDIT_OP *op = NULL, *op_new;
     int op_index, op_size, path_index = 0, missing_keys = 0, lastkey = 0;
@@ -256,7 +256,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /*
      * data manipulation
      */
-
+    valbuf = NULL;
     op_size = 16;
     op = malloc(op_size * sizeof *op);
     op[0] = NP2_EDIT_NONE;
@@ -347,7 +347,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
             if (op[op_index] < NP2_EDIT_DELETE) {
                 /* set value for sysrepo, it will be used as soon as all the keys are processed */
-                op_set_srval(iter, NULL, 0, &value, &str);
+                op_set_srval(iter, NULL, 0, &value, &valbuf);
             }
 
             /* the creation must be finished later when we get know keys */
@@ -364,7 +364,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
         if (op[op_index] < NP2_EDIT_DELETE && !lastkey) {
             /* set value for sysrepo */
-            op_set_srval(iter, NULL, 0, &value, &str);
+            op_set_srval(iter, NULL, 0, &value, &valbuf);
         }
 
         /* apply change to sysrepo */
@@ -390,9 +390,9 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             /* do nothing */
             break;
         }
-        if (str) {
-            free(str);
-            str = NULL;
+        if (valbuf) {
+            free(valbuf);
+            valbuf = NULL;
         }
 
 resultcheck:
