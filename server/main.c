@@ -13,7 +13,9 @@
  */
 
 #include <errno.h>
-#include <execinfo.h>
+#ifdef DEBUG
+    #include <execinfo.h>
+#endif
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
