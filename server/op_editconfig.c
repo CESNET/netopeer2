@@ -543,7 +543,7 @@ cleanup:
                         }
                         e = NULL;
                     }
-                    goto errorreply;
+                    goto internalerror;
                 default:
                     goto internalerror;
                 }
