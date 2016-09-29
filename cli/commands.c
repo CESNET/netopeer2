@@ -269,6 +269,15 @@ recv_reply:
                 lyxml_print_mem(&model_data, any->value.xml, LYXML_PRINT_SIBLINGS);
                 fputs(model_data, output);
                 free(model_data);
+                break;
+            default:
+                /* none of the others can appear here */
+                ERROR(__func__, "Unexpected anydata value format.");
+                ret = -1;
+                break;
+            }
+            if (ret == -1) {
+                break;
             }
 
             if (output == stdout) {
