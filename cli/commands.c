@@ -2296,12 +2296,16 @@ cmd_verb(const char *arg, char **UNUSED(tmp_config_file))
     verb = arg + 5;
     if (!strcmp(verb, "error") || !strcmp(verb, "0")) {
         nc_verbosity(0);
+        nc_libssh_thread_verbosity(0);
     } else if (!strcmp(verb, "warning") || !strcmp(verb, "1")) {
         nc_verbosity(1);
+        nc_libssh_thread_verbosity(1);
     } else if (!strcmp(verb, "verbose")  || !strcmp(verb, "2")) {
         nc_verbosity(2);
+        nc_libssh_thread_verbosity(2);
     } else if (!strcmp(verb, "debug")  || !strcmp(verb, "3")) {
         nc_verbosity(3);
+        nc_libssh_thread_verbosity(3);
     } else {
         fprintf(stderr, "Unknown verbosity \"%s\"\n", verb);
         return 1;
