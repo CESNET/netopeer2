@@ -212,6 +212,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         switch (any->value_type) {
         case LYD_ANYDATA_CONSTSTRING:
         case LYD_ANYDATA_STRING:
+        case LYD_ANYDATA_SXML:
             config = lyd_parse_mem(np2srv.ly_ctx, any->value.str, LYD_XML, LYD_OPT_EDIT);
             break;
         case LYD_ANYDATA_DATATREE:
@@ -223,6 +224,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             break;
         case LYD_ANYDATA_JSON:
         case LYD_ANYDATA_JSOND:
+        case LYD_ANYDATA_SXMLD:
             EINT;
             break;
         }
