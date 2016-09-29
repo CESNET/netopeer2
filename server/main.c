@@ -429,6 +429,8 @@ process_loop(void *arg)
     int rc;
     struct nc_session *ncs;
 
+    nc_libssh_thread_verbosity(np2_verbose_level);
+
     while (control == LOOP_CONTINUE) {
         /* listen for incomming requests on active NETCONF sessions */
         if (nc_ps_session_count(np2srv.nc_ps) > 0) {
@@ -566,7 +568,7 @@ main(int argc, char *argv[])
     sr_log_set_cb(np2log_clb_sr); /* sysrepo, log level is checked by callback */
 
     nc_verbosity(np2_verbose_level);
-    ly_verb(np2_verbose_level);
+    nc_libssh_thread_verbosity(np2_verbose_level);
 
 restart:
     /* initiate NETCONF server */
