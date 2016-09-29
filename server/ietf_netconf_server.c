@@ -349,7 +349,7 @@ module_change_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), sr_
     sr_val_t *sr_old_val = NULL, *sr_new_val = NULL;
     const char *endpt_name_del = NULL;
 
-    if (event != SR_EV_NOTIFY) {
+    if (event != SR_EV_APPLY) {
         ERR("%s: unexpected event.", __func__);
         return SR_ERR_INVAL_ARG;
     }
