@@ -294,6 +294,11 @@ error:
     }
 
     if (sessions->ds == SR_DS_CANDIDATE) {
+        if (sr_validate(sessions->srs) != SR_ERR_OK) {
+            /* content is not valid, rollback */
+            sr_discard_changes(sessions->srs);
+            goto error;
+        }
         /* mark candidate as modified */
         sessions->flags |= NP2S_CAND_CHANGED;
     }

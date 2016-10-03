@@ -440,8 +440,13 @@ resultcheck:
                 if (sessions->ds != SR_DS_CANDIDATE) {
                     sr_commit(sessions->srs);
                 } else {
-                    /* mark candidate as modified */
-                    sessions->flags |= NP2S_CAND_CHANGED;
+                    if (sr_validate(sessions->srs) != SR_ERR_OK) {
+                        /* content is not valid, rollback */
+                        sr_discard_changes(sessions->srs);
+                    } else {
+                        /* mark candidate as modified */
+                        sessions->flags |= NP2S_CAND_CHANGED;
+                    }
                 }
                 goto cleanup;
             }
@@ -560,8 +565,13 @@ cleanup:
                     goto internalerror;
                 }
             } else {
-                /* mark candidate as modified */
-                sessions->flags |= NP2S_CAND_CHANGED;
+                if (sr_validate(sessions->srs) != SR_ERR_OK) {
+                    /* content is not valid, rollback */
+                    sr_discard_changes(sessions->srs);
+                } else {
+                    /* mark candidate as modified */
+                    sessions->flags |= NP2S_CAND_CHANGED;
+                }
             }
             break;
         case NP2_EDIT_TESTOPT_TEST:
