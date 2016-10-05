@@ -68,7 +68,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     if (sessions->ds != SR_DS_CANDIDATE) {
         /* update data from sysrepo */
         if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
-            goto error;
+            goto srerror;
         }
     }
 
@@ -211,10 +211,10 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
             case SR_ERR_UNAUTHORIZED:
                 e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
                 nc_err_set_path(e, path);
-                goto error;
+                goto srerror;
             default:
                 /* not covered error */
-                goto error;
+                goto srerror;
             }
 
 dfs_continue:
@@ -280,28 +280,33 @@ dfs_continue:
     }
 
     if (rc != SR_ERR_OK) {
-error:
-        /* handle error */
-        if (!e) {
-            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, np2log_lasterr(), "en");
-        }
-
+srerror:
         /* cleanup */
         lyd_free_withsiblings(config);
 
-        return nc_server_reply_err(e);
+        /* handle error */
+        if (!e) {
+            return op_build_err_sr(NULL, sessions->srs);
+        } else {
+            return nc_server_reply_err(e);
+        }
     }
 
     if (sessions->ds == SR_DS_CANDIDATE) {
         if (sr_validate(sessions->srs) != SR_ERR_OK) {
             /* content is not valid, rollback */
             sr_discard_changes(sessions->srs);
-            goto error;
+            goto srerror;
         }
         /* mark candidate as modified */
         sessions->flags |= NP2S_CAND_CHANGED;
     }
 
     return nc_server_reply_ok();
+
+error:
+    lyd_free_withsiblings(config);
+    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+    nc_err_set_msg(e, np2log_lasterr(), "en");
+    return nc_server_reply_err(e);
 }

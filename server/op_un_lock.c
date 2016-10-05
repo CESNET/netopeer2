@@ -37,6 +37,7 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
     time_t *dst;
     struct ly_set *nodeset;
     struct nc_server_error *e;
+    struct nc_server_reply *ereply = NULL;
     const char *dsname;
     int rc;
 
@@ -96,11 +97,19 @@ lock_held:
     if (rc != SR_ERR_OK) {
         /* lock is held outside Netopeer */
         pthread_rwlock_unlock(&dslock_rwl);
+        /* get error messages from sysrepo */
+        ereply = op_build_err_sr(ereply, sessions->srs);
+        /* add lock denied error */
         ERR("Locking datastore %s by session %d failed (%s).", dsname,
             nc_session_get_id(ncs), sr_strerror(rc));
         e = nc_err(NC_ERR_LOCK_DENIED, 0);
         nc_err_set_msg(e, np2log_lasterr(), "en");
-        return nc_server_reply_err(e);
+        if (ereply) {
+            nc_server_reply_add_err(ereply, e);
+            return ereply;
+        } else {
+            return nc_server_reply_err(e);
+        }
     }
 
     /* update local information about locks */
@@ -122,6 +131,7 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
     struct ly_set *nodeset;
     const char *dsname;
     struct nc_server_error *e;
+    struct nc_server_reply *ereply = NULL;
     int rc;
 
     /* get sysrepo connections for this session */
@@ -183,12 +193,19 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
     rc = sr_unlock_datastore(sessions->srs);
     if (rc != SR_ERR_OK) {
         /* lock is held outside Netopeer */
-        pthread_rwlock_unlock(&dslock_rwl);
+        /* get error messages from sysrepo */
+        ereply = op_build_err_sr(ereply, sessions->srs);
+        /* add lock denied error */
         ERR("Unlocking datastore %s by session %d failed (%s).", dsname,
             nc_session_get_id(ncs), sr_strerror(rc));
         e = nc_err(NC_ERR_LOCK_DENIED, 0);
         nc_err_set_msg(e, np2log_lasterr(), "en");
-        return nc_server_reply_err(e);
+        if (ereply) {
+            nc_server_reply_add_err(ereply, e);
+            return ereply;
+        } else {
+            return nc_server_reply_err(e);
+        }
     }
 
     /* according to RFC 6241 8.3.5.2, discard changes */

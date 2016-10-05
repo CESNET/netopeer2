@@ -150,7 +150,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
         return nc_server_reply_err(nc_err(NC_ERR_OP_NOT_SUPPORTED, NC_ERR_TYPE_PROT));
     } else if (rc != SR_ERR_OK) {
         ERR("Sending an RPC (%s) to sysrepo failed (%s).", rpc->schema->name, sr_strerror(rc));
-        goto error;
+        goto srerror;
     }
 
     reply_data = lyd_dup(rpc, 0);
@@ -158,13 +158,19 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     sr_free_values(output, out_count);
     if (rc) {
         lyd_free(reply_data);
-        goto error;
+        goto srerror;
     }
 
     nc_server_get_capab_withdefaults(&nc_wd, NULL);
     return nc_server_reply_data(reply_data, nc_wd, NC_PARAMTYPE_FREE);
 
+srerror:
+    return op_build_err_sr(NULL, sessions->srs);
+
 error:
+    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+    nc_err_set_msg(e, np2log_lasterr(), "en");
+
     ly_set_free(set);
     if (strs) {
         for (i = 0; i < strs->number; i++) {
@@ -175,7 +181,5 @@ error:
     free(input);
     sr_free_values(output, out_count);
 
-    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-    nc_err_set_msg(e, np2log_lasterr(), "en");
     return nc_server_reply_err(e);
 }

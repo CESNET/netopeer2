@@ -270,3 +270,27 @@ settype:
 
     return 0;
 }
+
+struct nc_server_reply *
+op_build_err_sr(struct nc_server_reply *ereply, sr_session_ctx_t *session)
+{
+    const sr_error_info_t *err_info;
+    size_t err_count, i;
+    struct nc_server_error *e = NULL;
+
+    /* get all sysrepo errors connected with the last sysrepo operation */
+    sr_get_last_errors(session, &err_info, &err_count);
+    for (i = 0; i < err_count; ++i) {
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, err_info[i].message, "en");
+        nc_err_set_path(e, err_info[i].xpath);
+        if (ereply) {
+            nc_server_reply_add_err(ereply, e);
+        } else {
+            ereply = nc_server_reply_err(e);
+        }
+        e = NULL;
+    }
+
+    return ereply;
+}

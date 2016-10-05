@@ -581,6 +581,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     struct ly_set *nodeset;
     sr_datastore_t ds = 0;
     struct nc_server_error *e;
+    struct nc_server_reply *ereply = NULL;
     NC_WD_MODE nc_wd;
 
     /* get sysrepo connections for this session */
@@ -729,12 +730,12 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     if (sessions->ds != SR_DS_CANDIDATE) {
         /* refresh sysrepo data */
         if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
-            goto error;
+            goto srerror;
         }
     } else if (!(sessions->flags & NP2S_CAND_CHANGED)) {
         /* update candidate to be the same as running */
         if (sr_session_refresh(sessions->srs)) {
-            goto error;
+            goto srerror;
         }
     }
 
@@ -785,7 +786,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             continue;
         } else if (rc != SR_ERR_OK) {
             ERR("Getting items (%s) from sysrepo failed (%s).", filters[i], sr_strerror(rc));
-            goto error;
+            goto srerror;
         }
 
         for (j = 0; j < value_count; ++j) {
@@ -862,7 +863,16 @@ send_reply:
     lyd_new_output_anydata(root, NULL, "data", node, LYD_ANYDATA_DATATREE);
     return nc_server_reply_data(root, nc_wd, NC_PARAMTYPE_FREE);
 
+srerror:
+    ereply = op_build_err_sr(ereply, sessions->srs);
+
 error:
+    if (!ereply) {
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, np2log_lasterr(), "en");
+        ereply = nc_server_reply_err(e);
+    }
+
     sr_free_values(values, value_count);
 
     for (i = 0; (signed)i < filter_count; ++i) {
@@ -874,7 +884,5 @@ error:
     lyd_free_withsiblings(ncm_data);
     lyd_free_withsiblings(root);
 
-    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-    nc_err_set_msg(e, np2log_lasterr(), "en");
-    return nc_server_reply_err(e);
+    return ereply;
 }

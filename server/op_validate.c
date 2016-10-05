@@ -89,26 +89,25 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
     if (ds != SR_DS_CANDIDATE) {
         /* refresh datastore content */
         if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
-            goto error;
+            goto srerror;
         }
     }
 
     /* validate sysrepo's datastore */
     rc = sr_validate(sessions->srs);
     if (rc != SR_ERR_OK) {
-        goto error;
+        goto srerror;
     }
 
 done:
 
     return nc_server_reply_ok();
 
-error:
-    /* handle error */
-    if (!e) {
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, np2log_lasterr(), "en");
-    }
+srerror:
+    return op_build_err_sr(NULL, sessions->srs);
 
+error:
+    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+    nc_err_set_msg(e, np2log_lasterr(), "en");
     return nc_server_reply_err(e);
 }
