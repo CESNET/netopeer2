@@ -193,6 +193,7 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
     rc = sr_unlock_datastore(sessions->srs);
     if (rc != SR_ERR_OK) {
         /* lock is held outside Netopeer */
+        pthread_rwlock_unlock(&dslock_rwl);
         /* get error messages from sysrepo */
         ereply = op_build_err_sr(ereply, sessions->srs);
         /* add lock denied error */
