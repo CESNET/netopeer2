@@ -283,7 +283,9 @@ op_build_err_sr(struct nc_server_reply *ereply, sr_session_ctx_t *session)
     for (i = 0; i < err_count; ++i) {
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
         nc_err_set_msg(e, err_info[i].message, "en");
-        nc_err_set_path(e, err_info[i].xpath);
+        if (err_info[i].xpath) {
+            nc_err_set_path(e, err_info[i].xpath);
+        }
         if (ereply) {
             nc_server_reply_add_err(ereply, e);
         } else {
