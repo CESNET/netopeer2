@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 2.8.9)
 
 # include custom Modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../CMakeModules/")
@@ -39,7 +39,6 @@ configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_SOURCE_DIR}/config
 
 # source files
 set(srcs
-	main.c
 	ietf_netconf_server.c
 	netconf_monitoring.c
 	operations.c
@@ -53,8 +52,11 @@ set(srcs
 	op_generic.c
 	log.c)
 
+# object library to build source codes only once for the main binary and tests
+add_library(serverobj OBJECT ${srcs})
+
 # netopeer2-server target
-add_executable(netopeer2-server ${srcs})
+add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> main.c)
 
 # dependencies - pthread
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
