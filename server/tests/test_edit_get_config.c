@@ -219,7 +219,7 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
 
     if (!strcmp(xpath, "/ietf-interfaces:interfaces//*")) {
         if (!ietf_if_set) {
-            ietf_if_set = lyd_get_node(data, xpath);
+            ietf_if_set = lyd_find_xpath(data, xpath);
         }
 
         if (!ietf_if_set->number) {
@@ -229,8 +229,9 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
         }
 
         path = lyd_path(ietf_if_set->set.d[0]);
-        *value = malloc(sizeof **value);
+        *value = calloc(1, sizeof **value);
         op_set_srval(ietf_if_set->set.d[0], path, 1, *value, NULL);
+        (*value)->dflt = ietf_if_set->set.d[0]->dflt;
         free(path);
 
         --ietf_if_set->number;
@@ -273,7 +274,7 @@ __wrap_sr_set_item(sr_session_ctx_t *session, const char *xpath, const sr_val_t 
     case SR_CONTAINER_PRESENCE_T:
     case SR_LEAF_EMPTY_T:
         ly_errno = LY_SUCCESS;
-        lyd_new_path(data, np2srv.ly_ctx, xpath, NULL, opt);
+        lyd_new_path(data, np2srv.ly_ctx, xpath, NULL, 0, opt);
         if ((ly_errno == LY_EVALID) && (ly_vecode == LYVE_PATH_EXISTS)) {
             return SR_ERR_DATA_EXISTS;
         }
@@ -281,7 +282,7 @@ __wrap_sr_set_item(sr_session_ctx_t *session, const char *xpath, const sr_val_t 
         break;
     default:
         ly_errno = LY_SUCCESS;
-        lyd_new_path(data, np2srv.ly_ctx, xpath, op_get_srval(np2srv.ly_ctx, (sr_val_t *)value, buf), opt);
+        lyd_new_path(data, np2srv.ly_ctx, xpath, op_get_srval(np2srv.ly_ctx, (sr_val_t *)value, buf), 0, opt);
         if ((ly_errno == LY_EVALID) && (ly_vecode == LYVE_PATH_EXISTS)) {
             return SR_ERR_DATA_EXISTS;
         }
@@ -299,7 +300,7 @@ __wrap_sr_delete_item(sr_session_ctx_t *session, const char *xpath, const sr_edi
     struct ly_set *set;
     uint32_t i;
 
-    set = lyd_get_node(data, xpath);
+    set = lyd_find_xpath(data, xpath);
     assert_ptr_not_equal(set, NULL);
 
     if ((opts & SR_EDIT_STRICT) && !set->number) {
@@ -326,20 +327,20 @@ __wrap_sr_move_item(sr_session_ctx_t *session, const char *xpath, const sr_move_
     struct ly_set *set, *set2 = NULL;
     struct lyd_node *node;
 
-    set = lyd_get_node(data, xpath);
+    set = lyd_find_xpath(data, xpath);
     assert_ptr_not_equal(set, NULL);
     assert_int_equal(set->number, 1);
 
     switch (position) {
     case SR_MOVE_BEFORE:
-        set2 = lyd_get_node(data, relative_item);
+        set2 = lyd_find_xpath(data, relative_item);
         assert_ptr_not_equal(set2, NULL);
         assert_int_equal(set2->number, 1);
 
         assert_int_equal(lyd_insert_before(set2->set.d[0], set->set.d[0]), 0);
         break;
     case SR_MOVE_AFTER:
-        set2 = lyd_get_node(data, relative_item);
+        set2 = lyd_find_xpath(data, relative_item);
         assert_ptr_not_equal(set2, NULL);
         assert_int_equal(set2->number, 1);
 
@@ -736,7 +737,7 @@ np_stop(void **state)
     (void)state; /* unused */
     int64_t ret;
 
-    lyd_free(data);
+    lyd_free_withsiblings(data);
 
     control = LOOP_STOP;
     assert_int_equal(pthread_join(server_tid, (void **)&ret), 0);
@@ -1378,17 +1379,27 @@ test_edit_merge(void **state)
     test_read(p_in, get_config_rpl, __LINE__);
 }
 
+static void
+test_startstop(void **state)
+{
+    (void)state; /* unused */
+    return;
+}
+
+
 int
 main(void)
 {
     const struct CMUnitTest tests[] = {
-                    cmocka_unit_test_setup(test_edit_delete1, np_start),
+                    cmocka_unit_test_setup(test_startstop, np_start),
+                    cmocka_unit_test(test_edit_delete1),
                     cmocka_unit_test(test_edit_delete2),
                     cmocka_unit_test(test_edit_delete3),
                     cmocka_unit_test(test_edit_create1),
                     cmocka_unit_test(test_edit_create2),
                     cmocka_unit_test(test_edit_create3),
-                    cmocka_unit_test_teardown(test_edit_merge, np_stop),
+                    cmocka_unit_test(test_edit_merge),
+                    cmocka_unit_test_teardown(test_startstop, np_stop),
     };
 
     if (setenv("CMOCKA_TEST_ABORT", "1", 1)) {

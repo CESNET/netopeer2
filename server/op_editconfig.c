@@ -124,7 +124,6 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     enum NP2_EDIT_TESTOPT testopt = NP2_EDIT_TESTOPT_TESTANDSET;
     /* default value for error-option is "stop-on-error" */
     enum NP2_EDIT_ERROPT erropt = NP2_EDIT_ERROPT_STOP;
-    struct lyxml_elem *config_xml;
     struct lyd_node *config = NULL, *next, *iter;
     char *str, path[1024], *rel, *valbuf;
     const char *cstr;
@@ -132,9 +131,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     int op_index, op_size, path_index = 0, missing_keys = 0, lastkey = 0;
     int ret;
     struct lys_node_container *cont;
-    struct lyd_node_anyxml *axml;
-    const sr_error_info_t *err_info;
-    size_t err_count, i;
+    struct lyd_node_anydata *any;
 
     /* init */
     path[path_index] = '\0';
@@ -147,7 +144,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
      */
 
     /* target */
-    nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/target/*");
+    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:edit-config/target/*");
     cstr = nodeset->set.d[0]->schema->name;
     ly_set_free(nodeset);
 
@@ -164,7 +161,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* default-operation */
-    nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/default-operation");
+    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:edit-config/default-operation");
     if (nodeset->number) {
         cstr = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
         if (!strcmp(cstr, "replace")) {
@@ -178,7 +175,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     ly_set_free(nodeset);
 
     /* test-option */
-    nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/test-option");
+    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:edit-config/test-option");
     if (nodeset->number) {
         cstr = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
         if (!strcmp(cstr, "set")) {
@@ -192,7 +189,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     ly_set_free(nodeset);
 
     /* error-option */
-    nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/error-option");
+    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:edit-config/error-option");
     if (nodeset->number) {
         cstr = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
         if (!strcmp(cstr, "rollback-on-error")) {
@@ -207,15 +204,27 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
 
     /* config */
-    nodeset = lyd_get_node(rpc, "/ietf-netconf:edit-config/config");
+    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:edit-config/config");
     if (nodeset->number) {
-        axml = (struct lyd_node_anyxml *)nodeset->set.d[0];
-        if (axml->xml_struct) {
-            config_xml = axml->value.xml;
-            config = lyd_parse_xml(np2srv.ly_ctx, &config_xml, LYD_OPT_EDIT);
-        } else {
-            cstr = axml->value.str;
-            config = lyd_parse_mem(np2srv.ly_ctx, cstr, LYD_XML, LYD_OPT_EDIT);
+        any = (struct lyd_node_anydata *)nodeset->set.d[0];
+        switch (any->value_type) {
+        case LYD_ANYDATA_CONSTSTRING:
+        case LYD_ANYDATA_STRING:
+        case LYD_ANYDATA_SXML:
+            config = lyd_parse_mem(np2srv.ly_ctx, any->value.str, LYD_XML, LYD_OPT_EDIT);
+            break;
+        case LYD_ANYDATA_DATATREE:
+            config = any->value.tree;
+            any->value.tree = NULL; /* "unlink" data tree from anydata to have full control */
+            break;
+        case LYD_ANYDATA_XML:
+            config = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, LYD_OPT_EDIT);
+            break;
+        case LYD_ANYDATA_JSON:
+        case LYD_ANYDATA_JSOND:
+        case LYD_ANYDATA_SXMLD:
+            EINT;
+            break;
         }
         ly_set_free(nodeset);
         if (ly_errno) {
@@ -227,6 +236,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     } else {
         /* TODO support for :url capability */
         ly_set_free(nodeset);
+        EINT;
         goto internalerror;
     }
 
@@ -238,7 +248,8 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     if (sessions->ds != SR_DS_CANDIDATE) {
         /* update data from sysrepo */
         if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
-            goto internalerror;
+            ereply = op_build_err_sr(ereply, sessions->srs);
+            goto errorreply;
         }
     }
 
@@ -343,6 +354,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             missing_keys = ((struct lys_node_list *)iter->schema)->keys_size;
             goto dfs_continue;
         case LYS_ANYXML:
+        case LYS_ANYDATA:
             /* nothing special needed, not even supported by sysrepo */
             break;
         default:
@@ -406,7 +418,30 @@ resultcheck:
             break;
         default:
             /* not covered error */
-            goto internalerror;
+            ereply = op_build_err_sr(ereply, sessions->srs);
+            switch (erropt) {
+            case NP2_EDIT_ERROPT_CONT:
+                DBG("EDIT_CONFIG: continue-on-error.");
+                goto dfs_nextsibling;
+            case NP2_EDIT_ERROPT_ROLLBACK:
+                DBG("EDIT_CONFIG: rollback-on-error.");
+                sr_discard_changes(sessions->srs);
+                goto cleanup;
+            case NP2_EDIT_ERROPT_STOP:
+                DBG("EDIT_CONFIG: stop-on-error (%s).", nc_err_get_msg(e));
+                if (sessions->ds != SR_DS_CANDIDATE) {
+                    sr_commit(sessions->srs);
+                } else {
+                    if (sr_validate(sessions->srs) != SR_ERR_OK) {
+                        /* content is not valid, rollback */
+                        sr_discard_changes(sessions->srs);
+                    } else {
+                        /* mark candidate as modified */
+                        sessions->flags |= NP2S_CAND_CHANGED;
+                    }
+                }
+                goto cleanup;
+            }
         }
         if (e) {
             switch (erropt) {
@@ -428,8 +463,13 @@ resultcheck:
                 if (sessions->ds != SR_DS_CANDIDATE) {
                     sr_commit(sessions->srs);
                 } else {
-                    /* mark candidate as modified */
-                    sessions->flags |= NP2S_CAND_CHANGED;
+                    if (sr_validate(sessions->srs) != SR_ERR_OK) {
+                        /* content is not valid, rollback */
+                        sr_discard_changes(sessions->srs);
+                    } else {
+                        /* mark candidate as modified */
+                        sessions->flags |= NP2S_CAND_CHANGED;
+                    }
                 }
                 goto cleanup;
             }
@@ -529,35 +569,24 @@ cleanup:
                 switch (ret) {
                 case SR_ERR_OK:
                     break;
-                case SR_ERR_VALIDATION_FAILED:
-                    sr_get_last_errors(sessions->srs, &err_info, &err_count);
-                    for (i = 0; i < err_count; ++i) {
-                        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_PROT);
-                        nc_err_set_msg(e, err_info[i].message, "en");
-                        nc_err_set_path(e, err_info[i].xpath);
-
-                        if (ereply) {
-                            nc_server_reply_add_err(ereply, e);
-                        } else {
-                            ereply = nc_server_reply_err(e);
-                        }
-                        e = NULL;
-                    }
-                    goto internalerror;
                 default:
-                    goto internalerror;
+                    ereply = op_build_err_sr(ereply, sessions->srs);
+                    sr_discard_changes(sessions->srs); /* rollback the changes */
+                    goto errorreply;
                 }
             } else {
-                /* mark candidate as modified */
-                sessions->flags |= NP2S_CAND_CHANGED;
+                if (sr_validate(sessions->srs) != SR_ERR_OK) {
+                    /* content is not valid, rollback */
+                    sr_discard_changes(sessions->srs);
+                } else {
+                    /* mark candidate as modified */
+                    sessions->flags |= NP2S_CAND_CHANGED;
+                }
             }
             break;
         case NP2_EDIT_TESTOPT_TEST:
             sr_discard_changes(sessions->srs);
             break;
-        default:
-            EINT;
-            goto internalerror;
         }
 
         /* build positive RPC Reply */
@@ -568,6 +597,10 @@ cleanup:
 internalerror:
     e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
     nc_err_set_msg(e, np2log_lasterr(), "en");
+    if (ereply) {
+        nc_server_reply_add_err(ereply, e);
+        e = NULL;
+    }
 
     /* fatal error, so continue-on-error does not apply here,
      * instead we rollback */

@@ -191,7 +191,7 @@ ncm_get_data(void)
     char buf[26];
     uint32_t i;
 
-    root = lyd_new_path(NULL, np2srv.ly_ctx, "/ietf-netconf-monitoring:netconf-state", NULL, 0);
+    root = lyd_new_path(NULL, np2srv.ly_ctx, "/ietf-netconf-monitoring:netconf-state", NULL, 0, 0);
     if (!root) {
         goto error;
     }
@@ -331,7 +331,7 @@ ncm_get_data(void)
 
     pthread_mutex_unlock(&stats.lock);
 
-    if (lyd_validate(&root, LYD_OPT_GET)) {
+    if (lyd_validate(&root, LYD_OPT_NOSIBLINGS, NULL)) {
         goto error;
     }
 

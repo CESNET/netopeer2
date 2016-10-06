@@ -271,95 +271,28 @@ settype:
     return 0;
 }
 
-/* return: -1 = discard, 0 = keep, 1 = keep and add the attribute */
-int
-op_dflt_data_inspect(struct ly_ctx *ctx, sr_val_t *value, NC_WD_MODE wd, int rpc_output)
+struct nc_server_reply *
+op_build_err_sr(struct nc_server_reply *ereply, sr_session_ctx_t *session)
 {
-    const struct lys_node_leaf *sleaf;
-    struct lys_tpdf *tpdf;
-    const char *dflt_val = NULL;
-    char buf[256], *val;
+    const sr_error_info_t *err_info;
+    size_t err_count, i;
+    struct nc_server_error *e = NULL;
 
-    /* NC_WD_ALL HANDLED */
-    if (wd == NC_WD_ALL) {
-        /* we keep it all */
-        return 0;
-    }
-
-    if ((wd == NC_WD_EXPLICIT) && !value->dflt) {
-        return 0;
-    }
-
-    /*
-     * we need the schema node now
-     */
-
-    sleaf = (const struct lys_node_leaf *)ly_ctx_get_node2(ctx, NULL, value->xpath, rpc_output);
-    if (!sleaf) {
-        EINT;
-        return -1;
-    }
-
-    if (sleaf->nodetype != LYS_LEAF) {
-        return 0;
-    }
-
-    /* NC_WD_EXPLICIT HANDLED */
-    if (wd == NC_WD_EXPLICIT) {
-        if ((sleaf->flags & LYS_CONFIG_W) && !rpc_output) {
-            return -1;
+    /* get all sysrepo errors connected with the last sysrepo operation */
+    sr_get_last_errors(session, &err_info, &err_count);
+    for (i = 0; i < err_count; ++i) {
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, err_info[i].message, "en");
+        if (err_info[i].xpath) {
+            nc_err_set_path(e, err_info[i].xpath);
         }
-        return 0;
+        if (ereply) {
+            nc_server_reply_add_err(ereply, e);
+        } else {
+            ereply = nc_server_reply_err(e);
+        }
+        e = NULL;
     }
 
-    if (value->dflt) {
-        switch (wd) {
-        case NC_WD_TRIM:
-            return -1;
-        case NC_WD_ALL_TAG:
-            return 1;
-        default:
-            EINT;
-            return -1;
-        }
-    }
-
-    /*
-     * we need to actually examine the value now
-     */
-
-    /* leaf's default value */
-    dflt_val = sleaf->dflt;
-
-    /* typedef's default value */
-    if (!dflt_val) {
-        tpdf = sleaf->type.der;
-        while (tpdf && !tpdf->dflt) {
-            tpdf = tpdf->type.der;
-        }
-        if (tpdf) {
-            dflt_val = tpdf->dflt;
-        }
-    }
-
-    /* value itself */
-    val = op_get_srval(ctx, value, buf);
-
-    switch (wd) {
-    case NC_WD_TRIM:
-        if (dflt_val && !strcmp(dflt_val, val)) {
-            return -1;
-        }
-        break;
-    case NC_WD_ALL_TAG:
-        if (dflt_val && !strcmp(dflt_val, val)) {
-            return 1;
-        }
-        break;
-    default:
-        EINT;
-        return -1;
-    }
-
-    return 0;
+    return ereply;
 }
