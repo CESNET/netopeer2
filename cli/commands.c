@@ -2710,7 +2710,7 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE;
     struct stat config_stat;
-    char *src = NULL, *config_m = NULL, *src_start;
+    char *src = NULL, *config_m = NULL, *src_start = NULL;
     const char *trg = NULL;
     NC_DATASTORE target = NC_DATASTORE_ERROR, source = NC_DATASTORE_ERROR;
     struct nc_rpc *rpc;
@@ -2869,11 +2869,13 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
         }
     }
 
-    /* trim top-level element if needed */
-    src_start = trim_top_elem(src, "config", "urn:ietf:params:xml:ns:netconf:base:1.0");
-    if (!src_start) {
-        ERROR(__func__, "Provided configuration content is invalid.");
-        goto fail;
+    if (src) {
+        /* trim top-level element if needed */
+        src_start = trim_top_elem(src, "config", "urn:ietf:params:xml:ns:netconf:base:1.0");
+        if (!src_start) {
+            ERROR(__func__, "Provided configuration content is invalid.");
+            goto fail;
+        }
     }
 
     /* create requests */
