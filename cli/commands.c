@@ -2869,11 +2869,13 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
         }
     }
 
-    /* trim top-level element if needed */
-    src_start = trim_top_elem(src, "config", "urn:ietf:params:xml:ns:netconf:base:1.0");
-    if (!src_start) {
-        ERROR(__func__, "Provided configuration content is invalid.");
-        goto fail;
+    if(src){
+        /* trim top-level element if needed */
+        src_start = trim_top_elem(src, "config", "urn:ietf:params:xml:ns:netconf:base:1.0");
+        if (!src_start) {
+            ERROR(__func__, "Provided configuration content is invalid.");
+            goto fail;
+        }
     }
 
     /* create requests */
