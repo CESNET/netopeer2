@@ -23,7 +23,6 @@ struct nc_server_reply *
 op_commit(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
 {
     struct np2_sessions *sessions;
-    struct nc_server_error *e;
     int rc;
 
     /* get sysrepo connections for this session */
@@ -37,10 +36,8 @@ op_commit(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
 
     rc = sr_commit(sessions->srs);
     if (rc != SR_ERR_OK) {
-        /* fill the error */
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, np2log_lasterr(), "en");
-        return nc_server_reply_err(e);
+        /* get the error */
+        return op_build_err_sr(NULL, sessions->srs);
     }
 
     /* remove modify flag */
@@ -53,7 +50,6 @@ struct nc_server_reply *
 op_discardchanges(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
 {
     struct np2_sessions *sessions;
-    struct nc_server_error *e;
     int rc;
 
     /* get sysrepo connections for this session */
@@ -67,10 +63,8 @@ op_discardchanges(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
 
     rc = sr_discard_changes(sessions->srs);
     if (rc != SR_ERR_OK) {
-        /* fill the error */
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, np2log_lasterr(), "en");
-        return nc_server_reply_err(e);
+        /* get the error */
+        return op_build_err_sr(NULL, sessions->srs);
     }
 
     /* remove modify flag */

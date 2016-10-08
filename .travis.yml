@@ -25,7 +25,7 @@ before_install:
 
 script:
   - mkdir build-cli && cd build-cli && cmake ../cli && make -j2
-  - mkdir ../build-server && cd ../build-server && cmake ../server && make -j2 && ctest -V
+  - mkdir ../build-server && cd ../build-server && cmake ../server && make -j2 && sudo ctest -V
   - cd ..
 
 after_success:

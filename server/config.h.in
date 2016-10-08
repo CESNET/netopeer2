@@ -28,4 +28,8 @@
  */
 #define NP2SRV_HOST_KEY "/etc/ssh/ssh_host_rsa_key"
 
+/** @brief keychaind default directory
+ */
+#define NP2SRV_KCD_DIR "/etc/keychaind/"
+
 #endif /* NP2SRV_CONFIG_H_ */

@@ -74,8 +74,10 @@ char *op_get_srval(struct ly_ctx *ctx, sr_val_t *value, char *buf);
  */
 int op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val, char **val_buf);
 
-/* return: -1 = discard, 0 = keep, 1 = keep and add the attribute */
-int op_dflt_data_inspect(struct ly_ctx *ctx, sr_val_t *value, NC_WD_MODE wd, int rpc_output);
+/**
+ * @brief Build error reply based on errors from sysrepo
+ */
+struct nc_server_reply *op_build_err_sr(struct nc_server_reply *ereply, sr_session_ctx_t *session);
 
 struct nc_server_reply *op_get(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_lock(struct lyd_node *rpc, struct nc_session *ncs);

@@ -35,7 +35,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     sr_datastore_t target = 0, source = 0;
     struct ly_set *nodeset;
     struct lyd_node *config = NULL, *iter, *next;
-    struct lyd_node_anyxml *axml;
+    struct lyd_node_anydata *any;
     const char *dsname;
     char *str, path[1024];
     sr_val_t value;
@@ -47,7 +47,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
     /* get know which datastore is being affected */
-    nodeset = lyd_get_node(rpc, "/ietf-netconf:copy-config/target/*");
+    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:copy-config/target/*");
     dsname = nodeset->set.d[0]->schema->name;
     ly_set_free(nodeset);
 
@@ -68,12 +68,12 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     if (sessions->ds != SR_DS_CANDIDATE) {
         /* update data from sysrepo */
         if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
-            goto error;
+            goto srerror;
         }
     }
 
     /* get source */
-    nodeset = lyd_get_node(rpc, "/ietf-netconf:copy-config/source/*");
+    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:copy-config/source/*");
     dsname = nodeset->set.d[0]->schema->name;
 
     if (!strcmp(dsname, "running")) {
@@ -83,8 +83,27 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     } else if (!strcmp(dsname, "candidate")) {
         source = SR_DS_CANDIDATE;
     } else if (!strcmp(dsname, "config")) {
-        axml = (struct lyd_node_anyxml *)nodeset->set.d[0];
-        config = lyd_parse_xml(rpc->schema->module->ctx, &axml->value.xml, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT);
+        any = (struct lyd_node_anydata *)nodeset->set.d[0];
+        switch (any->value_type) {
+        case LYD_ANYDATA_CONSTSTRING:
+        case LYD_ANYDATA_STRING:
+        case LYD_ANYDATA_SXML:
+            config = lyd_parse_mem(np2srv.ly_ctx, any->value.str, LYD_XML, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT);
+            break;
+        case LYD_ANYDATA_DATATREE:
+            config = any->value.tree;
+            any->value.tree = NULL; /* "unlink" data tree from anydata to have full control */
+            break;
+        case LYD_ANYDATA_XML:
+            config = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT);
+            break;
+        case LYD_ANYDATA_JSON:
+        case LYD_ANYDATA_JSOND:
+        case LYD_ANYDATA_SXMLD:
+            EINT;
+            ly_set_free(nodeset);
+            goto error;
+        }
         if (!config) {
             if (ly_errno != LY_SUCCESS) {
                 ly_set_free(nodeset);
@@ -192,10 +211,10 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
             case SR_ERR_UNAUTHORIZED:
                 e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
                 nc_err_set_path(e, path);
-                goto error;
+                goto srerror;
             default:
                 /* not covered error */
-                goto error;
+                goto srerror;
             }
 
 dfs_continue:
@@ -261,23 +280,33 @@ dfs_continue:
     }
 
     if (rc != SR_ERR_OK) {
-error:
-        /* handle error */
-        if (!e) {
-            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, np2log_lasterr(), "en");
-        }
-
+srerror:
         /* cleanup */
         lyd_free_withsiblings(config);
 
-        return nc_server_reply_err(e);
+        /* handle error */
+        if (!e) {
+            return op_build_err_sr(NULL, sessions->srs);
+        } else {
+            return nc_server_reply_err(e);
+        }
     }
 
     if (sessions->ds == SR_DS_CANDIDATE) {
+        if (sr_validate(sessions->srs) != SR_ERR_OK) {
+            /* content is not valid, rollback */
+            sr_discard_changes(sessions->srs);
+            goto srerror;
+        }
         /* mark candidate as modified */
         sessions->flags |= NP2S_CAND_CHANGED;
     }
 
     return nc_server_reply_ok();
+
+error:
+    lyd_free_withsiblings(config);
+    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+    nc_err_set_msg(e, np2log_lasterr(), "en");
+    return nc_server_reply_err(e);
 }

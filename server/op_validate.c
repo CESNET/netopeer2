@@ -28,7 +28,7 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
     struct nc_server_error *e = NULL;
     int rc;
     struct lyd_node *config = NULL;
-    struct lyd_node_anyxml *axml;
+    struct lyd_node_anydata *any;
     const char *dsname;
     sr_datastore_t ds = SR_DS_CANDIDATE;
 
@@ -36,9 +36,8 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
     /* get know which datastore is being affected */
-    nodeset = lyd_get_node(rpc, "/ietf-netconf:validate/source/*");
+    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:validate/source/*");
     dsname = nodeset->set.d[0]->schema->name;
-    axml = (struct lyd_node_anyxml *)nodeset->set.d[0];
     ly_set_free(nodeset);
     if (!strcmp(dsname, "running")) {
         ds = SR_DS_RUNNING;
@@ -48,7 +47,27 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
         ds = SR_DS_CANDIDATE;
     } else if (!strcmp(dsname, "config")) {
         /* get data tree to validate */
-        config = lyd_parse_xml(rpc->schema->module->ctx, &axml->value.xml, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT);
+        any = (struct lyd_node_anydata *)nodeset->set.d[0];
+        switch (any->value_type) {
+        case LYD_ANYDATA_CONSTSTRING:
+        case LYD_ANYDATA_STRING:
+        case LYD_ANYDATA_SXML:
+            config = lyd_parse_mem(np2srv.ly_ctx, any->value.str, LYD_XML, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT);
+            break;
+        case LYD_ANYDATA_DATATREE:
+            config = any->value.tree;
+            any->value.tree = NULL; /* "unlink" data tree from anydata to have full control */
+            break;
+        case LYD_ANYDATA_XML:
+            config = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT);
+            break;
+        case LYD_ANYDATA_JSON:
+        case LYD_ANYDATA_JSOND:
+        case LYD_ANYDATA_SXMLD:
+            EINT;
+            ly_set_free(nodeset);
+            goto error;
+        }
         if (ly_errno != LY_SUCCESS) {
             ly_set_free(nodeset);
             goto error;
@@ -70,26 +89,25 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
     if (ds != SR_DS_CANDIDATE) {
         /* refresh datastore content */
         if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
-            goto error;
+            goto srerror;
         }
     }
 
     /* validate sysrepo's datastore */
     rc = sr_validate(sessions->srs);
     if (rc != SR_ERR_OK) {
-        goto error;
+        goto srerror;
     }
 
 done:
 
     return nc_server_reply_ok();
 
-error:
-    /* handle error */
-    if (!e) {
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, np2log_lasterr(), "en");
-    }
+srerror:
+    return op_build_err_sr(NULL, sessions->srs);
 
+error:
+    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+    nc_err_set_msg(e, np2log_lasterr(), "en");
     return nc_server_reply_err(e);
 }

@@ -33,13 +33,13 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
     struct lys_node *iter;
     char path[1024];
     struct ly_set *nodeset;
-    struct nc_server_error *e = NULL;
+    struct nc_server_reply *ereply = NULL;
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
     /* get know which datastore is being affected */
-    nodeset = lyd_get_node(rpc, "/ietf-netconf:delete-config/target/*");
+    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:delete-config/target/*");
     dsname = nodeset->set.d[0]->schema->name;
     ly_set_free(nodeset);
 
@@ -93,12 +93,11 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
     return nc_server_reply_ok();
 
 error:
-    /* fill the error */
-    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-    nc_err_set_msg(e, np2log_lasterr(), "en");
+    /* get the error */
+    ereply = op_build_err_sr(ereply, sessions->srs);
 
     /* rollback changes */
     sr_discard_changes(sessions->srs);
 
-    return nc_server_reply_err(e);
+    return ereply;
 }

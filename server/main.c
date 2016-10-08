@@ -13,7 +13,9 @@
  */
 
 #include <errno.h>
-#include <execinfo.h>
+#ifdef DEBUG
+    #include <execinfo.h>
+#endif
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
@@ -134,22 +136,21 @@ signal_handler(int sig)
 }
 
 static char *
-np2srv_ly_module_clb(const char *name, const char *revision, void *user_data, LYS_INFORMAT *format,
-                     void (**free_module_data)(void *model_data))
+np2srv_ly_module_clb(const char *mod_name, const char *mod_rev, const char *submod_name, const char *UNUSED(submod_rev),
+                     void *UNUSED(user_data), LYS_INFORMAT *format, void (**free_module_data)(void *model_data))
 {
     char *data = NULL;
 
-    *free_module_data = NULL;
-    *format = LYS_IN_YIN;
-    if (sr_get_schema(np2srv.sr_sess.srs, name, revision, NULL, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
-        /* import */
-        return data;
-    } else if (sr_get_schema(np2srv.sr_sess.srs, (const char *)user_data, revision, name,
-                             SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
-        /* include */
+    *free_module_data = free;
+    *format = LYS_YIN;
+    if (sr_get_schema(np2srv.sr_sess.srs, mod_name, mod_rev, submod_name, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
         return data;
     }
-    ERR("Unable to get %s module (as dependency of %s) from sysrepo.", name, (const char *)user_data);
+    if (submod_name) {
+        ERR("Unable to get %s module (as dependency of %s) from sysrepo.", mod_name, submod_name);
+    } else {
+        ERR("Unable to get %s module from sysrepo.", mod_name);
+    }
 
     return NULL;
 }
@@ -158,7 +159,7 @@ static int
 server_init(void)
 {
     sr_schema_t *schemas = NULL;
-    const struct lys_node *snode;
+    const struct lys_node *snode, *next;
     const struct lys_module *mod;
     int rc;
     char *data;
@@ -194,10 +195,10 @@ server_init(void)
     if (!np2srv.ly_ctx) {
         return EXIT_FAILURE;
     }
+    ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_module_clb, NULL);
 
     /* 1) use modules from sysrepo */
     for (i = 0; i < count; i++) {
-        ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_module_clb, (void*)schemas[i].module_name);
         data = NULL;
         mod = NULL;
 
@@ -215,17 +216,19 @@ server_init(void)
                 schemas[i].module_name,
                 schemas[i].revision.revision ? schemas[i].revision.revision : "no revision");
         } else {
-            LY_TREE_FOR(mod->data, snode) {
-                if (snode->nodetype == LYS_RPC) {
-                    lys_set_private(snode, op_generic);
-                }
-            }
-
             for (j = 0; j < schemas[i].enabled_feature_cnt; ++j) {
                 lys_features_enable(mod, schemas[i].enabled_features[j]);
             }
+
+            LY_TREE_DFS_BEGIN(mod->data, next, snode) {
+                if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
+                    lys_set_private(snode, op_generic);
+                }
+                LY_TREE_DFS_END(mod->data, next, snode);
+            }
         }
     }
+    ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_module_clb, NULL);
     sr_free_schemas(schemas, count);
 
     /* 2) add internally used schemas: ietf-netconf with ietf-netconf-acm, */
@@ -320,13 +323,26 @@ server_init(void)
 
      */
 
-    /* set SSH server options
-     * TODO - implement server config with YANG configuration data */
-    if (nc_server_ssh_add_endpt_listen("main", "0.0.0.0", 6001)) {
-        goto error;
-    }
-    if (nc_server_ssh_endpt_set_hostkey("main", NP2SRV_HOST_KEY)) {
-        goto error;
+    /* set server options */
+    mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-server", NULL);
+    if (mod) {
+        if (ietf_netconf_server_init()) {
+            goto error;
+        }
+    } else {
+        WRN("Sysrepo does not have the \"ietf-netconf-server\" module, using default NETCONF server options.");
+        if (nc_server_add_endpt("main")) {
+            goto error;
+        }
+        if (nc_server_ssh_endpt_set_address("main", "0.0.0.0")) {
+            goto error;
+        }
+        if (nc_server_ssh_endpt_set_port("main", 6001)) {
+            goto error;
+        }
+        if (nc_server_ssh_endpt_add_hostkey("main", NP2SRV_HOST_KEY)) {
+            goto error;
+        }
     }
 
     return EXIT_SUCCESS;
@@ -416,12 +432,14 @@ process_loop(void *arg)
     int rc;
     struct nc_session *ncs;
 
+    nc_libssh_thread_verbosity(np2_verbose_level);
+
     while (control == LOOP_CONTINUE) {
         /* listen for incomming requests on active NETCONF sessions */
-        if (nc_ps_session_count(np2srv.nc_ps)) {
+        if (nc_ps_session_count(np2srv.nc_ps) > 0) {
             rc = nc_ps_poll(np2srv.nc_ps, 500, &ncs);
         } else {
-            /* if there is no active session, rest for a while */
+            /* if there is no active session or timeout, rest for a while */
             usleep(100);
             continue;
         }
@@ -553,7 +571,7 @@ main(int argc, char *argv[])
     sr_log_set_cb(np2log_clb_sr); /* sysrepo, log level is checked by callback */
 
     nc_verbosity(np2_verbose_level);
-    ly_verb(np2_verbose_level);
+    nc_libssh_thread_verbosity(np2_verbose_level);
 
 restart:
     /* initiate NETCONF server */
@@ -567,17 +585,35 @@ restart:
 
     /* listen for new NETCONF sessions */
     while (control == LOOP_CONTINUE) {
-        msgtype = nc_accept(500, &ncs);
-        if (msgtype == NC_MSG_HELLO) {
-            if (connect_ds(ncs)) {
-                /* error */
-                ERR("Terminating session %d due to failure when connecting to sysrepo.",
-                    nc_session_get_id(ncs));
-                nc_session_free(ncs, free_ds);
-                continue;
+        if (np2srv.nc_max_sessions && (nc_ps_session_count(np2srv.nc_ps) < np2srv.nc_max_sessions)) {
+            /* just sleep, no new sessions can connect */
+            usleep(500000);
+        } else {
+            msgtype = nc_accept(500, &ncs);
+            if (msgtype == NC_MSG_HELLO) {
+                if (connect_ds(ncs)) {
+                    /* error */
+                    ERR("Terminating session %d due to failure when connecting to sysrepo.",
+                        nc_session_get_id(ncs));
+                    nc_session_free(ncs, free_ds);
+                    continue;
+                }
+                ncm_session_add(ncs);
+
+                c = 0;
+                while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, ncs)) {
+                    /* presumably timeout, give it a shot 2 times */
+                    usleep(10000);
+                    ++c;
+                }
+
+                if (c == 3) {
+                    /* there is some serious problem in synchronization/system planner */
+                    EINT;
+                    ncm_session_del(ncs, 1);
+                    nc_session_free(ncs, free_ds);
+                }
             }
-            ncm_session_add(ncs);
-            nc_ps_add_session(np2srv.nc_ps, ncs);
         }
     }
 
@@ -587,6 +623,9 @@ restart:
 cleanup:
 
     /* disconnect from sysrepo */
+    if (np2srv.sr_sub) {
+        sr_unsubscribe(np2srv.sr_sess.srs, np2srv.sr_sub);
+    }
     if (np2srv.sr_sess.srs) {
         sr_session_stop(np2srv.sr_sess.srs);
     }

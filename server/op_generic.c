@@ -29,36 +29,51 @@
 #include "operations.h"
 
 static int
-build_rpc_from_output(struct lyd_node *rpc, sr_val_t *output, size_t out_count, NC_WD_MODE wd)
+build_rpc_from_output(struct lyd_node *rpc, sr_val_t *output, size_t out_count)
 {
-    struct lyd_node *node;
+    struct lyd_node *node, *iter;
     uint32_t i;
-    int rc;
     char buf[21];
 
     for (i = 0; i < out_count; ++i) {
-        /* default values */
-        rc = op_dflt_data_inspect(np2srv.ly_ctx, &output[i], wd, 1);
-        if (rc < 0) {
-            continue;
-        }
-
+        ly_errno = LY_SUCCESS;
         node = lyd_new_path(rpc, np2srv.ly_ctx, output[i].xpath, op_get_srval(np2srv.ly_ctx, &output[i], buf),
-                            LYD_PATH_OPT_UPDATE | LYD_PATH_OPT_OUTPUT);
+                            0, LYD_PATH_OPT_UPDATE | LYD_PATH_OPT_OUTPUT);
         if (ly_errno) {
             return -1;
         }
 
-        if (rc) {
-            /* add the default attribute */
-            assert(node);
-            while (node->schema->nodetype & (LYS_CONTAINER | LYS_LIST)) {
-                node = node->child;
-                assert(node);
+        if (node) {
+            /* propagate default flag */
+            if (output[i].dflt) {
+                /* go down */
+                for (iter = node;
+                     !(iter->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYXML)) && iter->child;
+                     iter = iter->child);
+                /* go up, back to the node */
+                for (; ; iter = iter->parent) {
+                    if (iter->schema->nodetype == LYS_CONTAINER && ((struct lys_node_container *)iter->schema)->presence) {
+                        /* presence container */
+                        break;
+                    } else if (iter->schema->nodetype == LYS_LIST && ((struct lys_node_list *)iter->schema)->keys_size) {
+                        /* list with keys */
+                        break;
+                    }
+                    iter->dflt = 1;
+                    if (iter == node) {
+                        /* done */
+                        break;
+                    }
+                }
+            } else { /* non default node, propagate it to the parents */
+                for (iter = node->parent; iter && iter->dflt; iter = iter->parent) {
+                    iter->dflt = 0;
+                }
             }
-            assert(node->schema->nodetype == LYS_LEAF);
-            node->dflt = 1;
         }
+    }
+    if (lyd_validate(&rpc, LYD_OPT_RPCREPLY, NULL)) {
+        return -1;
     }
 
     return 0;
@@ -90,8 +105,9 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* process input into sysrepo format */
-    set = lyd_get_node(rpc, "//*");
+    set = lyd_find_xpath(rpc, "//*");
     if (!set->number || (set->set.d[0]->schema->nodetype != LYS_RPC)) {
+        /* TODO action always goes here */
         EINT;
         goto error;
     }
@@ -136,23 +152,27 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
         return nc_server_reply_err(nc_err(NC_ERR_OP_NOT_SUPPORTED, NC_ERR_TYPE_PROT));
     } else if (rc != SR_ERR_OK) {
         ERR("Sending an RPC (%s) to sysrepo failed (%s).", rpc->schema->name, sr_strerror(rc));
-        goto error;
+        goto srerror;
     }
 
     reply_data = lyd_dup(rpc, 0);
-
-    nc_server_get_capab_withdefaults(&nc_wd, NULL);
-    rc = build_rpc_from_output(reply_data, output, out_count, nc_wd);
+    rc = build_rpc_from_output(reply_data, output, out_count);
     sr_free_values(output, out_count);
-
     if (rc) {
         lyd_free(reply_data);
-        goto error;
+        goto srerror;
     }
 
-    return nc_server_reply_data(reply_data, NC_PARAMTYPE_FREE);
+    nc_server_get_capab_withdefaults(&nc_wd, NULL);
+    return nc_server_reply_data(reply_data, nc_wd, NC_PARAMTYPE_FREE);
+
+srerror:
+    return op_build_err_sr(NULL, sessions->srs);
 
 error:
+    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+    nc_err_set_msg(e, np2log_lasterr(), "en");
+
     ly_set_free(set);
     if (strs) {
         for (i = 0; i < strs->number; i++) {
@@ -163,7 +183,5 @@ error:
     free(input);
     sr_free_values(output, out_count);
 
-    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-    nc_err_set_msg(e, np2log_lasterr(), "en");
     return nc_server_reply_err(e);
 }

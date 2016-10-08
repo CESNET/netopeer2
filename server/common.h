@@ -38,12 +38,14 @@ struct np2_sessions {
 /* Netopeer server internal data */
 struct np2srv {
     sr_conn_ctx_t *sr_conn;        /**< sysrepo connection */
-    struct np2_sessions sr_sess; /**< Netopeer's sysrepo sessions */
-
+    struct np2_sessions sr_sess;   /**< Netopeer's sysrepo sessions */
     struct ly_ctx *ly_ctx;         /**< libyang's context */
-
-    struct nc_pollsession *nc_ps;
+    struct nc_pollsession *nc_ps;  /**< libnetconf2 pollsession structure */
+    uint16_t nc_max_sessions;      /**< maximum number of running sessions */
+    sr_subscription_ctx_t *sr_sub; /**< sysrepo subscription context */
 };
 extern struct np2srv np2srv;
+
+int ietf_netconf_server_init(void);
 
 #endif /* NP2SRV_COMMON_H_ */
