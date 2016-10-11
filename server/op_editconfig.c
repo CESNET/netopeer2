@@ -128,6 +128,8 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     char *str, path[1024], *rel, *valbuf;
     const char *cstr;
     enum NP2_EDIT_OP *op = NULL, *op_new;
+    uint16_t *path_levels = NULL, *path_levels_new;
+    uint16_t path_levels_index, path_levels_size = 0;
     int op_index, op_size, path_index = 0, missing_keys = 0, lastkey = 0;
     int ret;
     struct lys_node_container *cont;
@@ -257,10 +259,12 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
      * data manipulation
      */
     valbuf = NULL;
-    op_size = 16;
+    path_levels_size = op_size = 16;
     op = malloc(op_size * sizeof *op);
     op[0] = NP2_EDIT_NONE;
     op_index = 0;
+    path_levels = malloc(path_levels_size * sizeof *path_levels);
+    path_levels_index = 0;
     LY_TREE_DFS_BEGIN(config, next, iter) {
 
         /* maintain list of operations */
@@ -278,6 +282,16 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             op[op_index] = edit_get_op(iter, op[op_index - 1], defop);
 
             /* maintain path */
+            if (path_levels_index == path_levels_size) {
+            	path_levels_size += 16;
+            	path_levels_new = realloc(path_levels, path_levels_size * sizeof *path_levels);
+            	if (!path_levels_new) {
+                    ERR("%s: memory allocation failed (%s) - %s:%d", __func__, strerror(errno), __FILE__, __LINE__);
+                    goto internalerror;
+            	}
+            	path_levels = path_levels_new;
+            }
+            path_levels[path_levels_index++] = path_index;
             if (!iter->parent || lyd_node_module(iter) != lyd_node_module(iter->parent)) {
                 /* with prefix */
                 path_index += sprintf(&path[path_index], "/%s:%s", lyd_node_module(iter)->name, iter->schema->name);
@@ -508,15 +522,12 @@ dfs_nextsibling:
 
             /* maintain "stack" variables */
             if (!missing_keys && !lastkey) {
+            	assert(op_index > 0);
+                assert(path_levels_index > 0);
                 op_index--;
-                str = strrchr(path, '/');
-                if (str) {
-                    *str = '\0';
-                    path_index = str - path;
-                } else {
-                    path[0] = '\0';
-                    path_index = 0;
-                }
+                path_levels_index--;
+                path_index = path_levels[path_levels_index];
+                path[path_index] = '\0';
             }
         }
         while (!next) {
@@ -532,15 +543,12 @@ dfs_parent:
 
             /* maintain "stack" variables */
             if (!missing_keys) {
+            	assert(op_index > 0);
+                assert(path_levels_index > 0);
                 op_index--;
-                str = strrchr(path, '/');
-                if (str) {
-                    *str = '\0';
-                    path_index = str - path;
-                } else {
-                    path[0] = '\0';
-                    path_index = 0;
-                }
+                path_levels_index--;
+                path_index = path_levels[path_levels_index];
+                path[path_index] = '\0';
             }
 
         }
@@ -551,6 +559,8 @@ cleanup:
     /* cleanup */
     free(op);
     op = NULL;
+    free(path_levels);
+    path_levels = NULL;
     lyd_free_withsiblings(config);
     config = NULL;
 
@@ -608,6 +618,7 @@ internalerror:
     sr_discard_changes(sessions->srs);
 
     free(op);
+    free(path_levels);
     lyd_free_withsiblings(config);
 
 errorreply:
