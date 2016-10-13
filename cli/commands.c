@@ -1417,8 +1417,11 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
         printf("Waiting %ds for an SSH Call Home connection on port %u...\n", timeout, port);
         ret = nc_accept_callhome(timeout * 1000, NULL, &session);
         nc_client_ssh_ch_del_bind(host, port);
-        if (ret) {
+        if (ret == -1) {
             ERROR(func_name, "Receiving SSH Call Home on port %d as user \"%s\" failed.", port, user);
+            return EXIT_FAILURE;
+        } else if (ret == 0) {
+            ERROR(func_name, "Receiving SSH Call Home on port %d as user \"%s\" timeouted.", port, user);
             return EXIT_FAILURE;
         }
     }
