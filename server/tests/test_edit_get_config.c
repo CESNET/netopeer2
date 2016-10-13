@@ -380,7 +380,6 @@ struct nc_session {
 
     uint32_t id;
     int version;
-    volatile pthread_t *ntf_tid;
 
     NC_TRANSPORT_IMPL ti_type;
     pthread_mutex_t *ti_lock;
@@ -408,15 +407,27 @@ struct nc_session {
     void *data;
     uint8_t flags;
 
-    /* client side only data */
-    uint64_t msgid;
-    const char **cpblts;
-    struct nc_msg_cont *replies;
-    struct nc_msg_cont *notifs;
-
-    /* server side only data */
-    time_t session_start;
-    time_t last_rpc;
+    union {
+        struct {
+            volatile pthread_t *ntf_tid;
+            uint64_t msgid;
+            const char **cpblts;
+            struct nc_msg_cont *replies;
+            struct nc_msg_cont *notifs;
+        } client;
+        struct {
+            time_t session_start;
+            time_t last_rpc;
+            pthread_mutex_t *ch_lock;
+            pthread_cond_t *ch_cond;
+#ifdef NC_ENABLED_SSH
+            uint16_t ssh_auth_attempts;
+#endif
+#ifdef NC_ENABLED_TLS
+            void *client_cert;
+#endif
+        } server;
+    } opts;
 };
 
 struct nc_pollsession {
@@ -478,7 +489,7 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
         (*session)->flags = 1; //shared ctx
         (*session)->username = "user1";
         (*session)->host = "localhost";
-        (*session)->session_start = (*session)->last_rpc = time(NULL);
+        (*session)->opts.server.session_start = (*session)->opts.server.last_rpc = time(NULL);
         printf("test: New session 1\n");
         initialized = 1;
         ret = NC_MSG_HELLO;

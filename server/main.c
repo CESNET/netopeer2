@@ -221,7 +221,7 @@ server_init(void)
 
             LY_TREE_DFS_BEGIN(mod->data, next, snode) {
                 if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
-                    lys_set_private(snode, op_generic);
+                    nc_set_rpc_callback(snode, op_generic);
                 }
                 LY_TREE_DFS_END(mod->data, next, snode);
             }
@@ -278,43 +278,43 @@ server_init(void)
 
     /* set NETCONF operations callbacks */
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get-config");
-    lys_set_private(snode, op_get);
+    nc_set_rpc_callback(snode, op_get);
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:edit-config");
-    lys_set_private(snode, op_editconfig);
+    nc_set_rpc_callback(snode, op_editconfig);
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:copy-config");
-    lys_set_private(snode, op_copyconfig);
+    nc_set_rpc_callback(snode, op_copyconfig);
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:delete-config");
-    lys_set_private(snode, op_deleteconfig);
+    nc_set_rpc_callback(snode, op_deleteconfig);
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:lock");
-    lys_set_private(snode, op_lock);
+    nc_set_rpc_callback(snode, op_lock);
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:unlock");
-    lys_set_private(snode, op_unlock);
+    nc_set_rpc_callback(snode, op_unlock);
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get");
-    lys_set_private(snode, op_get);
+    nc_set_rpc_callback(snode, op_get);
 
     /* leave close-session RPC empty, libnetconf2 will use its callback */
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:commit");
-    lys_set_private(snode, op_commit);
+    nc_set_rpc_callback(snode, op_commit);
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:discard-changes");
-    lys_set_private(snode, op_discardchanges);
+    nc_set_rpc_callback(snode, op_discardchanges);
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:validate");
-    lys_set_private(snode, op_validate);
+    nc_set_rpc_callback(snode, op_validate);
 
     /* TODO
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:kill-session");
-    lys_set_private(snode, op_kill);
+    nc_set_rpc_callback(snode, op_kill);
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:cancel-commit");
-    lys_set_private(snode, op_cancel);
+    nc_set_rpc_callback(snode, op_cancel);
 
      */
 
@@ -326,13 +326,13 @@ server_init(void)
         }
     } else {
         WRN("Sysrepo does not have the \"ietf-netconf-server\" module, using default NETCONF server options.");
-        if (nc_server_add_endpt("main")) {
+        if (nc_server_add_endpt("main", NC_TI_LIBSSH)) {
             goto error;
         }
-        if (nc_server_ssh_endpt_set_address("main", "0.0.0.0")) {
+        if (nc_server_endpt_set_address("main", "0.0.0.0")) {
             goto error;
         }
-        if (nc_server_ssh_endpt_set_port("main", 6001)) {
+        if (nc_server_endpt_set_port("main", 6001)) {
             goto error;
         }
         if (nc_server_ssh_endpt_add_hostkey("main", NP2SRV_HOST_KEY)) {
@@ -427,7 +427,7 @@ process_loop(void *arg)
     int rc;
     struct nc_session *ncs;
 
-    nc_libssh_thread_verbosity(np2_verbose_level);
+    nc_libssh_thread_verbosity(3);
 
     while (control == LOOP_CONTINUE) {
         /* listen for incomming requests on active NETCONF sessions */

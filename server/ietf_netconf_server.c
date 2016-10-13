@@ -86,18 +86,18 @@ set_listen_idle_timeout(sr_change_oper_t sr_oper, sr_val_t *UNUSED(sr_old_val), 
 }
 
 static int
-set_endpoint_ssh_address(const char *endpt_name, sr_change_oper_t sr_oper, sr_val_t *UNUSED(sr_old_val),
-                         sr_val_t *sr_new_val)
+set_endpoint_address(const char *endpt_name, sr_change_oper_t sr_oper, sr_val_t *UNUSED(sr_old_val),
+                     sr_val_t *sr_new_val)
 {
     int rc = EXIT_FAILURE;
 
     switch (sr_oper) {
     case SR_OP_CREATED:
     case SR_OP_MODIFIED:
-        rc = nc_server_ssh_endpt_set_address(endpt_name, sr_new_val->data.string_val);
+        rc = nc_server_endpt_set_address(endpt_name, sr_new_val->data.string_val);
         break;
     case SR_OP_DELETED:
-        rc = nc_server_ssh_endpt_set_address(endpt_name, "0.0.0.0");
+        rc = nc_server_endpt_set_address(endpt_name, "0.0.0.0");
         break;
     case SR_OP_MOVED:
         EINT;
@@ -108,62 +108,18 @@ set_endpoint_ssh_address(const char *endpt_name, sr_change_oper_t sr_oper, sr_va
 }
 
 static int
-set_endpoint_ssh_port(const char *endpt_name, sr_change_oper_t sr_oper, sr_val_t *UNUSED(sr_old_val),
-                      sr_val_t *sr_new_val)
+set_endpoint_port(const char *endpt_name, sr_change_oper_t sr_oper, sr_val_t *UNUSED(sr_old_val),
+                  sr_val_t *sr_new_val)
 {
     int rc = EXIT_FAILURE;
 
     switch (sr_oper) {
     case SR_OP_CREATED:
     case SR_OP_MODIFIED:
-        rc = nc_server_ssh_endpt_set_port(endpt_name, sr_new_val->data.uint16_val);
+        rc = nc_server_endpt_set_port(endpt_name, sr_new_val->data.uint16_val);
         break;
     case SR_OP_DELETED:
-        rc = nc_server_ssh_endpt_set_port(endpt_name, 830);
-        break;
-    case SR_OP_MOVED:
-        EINT;
-        break;
-    }
-
-    return rc;
-}
-
-static int
-set_endpoint_tls_address(const char *endpt_name, sr_change_oper_t sr_oper, sr_val_t *UNUSED(sr_old_val),
-                         sr_val_t *sr_new_val)
-{
-    int rc = EXIT_FAILURE;
-
-    switch (sr_oper) {
-    case SR_OP_CREATED:
-    case SR_OP_MODIFIED:
-        rc = nc_server_tls_endpt_set_address(endpt_name, sr_new_val->data.string_val);
-        break;
-    case SR_OP_DELETED:
-        rc = nc_server_tls_endpt_set_address(endpt_name, "0.0.0.0");
-        break;
-    case SR_OP_MOVED:
-        EINT;
-        break;
-    }
-
-    return rc;
-}
-
-static int
-set_endpoint_tls_port(const char *endpt_name, sr_change_oper_t sr_oper, sr_val_t *UNUSED(sr_old_val),
-                      sr_val_t *sr_new_val)
-{
-    int rc = EXIT_FAILURE;
-
-    switch (sr_oper) {
-    case SR_OP_CREATED:
-    case SR_OP_MODIFIED:
-        rc = nc_server_tls_endpt_set_port(endpt_name, sr_new_val->data.uint16_val);
-        break;
-    case SR_OP_DELETED:
-        rc = nc_server_tls_endpt_set_port(endpt_name, 6513);
+        rc = nc_server_endpt_set_port(endpt_name, 830);
         break;
     case SR_OP_MOVED:
         EINT;
@@ -240,11 +196,15 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
     assert(!strncmp(xpath, "/ietf-netconf-server:netconf-server/", 36));
     xpath += 36;
 
-    if (!strncmp(xpath, "session-options/", 16)) {
+    if (!strcmp(xpath, "session-options")) {
+        rc = 0;
+    } else if (!strncmp(xpath, "session-options/", 16)) {
         xpath += 16;
         if (!strcmp(xpath, "hello-timeout")) {
             rc = set_session_options_hello_timeout(sr_oper, sr_old_val, sr_new_val);
         }
+    } else if (!strcmp(xpath, "listen")) {
+        rc = 0;
     } else if (!strncmp(xpath, "listen/", 7)) {
         xpath += 7;
         if (!strcmp(xpath, "max-sessions")) {
@@ -267,9 +227,7 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
             }
 
             if (!strcmp(xpath, "name")) {
-                if (sr_oper == SR_OP_CREATED) {
-                    rc = nc_server_add_endpt(sr_new_val->data.string_val);
-                } else if (sr_oper == SR_OP_DELETED) {
+                if (sr_oper == SR_OP_DELETED) {
                     rc = nc_server_del_endpt(sr_new_val->data.string_val);
                     if (!rc) {
                         if (*endpt_name_del) {
@@ -279,15 +237,21 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
                         endpt_name = NULL;
                     }
                 } else {
-                    EINT;
-                    rc = EXIT_FAILURE;
+                    /* we don't care it was created, ssh or tls container will be created too */
+                    rc = 0;
+                }
+            } else if (!strcmp(xpath, "ssh")) {
+                if (sr_oper == SR_OP_CREATED) {
+                    rc = nc_server_add_endpt(sr_new_val->data.string_val, NC_TI_LIBSSH);
+                } else {
+                    rc = 0;
                 }
             } else if (!strncmp(xpath, "ssh/", 4)) {
                 xpath += 4;
                 if (!strcmp(xpath, "address")) {
-                    rc = set_endpoint_ssh_address(endpt_name, sr_oper, sr_old_val, sr_new_val);
+                    rc = set_endpoint_address(endpt_name, sr_oper, sr_old_val, sr_new_val);
                 } else if (!strcmp(xpath, "port")) {
-                    rc = set_endpoint_ssh_port(endpt_name, sr_oper, sr_old_val, sr_new_val);
+                    rc = set_endpoint_port(endpt_name, sr_oper, sr_old_val, sr_new_val);
                 } else if (!strncmp(xpath, "host-keys/", 10)) {
                     xpath += 10;
                     if (!strncmp(xpath, "host-key", 8)) {
@@ -310,12 +274,18 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
                         }
                     }
                 }
+            } else if (!strcmp(xpath, "tls")) {
+                if (sr_oper == SR_OP_CREATED) {
+                    rc = nc_server_add_endpt(sr_new_val->data.string_val, NC_TI_OPENSSL);
+                } else {
+                    rc = 0;
+                }
             } else if (!strncmp(xpath, "tls/", 4)) {
                 xpath += 4;
                 if (!strcmp(xpath, "address")) {
-                    rc = set_endpoint_tls_address(endpt_name, sr_oper, sr_old_val, sr_new_val);
+                    rc = set_endpoint_address(endpt_name, sr_oper, sr_old_val, sr_new_val);
                 } else if (!strcmp(xpath, "port")) {
-                    rc = set_endpoint_tls_port(endpt_name, sr_oper, sr_old_val, sr_new_val);
+                    rc = set_endpoint_port(endpt_name, sr_oper, sr_old_val, sr_new_val);
                 } else if (!strncmp(xpath, "certificates/", 13)) {
                     xpath += 13;
                     /* TODO */
@@ -361,9 +331,9 @@ module_change_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), sr_
     }
     while ((rc = sr_get_change_next(session, sr_iter, &sr_oper, &sr_old_val, &sr_new_val)) == SR_ERR_OK) {
         if ((sr_old_val
-                && (((sr_old_val->type == SR_LIST_T) && (sr_oper != SR_OP_MOVED)) || (sr_old_val->type == SR_CONTAINER_T)))
+                && ((sr_old_val->type == SR_LIST_T) && (sr_oper != SR_OP_MOVED)))
                 || (sr_new_val
-                && (((sr_new_val->type == SR_LIST_T) && (sr_oper != SR_OP_MOVED)) || (sr_new_val->type == SR_CONTAINER_T)))) {
+                && ((sr_new_val->type == SR_LIST_T) && (sr_oper != SR_OP_MOVED)))) {
             /* no semantic meaning */
             continue;
         }
