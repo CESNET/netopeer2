@@ -11,7 +11,7 @@ compiler:
 
 branches:
   only:
-    - master
+    - devel-server
 
 cache:
   directories:
@@ -24,9 +24,7 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then bash .travis-install-libs.sh; fi
 
 script:
-  - mkdir build-cli && cd build-cli && cmake ../cli && make -j2
-  - mkdir ../build-server && cd ../build-server && cmake ../server && make -j2 && sudo ctest -V
-  - cd ..
+  - mkdir build-server && cd build-server && cmake ../server && make -j2 && sudo ctest -V
 
 after_success:
   - if [ "${CC}" = "gcc" ]; then bash <(curl -s https://codecov.io/bash); fi
