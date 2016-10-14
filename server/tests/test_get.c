@@ -116,6 +116,30 @@ __wrap_sr_session_refresh(sr_session_ctx_t *session)
 }
 
 int
+__wrap_sr_module_install_subscribe(sr_session_ctx_t *session, sr_module_install_cb callback, void *private_ctx,
+                                   sr_subscr_options_t opts, sr_subscription_ctx_t **subscription)
+{
+    (void)session;
+    (void)callback;
+    (void)private_ctx;
+    (void)opts;
+    (void)subscription;
+    return SR_ERR_OK;
+}
+
+int
+__wrap_sr_feature_enable_subscribe(sr_session_ctx_t *session, sr_feature_enable_cb callback, void *private_ctx,
+                                   sr_subscr_options_t opts, sr_subscription_ctx_t **subscription)
+{
+    (void)session;
+    (void)callback;
+    (void)private_ctx;
+    (void)opts;
+    (void)subscription;
+    return SR_ERR_OK;
+}
+
+int
 __wrap_sr_get_items(sr_session_ctx_t *session, const char *xpath, sr_val_t **values, size_t *value_cnt)
 {
     (void)session;

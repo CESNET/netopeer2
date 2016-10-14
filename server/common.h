@@ -15,6 +15,8 @@
 #ifndef NP2SRV_COMMON_H_
 #define NP2SRV_COMMON_H_
 
+#include <pthread.h>
+
 #include "config.h"
 #include "log.h"
 
@@ -39,10 +41,13 @@ struct np2_sessions {
 struct np2srv {
     sr_conn_ctx_t *sr_conn;        /**< sysrepo connection */
     struct np2_sessions sr_sess;   /**< Netopeer's sysrepo sessions */
-    struct ly_ctx *ly_ctx;         /**< libyang's context */
+    sr_subscription_ctx_t *sr_subscr; /**< sysrepo subscription context */
+
     struct nc_pollsession *nc_ps;  /**< libnetconf2 pollsession structure */
     uint16_t nc_max_sessions;      /**< maximum number of running sessions */
-    sr_subscription_ctx_t *sr_sub; /**< sysrepo subscription context */
+
+    struct ly_ctx *ly_ctx;         /**< libyang's context */
+    pthread_rwlock_t ly_ctx_lock;  /**< libyang's context rwlock */
 };
 extern struct np2srv np2srv;
 

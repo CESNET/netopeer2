@@ -358,17 +358,13 @@ module_change_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), sr_
     return sr_rc;
 }
 
-static void
-feature_change_cb(const char *module_name, const char *feature_name, bool enabled, void *private_ctx)
+int
+feature_change_ietf_netconf_server(const char *feature_name, bool enabled)
 {
-    int rc, rc2;
+    int rc, rc2 = 0;
     const char *path = NULL, *endpt_name_del = NULL;
     sr_val_iter_t *sr_iter;
     sr_val_t *sr_val;
-
-    if (private_ctx) {
-        *((int *)private_ctx) = EXIT_SUCCESS;
-    }
 
     if (!feature_name) {
         path = "/ietf-netconf-server:netconf-server//*";
@@ -385,57 +381,48 @@ feature_change_cb(const char *module_name, const char *feature_name, bool enable
     } else if (!strcmp(feature_name, "tls-call-home")) {
         path = "/ietf-netconf-server:netconf-server/call-home/netconf-client/tls//*";
     } else {
-        WRN("Unknown or unsupported feature \"%s\" %s, ignoring.", feature_name, (enabled ? "enabled" : "disabled"));
-        if (private_ctx) {
-            *((int *)private_ctx) = EXIT_FAILURE;
-        }
+        ERR("Unknown or unsupported feature \"%s\" %s, ignoring.", feature_name, (enabled ? "enabled" : "disabled"));
+        return EXIT_FAILURE;
     }
 
-    if (path) {
-        rc = sr_get_items_iter(np2srv.sr_sess.srs, path, &sr_iter);
-        if (rc != SR_ERR_OK) {
-            ERR("Failed to get \"%s\" values iterator from sysrepo (%s).", sr_strerror(rc));
-            if (private_ctx) {
-                *((int *)private_ctx) = EXIT_FAILURE;
-            }
-            return;
+    rc = sr_get_items_iter(np2srv.sr_sess.srs, path, &sr_iter);
+    if (rc != SR_ERR_OK) {
+        ERR("Failed to get \"%s\" values iterator from sysrepo (%s).", sr_strerror(rc));
+        return EXIT_FAILURE;
+    }
+
+    while ((rc = sr_get_item_next(np2srv.sr_sess.srs, sr_iter, &sr_val)) == SR_ERR_OK) {
+        if ((sr_val->type == SR_LIST_T) || (sr_val->type == SR_CONTAINER_T)) {
+            /* no semantic meaning */
+            continue;
         }
 
-        while ((rc = sr_get_item_next(np2srv.sr_sess.srs, sr_iter, &sr_val)) == SR_ERR_OK) {
-            if ((sr_val->type == SR_LIST_T) || (sr_val->type == SR_CONTAINER_T)) {
-                /* no semantic meaning */
-                continue;
-            }
-
-            if (enabled) {
-                rc2 = module_change_resolve(SR_OP_CREATED, NULL, sr_val, &endpt_name_del);
+        if (enabled) {
+            rc2 = module_change_resolve(SR_OP_CREATED, NULL, sr_val, &endpt_name_del);
+        } else {
+            rc2 = module_change_resolve(SR_OP_DELETED, sr_val, NULL, &endpt_name_del);
+        }
+        sr_free_val(sr_val);
+        if (rc2) {
+            if (feature_name) {
+                ERR("Failed to %s nodes depending on the \"%s\" ietf-netconf-server feature.",
+                    (enabled ? "enable" : "disable"), feature_name);
             } else {
-                rc2 = module_change_resolve(SR_OP_DELETED, sr_val, NULL, &endpt_name_del);
+                ERR("Failed to %s all the nodes of ietf-netconf-server.", (enabled ? "enable" : "disable"));
             }
-            sr_free_val(sr_val);
-            if (rc2) {
-                if (feature_name) {
-                    ERR("Failed to %s nodes depending on the \"%s\" %s feature.",
-                        (enabled ? "enable" : "disable"), feature_name, module_name);
-                } else {
-                    ERR("Failed to %s all the nodes of %s.",
-                        (enabled ? "enable" : "disable"), module_name);
-                }
-                if (private_ctx) {
-                    *((int *)private_ctx) = EXIT_FAILURE;
-                }
-                break;
-            }
-        }
-        sr_free_val_iter(sr_iter);
-        lydict_remove(np2srv.ly_ctx, endpt_name_del);
-        if ((rc != SR_ERR_OK) && (rc != SR_ERR_NOT_FOUND)) {
-            ERR("Failed to get the next value from sysrepo iterator (%s).", sr_strerror(rc));
-            if (private_ctx) {
-                *((int *)private_ctx) = EXIT_FAILURE;
-            }
+            break;
         }
     }
+    sr_free_val_iter(sr_iter);
+    lydict_remove(np2srv.ly_ctx, endpt_name_del);
+    if (rc2) {
+        return EXIT_FAILURE;
+    } else if ((rc != SR_ERR_OK) && (rc != SR_ERR_NOT_FOUND)) {
+        ERR("Failed to get the next value from sysrepo iterator (%s).", sr_strerror(rc));
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
 }
 
 int
@@ -443,22 +430,15 @@ ietf_netconf_server_init(void)
 {
     int rc;
 
-    rc = sr_module_change_subscribe(np2srv.sr_sess.srs, "ietf-netconf-server", module_change_cb, NULL, 0, SR_SUBSCR_DEFAULT,
-                                    &np2srv.sr_sub);
+    rc = sr_module_change_subscribe(np2srv.sr_sess.srs, "ietf-netconf-server", module_change_cb, NULL, 0,
+                                    SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr);
     if (rc != SR_ERR_OK) {
         ERR("Failed to subscribe to \"ietf-netconf-server\" module changes (%s).", sr_strerror(rc));
         return EXIT_FAILURE;
     }
 
-    rc = sr_feature_enable_subscribe(np2srv.sr_sess.srs, feature_change_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to subscribe to \"ietf-netconf-server\" module feature changes (%s).", sr_strerror(rc));
-        return EXIT_FAILURE;
-    }
-
     /* applies the whole current configuration */
-    feature_change_cb("ietf-netconf-server", NULL, 1, &rc);
-    if (rc) {
+    if (feature_change_ietf_netconf_server(NULL, 1)) {
         return EXIT_FAILURE;
     }
 

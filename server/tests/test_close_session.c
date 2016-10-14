@@ -107,6 +107,30 @@ __wrap_sr_disconnect(sr_conn_ctx_t *conn_ctx)
     (void)conn_ctx;
 }
 
+int
+__wrap_sr_module_install_subscribe(sr_session_ctx_t *session, sr_module_install_cb callback, void *private_ctx,
+                                   sr_subscr_options_t opts, sr_subscription_ctx_t **subscription)
+{
+    (void)session;
+    (void)callback;
+    (void)private_ctx;
+    (void)opts;
+    (void)subscription;
+    return SR_ERR_OK;
+}
+
+int
+__wrap_sr_feature_enable_subscribe(sr_session_ctx_t *session, sr_feature_enable_cb callback, void *private_ctx,
+                                   sr_subscr_options_t opts, sr_subscription_ctx_t **subscription)
+{
+    (void)session;
+    (void)callback;
+    (void)private_ctx;
+    (void)opts;
+    (void)subscription;
+    return SR_ERR_OK;
+}
+
 /*
  * LIBNETCONF2 WRAPPER FUNCTIONS
  */
