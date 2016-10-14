@@ -1,16 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module name="ietf-netconf"
         xmlns="urn:ietf:params:xml:ns:yang:yin:1"
-        xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0"
-        xmlns:inet="urn:ietf:params:xml:ns:yang:ietf-inet-types"
-        xmlns:nacm="urn:ietf:params:xml:ns:yang:ietf-netconf-acm">
+        xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
   <namespace uri="urn:ietf:params:xml:ns:netconf:base:1.0"/>
   <prefix value="nc"/>
   <import module="ietf-inet-types">
     <prefix value="inet"/>
-  </import>
-  <import module="ietf-netconf-acm">
-    <prefix value="nacm"/>
   </import>
   <organization>
     <text>IETF NETCONF (Network Configuration) Working Group</text>
@@ -52,9 +47,7 @@ the RFC itself for full legal notices.</text>
   </description>
   <revision date="2011-06-01">
     <description>
-      <text>Initial revision;
-2013-09-29: Updated to include NACM attributes, 
-as specified in RFC 6536: sec 3.2.5 and 3.2.8</text>
+      <text>Initial revision</text>
     </description>
     <reference>
       <text>RFC 6241: Network Configuration Protocol</text>
@@ -696,7 +689,6 @@ a subset of the running datastore.</text>
     </input>
   </rpc>
   <rpc name="delete-config">
-    <nacm:default-deny-all/>
     <description>
       <text>Delete a configuration datastore.</text>
     </description>
@@ -851,7 +843,6 @@ produce any results.</text>
     </reference>
   </rpc>
   <rpc name="kill-session">
-    <nacm:default-deny-all/>
     <description>
       <text>Force the termination of a NETCONF session.</text>
     </description>

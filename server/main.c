@@ -35,7 +35,6 @@
 #include "operations.h"
 #include "netconf_monitoring.h"
 
-#include "../modules/ietf-netconf-acm.h"
 #include "../modules/ietf-netconf@2011-06-01.h"
 #include "../modules/ietf-netconf-monitoring.h"
 #include "../modules/ietf-netconf-with-defaults@2011-06-01.h"
@@ -231,11 +230,7 @@ server_init(void)
     ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_module_clb, NULL);
     sr_free_schemas(schemas, count);
 
-    /* 2) add internally used schemas: ietf-netconf with ietf-netconf-acm, */
-    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-acm", "2012-02-22") &&
-            !lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_acm_yin, LYS_IN_YIN)) {
-        goto error;
-    }
+    /* 2) add internally used schemas: ietf-netconf */
     mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf", "2011-06-01");
     if (!mod && !(mod = lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_2011_06_01_yin, LYS_IN_YIN))) {
         goto error;
