@@ -575,7 +575,7 @@ process_loop(void *arg)
     int rc;
     struct nc_session *ncs;
 
-    nc_libssh_thread_verbosity(3);
+    nc_libssh_thread_verbosity(np2_verbose_level);
 
     while (control == LOOP_CONTINUE) {
 
