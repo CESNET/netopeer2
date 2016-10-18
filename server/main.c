@@ -43,8 +43,6 @@ struct np2srv np2srv;
 struct np2srv_dslock dslock;
 pthread_rwlock_t dslock_rwl = PTHREAD_RWLOCK_INITIALIZER;
 
-static int np2srv_init_schemas(int first);
-
 /**
  * @brief Control flags for the main loop
  */
@@ -178,7 +176,8 @@ np2srv_module_install_clb(const char *module_name, const char *revision, bool in
 
         /* lock for modifying libyang context */
         pthread_rwlock_wrlock(&np2srv.ly_ctx_lock);
-
+        VRB("Loading added schema \"%s%s%s\" from sysrepo.", module_name, revision ? "@" : "",
+            revision ? revision : "");
         mod = lys_parse_mem(np2srv.ly_ctx, data, LYS_IN_YIN);
         free(data);
 
@@ -213,18 +212,16 @@ np2srv_module_install_clb(const char *module_name, const char *revision, bool in
             }
         }
     } else {
-        /* TODO: removing module is not safe, we have to cleanup the context and create it again */
-        WRN("The %s module is supposed to be removed, which is currently not allowed in Netopeer2.", module_name);
-#if 0
+        VRB("Removing schema \"%s%s%s\" according to changes in sysrepo.", module_name, revision ? "@" : "",
+            revision ? revision : "");
+
         /* lock for modifying libyang context */
         pthread_rwlock_wrlock(&np2srv.ly_ctx_lock);
 
-        /* replace libyang context */
-        ly_ctx_destroy(np2srv.ly_ctx, NULL);
-        np2srv_init_schemas(0);
-#else
-        return;
-#endif
+        /* remove the specified module from the context */
+        ly_ctx_remove_module(np2srv.ly_ctx, module_name, revision, NULL);
+        /* ignore return value, the function can fail in case the module was already removed
+         * because of dependency in some of the previous call */
     }
 
     /* unlock libyang context */
@@ -306,9 +303,12 @@ np2srv_init_schemas(int first)
         data = NULL;
         mod = NULL;
 
+        VRB("Loading schema \"%s%s%s\" from sysrepo.", schemas[i].module_name, schemas[i].revision.revision ? "@" : "",
+            schemas[i].revision.revision ? schemas[i].revision.revision : "");
         if ((mod = ly_ctx_get_module(np2srv.ly_ctx, schemas[i].module_name, schemas[i].revision.revision))) {
-            VRB("Module %s (%s) already present in context.", schemas[i].module_name,
-                schemas[i].revision.revision ? schemas[i].revision.revision : "no revision");
+            VRB("Module %s%s%s already present in context.", schemas[i].module_name,
+                schemas[i].revision.revision ? "@" : "",
+                schemas[i].revision.revision ? schemas[i].revision.revision : "");
         } else if (sr_get_schema(np2srv.sr_sess.srs, schemas[i].module_name,
                                  schemas[i].revision.revision, NULL, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
             mod = lys_parse_mem(np2srv.ly_ctx, data, LYS_IN_YIN);
@@ -316,9 +316,9 @@ np2srv_init_schemas(int first)
         }
 
         if (!mod) {
-            WRN("Getting %s (%s) schema from sysrepo failed, data from this module won't be available.",
-                schemas[i].module_name,
-                schemas[i].revision.revision ? schemas[i].revision.revision : "no revision");
+            WRN("Getting %s%s%s schema from sysrepo failed, data from this module won't be available.",
+                schemas[i].module_name, schemas[i].revision.revision ? "@" : "",
+                schemas[i].revision.revision ? schemas[i].revision.revision : "");
         } else {
             /* set features according to sysrepo */
             for (j = 0; j < schemas[i].enabled_feature_cnt; ++j) {
