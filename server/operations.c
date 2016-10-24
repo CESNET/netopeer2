@@ -88,10 +88,15 @@ copy_bits(const struct lyd_node_leaf_list *leaf, char **dest)
     int i;
     struct lys_node_leaf *sch = (struct lys_node_leaf *) leaf->schema;
     char *bits_str = NULL;
-    int bits_count = sch->type.info.bits.count;
+    int bits_count;
     struct lys_type_bit **bits = leaf->value.bit;
-
     size_t length = 1; /* terminating NULL byte*/
+
+    while (sch->type.base == LY_TYPE_LEAFREF) {
+        sch = sch->type.info.lref.target;
+    }
+    bits_count = sch->type.info.bits.count;
+
     for (i = 0; i < bits_count; i++) {
         if (NULL != bits[i] && NULL != bits[i]->name) {
             length += strlen(bits[i]->name);
