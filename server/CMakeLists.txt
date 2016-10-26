@@ -35,6 +35,21 @@ if (NOT PIDFILE_PREFIX)
 	set(PIDFILE_PREFIX "/var/run")
 endif()
 
+# get authd keys directory
+if (NOT AUTHD_KEYS_DIR)
+    find_package(PkgConfig)
+    if (PKG_CONFIG_FOUND)
+        execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} "--variable=AUTHD_KEYS_DIR" "authd" OUTPUT_VARIABLE AUTHD_KEYS_DIR)
+        if (AUTHD_KEYS_DIR)
+            string(STRIP ${AUTHD_KEYS_DIR} AUTHD_KEYS_DIR)
+        endif()
+    endif()
+endif()
+if (NOT AUTHD_KEYS_DIR)
+    message(STATUS "Failed to learn authd keys directory, set AUTHD_KEYS_DIR manually or server configuration will not work.")
+    set(AUTHD_KEYS_DIR "none")
+endif()
+
 configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_SOURCE_DIR}/config.h" ESCAPE_QUOTES @ONLY)
 
 # source files
@@ -88,12 +103,97 @@ find_package(SYSREPO REQUIRED)
 target_link_libraries(netopeer2-server ${SYSREPO_LIBRARIES})
 include_directories(${SYSREPO_INCLUDE_DIRS})
 
+# find sysrepoctl
+if (NOT SYSREPOCTL_EXECUTABLE)
+    find_program(SYSREPOCTL_EXECUTABLE sysrepoctl)
+endif()
+if (NOT SYSREPOCTL_EXECUTABLE)
+    message(FATAL_ERROR "Unable to find sysrepoctl, set SYSREPOCTL_EXECUTABLE manually.")
+endif()
+
+# find sysrepocfg
+if (NOT SYSREPOCFG_EXECUTABLE)
+    find_program(SYSREPOCFG_EXECUTABLE sysrepocfg)
+endif()
+if (NOT SYSREPOCFG_EXECUTABLE)
+    message(FATAL_ERROR "Unable to find sysrepocfg, set SYSREPOCFG_EXECUTABLE manually.")
+endif()
+
 if(NOT BIN_INSTALL_DIR)
 	set(BIN_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/bin)
 endif()
 
 # install binary
 install(TARGETS netopeer2-server DESTINATION ${BIN_INSTALL_DIR})
+
+# install server configuration module and enable features
+install(CODE "
+    execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -l RESULT_VARIABLE RET OUTPUT_VARIABLE INSTALLED_MODULES ERROR_VARIABLE OUT)
+    if (RET)
+        string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
+        message(FATAL_ERROR \"  Command sysrepoctl list failed:\n  \${OUT}\")
+    endif()
+
+    string(REGEX MATCH \"ietf-system-keychain[^\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
+    if (NOT INSTALLED_MODULE_LINE)
+        message(STATUS \"Server configuration is disabled because sysrepo does not support ietf-system-keychain (authd plugin not installed).\")
+    else()
+        string(REGEX MATCH \"ietf-netconf-server[^\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
+        if (NOT INSTALLED_MODULE_LINE)
+            message(STATUS \"Importing module ietf-netconf-server into sysrepo...\")
+            execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/ietf-netconf-server.yang -o root:root -p 600 RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
+            if (RET)
+                string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
+                message(FATAL_ERROR \"  Command sysrepoctl install failed:\n  \${OUT}\")
+            endif()
+
+            set(FEATURES listen ssh-listen call-home ssh-call-home)
+            foreach(FEATURE IN LISTS FEATURES)
+                execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -m ietf-netconf-server -e \${FEATURE} RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
+                if (RET)
+                    string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
+                    message(FATAL_ERROR \"  Command sysrepoctl enable feature failed:\n  \${OUT}\")
+                endif()
+            endforeach()
+
+            execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -m ietf-netconf-server -t RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
+            if (RET)
+                string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
+                message(FATAL_ERROR \"  Command sysrepoctl init failed:\n  \${OUT}\")
+            endif()
+
+        else()
+            message(STATUS \"Module ietf-netconf-server already in sysrepo.\")
+            set(FEATURES listen ssh-listen call-home ssh-call-home)
+            foreach(FEATURE IN LISTS FEATURES)
+                if (NOT \"\${INSTALLED_MODULE_LINE}\" MATCHES \"\${FEATURE}\")
+                    execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -m \${AUTHD_MODULE} -e \${FEATURE} RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
+                    if (RET)
+                        string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
+                        message(FATAL_ERROR \"  Command sysrepoctl enable feature failed:\n  \${OUT}\")
+                    endif()
+                endif()
+            endforeach()
+        endif()
+
+        execute_process(COMMAND ${SYSREPOCFG_EXECUTABLE} -d startup --export ietf-netconf-server RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
+        if (RET)
+            string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
+            message(FATAL_ERROR \"  Command sysrepocfg export failed:\n  \${OUT}\")
+        endif()
+
+        if (OUT)
+            message(STATUS \"Some NETCONF server configuration set, it will not be changed.\")
+        else()
+            execute_process(COMMAND ${SYSREPOCFG_EXECUTABLE} -d startup -i ${CMAKE_SOURCE_DIR}/stock_config.xml ietf-netconf-server RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
+            if (RET)
+                string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
+                message(FATAL_ERROR \"  Command sysrepocfg import failed:\n  \${OUT}\")
+            endif()
+            message(STATUS \"Default NETCONF server configuration imported (SSH listen on 0.0.0.0:830).\")
+        endif()
+
+    endif()")
 
 # clean cmake cache
 add_custom_target(cleancache

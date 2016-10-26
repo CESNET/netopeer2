@@ -134,6 +134,39 @@ signal_handler(int sig)
     }
 }
 
+static void
+np2srv_clean_dslock(struct nc_session *ncs)
+{
+    pthread_rwlock_wrlock(&dslock_rwl);
+
+    if (dslock.running == ncs) {
+        dslock.running = NULL;
+    }
+    if (dslock.startup == ncs) {
+        dslock.startup = NULL;
+    }
+    if (dslock.candidate == ncs) {
+        dslock.candidate = NULL;
+    }
+
+    pthread_rwlock_unlock(&dslock_rwl);
+}
+
+void
+free_ds(void *ptr)
+{
+    struct np2_sessions *s;
+
+    if (ptr) {
+        s = (struct np2_sessions *)ptr;
+        if (s->srs) {
+            sr_session_stop(s->srs);
+        }
+        np2srv_clean_dslock(s->ncs);
+        free(s);
+    }
+}
+
 static char *
 np2srv_ly_import_clb(const char *mod_name, const char *mod_rev, const char *submod_name, const char *UNUSED(submod_rev),
                      void *UNUSED(user_data), LYS_INFORMAT *format, void (**free_module_data)(void *model_data))
@@ -248,6 +281,28 @@ np2srv_feature_change_clb(const char *module_name, const char *feature_name, boo
         lys_features_disable(mod, feature_name);
     }
     pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
+}
+
+void
+np2srv_new_ch_session_clb(const char *UNUSED(client_name), struct nc_session *new_session)
+{
+    int c;
+
+    ncm_session_add(new_session);
+
+    c = 0;
+    while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, new_session)) {
+        /* presumably timeout, give it a shot 2 times */
+        usleep(10000);
+        ++c;
+    }
+
+    if (c == 3) {
+        /* there is some serious problem in synchronization/system planner */
+        EINT;
+        ncm_session_del(new_session, 1);
+        nc_session_free(new_session, free_ds);
+    }
 }
 
 static int
@@ -468,19 +523,19 @@ server_init(void)
 
     /* set server options */
     mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-server", NULL);
-    if (mod) {
+    if (mod && strcmp(NP2SRV_AUTHD_DIR, "none")) {
         if (ietf_netconf_server_init()) {
             goto error;
         }
     } else {
-        WRN("Sysrepo does not have the \"ietf-netconf-server\" module, using default NETCONF server options.");
+        WRN("Sysrepo does not have the \"ietf-netconf-server\" module or authd keys dir unknown, using default NETCONF server options.");
         if (nc_server_add_endpt("main", NC_TI_LIBSSH)) {
             goto error;
         }
         if (nc_server_endpt_set_address("main", "0.0.0.0")) {
             goto error;
         }
-        if (nc_server_endpt_set_port("main", 6001)) {
+        if (nc_server_endpt_set_port("main", 830)) {
             goto error;
         }
         if (nc_server_ssh_endpt_add_hostkey("main", NP2SRV_HOST_KEY)) {
@@ -493,39 +548,6 @@ server_init(void)
 error:
     ERR("Server init failed.");
     return EXIT_FAILURE;
-}
-
-static void
-np2srv_clean_dslock(struct nc_session *ncs)
-{
-    pthread_rwlock_wrlock(&dslock_rwl);
-
-    if (dslock.running == ncs) {
-        dslock.running = NULL;
-    }
-    if (dslock.startup == ncs) {
-        dslock.startup = NULL;
-    }
-    if (dslock.candidate == ncs) {
-        dslock.candidate = NULL;
-    }
-
-    pthread_rwlock_unlock(&dslock_rwl);
-}
-
-void
-free_ds(void *ptr)
-{
-    struct np2_sessions *s;
-
-    if (ptr) {
-        s = (struct np2_sessions *)ptr;
-        if (s->srs) {
-            sr_session_stop(s->srs);
-        }
-        np2srv_clean_dslock(s->ncs);
-        free(s);
-    }
 }
 
 static int

@@ -86,8 +86,8 @@ set_listen_idle_timeout(sr_change_oper_t sr_oper, sr_val_t *UNUSED(sr_old_val), 
 }
 
 static int
-set_endpoint_address(const char *endpt_name, sr_change_oper_t sr_oper, sr_val_t *UNUSED(sr_old_val),
-                     sr_val_t *sr_new_val)
+set_listen_endpoint_address(const char *endpt_name, sr_change_oper_t sr_oper, sr_val_t *UNUSED(sr_old_val),
+                            sr_val_t *sr_new_val)
 {
     int rc = EXIT_FAILURE;
 
@@ -108,8 +108,8 @@ set_endpoint_address(const char *endpt_name, sr_change_oper_t sr_oper, sr_val_t 
 }
 
 static int
-set_endpoint_port(const char *endpt_name, sr_change_oper_t sr_oper, sr_val_t *UNUSED(sr_old_val),
-                  sr_val_t *sr_new_val)
+set_listen_endpoint_port(const char *endpt_name, sr_change_oper_t sr_oper, sr_val_t *UNUSED(sr_old_val),
+                         sr_val_t *sr_new_val)
 {
     int rc = EXIT_FAILURE;
 
@@ -119,8 +119,6 @@ set_endpoint_port(const char *endpt_name, sr_change_oper_t sr_oper, sr_val_t *UN
         rc = nc_server_endpt_set_port(endpt_name, sr_new_val->data.uint16_val);
         break;
     case SR_OP_DELETED:
-        rc = nc_server_endpt_set_port(endpt_name, 830);
-        break;
     case SR_OP_MOVED:
         EINT;
         break;
@@ -130,23 +128,87 @@ set_endpoint_port(const char *endpt_name, sr_change_oper_t sr_oper, sr_val_t *UN
 }
 
 static int
-set_endpoint_ssh_host_key(const char *endpt_name, sr_change_oper_t UNUSED(sr_oper), sr_val_t *sr_old_val,
-                          sr_val_t *sr_new_val)
+set_listen_endpoint_ssh_host_key(const char *endpt_name, sr_change_oper_t UNUSED(sr_oper), sr_val_t *sr_old_val,
+                                 sr_val_t *sr_new_val)
 {
     int rc = EXIT_SUCCESS;
     char *path;
 
     /* TODO broken order (if creating, not called on move for now) */
     if (sr_new_val) {
-        path = malloc(strlen(NP2SRV_KCD_DIR) + strlen(sr_new_val->data.string_val) + 1);
-        sprintf(path, NP2SRV_KCD_DIR "%s", sr_new_val->data.string_val);
-        rc = nc_server_ssh_endpt_add_hostkey(endpt_name, sr_new_val->data.string_val);
+        path = malloc(strlen(NP2SRV_AUTHD_DIR) + 1 + strlen(sr_new_val->data.string_val) + 4 + 1);
+        sprintf(path, NP2SRV_AUTHD_DIR "/%s.pem", sr_new_val->data.string_val);
+        rc = nc_server_ssh_endpt_add_hostkey(endpt_name, path);
         free(path);
     }
     if (!rc && sr_old_val) {
-        path = malloc(strlen(NP2SRV_KCD_DIR) + strlen(sr_old_val->data.string_val) + 1);
-        sprintf(path, NP2SRV_KCD_DIR "%s", sr_old_val->data.string_val);
-        rc = nc_server_ssh_endpt_del_hostkey(endpt_name, sr_old_val->data.string_val);
+        path = malloc(strlen(NP2SRV_AUTHD_DIR) + 1 + strlen(sr_old_val->data.string_val) + 4 + 1);
+        sprintf(path, NP2SRV_AUTHD_DIR "/%s.pem", sr_old_val->data.string_val);
+        rc = nc_server_ssh_endpt_del_hostkey(endpt_name, path);
+        free(path);
+    }
+
+    return rc;
+}
+
+static int
+set_ch_client_endpoint_address(const char *client_name, const char *endpt_name, sr_change_oper_t sr_oper,
+                               sr_val_t *UNUSED(sr_old_val), sr_val_t *sr_new_val)
+{
+    int rc = EXIT_FAILURE;
+
+    switch (sr_oper) {
+    case SR_OP_CREATED:
+    case SR_OP_MODIFIED:
+        rc = nc_server_ch_client_endpt_set_address(client_name, endpt_name, sr_new_val->data.string_val);
+        break;
+    case SR_OP_DELETED:
+    case SR_OP_MOVED:
+        EINT;
+        break;
+    }
+
+    return rc;
+}
+
+static int
+set_ch_client_endpoint_port(const char *client_name, const char *endpt_name, sr_change_oper_t sr_oper,
+                            sr_val_t *UNUSED(sr_old_val), sr_val_t *sr_new_val)
+{
+    int rc = EXIT_FAILURE;
+
+    switch (sr_oper) {
+    case SR_OP_CREATED:
+    case SR_OP_MODIFIED:
+        rc = nc_server_ch_client_endpt_set_port(client_name, endpt_name, sr_new_val->data.uint16_val);
+        break;
+    case SR_OP_DELETED:
+    case SR_OP_MOVED:
+        EINT;
+        break;
+    }
+
+    return rc;
+}
+
+static int
+set_ch_client_ssh_host_key(const char *client_name, sr_change_oper_t UNUSED(sr_oper), sr_val_t *sr_old_val,
+                           sr_val_t *sr_new_val)
+{
+    int rc = EXIT_SUCCESS;
+    char *path;
+
+    /* TODO broken order (if creating, not called on move for now) */
+    if (sr_new_val) {
+        path = malloc(strlen(NP2SRV_AUTHD_DIR) + 1 + strlen(sr_new_val->data.string_val) + 4 + 1);
+        sprintf(path, NP2SRV_AUTHD_DIR "/%s.pem", sr_new_val->data.string_val);
+        rc = nc_server_ssh_ch_client_add_hostkey(client_name, path);
+        free(path);
+    }
+    if (!rc && sr_old_val) {
+        path = malloc(strlen(NP2SRV_AUTHD_DIR) + 1 + strlen(sr_old_val->data.string_val) + 4 + 1);
+        sprintf(path, NP2SRV_AUTHD_DIR "/%s.pem", sr_old_val->data.string_val);
+        rc = nc_server_ssh_ch_client_del_hostkey(client_name, path);
         free(path);
     }
 
@@ -187,13 +249,32 @@ parse_list_key(const char **predicate, const char **key_val, const char *key_nam
 }
 
 static int
-module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *sr_new_val, const char **endpt_name_del)
+module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *sr_new_val, const char **list1_key_del,
+                      const char **list2_key_del)
 {
-    int rc = -1;
-    const char *xpath, *endpt_name = NULL, *hostkey_name = NULL;
+    int rc = -2;
+    const char *xpath, *list1_key = NULL, *list2_key = NULL, *oper_str;
 
     xpath = (sr_old_val ? sr_old_val->xpath : sr_new_val->xpath);
     assert(!strncmp(xpath, "/ietf-netconf-server:netconf-server/", 36));
+
+    switch (sr_oper) {
+    case SR_OP_CREATED:
+        oper_str = "created";
+        break;
+    case SR_OP_DELETED:
+        oper_str = "deleted";
+        break;
+    case SR_OP_MODIFIED:
+        oper_str = "modified";
+        break;
+    case SR_OP_MOVED:
+        oper_str = "moved";
+        break;
+    }
+
+    VRB("Path \"%s\" %s.", xpath, oper_str);
+
     xpath += 36;
 
     if (!strcmp(xpath, "session-options")) {
@@ -215,26 +296,26 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
             xpath += 8;
             assert(xpath[0] == '[');
 
-            parse_list_key(&xpath, &endpt_name, "name");
+            parse_list_key(&xpath, &list1_key, "name");
 
             assert(xpath[0] == '/');
             ++xpath;
 
-            if (*endpt_name_del && (sr_oper == SR_OP_DELETED) && !strcmp(endpt_name, *endpt_name_del)) {
+            if (*list1_key_del && (sr_oper == SR_OP_DELETED) && !strcmp(list1_key, *list1_key_del)) {
                 /* whole endpoint already deleted */
-                lydict_remove(np2srv.ly_ctx, endpt_name);
+                lydict_remove(np2srv.ly_ctx, list1_key);
                 return EXIT_SUCCESS;
             }
 
             if (!strcmp(xpath, "name")) {
                 if (sr_oper == SR_OP_DELETED) {
-                    rc = nc_server_del_endpt(sr_new_val->data.string_val);
+                    rc = nc_server_del_endpt(sr_old_val->data.string_val);
                     if (!rc) {
-                        if (*endpt_name_del) {
-                            lydict_remove(np2srv.ly_ctx, *endpt_name_del);
+                        if (*list1_key_del) {
+                            lydict_remove(np2srv.ly_ctx, *list1_key_del);
                         }
-                        *endpt_name_del = endpt_name;
-                        endpt_name = NULL;
+                        *list1_key_del = list1_key;
+                        list1_key = NULL;
                     }
                 } else {
                     /* we don't care it was created, ssh or tls container will be created too */
@@ -242,23 +323,25 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
                 }
             } else if (!strcmp(xpath, "ssh")) {
                 if (sr_oper == SR_OP_CREATED) {
-                    rc = nc_server_add_endpt(sr_new_val->data.string_val, NC_TI_LIBSSH);
+                    rc = nc_server_add_endpt(list1_key, NC_TI_LIBSSH);
                 } else {
                     rc = 0;
                 }
             } else if (!strncmp(xpath, "ssh/", 4)) {
+                /* BUG temporary */
+                rc = nc_server_add_endpt(list1_key, NC_TI_LIBSSH);
                 xpath += 4;
                 if (!strcmp(xpath, "address")) {
-                    rc = set_endpoint_address(endpt_name, sr_oper, sr_old_val, sr_new_val);
+                    rc = set_listen_endpoint_address(list1_key, sr_oper, sr_old_val, sr_new_val);
                 } else if (!strcmp(xpath, "port")) {
-                    rc = set_endpoint_port(endpt_name, sr_oper, sr_old_val, sr_new_val);
+                    rc = set_listen_endpoint_port(list1_key, sr_oper, sr_old_val, sr_new_val);
                 } else if (!strncmp(xpath, "host-keys/", 10)) {
                     xpath += 10;
                     if (!strncmp(xpath, "host-key", 8)) {
                         xpath += 8;
                         assert(xpath[0] == '[');
 
-                        parse_list_key(&xpath, &hostkey_name, "name");
+                        parse_list_key(&xpath, &list2_key, "name");
 
                         if (!xpath[0]) {
                             /* TODO list moved */
@@ -269,23 +352,23 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
                                 /* we just don't care  */
                                 rc = EXIT_SUCCESS;
                             } else if (!strcmp(xpath, "public-key")) {
-                                rc = set_endpoint_ssh_host_key(endpt_name, sr_oper, sr_old_val, sr_new_val);
+                                rc = set_listen_endpoint_ssh_host_key(list1_key, sr_oper, sr_old_val, sr_new_val);
                             }
                         }
                     }
                 }
             } else if (!strcmp(xpath, "tls")) {
                 if (sr_oper == SR_OP_CREATED) {
-                    rc = nc_server_add_endpt(sr_new_val->data.string_val, NC_TI_OPENSSL);
+                    rc = nc_server_add_endpt(list1_key, NC_TI_OPENSSL);
                 } else {
                     rc = 0;
                 }
             } else if (!strncmp(xpath, "tls/", 4)) {
                 xpath += 4;
                 if (!strcmp(xpath, "address")) {
-                    rc = set_endpoint_address(endpt_name, sr_oper, sr_old_val, sr_new_val);
+                    rc = set_listen_endpoint_address(list1_key, sr_oper, sr_old_val, sr_new_val);
                 } else if (!strcmp(xpath, "port")) {
-                    rc = set_endpoint_port(endpt_name, sr_oper, sr_old_val, sr_new_val);
+                    rc = set_listen_endpoint_port(list1_key, sr_oper, sr_old_val, sr_new_val);
                 } else if (!strncmp(xpath, "certificates/", 13)) {
                     xpath += 13;
                     /* TODO */
@@ -297,12 +380,151 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
         }
     } else if (!strncmp(xpath, "call-home/", 10)) {
         xpath += 10;
-        /* TODO */
+        if (!strncmp(xpath, "netconf-client", 14)) {
+            xpath += 14;
+            assert(xpath[0] == '[');
+
+            parse_list_key(&xpath, &list1_key, "name");
+
+            assert(xpath[0] == '/');
+            ++xpath;
+
+            if (*list1_key_del && (sr_oper == SR_OP_DELETED) && !strcmp(list1_key, *list1_key_del)) {
+                /* whole client already deleted */
+                lydict_remove(np2srv.ly_ctx, list1_key);
+                return EXIT_SUCCESS;
+            }
+
+            if (!strcmp(xpath, "name")) {
+                if (sr_oper == SR_OP_DELETED) {
+                    rc = nc_server_ch_del_client(sr_old_val->data.string_val);
+                    if (!rc) {
+                        if (*list1_key_del) {
+                            lydict_remove(np2srv.ly_ctx, *list1_key_del);
+                        }
+                        *list1_key_del = list1_key;
+                        list1_key = NULL;
+                    }
+                } else {
+                    /* we don't care it was created, ssh or tls container will be created too */
+                    rc = 0;
+                }
+            } else if (!strcmp(xpath, "ssh")) {
+                if (sr_oper == SR_OP_CREATED) {
+                    rc = nc_server_ch_add_client(list1_key, NC_TI_LIBSSH);
+                    if (!rc) {
+                        rc = nc_connect_ch_client_dispatch(list1_key, np2srv_new_ch_session_clb);
+                    }
+                } else {
+                    rc = 0;
+                }
+            } else if (!strncmp(xpath, "ssh/", 4)) {
+                /* BUG temporary */
+                rc = nc_server_ch_add_client(list1_key, NC_TI_LIBSSH);
+                if (!rc) {
+                    rc = nc_connect_ch_client_dispatch(list1_key, np2srv_new_ch_session_clb);
+                }
+                xpath += 4;
+                if (!strncmp(xpath, "endpoints/", 10)) {
+                    xpath += 10;
+                    if (!strncmp(xpath, "endpoint", 8)) {
+                        xpath += 8;
+                        assert(xpath[0] == '[');
+
+                        parse_list_key(&xpath, &list2_key, "name");
+
+                        assert(xpath[0] == '/');
+                        ++xpath;
+
+                        if (*list2_key_del && (sr_oper == SR_OP_DELETED) && !strcmp(list2_key, *list2_key_del)) {
+                            /* whole endpoint already deleted */
+                            lydict_remove(np2srv.ly_ctx, list2_key);
+                            return EXIT_SUCCESS;
+                        }
+
+                        if (!strcmp(xpath, "name")) {
+                            if (sr_oper == SR_OP_DELETED) {
+                                rc = nc_server_ch_client_del_endpt(list1_key, sr_old_val->data.string_val);
+                                if (!rc) {
+                                    if (*list2_key_del) {
+                                        lydict_remove(np2srv.ly_ctx, *list2_key_del);
+                                    }
+                                    *list2_key_del = list2_key;
+                                    list2_key = NULL;
+                                }
+                            } else {
+                                assert(sr_oper == SR_OP_CREATED);
+                                rc = nc_server_ch_client_add_endpt(list1_key, sr_new_val->data.string_val);
+                            }
+                        } else if (!strcmp(xpath, "address")) {
+                            rc = set_ch_client_endpoint_address(list1_key, list2_key, sr_oper, sr_old_val, sr_new_val);
+                        } else if (!strcmp(xpath, "port")) {
+                            rc = set_ch_client_endpoint_port(list1_key, list2_key, sr_oper, sr_old_val, sr_new_val);
+                        }
+                    }
+                } else if (!strncmp(xpath, "host-keys/", 10)) {
+                    xpath += 10;
+                    if (!strncmp(xpath, "host-key", 8)) {
+                        xpath += 8;
+                        assert(xpath[0] == '[');
+
+                        parse_list_key(&xpath, &list2_key, "name");
+
+                        if (!xpath[0]) {
+                            /* TODO list moved */
+                        } else if (xpath[0] == '/') {
+                            ++xpath;
+
+                            if (!strcmp(xpath, "name")) {
+                                /* we just don't care  */
+                                rc = EXIT_SUCCESS;
+                            } else if (!strcmp(xpath, "public-key")) {
+                                rc = set_ch_client_ssh_host_key(list1_key, sr_oper, sr_old_val, sr_new_val);
+                            }
+                        }
+                    }
+                }
+            } else if (!strcmp(xpath, "tls")) {
+                if (sr_oper == SR_OP_CREATED) {
+                    rc = nc_server_ch_add_client(list1_key, NC_TI_OPENSSL);
+                } else {
+                    rc = 0;
+                }
+            } else if (!strncmp(xpath, "tls/", 4)) {
+                xpath += 4;
+                /* TODO */
+            } else if (!strncmp(xpath, "connection-type/", 16)) {
+                xpath += 16;
+                if (!strcmp(xpath, "persistent")) {
+                    if (sr_oper == SR_OP_CREATED) {
+                        rc = nc_server_ch_client_set_conn_type(list1_key, NC_CH_PERSIST);
+                    } else {
+                        rc = 0;
+                    }
+                } else if (!strncmp(xpath, "persistent/", 11)) {
+                    xpath += 11;
+                    /* TODO */
+                } else if (!strcmp(xpath, "periodic")) {
+                    if (sr_oper == SR_OP_CREATED) {
+                        rc = nc_server_ch_client_set_conn_type(list1_key, NC_CH_PERIOD);
+                    } else {
+                        rc = 0;
+                    }
+                } else if (!strncmp(xpath, "periodic/", 9)) {
+                    xpath += 9;
+                    /* TODO */
+                }
+            } else if (!strncmp(xpath, "reconnect-strategy/", 19)) {
+                xpath += 19;
+                /* TODO just keep defaults for now */
+                rc = 0;
+            }
+        }
     }
 
-    lydict_remove(np2srv.ly_ctx, endpt_name);
-    lydict_remove(np2srv.ly_ctx, hostkey_name);
-    if (rc == -1) {
+    lydict_remove(np2srv.ly_ctx, list1_key);
+    lydict_remove(np2srv.ly_ctx, list2_key);
+    if (rc == -2) {
         ERR("Unknown value \"%s\" change.", (sr_old_val ? sr_old_val->xpath : sr_new_val->xpath));
         rc = EXIT_FAILURE;
     }
@@ -317,7 +539,7 @@ module_change_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), sr_
     sr_change_iter_t *sr_iter = NULL;
     sr_change_oper_t sr_oper;
     sr_val_t *sr_old_val = NULL, *sr_new_val = NULL;
-    const char *endpt_name_del = NULL;
+    const char *list1_key_del = NULL, *list2_key_del = NULL;
 
     if (event != SR_EV_APPLY) {
         ERR("%s: unexpected event.", __func__);
@@ -338,7 +560,7 @@ module_change_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), sr_
             continue;
         }
 
-        rc2 = module_change_resolve(sr_oper, sr_old_val, sr_new_val, &endpt_name_del);
+        rc2 = module_change_resolve(sr_oper, sr_old_val, sr_new_val, &list1_key_del, &list2_key_del);
 
         sr_free_val(sr_old_val);
         sr_free_val(sr_new_val);
@@ -348,7 +570,8 @@ module_change_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), sr_
             break;
         }
     }
-    lydict_remove(np2srv.ly_ctx, endpt_name_del);
+    lydict_remove(np2srv.ly_ctx, list1_key_del);
+    lydict_remove(np2srv.ly_ctx, list2_key_del);
     sr_free_change_iter(sr_iter);
     if ((rc != SR_ERR_OK) && (rc != SR_ERR_NOT_FOUND)) {
         ERR("%s: sr_get_change_next error: %s", __func__, sr_strerror(rc));
@@ -362,7 +585,7 @@ int
 feature_change_ietf_netconf_server(const char *feature_name, bool enabled)
 {
     int rc, rc2 = 0;
-    const char *path = NULL, *endpt_name_del = NULL;
+    const char *path = NULL, *list1_key_del = NULL, *list2_key_del = NULL;
     sr_val_iter_t *sr_iter;
     sr_val_t *sr_val;
 
@@ -398,9 +621,9 @@ feature_change_ietf_netconf_server(const char *feature_name, bool enabled)
         }
 
         if (enabled) {
-            rc2 = module_change_resolve(SR_OP_CREATED, NULL, sr_val, &endpt_name_del);
+            rc2 = module_change_resolve(SR_OP_CREATED, NULL, sr_val, &list1_key_del, &list2_key_del);
         } else {
-            rc2 = module_change_resolve(SR_OP_DELETED, sr_val, NULL, &endpt_name_del);
+            rc2 = module_change_resolve(SR_OP_DELETED, sr_val, NULL, &list1_key_del, &list2_key_del);
         }
         sr_free_val(sr_val);
         if (rc2) {
@@ -414,7 +637,8 @@ feature_change_ietf_netconf_server(const char *feature_name, bool enabled)
         }
     }
     sr_free_val_iter(sr_iter);
-    lydict_remove(np2srv.ly_ctx, endpt_name_del);
+    lydict_remove(np2srv.ly_ctx, list1_key_del);
+    lydict_remove(np2srv.ly_ctx, list2_key_del);
     if (rc2) {
         return EXIT_FAILURE;
     } else if ((rc != SR_ERR_OK) && (rc != SR_ERR_NOT_FOUND)) {

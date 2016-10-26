@@ -53,4 +53,6 @@ extern struct np2srv np2srv;
 
 int ietf_netconf_server_init(void);
 
+void np2srv_new_ch_session_clb(const char *UNUSED(client_name), struct nc_session *new_session);
+
 #endif /* NP2SRV_COMMON_H_ */
