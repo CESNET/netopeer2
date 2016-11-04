@@ -189,7 +189,7 @@ np2srv_ly_import_clb(const char *mod_name, const char *mod_rev, const char *subm
 }
 
 static void
-np2srv_module_install_clb(const char *module_name, const char *revision, bool installed, void *UNUSED(private_ctx))
+np2srv_module_install_clb(const char *module_name, const char *revision, sr_module_state_t state, void *UNUSED(private_ctx))
 {
     int rc;
     char *data = NULL;
@@ -198,7 +198,9 @@ np2srv_module_install_clb(const char *module_name, const char *revision, bool in
     sr_schema_t *schemas = NULL;
     size_t count, i, j;
 
-    if (installed) {
+    switch (state) {
+    case SR_MS_IMPLEMENTED:
+    case SR_MS_IMPORTED:
         /* adding another module into the current libyang context */
         rc = sr_get_schema(np2srv.sr_sess.srs, module_name, revision, NULL, SR_SCHEMA_YIN, &data);
         if (rc != SR_ERR_OK) {
@@ -244,7 +246,8 @@ np2srv_module_install_clb(const char *module_name, const char *revision, bool in
                 LY_TREE_DFS_END(mod->data, next, snode);
             }
         }
-    } else {
+        break;
+    case SR_MS_UNINSTALLED:
         VRB("Removing schema \"%s%s%s\" according to changes in sysrepo.", module_name, revision ? "@" : "",
             revision ? revision : "");
 
@@ -255,6 +258,7 @@ np2srv_module_install_clb(const char *module_name, const char *revision, bool in
         ly_ctx_remove_module(np2srv.ly_ctx, module_name, revision, NULL);
         /* ignore return value, the function can fail in case the module was already removed
          * because of dependency in some of the previous call */
+        break;
     }
 
     /* unlock libyang context */
