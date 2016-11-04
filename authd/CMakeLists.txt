@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 2.6)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../CMakeModules/")
 
 project(authd C)
+include(GNUInstallDirs)
 
 # check the supported platform
 if(NOT UNIX)
@@ -33,7 +34,7 @@ find_package(PkgConfig)
 if (PKG_CONFIG_FOUND)
     # generate and install pkg-config file
     configure_file("authd.pc.in" "authd.pc" @ONLY)
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/authd.pc" DESTINATION "${CMAKE_INSTALL_PREFIX}/${LIB_INSTALL_DIR}/pkgconfig")
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/authd.pc" DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
 endif()
 
 

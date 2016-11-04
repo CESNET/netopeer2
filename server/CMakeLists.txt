@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 2.8.9)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../CMakeModules/")
 
 project(netopeer2-server C)
+include(GNUInstallDirs)
 
 # check the supported platform
 if(NOT UNIX)
@@ -119,12 +120,8 @@ if (NOT SYSREPOCFG_EXECUTABLE)
     message(FATAL_ERROR "Unable to find sysrepocfg, set SYSREPOCFG_EXECUTABLE manually.")
 endif()
 
-if(NOT BIN_INSTALL_DIR)
-	set(BIN_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/bin)
-endif()
-
 # install binary
-install(TARGETS netopeer2-server DESTINATION ${BIN_INSTALL_DIR})
+install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # install server configuration module and enable features
 install(CODE "
