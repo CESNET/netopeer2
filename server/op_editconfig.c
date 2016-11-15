@@ -449,6 +449,7 @@ resultcheck:
                     if (sr_validate(sessions->srs) != SR_ERR_OK) {
                         /* content is not valid, rollback */
                         sr_discard_changes(sessions->srs);
+                        ereply = op_build_err_sr(ereply, sessions->srs);
                     } else {
                         /* mark candidate as modified */
                         sessions->flags |= NP2S_CAND_CHANGED;
@@ -480,6 +481,7 @@ resultcheck:
                     if (sr_validate(sessions->srs) != SR_ERR_OK) {
                         /* content is not valid, rollback */
                         sr_discard_changes(sessions->srs);
+                        ereply = op_build_err_sr(ereply, sessions->srs);
                     } else {
                         /* mark candidate as modified */
                         sessions->flags |= NP2S_CAND_CHANGED;
@@ -575,19 +577,21 @@ cleanup:
         case NP2_EDIT_TESTOPT_TESTANDSET:
             if (sessions->ds != SR_DS_CANDIDATE) {
                 /* commit in candidate causes copy to running */
-                ret =  sr_commit(sessions->srs);
+                ret = sr_commit(sessions->srs);
                 switch (ret) {
                 case SR_ERR_OK:
                     break;
                 default:
-                    ereply = op_build_err_sr(ereply, sessions->srs);
                     sr_discard_changes(sessions->srs); /* rollback the changes */
+                    ereply = op_build_err_sr(ereply, sessions->srs);
                     goto errorreply;
                 }
             } else {
                 if (sr_validate(sessions->srs) != SR_ERR_OK) {
                     /* content is not valid, rollback */
                     sr_discard_changes(sessions->srs);
+                    ereply = op_build_err_sr(ereply, sessions->srs);
+                    goto errorreply;
                 } else {
                     /* mark candidate as modified */
                     sessions->flags |= NP2S_CAND_CHANGED;
