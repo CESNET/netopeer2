@@ -352,9 +352,9 @@ test_read(int fd, const char *template, int line)
     buf[red] = '\0';
 
     /* unify all datetimes */
-    for (ptr = strstr(buf, "+02:00"); ptr; ptr = strstr(ptr + 1, "+02:00")) {
+    for (ptr = strchr(buf, '+'); ptr; ptr = strchr(ptr + 1, '+')) {
         if ((ptr[-3] == ':') && (ptr[-6] == ':') && (ptr[-9] == 'T') && (ptr[-12] == '-') && (ptr[-15] == '-')) {
-            strncpy(ptr - 19, "0000-00-00T00:00:00", 19);
+            strncpy(ptr - 19, "0000-00-00T00:00:00+00:00", 25);
         }
     }
 
@@ -608,7 +608,7 @@ test_get(void **state)
                         "<transport>transport</transport>"
                         "<username>user1</username>"
                         "<source-host>localhost</source-host>"
-                        "<login-time>0000-00-00T00:00:00+02:00</login-time>"
+                        "<login-time>0000-00-00T00:00:00+00:00</login-time>"
                         "<in-rpcs>0</in-rpcs>"
                         "<in-bad-rpcs>0</in-bad-rpcs>"
                         "<out-rpc-errors>0</out-rpc-errors>"
@@ -616,7 +616,7 @@ test_get(void **state)
                     "</session>"
                 "</sessions>"
                 "<statistics>"
-                    "<netconf-start-time>0000-00-00T00:00:00+02:00</netconf-start-time>"
+                    "<netconf-start-time>0000-00-00T00:00:00+00:00</netconf-start-time>"
                     "<in-bad-hellos>0</in-bad-hellos>"
                     "<in-sessions>1</in-sessions>"
                     "<dropped-sessions>0</dropped-sessions>"
