@@ -447,9 +447,9 @@ resultcheck:
                     sr_commit(sessions->srs);
                 } else {
                     if (sr_validate(sessions->srs) != SR_ERR_OK) {
+                        ereply = op_build_err_sr(ereply, sessions->srs);
                         /* content is not valid, rollback */
                         sr_discard_changes(sessions->srs);
-                        ereply = op_build_err_sr(ereply, sessions->srs);
                     } else {
                         /* mark candidate as modified */
                         sessions->flags |= NP2S_CAND_CHANGED;
@@ -479,9 +479,9 @@ resultcheck:
                     sr_commit(sessions->srs);
                 } else {
                     if (sr_validate(sessions->srs) != SR_ERR_OK) {
+                        ereply = op_build_err_sr(ereply, sessions->srs);
                         /* content is not valid, rollback */
                         sr_discard_changes(sessions->srs);
-                        ereply = op_build_err_sr(ereply, sessions->srs);
                     } else {
                         /* mark candidate as modified */
                         sessions->flags |= NP2S_CAND_CHANGED;
@@ -582,15 +582,15 @@ cleanup:
                 case SR_ERR_OK:
                     break;
                 default:
-                    sr_discard_changes(sessions->srs); /* rollback the changes */
                     ereply = op_build_err_sr(ereply, sessions->srs);
+                    sr_discard_changes(sessions->srs); /* rollback the changes */
                     goto errorreply;
                 }
             } else {
                 if (sr_validate(sessions->srs) != SR_ERR_OK) {
+                    ereply = op_build_err_sr(ereply, sessions->srs);
                     /* content is not valid, rollback */
                     sr_discard_changes(sessions->srs);
-                    ereply = op_build_err_sr(ereply, sessions->srs);
                     goto errorreply;
                 } else {
                     /* mark candidate as modified */
