@@ -194,7 +194,7 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
     int rc;
     char *data = NULL;
     const struct lys_module *mod;
-    const struct lys_node *snode, *next;
+    const struct lys_node *snode, *next, *top;
     sr_schema_t *schemas = NULL;
     size_t count, i, j;
 
@@ -237,11 +237,13 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
             }
 
             /* set RPC callbacks */
-            LY_TREE_DFS_BEGIN(mod->data, next, snode) {
-                if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
-                    nc_set_rpc_callback(snode, op_generic);
+            LY_TREE_FOR(mod->data, top) {
+                LY_TREE_DFS_BEGIN(top, next, snode) {
+                    if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
+                        nc_set_rpc_callback(snode, op_generic);
+                    }
+                    LY_TREE_DFS_END(top, next, snode);
                 }
-                LY_TREE_DFS_END(mod->data, next, snode);
             }
         }
     } else if (state == SR_MS_IMPORTED) {
