@@ -85,7 +85,7 @@ install(CODE "set(AUTHD_MODULES ietf-system-keychain ietf-system)
     endif()
 
     foreach(AUTHD_MODULE IN LISTS AUTHD_MODULES)
-        string(REGEX MATCH \"\${AUTHD_MODULE}[^\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
+        string(REGEX MATCH \"\${AUTHD_MODULE} [^\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
         if (NOT INSTALLED_MODULE_LINE)
             message(STATUS \"Importing module \${AUTHD_MODULE} into sysrepo...\")
             execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/\${AUTHD_MODULE}.yang -o root:root -p 600 RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)

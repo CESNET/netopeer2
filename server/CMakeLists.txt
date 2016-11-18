@@ -131,11 +131,11 @@ install(CODE "
         message(FATAL_ERROR \"  Command sysrepoctl list failed:\n  \${OUT}\")
     endif()
 
-    string(REGEX MATCH \"ietf-system-keychain[^\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
+    string(REGEX MATCH \"ietf-system-keychain [^\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
     if (NOT INSTALLED_MODULE_LINE)
         message(STATUS \"Server configuration is disabled because sysrepo does not support ietf-system-keychain (authd plugin not installed).\")
     else()
-        string(REGEX MATCH \"ietf-netconf-server[^\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
+        string(REGEX MATCH \"ietf-netconf-server [^\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
         if (NOT INSTALLED_MODULE_LINE)
             message(STATUS \"Importing module ietf-netconf-server into sysrepo...\")
             execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/ietf-netconf-server.yang -o root:root -p 600 RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
