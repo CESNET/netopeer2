@@ -265,8 +265,6 @@ dfs_continue:
                 }
             }
         }
-        /* cleanup */
-        lyd_free_withsiblings(config);
 
         /* commit the result */
         if (sessions->ds != SR_DS_CANDIDATE) {
@@ -291,6 +289,9 @@ srerror:
             return nc_server_reply_err(e);
         }
     }
+
+    /* cleanup */
+    lyd_free_withsiblings(config);
 
     if (sessions->ds == SR_DS_CANDIDATE) {
         if (sr_validate(sessions->srs) != SR_ERR_OK) {
