@@ -65,9 +65,15 @@ endif()
 if (NOT SYSREPOCFG_EXECUTABLE)
     find_program(SYSREPOCFG_EXECUTABLE sysrepocfg)
 endif()
+if (NOT SYSREPOCFG_EXECUTABLE)
+    message(FATAL_ERROR "Unable to find sysrepocfg, set SYSREPOCFG_EXECUTABLE manually.")
+endif()
 
 if (NOT CHMOD_EXECUTABLE)
     find_program(CHMOD_EXECUTABLE chmod)
+endif()
+if (NOT CHMOD_EXECUTABLE)
+    message(FATAL_ERROR "Unable to find chmod, set CHMOD_EXECUTABLE manually.")
 endif()
 
 # install all the required modules and enable features
@@ -133,9 +139,15 @@ install(CODE "set(AUTHD_MODULES ietf-system-keychain ietf-system)
 
 # import stock OpenSSH RSA key
 install(CODE "
-    if (EXISTS ${AUTHD_KEYS_DIR}/ssh_host_rsa_key.pem)
-        message(STATUS \"Stock OpenSSH RSA key already imported.\")
-    elseif (EXISTS /etc/ssh/ssh_host_rsa_key AND EXISTS ${CHMOD_EXECUTABLE} AND EXISTS ${SYSREPOCFG_EXECUTABLE})
+    execute_process(COMMAND ${SYSREPOCFG_EXECUTABLE} -d startup --export ietf-system-keychain RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
+    if (RET)
+        string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
+        message(FATAL_ERROR \"  Command sysrepocfg export failed:\n  \${OUT}\")
+    endif()
+
+    if (OUT)
+        message(STATUS \"Some ietf-system-keychain configuration set, no keys will be imported.\")
+    else()
         message(STATUS \"Importing stock OpenSSH RSA key.\")
         file(READ /etc/ssh/ssh_host_rsa_key RSA_KEY)
         file(WRITE ${AUTHD_KEYS_DIR}/ssh_host_rsa_key.pem \${RSA_KEY})
@@ -150,8 +162,6 @@ install(CODE "
             string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
             message(FATAL_ERROR \"  Command sysrepocfg import failed:\n  \${OUT}\")
         endif()
-    else()
-        message(STATUS \"No keys will be imported.\")
     endif()")
 
 # plugins should be installed into sysrepo plugins dir
