@@ -328,13 +328,14 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
                     rc = 0;
                 }
             } else if (!strncmp(xpath, "ssh/", 4)) {
-                /* BUG temporary */
-                rc = nc_server_add_endpt(list1_key, NC_TI_LIBSSH);
                 xpath += 4;
                 if (!strcmp(xpath, "address")) {
                     rc = set_listen_endpoint_address(list1_key, sr_oper, sr_old_val, sr_new_val);
                 } else if (!strcmp(xpath, "port")) {
                     rc = set_listen_endpoint_port(list1_key, sr_oper, sr_old_val, sr_new_val);
+                } else if (!strcmp(xpath, "host-keys")) {
+                    /* ignore */
+                    rc = 0;
                 } else if (!strncmp(xpath, "host-keys/", 10)) {
                     xpath += 10;
                     if (!strncmp(xpath, "host-key", 8)) {
@@ -378,6 +379,9 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
                 }
             }
         }
+    } else if (!strcmp(xpath, "call-home")) {
+        /* ignore */
+        rc = 0;
     } else if (!strncmp(xpath, "call-home/", 10)) {
         xpath += 10;
         if (!strncmp(xpath, "netconf-client", 14)) {
@@ -419,11 +423,6 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
                     rc = 0;
                 }
             } else if (!strncmp(xpath, "ssh/", 4)) {
-                /* BUG temporary */
-                rc = nc_server_ch_add_client(list1_key, NC_TI_LIBSSH);
-                if (!rc) {
-                    rc = nc_connect_ch_client_dispatch(list1_key, np2srv_new_ch_session_clb);
-                }
                 xpath += 4;
                 if (!strncmp(xpath, "endpoints/", 10)) {
                     xpath += 10;
@@ -615,7 +614,7 @@ feature_change_ietf_netconf_server(const char *feature_name, bool enabled)
     }
 
     while ((rc = sr_get_item_next(np2srv.sr_sess.srs, sr_iter, &sr_val)) == SR_ERR_OK) {
-        if ((sr_val->type == SR_LIST_T) || (sr_val->type == SR_CONTAINER_T)) {
+        if (sr_val->type == SR_LIST_T) {
             /* no semantic meaning */
             continue;
         }
