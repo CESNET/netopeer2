@@ -364,7 +364,7 @@ module ietf-netconf-server {
                      have a notification subscription active are
                      never dropped.";
                 }
-                leaf reconnect_timeout {
+                leaf reconnect-timeout {
                   type uint16 {
                     range "1..max";
                   }
