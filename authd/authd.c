@@ -121,6 +121,14 @@ kc_privkey_change_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(modul
 }
 
 static int
+kc_cert_change_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name), sr_notif_event_t UNUSED(event),
+                  void *UNUSED(private_ctx))
+{
+    /* nothing to do */
+    return 0;
+}
+
+static int
 kc_privkey_get_cb(const char *xpath, sr_val_t **values, size_t *values_cnt, void *UNUSED(private_ctx))
 {
     int rc, ret;
@@ -390,7 +398,7 @@ sr_plugin_init_cb(sr_session_ctx_t *session, void **private_ctx)
         goto error;
     }
 
-    rc = sr_dp_get_items_subscribe(session, "/ietf-system-keychain:keychain/private-keys/private-key/*",
+    rc = sr_dp_get_items_subscribe(session, "/ietf-system-keychain:keychain/private-keys/private-key",
                                    kc_privkey_get_cb, ctx, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
     if (SR_ERR_OK != rc) {
         goto error;
@@ -416,7 +424,7 @@ sr_plugin_init_cb(sr_session_ctx_t *session, void **private_ctx)
 
     /* trusted certificates (for server/client) */
     rc = sr_subtree_change_subscribe(session, "/ietf-system-keychain:keychain/trusted-certificates",
-                                     NULL, ctx, 0, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
+                                     kc_cert_change_cb, ctx, 0, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
     if (SR_ERR_OK != rc) {
         goto error;
     }
