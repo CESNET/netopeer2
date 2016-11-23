@@ -309,7 +309,8 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
 
             if (!strcmp(xpath, "name")) {
                 if (sr_oper == SR_OP_DELETED) {
-                    rc = nc_server_del_endpt(sr_old_val->data.string_val);
+                    assert(list1_key_del);
+                    rc = nc_server_del_endpt(sr_old_val->data.string_val, 0);
                     if (!rc) {
                         if (*list1_key_del) {
                             lydict_remove(np2srv.ly_ctx, *list1_key_del);
@@ -401,7 +402,8 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
 
             if (!strcmp(xpath, "name")) {
                 if (sr_oper == SR_OP_DELETED) {
-                    rc = nc_server_ch_del_client(sr_old_val->data.string_val);
+                    assert(list1_key_del);
+                    rc = nc_server_ch_del_client(sr_old_val->data.string_val, 0);
                     if (!rc) {
                         if (*list1_key_del) {
                             lydict_remove(np2srv.ly_ctx, *list1_key_del);
