@@ -396,12 +396,6 @@ sr_plugin_init_cb(sr_session_ctx_t *session, void **private_ctx)
         goto error;
     }
 
-    /*rc = sr_subtree_change_subscribe(session, "/ietf-system-keychain:keychain/private-keys/private-key/certificate-chains",
-                                     privkeys_change_cb, ctx, 0, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
-    if (SR_ERR_OK != rc) {
-        goto error;
-    }*/
-
     /*rc = sr_action_subscribe_tree(session, "/ietf-system-keychain:keychain/private-keys/private-key/generate-certificate-signing-request",
                                   callback, ctx, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
     if (SR_ERR_OK != rc) {
@@ -421,11 +415,11 @@ sr_plugin_init_cb(sr_session_ctx_t *session, void **private_ctx)
     }*/
 
     /* trusted certificates (for server/client) */
-    /*rc = sr_subtree_change_subscribe(session, "/ietf-system-keychain:keychain/trusted-certificates",
-                                     privkeys_change_cb, ctx, 0, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
+    rc = sr_subtree_change_subscribe(session, "/ietf-system-keychain:keychain/trusted-certificates",
+                                     NULL, ctx, 0, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
     if (SR_ERR_OK != rc) {
         goto error;
-    }*/
+    }
 
     /*rc = sr_event_notif_subscribe_tree(session, "/ietf-system-keychain:keychain/certificate-expiration",
                                        callback, ctx, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
