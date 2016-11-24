@@ -382,6 +382,139 @@ cleanup:
 }
 
 static int
+kc_privkey_load_cb(const char *UNUSED(xpath), const sr_node_t *input, const size_t input_cnt, sr_node_t **UNUSED(output),
+                   size_t *UNUSED(output_cnt), void *private_ctx)
+{
+    struct authd_ctx *ctx = (struct authd_ctx *)private_ctx;
+    pid_t pid;
+    int ret, status, len, fd;
+    sr_val_t *val = NULL;
+    char *priv_path = NULL, *pub_path = NULL;
+    FILE *privkey = NULL;
+
+    if ((input_cnt != 2) || (input[0].type != SR_STRING_T) || (input[1].type != SR_BINARY_T)) {
+        SRP_LOG_ERR_MSG("Unexpected input from sysrepo.");
+        ret = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
+
+    SRP_LOG_INF_MSG("Only RSA keys can be loaded, key presumed to be RSA.");
+
+    /* TODO check that name is unique */
+
+    priv_path = malloc(strlen(AUTHD_KEYS_DIR) + 1 + strlen(input[0].data.string_val) + 4 + 1);
+    pub_path = malloc(strlen(AUTHD_KEYS_DIR) + 1 + strlen(input[0].data.string_val) + 4 + 4 + 1);
+    if (!priv_path || !pub_path) {
+        SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
+        ret = SR_ERR_NOMEM;
+        goto cleanup;
+    }
+    sprintf(priv_path, "%s/%s.pem", AUTHD_KEYS_DIR, input[0].data.string_val);
+    sprintf(pub_path, "%s/%s.pub.pem", AUTHD_KEYS_DIR, input[0].data.string_val);
+
+    fd = open(priv_path, O_CREAT | O_TRUNC | O_WRONLY, 00600);
+    if (fd == -1) {
+        SRP_LOG_ERR("Failed to open file \"%s\" for writing (%s).", priv_path, strerror(errno));
+        ret = SR_ERR_IO;
+        goto cleanup;
+    }
+    privkey = fdopen(fd, "w");
+    if (!privkey) {
+        SRP_LOG_ERR("Failed to open file \"%s\" for writing (%s).", priv_path, strerror(errno));
+        ret = SR_ERR_IO;
+        close(fd);
+        goto cleanup;
+    }
+    if ((status = fwrite("-----BEGIN RSA PRIVATE KEY-----\n", 1, 32, privkey)) < 32) {
+        if (status == -1) {
+            SRP_LOG_ERR("Failed to write to \"%s\" (%s).", priv_path, strerror(errno));
+        } else {
+            SRP_LOG_ERR("Failed to write to \"%s\" (witten %d instead %d).", priv_path, status, 32);
+        }
+        ret = SR_ERR_IO;
+        goto cleanup;
+    }
+    len = strlen(input[1].data.binary_val);
+    if ((status = fwrite(input[1].data.binary_val, 1, len, privkey)) < len) {
+        if (status == -1) {
+            SRP_LOG_ERR("Failed to write to \"%s\" (%s).", priv_path, strerror(errno));
+        } else {
+            SRP_LOG_ERR("Failed to write to \"%s\" (witten %d instead %d).", priv_path, status, len);
+        }
+        ret = SR_ERR_IO;
+        goto cleanup;
+    }
+    if ((status = fwrite("\n-----END RSA PRIVATE KEY-----\n", 1, 31, privkey)) < 31) {
+        if (status == -1) {
+            SRP_LOG_ERR("Failed to write to \"%s\" (%s).", priv_path, strerror(errno));
+        } else {
+            SRP_LOG_ERR("Failed to write to \"%s\" (witten %d instead %d).", priv_path, status, 31);
+        }
+        ret = SR_ERR_IO;
+        goto cleanup;
+    }
+    fflush(privkey);
+
+    if (!(pid = fork())) {
+        /* child */
+        execl(OPENSSL_EXECUTABLE, "rsa", "-pubout", "-in", priv_path, "-out", pub_path, NULL);
+
+        SRP_LOG_ERR("Exec failed (%s).", strerror(errno));
+        exit(1);
+    }
+
+    /* parent */
+    if (pid == -1) {
+        SRP_LOG_ERR("Fork failed (%s).", strerror(errno));
+        ret = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
+
+    waitpid(pid, &status, 0);
+    /*
+    if (waitpid(pid, &status, 0) == -1) {
+        SRP_LOG_ERR("Waiting for child process failed (%s).", strerror(errno));
+        ret = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
+    if (!WIFEXITED(status)) {
+        SRP_LOG_ERR_MSG("Child process ended in a non-standard way.");
+        ret = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
+    if (WEXITSTATUS(status)) {
+        SRP_LOG_ERR("OpenSSL utility returned %d.", WEXITSTATUS(status));
+        ret = SR_ERR_INTERNAL;
+        goto cleanup;
+    }*/
+
+    /* add the key to the configuration */
+    val = calloc(1, sizeof *val);
+    if (!val) {
+        SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
+        ret = SR_ERR_NOMEM;
+        goto cleanup;
+    }
+    if (asprintf(&val->xpath, "/ietf-system-keychain:keychain/private-keys/private-key[name='%s']",
+            input[0].data.string_val) == -1) {
+        SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
+        ret = SR_ERR_NOMEM;
+        goto cleanup;
+    }
+    val->type = SR_LIST_T;
+    ret = sr_set_item(ctx->session, val->xpath, val, 0);
+
+cleanup:
+    if (privkey) {
+        fclose(privkey);
+    }
+    free(priv_path);
+    free(pub_path);
+    sr_free_val(val);
+    return ret;
+}
+
+static int
 sys_auth_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(xpath), sr_notif_event_t UNUSED(event), void *UNUSED(private_ctx))
 {
     /* TODO */
@@ -424,11 +557,11 @@ sr_plugin_init_cb(sr_session_ctx_t *session, void **private_ctx)
         goto error;
     }
 
-    /*rc = sr_action_subscribe(session, "/ietf-system-keychain:keychain/private-keys/load-private-key",
-                             kc_privkey_load_cb, ctx, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
+    rc = sr_action_subscribe_tree(session, "/ietf-system-keychain:keychain/private-keys/load-private-key",
+                                  kc_privkey_load_cb, ctx, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
     if (SR_ERR_OK != rc) {
         goto error;
-    }*/
+    }
 
     /* trusted certificates (for server/client) */
     rc = sr_subtree_change_subscribe(session, "/ietf-system-keychain:keychain/trusted-certificates",
