@@ -76,6 +76,10 @@ if (NOT CHMOD_EXECUTABLE)
     message(FATAL_ERROR "Unable to find chmod, set CHMOD_EXECUTABLE manually.")
 endif()
 
+# create the keys directory with correct permissions
+install(DIRECTORY DESTINATION ${AUTHD_KEYS_DIR}
+        DIRECTORY_PERMISSIONS OWNER_WRITE OWNER_READ OWNER_EXECUTE)
+
 # install all the required modules and enable features
 install(CODE "set(AUTHD_MODULES ietf-system-keychain ietf-system)
     execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -l RESULT_VARIABLE RET OUTPUT_VARIABLE INSTALLED_MODULES ERROR_VARIABLE OUT)

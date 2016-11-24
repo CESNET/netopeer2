@@ -16,9 +16,11 @@
 #define _GNU_SOURCE
 
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <dirent.h>
 #include <stdlib.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
@@ -316,6 +318,12 @@ kc_privkey_gen_cb(const char *UNUSED(xpath), const sr_node_t *input, const size_
         ret = SR_ERR_INTERNAL;
         goto cleanup;
     }*/
+
+    if (chmod(priv_path, 00600) == -1) {
+        SRP_LOG_ERR("Changing private key permissions failed (%s).", strerror(errno));
+        ret = SR_ERR_IO;
+        goto cleanup;
+    }
 
     if (!(pid = fork())) {
         /* child */
