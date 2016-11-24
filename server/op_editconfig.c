@@ -283,13 +283,13 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
             /* maintain path */
             if (path_levels_index == path_levels_size) {
-            	path_levels_size += 16;
-            	path_levels_new = realloc(path_levels, path_levels_size * sizeof *path_levels);
-            	if (!path_levels_new) {
+                path_levels_size += 16;
+                path_levels_new = realloc(path_levels, path_levels_size * sizeof *path_levels);
+                if (!path_levels_new) {
                     ERR("%s: memory allocation failed (%s) - %s:%d", __func__, strerror(errno), __FILE__, __LINE__);
                     goto internalerror;
-            	}
-            	path_levels = path_levels_new;
+                }
+                path_levels = path_levels_new;
             }
             path_levels[path_levels_index++] = path_index;
             if (!iter->parent || lyd_node_module(iter) != lyd_node_module(iter->parent)) {
@@ -334,9 +334,9 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 }
                 goto dfs_continue;
             }
+
             /* regular leaf */
             DBG("EDIT_CONFIG: leaf %s, operation %d", path, op[op_index]);
-
             break;
         case LYS_LEAFLIST:
             /* get info about inserting to a specific place */
@@ -499,8 +499,8 @@ resultcheck:
             goto resultcheck;
         }
 
-        if (op[op_index] > NP2_EDIT_CREATE) {
-            /* when delete, remove or replace subtree
+        if ((op[op_index] == NP2_EDIT_DELETE) || (op[op_index] == NP2_EDIT_REMOVE)) {
+            /* when delete or remove subtree
              * no need to go into children */
             if (lastkey) {
                 /* we were processing list's keys */
