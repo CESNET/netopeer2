@@ -796,6 +796,8 @@ restart:
                     ncm_session_del(ncs, 1);
                     nc_session_free(ncs, free_ds);
                 }
+            } else if (msgtype == NC_MSG_WOULDBLOCK) {
+                usleep(10000);
             }
         }
     }
