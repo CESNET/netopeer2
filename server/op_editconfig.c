@@ -125,17 +125,23 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* default value for error-option is "stop-on-error" */
     enum NP2_EDIT_ERROPT erropt = NP2_EDIT_ERROPT_STOP;
     struct lyd_node *config = NULL, *next, *iter;
-    char *str, path[1024], *rel, *valbuf;
+    char *str, *path, *rel, *valbuf;
     const char *cstr;
     enum NP2_EDIT_OP *op = NULL, *op_new;
     uint16_t *path_levels = NULL, *path_levels_new;
     uint16_t path_levels_index, path_levels_size = 0;
     int op_index, op_size, path_index = 0, missing_keys = 0, lastkey = 0;
-    int ret;
+    int ret, path_len, new_len;
     struct lys_node_container *cont;
     struct lyd_node_anydata *any;
 
     /* init */
+    path_len = 128;
+    path = malloc(path_len);
+    if (!path) {
+        EMEM;
+        goto internalerror;
+    }
     path[path_index] = '\0';
 
     /* get sysrepo connections for this session */
@@ -230,9 +236,11 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         }
         ly_set_free(nodeset);
         if (ly_errno) {
+            free(path);
             return nc_server_reply_err(nc_err_libyang());
         } else if (!config) {
             /* nothing to do */
+            free(path);
             return nc_server_reply_ok();
         }
     } else {
@@ -251,6 +259,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         /* update data from sysrepo */
         if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
             ereply = op_build_err_sr(ereply, sessions->srs);
+            free(path);
             goto errorreply;
         }
     }
@@ -294,9 +303,19 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             path_levels[path_levels_index++] = path_index;
             if (!iter->parent || lyd_node_module(iter) != lyd_node_module(iter->parent)) {
                 /* with prefix */
+                new_len = path_index + 1 + strlen(lyd_node_module(iter)->name) + 1 + strlen(iter->schema->name) + 1;
+                if (new_len > path_len) {
+                    path_len = new_len;
+                    path = realloc(path, new_len);
+                }
                 path_index += sprintf(&path[path_index], "/%s:%s", lyd_node_module(iter)->name, iter->schema->name);
             } else {
                 /* without prefix */
+                new_len = path_index + 1 + strlen(iter->schema->name) + 1;
+                if (new_len > path_len) {
+                    path_len = new_len;
+                    path = realloc(path, new_len);
+                }
                 path_index += sprintf(&path[path_index], "/%s", iter->schema->name);
             }
 
@@ -323,6 +342,12 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 /* still processing list keys */
                 missing_keys--;
                 /* add key predicate into the list's path */
+                new_len = path_index + 1 + strlen(iter->schema->name) + 2
+                          + strlen(((struct lyd_node_leaf_list *)iter)->value_str) + 3;
+                if (new_len > path_len) {
+                    path_len = new_len;
+                    path = realloc(path, new_len);
+                }
                 path_index += sprintf(&path[path_index], "[%s=\'%s\']", iter->schema->name,
                                       ((struct lyd_node_leaf_list *)iter)->value_str);
                 if (!missing_keys) {
@@ -350,6 +375,11 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             }
 
             /* in leaf-list, the value is also the key, so add it into the path */
+            new_len = path_index + 4 + strlen(((struct lyd_node_leaf_list *)iter)->value_str) + 3;
+            if (new_len > path_len) {
+                path_len = new_len;
+                path = realloc(path, new_len);
+            }
             path_index += sprintf(&path[path_index], "[.=\'%s\']", ((struct lyd_node_leaf_list *)iter)->value_str);
 
             break;
@@ -559,6 +589,8 @@ dfs_parent:
 
 cleanup:
     /* cleanup */
+    free(path);
+    path = NULL;
     free(op);
     op = NULL;
     free(path_levels);
@@ -621,6 +653,7 @@ internalerror:
     DBG("EDIT_CONFIG: fatal error, rolling back.");
     sr_discard_changes(sessions->srs);
 
+    free(path);
     free(op);
     free(path_levels);
     lyd_free_withsiblings(config);
