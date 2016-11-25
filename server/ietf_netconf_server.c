@@ -174,15 +174,17 @@ set_listen_tls_endpt_cert(sr_session_ctx_t *session, const char *endpt_name, sr_
         }
 
         ret = sr_get_item(session, path, &sr_cert);
-        free(path);
         if (ret != SR_ERR_OK) {
+            ERR("Failed to get \"%s\" from sysrepo (%s).", path, sr_strerror(ret));
+            free(path);
             return ret;
         }
+        free(path);
 
         /* get the private key name */
-        key_begin = strstr(sr_new_val->xpath, "private-key[name='");
+        key_begin = strstr(sr_cert->xpath, "private-key[name='");
         if (!key_begin) {
-            EMEM;
+            EINT;
             sr_free_val(sr_cert);
             return -1;
         }
@@ -237,7 +239,7 @@ add_listen_tls_endpt_trusted_cert(sr_session_ctx_t *session, const char *endpt_n
         rc = nc_server_tls_endpt_del_trusted_cert(endpt_name, sr_old_val->data.string_val);
         break;
     case SR_OP_CREATED:
-        ret = asprintf(&str, "/ietf-system-keychain:keychain/trusted-certificates[name='%s']/trusted_certificate/certificate",
+        ret = asprintf(&str, "/ietf-system-keychain:keychain/trusted-certificates[name='%s']/trusted-certificate/certificate",
                        sr_new_val->data.string_val);
         if (ret == -1) {
             EMEM;
@@ -245,10 +247,12 @@ add_listen_tls_endpt_trusted_cert(sr_session_ctx_t *session, const char *endpt_n
         }
 
         ret = sr_get_items(session, str, &sr_certs, &sr_cert_count);
-        free(str);
         if (ret != SR_ERR_OK) {
+            ERR("Failed to get \"%s\" from sysrepo (%s).", str, sr_strerror(ret));
+            free(str);
             return ret;
         }
+        free(str);
 
         for (i = 0; i < sr_cert_count; ++i) {
             key_begin = strstr(sr_certs[i].xpath, "trusted-certificate[name='");
@@ -284,6 +288,132 @@ add_listen_tls_endpt_trusted_cert(sr_session_ctx_t *session, const char *endpt_n
     case SR_OP_MOVED:
         EINT;
         break;
+    }
+
+    return rc;
+}
+
+static NC_TLS_CTN_MAPTYPE
+convert_str_to_map_type(const char *map_type)
+{
+    NC_TLS_CTN_MAPTYPE ret = 0;
+
+    if (!strcmp(map_type, "specified")) {
+        ret = NC_TLS_CTN_SPECIFIED;
+    } else if (!strcmp(map_type, "san-rfc822-name")) {
+        ret = NC_TLS_CTN_SAN_RFC822_NAME;
+    } else if (!strcmp(map_type, "san-dns-name")) {
+        ret = NC_TLS_CTN_SAN_DNS_NAME;
+    } else if (!strcmp(map_type, "san-ip-address")) {
+        ret = NC_TLS_CTN_SAN_IP_ADDRESS;
+    } else if (!strcmp(map_type, "san-any")) {
+        ret = NC_TLS_CTN_SAN_ANY;
+    } else if (!strcmp(map_type, "common-name")) {
+        ret = NC_TLS_CTN_COMMON_NAME;
+    }
+
+    return ret;
+}
+
+static int
+add_listen_tls_endpt_ctn(const char *xpath, const char *endpt_name, sr_change_oper_t sr_oper, sr_val_t *sr_old_val,
+                         sr_val_t *sr_new_val)
+{
+    int rc = EXIT_SUCCESS;
+    uint32_t cur_id;
+    sr_val_t *sr_val;
+    char *set_fingerprint = NULL;
+    NC_TLS_CTN_MAPTYPE set_map_type = 0;
+    char *set_name = NULL;
+
+    static uint32_t id = 0;
+    static char *fingerprint = NULL;
+    static NC_TLS_CTN_MAPTYPE map_type = 0;
+    static const char *name = NULL;
+
+    assert(!strncmp(xpath, "cert-to-name[id='", 17));
+    xpath += 17;
+
+    cur_id = atoi(xpath);
+    assert(!id || (cur_id == id));
+
+    xpath = strchr(xpath, '\'');
+    assert(!strncmp(xpath, "']/", 3));
+    xpath += 3;
+
+    sr_val = (sr_new_val ? sr_new_val : sr_old_val);
+
+    switch (sr_oper) {
+    case SR_OP_CREATED:
+    case SR_OP_DELETED:
+        if (!strcmp(xpath, "id")) {
+            assert(!id);
+            id = sr_val->data.uint32_val;
+        } else if (!strcmp(xpath, "fingerprint")) {
+            assert(!fingerprint);
+            fingerprint = strdup(sr_val->data.string_val);
+        } else if (!strcmp(xpath, "map-type")) {
+            assert(!map_type);
+            map_type = convert_str_to_map_type(sr_val->data.identityref_val);
+            if (!map_type) {
+                EINT;
+                return EXIT_FAILURE;
+            }
+        } else if (!strcmp(xpath, "name")) {
+            assert(!name && (map_type == NC_TLS_CTN_SPECIFIED));
+            name = sr_val->data.string_val;
+        } else {
+            EINT;
+            return EXIT_FAILURE;
+        }
+
+        if (map_type && ((map_type != NC_TLS_CTN_SPECIFIED) || name)) {
+            /* we have all the information about the entry */
+            if (sr_oper == SR_OP_CREATED) {
+                rc = nc_server_tls_endpt_add_ctn(endpt_name, id, fingerprint, map_type, name);
+            } else {
+                rc = nc_server_tls_endpt_del_ctn(endpt_name, id, fingerprint, map_type, name);
+            }
+
+            id = 0;
+            free(fingerprint);
+            fingerprint = NULL;
+            map_type = 0;
+            name = NULL;
+        }
+        break;
+    case SR_OP_MODIFIED:
+        /* get the entry */
+        rc = nc_server_tls_endpt_get_ctn(endpt_name, &cur_id, &set_fingerprint, &set_map_type, &set_name);
+        if (!rc) {
+            /* remove the entry */
+            nc_server_tls_endpt_del_ctn(endpt_name, cur_id, set_fingerprint, set_map_type, set_name);
+            if (!strcmp(xpath, "fingerprint")) {
+                free(set_fingerprint);
+                set_fingerprint = strdup(sr_val->data.string_val);
+            } else if (!strcmp(xpath, "map-type")) {
+                set_map_type = convert_str_to_map_type(sr_val->data.identityref_val);
+                if (!set_map_type) {
+                    EINT;
+                    rc = EXIT_FAILURE;
+                }
+            } else if (!strcmp(xpath, "name")) {
+                free(set_name);
+                set_name = strdup(sr_val->data.string_val);
+            } else {
+                EINT;
+                rc = EXIT_FAILURE;
+            }
+
+            if (!rc) {
+                /* re-add modified entry */
+                rc = nc_server_tls_endpt_add_ctn(endpt_name, cur_id, set_fingerprint, set_map_type, set_name);
+            }
+        }
+        break;
+    case SR_OP_MOVED:
+        EINT;
+        return EXIT_FAILURE;
     }
 
     return rc;
@@ -660,8 +790,17 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                     rc = 0;
                 } else if (!strncmp(xpath, "certificates/", 13)) {
                     xpath += 13;
-                    if (!strcmp(xpath, "certificate/name")) {
-                        rc = set_listen_tls_endpt_cert(session, list1_key, sr_oper, sr_old_val, sr_new_val);
+                    if (!strncmp(xpath, "certificate", 11)) {
+                        xpath += 11;
+                        assert(!strncmp(xpath, "[name='", 7));
+                        xpath += 7;
+                        xpath = strchr(xpath, '\'');
+                        assert(!strncmp(xpath, "']/", 3));
+                        xpath += 3;
+
+                        if (!strcmp(xpath, "name")) {
+                            rc = set_listen_tls_endpt_cert(session, list1_key, sr_oper, sr_old_val, sr_new_val);
+                        }
                     }
                 } else if (!strcmp(xpath, "client-auth")) {
                     /* ignore */
@@ -677,6 +816,7 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                         rc = 0;
                     } else if (!strncmp(xpath, "cert-maps/", 10)) {
                         xpath += 10;
+                        rc = add_listen_tls_endpt_ctn(xpath, list1_key, sr_oper, sr_old_val, sr_new_val);
                     }
                 }
             }
