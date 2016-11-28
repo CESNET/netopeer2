@@ -2162,11 +2162,11 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         goto error_cleanup;
     }
 
-    nc_client_tls_set_cert_key_paths(cert, key);
-    nc_client_tls_set_trusted_ca_paths(trusted_store, trusted_dir);
-    nc_client_tls_set_crl_paths(NULL, crl_dir);
-
     if (is_connect) {
+        nc_client_tls_set_cert_key_paths(cert, key);
+        nc_client_tls_set_trusted_ca_paths(trusted_store, trusted_dir);
+        nc_client_tls_set_crl_paths(NULL, crl_dir);
+
         /* default port */
         if (!port) {
             port = NC_PORT_TLS;
@@ -2184,6 +2184,10 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
             goto error_cleanup;
         }
     } else {
+        nc_client_tls_ch_set_cert_key_paths(cert, key);
+        nc_client_tls_ch_set_trusted_ca_paths(trusted_store, trusted_dir);
+        nc_client_tls_ch_set_crl_paths(NULL, crl_dir);
+
         /* default timeout */
         if (!timeout) {
             timeout = CLI_CH_TIMEOUT;
