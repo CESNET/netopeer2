@@ -26,6 +26,7 @@
 #include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <pwd.h>
 
 #include <libyang/libyang.h>
 #include <nc_server.h>
@@ -165,6 +166,31 @@ free_ds(void *ptr)
         np2srv_clean_dslock(s->ncs);
         free(s);
     }
+}
+
+int
+np2srv_verify_clb(const struct nc_session *session)
+{
+    char buf[256];
+    const char *user;
+    size_t buflen = 256;
+    struct passwd pwd, *ret;
+    int rc;
+
+    user = nc_session_get_username(session);
+
+    errno = 0;
+    rc = getpwnam_r(user, &pwd, buf, buflen, &ret);
+    if (!ret) {
+        if (!rc) {
+            ERR("Username \"%s\" resolved by TLS authentication does not exist on the system.", user);
+        } else {
+            ERR("Getting system passwd entry for \"%s\" failed (%s).", user, strerror(rc));
+        }
+        return 0;
+    }
+
+    return 1;
 }
 
 static char *
@@ -530,6 +556,7 @@ server_init(void)
     /* set server options */
     mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-server", NULL);
     if (mod && strcmp(NP2SRV_AUTHD_DIR, "none")) {
+        nc_server_tls_set_verify_clb(np2srv_verify_clb);
         if (ietf_netconf_server_init()) {
             goto error;
         }
