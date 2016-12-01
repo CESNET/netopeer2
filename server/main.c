@@ -39,6 +39,8 @@
 #include "../modules/ietf-netconf-notifications@2012-02-06.h"
 #include "../modules/ietf-netconf-monitoring.h"
 #include "../modules/ietf-netconf-with-defaults@2011-06-01.h"
+#include "../modules/nc-notifications@2008-07-14.h"
+#include "../modules/notifications@2008-07-14.h"
 
 struct np2srv np2srv;
 struct np2srv_dslock dslock;
@@ -435,9 +437,19 @@ np2srv_init_schemas(int first)
         goto error;
     }
 
-    /* ... and ietf-netconf-with-defaults */
+    /* ... ietf-netconf-with-defaults */
     if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-with-defaults", "2011-06-01") &&
             !lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_with_defaults_2011_06_01_yin, LYS_IN_YIN)) {
+        goto error;
+    }
+
+    /* ... notifications and nc-notifications */
+    if (!ly_ctx_get_module(np2srv.ly_ctx, "notifications", "2008-07-14") &&
+            !lys_parse_mem(np2srv.ly_ctx, (const char *)notifications_2008_07_14_yin, LYS_IN_YIN)) {
+        goto error;
+    }
+    if (!ly_ctx_get_module(np2srv.ly_ctx, "nc-notifications", "2008-07-14") &&
+            !lys_parse_mem(np2srv.ly_ctx, (const char *)nc_notifications_2008_07_14_yin, LYS_IN_YIN)) {
         goto error;
     }
 
@@ -542,6 +554,10 @@ server_init(void)
     nc_set_rpc_callback(snode, op_cancel);
 
      */
+
+    /* set Notifications subscription callback */
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/notifications:create-subscription");
+    nc_set_rpc_callback(snode, op_ntfsubscribe);
 
     /* set server options */
     mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-server", NULL);
@@ -666,7 +682,7 @@ process_loop(void *arg)
             break;
         }
 
-        /* listen for incomming requests on active NETCONF sessions */
+        /* listen for incoming requests on active NETCONF sessions */
         if (nc_ps_session_count(np2srv.nc_ps) > 0) {
             rc = nc_ps_poll(np2srv.nc_ps, 500, &ncs);
         } else {

@@ -90,4 +90,7 @@ struct nc_server_reply *op_discardchanges(struct lyd_node *rpc, struct nc_sessio
 struct nc_server_reply *op_validate(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_generic(struct lyd_node *rpc, struct nc_session *ncs);
 
+struct nc_server_reply *op_ntfsubscribe(struct lyd_node *rpc, struct nc_session *ncs);
+
+
 #endif /* NP2SRV_OPERATIONS_H_ */

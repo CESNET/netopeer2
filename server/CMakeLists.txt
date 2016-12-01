@@ -50,6 +50,7 @@ set(srcs
 	op_validate.c
 	op_un_lock.c
 	op_generic.c
+	op_notifications.c
 	log.c)
 
 # object library to build source codes only once for the main binary and tests
