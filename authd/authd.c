@@ -514,13 +514,6 @@ cleanup:
     return ret;
 }
 
-static int
-sys_auth_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(xpath), sr_notif_event_t UNUSED(event), void *UNUSED(private_ctx))
-{
-    /* TODO */
-    return SR_ERR_OK;
-}
-
 int
 sr_plugin_init_cb(sr_session_ctx_t *session, void **private_ctx)
 {
@@ -589,13 +582,6 @@ sr_plugin_init_cb(sr_session_ctx_t *session, void **private_ctx)
     if (SR_ERR_OK != rc) {
         goto error;
     }*/
-
-    /* user authentication (for server) */
-    rc = sr_subtree_change_subscribe(session, "/ietf-system:system/authentication",
-                                     sys_auth_cb, ctx, 0, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
-    if (SR_ERR_OK != rc) {
-        goto error;
-    }
 
     SRP_LOG_DBG_MSG("authd plugin initialized successfully.");
 
