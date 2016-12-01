@@ -1181,24 +1181,20 @@ feature_change_ietf_netconf_server(sr_session_ctx_t *session, const char *featur
     sr_val_iter_t *sr_iter;
     sr_val_t *sr_val;
 
+    assert(feature_name);
+
     if (enabled) {
-        if (!feature_name) {
-            path = "/ietf-netconf-server:netconf-server//*";
-        } else if (!strcmp(feature_name, "listen")) {
-            path = "/ietf-netconf-server:netconf-server/listen//*";
-        } else if (!strcmp(feature_name, "ssh-listen")) {
-            path = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh//*";
+        if (!strcmp(feature_name, "ssh-listen")) {
+            path = "/ietf-netconf-server:netconf-server/listen/endpoint[ssh]//*";
         } else if (!strcmp(feature_name, "tls-listen")) {
-            path = "/ietf-netconf-server:netconf-server/listen/endpoint/tls//*";
-        } else if (!strcmp(feature_name, "call-home")) {
-            path = "/ietf-netconf-server:netconf-server/call-home//*";
+            path = "/ietf-netconf-server:netconf-server/listen/endpoint[tls]/*";
         } else if (!strcmp(feature_name, "ssh-call-home")) {
-            path = "/ietf-netconf-server:netconf-server/call-home/netconf-client/ssh//*";
+            path = "/ietf-netconf-server:netconf-server/call-home/netconf-client[ssh]//*";
         } else if (!strcmp(feature_name, "tls-call-home")) {
-            path = "/ietf-netconf-server:netconf-server/call-home/netconf-client/tls//*";
+            path = "/ietf-netconf-server:netconf-server/call-home/netconf-client[tls]//*";
         } else {
-            ERR("Unknown or unsupported feature \"%s\" enabled, ignoring.", feature_name);
-            return EXIT_FAILURE;
+            VRB("Unknown or unsupported feature \"%s\" enabled, ignoring.", feature_name);
+            return EXIT_SUCCESS;
         }
 
         rc = sr_get_items_iter(np2srv.sr_sess.srs, path, &sr_iter);
@@ -1216,12 +1212,7 @@ feature_change_ietf_netconf_server(sr_session_ctx_t *session, const char *featur
             rc2 = module_change_resolve(session, SR_OP_CREATED, NULL, sr_val, NULL, NULL);
             sr_free_val(sr_val);
             if (rc2) {
-                if (feature_name) {
-                    ERR("Failed to %s nodes depending on the \"%s\" ietf-netconf-server feature.",
-                        (enabled ? "enable" : "disable"), feature_name);
-                } else {
-                    ERR("Failed to %s all the nodes of ietf-netconf-server.", (enabled ? "enable" : "disable"));
-                }
+                ERR("Failed to enable nodes depending on the \"%s\" ietf-netconf-server feature.", feature_name);
                 break;
             }
         }
@@ -1233,24 +1224,17 @@ feature_change_ietf_netconf_server(sr_session_ctx_t *session, const char *featur
             return EXIT_FAILURE;
         }
     } else {
-        if (!feature_name) {
-            ERR("No feature to disable.");
-            return EXIT_FAILURE;
-        } else if (!strcmp(feature_name, "listen")) {
-            nc_server_del_endpt(NULL, 0);
-        } else if (!strcmp(feature_name, "ssh-listen")) {
+        if (!strcmp(feature_name, "ssh-listen")) {
             nc_server_del_endpt(NULL, NC_TI_LIBSSH);
         } else if (!strcmp(feature_name, "tls-listen")) {
             nc_server_del_endpt(NULL, NC_TI_OPENSSL);
-        } else if (!strcmp(feature_name, "call-home")) {
-            nc_server_ch_del_client(NULL, 0);
         } else if (!strcmp(feature_name, "ssh-call-home")) {
             nc_server_ch_del_client(NULL, NC_TI_LIBSSH);
         } else if (!strcmp(feature_name, "tls-call-home")) {
             nc_server_ch_del_client(NULL, NC_TI_OPENSSL);
         } else {
-            ERR("Unknown or unsupported feature \"%s\" disabled, ignoring.", feature_name);
-            return EXIT_FAILURE;
+            VRB("Unknown or unsupported feature \"%s\" disabled, ignoring.", feature_name);
+            return EXIT_SUCCESS;
         }
     }
 
@@ -1258,7 +1242,7 @@ feature_change_ietf_netconf_server(sr_session_ctx_t *session, const char *featur
 }
 
 int
-ietf_netconf_server_init(void)
+ietf_netconf_server_init(const struct lys_module *module)
 {
     int rc;
 
@@ -1270,8 +1254,25 @@ ietf_netconf_server_init(void)
     }
 
     /* applies the whole current configuration */
-    if (feature_change_ietf_netconf_server(np2srv.sr_sess.srs, NULL, 1)) {
-        return EXIT_FAILURE;
+    if (lys_features_state(module, "ssh-listen") == 1) {
+        if (feature_change_ietf_netconf_server(np2srv.sr_sess.srs, "ssh-listen", 1)) {
+            return EXIT_FAILURE;
+        }
+    }
+    if (lys_features_state(module, "tls-listen") == 1) {
+        if (feature_change_ietf_netconf_server(np2srv.sr_sess.srs, "tls-listen", 1)) {
+            return EXIT_FAILURE;
+        }
+    }
+    if (lys_features_state(module, "ssh-call-home") == 1) {
+        if (feature_change_ietf_netconf_server(np2srv.sr_sess.srs, "ssh-call-home", 1)) {
+            return EXIT_FAILURE;
+        }
+    }
+    if (lys_features_state(module, "tls-call-home") == 1) {
+        if (feature_change_ietf_netconf_server(np2srv.sr_sess.srs, "tls-call-home", 1)) {
+            return EXIT_FAILURE;
+        }
     }
 
     return EXIT_SUCCESS;

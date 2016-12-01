@@ -51,7 +51,8 @@ struct np2srv {
 };
 extern struct np2srv np2srv;
 
-int ietf_netconf_server_init(void);
+int ietf_netconf_server_init(const struct lys_module *module);
+int ietf_system_init(const struct lys_module *module);
 
 void np2srv_new_ch_session_clb(const char *UNUSED(client_name), struct nc_session *new_session);
 
