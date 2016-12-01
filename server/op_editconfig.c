@@ -111,6 +111,46 @@ edit_get_move(struct lyd_node *node, const char *path, sr_move_position_t *pos, 
     return EXIT_SUCCESS;
 }
 
+static const char *
+defop2str(enum NP2_EDIT_DEFOP defop)
+{
+    switch (defop) {
+    case NP2_EDIT_DEFOP_MERGE:
+        return "merge";
+    case NP2_EDIT_DEFOP_REPLACE:
+        return "replace";
+    default:
+        break;
+    }
+
+    return "none";
+}
+
+static const char *
+op2str(enum NP2_EDIT_OP op)
+{
+    switch (op) {
+    case NP2_EDIT_ERROR:
+        return "error";
+    case NP2_EDIT_MERGE:
+        return "merge";
+    case NP2_EDIT_CREATE:
+        return "create";
+    case NP2_EDIT_REPLACE:
+        return "replace";
+    case NP2_EDIT_REPLACE_INNER:
+        return "inner replace";
+    case NP2_EDIT_DELETE:
+        return "delete";
+    case NP2_EDIT_REMOVE:
+        return "remove";
+    default:
+        break;
+    }
+
+    return "none";
+}
+
 struct nc_server_reply *
 op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 {
@@ -254,7 +294,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     lyd_print_mem(&str, config, LYD_XML, LYP_WITHSIBLINGS | LYP_FORMAT);
-    DBG("EDIT_CONFIG: ds %d, defop %d, testopt %d, config:\n%s", sessions->srs, defop, testopt, str);
+    DBG("EDIT_CONFIG: ds %d, defop %s, testopt %d, config:\n%s", sessions->srs, defop2str(defop), testopt, str);
     free(str);
     str = NULL;
 
@@ -338,7 +378,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 goto dfs_continue;
             }
 
-            DBG("EDIT_CONFIG: presence container %s, operation %d", path, op[op_index]);
+            DBG("EDIT_CONFIG: presence container %s, operation %s", path, op2str(op[op_index]));
             break;
         case LYS_LEAF:
             if (missing_keys) {
@@ -357,14 +397,14 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                     /* the last key, create the list instance */
                     lastkey = 1;
 
-                    DBG("EDIT_CONFIG: list %s, operation %d", path, op[op_index]);
+                    DBG("EDIT_CONFIG: list %s, operation %s", path, op2str(op[op_index]));
                     break;
                 }
                 goto dfs_continue;
             }
 
             /* regular leaf */
-            DBG("EDIT_CONFIG: leaf %s, operation %d", path, op[op_index]);
+            DBG("EDIT_CONFIG: leaf %s, operation %s", path, op2str(op[op_index]));
             break;
         case LYS_LEAFLIST:
             /* get info about inserting to a specific place */
@@ -372,7 +412,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 goto internalerror;
             }
 
-            DBG("EDIT_CONFIG: leaflist %s, operation %d", path, op[op_index]);
+            DBG("EDIT_CONFIG: leaflist %s, operation %s", path, op2str(op[op_index]));
             if (pos != SR_MOVE_LAST) {
                 DBG("EDIT_CONFIG: moving leaflist %s, position %d (%s)", path, pos, rel ? rel : "absolute");
             }
