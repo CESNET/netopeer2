@@ -57,10 +57,13 @@ edit_get_op(struct lyd_node *node, enum NP2_EDIT_OP parentop, enum NP2_EDIT_DEFO
         }
     }
 
-    if (parentop > 0) {
+    switch (parentop) {
+    case NP2_EDIT_REPLACE:
+        return NP2_EDIT_REPLACE_INNER;
+    case 0:
+        return (enum NP2_EDIT_OP)defop;
+    default:
         return parentop;
-    } else {
-        return (enum NP2_EDIT_OP) defop;
     }
 
 cleanup:
@@ -414,10 +417,10 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         /* apply change to sysrepo */
         switch (op[op_index]) {
         case NP2_EDIT_MERGE:
-        case NP2_EDIT_REPLACE:
             /* create the node */
             ret = sr_set_item(sessions->srs, path, &value, 0);
             break;
+        case NP2_EDIT_REPLACE_INNER:
         case NP2_EDIT_CREATE:
             /* create the node, but it must not exists */
             ret = sr_set_item(sessions->srs, path, &value, SR_EDIT_STRICT);
@@ -426,6 +429,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             /* remove the node, but it must exists */
             ret = sr_delete_item(sessions->srs, path, SR_EDIT_STRICT);
             break;
+        case NP2_EDIT_REPLACE:
         case NP2_EDIT_REMOVE:
             /* remove the node */
             ret = sr_delete_item(sessions->srs, path, 0);
