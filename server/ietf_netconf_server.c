@@ -138,12 +138,12 @@ set_listen_endpoint_ssh_host_key(const char *endpt_name, sr_change_oper_t UNUSED
 
     /* TODO broken order (if creating, not called on move for now) */
     if (sr_new_val) {
-        asprintf(&path, NP2SRV_AUTHD_DIR "/%s.pem", sr_new_val->data.string_val);
+        asprintf(&path, NP2SRV_KEYSTORED_DIR "/%s.pem", sr_new_val->data.string_val);
         rc = nc_server_ssh_endpt_add_hostkey(endpt_name, path);
         free(path);
     }
     if (!rc && sr_old_val) {
-        asprintf(&path, NP2SRV_AUTHD_DIR "/%s.pem", sr_old_val->data.string_val);
+        asprintf(&path, NP2SRV_KEYSTORED_DIR "/%s.pem", sr_old_val->data.string_val);
         rc = nc_server_ssh_endpt_del_hostkey(endpt_name, path);
         free(path);
     }
@@ -202,7 +202,7 @@ set_tls_cert(sr_session_ctx_t *session, const char *config_name, sr_change_oper_
             return -1;
         }
 
-        ret = asprintf(&path, NP2SRV_AUTHD_DIR "/%.*s.pem", (int)(key_end - key_begin), key_begin);
+        ret = asprintf(&path, NP2SRV_KEYSTORED_DIR "/%.*s.pem", (int)(key_end - key_begin), key_begin);
         if (ret == -1) {
             EMEM;
             sr_free_val(sr_cert);
@@ -509,14 +509,14 @@ set_ch_client_ssh_host_key(const char *client_name, sr_change_oper_t UNUSED(sr_o
 
     /* TODO broken order (if creating, not called on move for now) */
     if (sr_new_val) {
-        path = malloc(strlen(NP2SRV_AUTHD_DIR) + 1 + strlen(sr_new_val->data.string_val) + 4 + 1);
-        sprintf(path, NP2SRV_AUTHD_DIR "/%s.pem", sr_new_val->data.string_val);
+        path = malloc(strlen(NP2SRV_KEYSTORED_DIR) + 1 + strlen(sr_new_val->data.string_val) + 4 + 1);
+        sprintf(path, NP2SRV_KEYSTORED_DIR "/%s.pem", sr_new_val->data.string_val);
         rc = nc_server_ssh_ch_client_add_hostkey(client_name, path);
         free(path);
     }
     if (!rc && sr_old_val) {
-        path = malloc(strlen(NP2SRV_AUTHD_DIR) + 1 + strlen(sr_old_val->data.string_val) + 4 + 1);
-        sprintf(path, NP2SRV_AUTHD_DIR "/%s.pem", sr_old_val->data.string_val);
+        path = malloc(strlen(NP2SRV_KEYSTORED_DIR) + 1 + strlen(sr_old_val->data.string_val) + 4 + 1);
+        sprintf(path, NP2SRV_KEYSTORED_DIR "/%s.pem", sr_old_val->data.string_val);
         rc = nc_server_ssh_ch_client_del_hostkey(client_name, path);
         free(path);
     }

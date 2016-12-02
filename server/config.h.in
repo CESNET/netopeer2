@@ -28,8 +28,8 @@
  */
 #define NP2SRV_HOST_KEY "/etc/ssh/ssh_host_rsa_key"
 
-/** @brief authd default directory
+/** @brief keystored default directory
  */
-#define NP2SRV_AUTHD_DIR "@AUTHD_KEYS_DIR@"
+#define NP2SRV_KEYSTORED_DIR "@KEYSTORED_KEYS_DIR@"
 
 #endif /* NP2SRV_CONFIG_H_ */

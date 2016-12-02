@@ -555,7 +555,7 @@ server_init(void)
 
     /* set server options */
     mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-server", NULL);
-    if (mod && strcmp(NP2SRV_AUTHD_DIR, "none")) {
+    if (mod && strcmp(NP2SRV_KEYSTORED_DIR, "none")) {
         nc_server_tls_set_verify_clb(np2srv_verify_clb);
         if (ietf_netconf_server_init(mod)) {
             goto error;
@@ -570,7 +570,7 @@ server_init(void)
             WRN("Sysrepo does not have the \"ietf-system\" module, SSH publickey authentication will not work.");
         }
     } else {
-        WRN("Sysrepo does not have the \"ietf-netconf-server\" module or authd keys dir unknown, using default NETCONF server options.");
+        WRN("Sysrepo does not have the \"ietf-netconf-server\" module or keystored keys dir unknown, using default NETCONF server options.");
         if (nc_server_add_endpt("main", NC_TI_LIBSSH)) {
             goto error;
         }
