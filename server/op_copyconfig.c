@@ -88,14 +88,14 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
         case LYD_ANYDATA_CONSTSTRING:
         case LYD_ANYDATA_STRING:
         case LYD_ANYDATA_SXML:
-            config = lyd_parse_mem(np2srv.ly_ctx, any->value.str, LYD_XML, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT);
+            config = lyd_parse_mem(np2srv.ly_ctx, any->value.str, LYD_XML, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT | LYD_OPT_STRICT);
             break;
         case LYD_ANYDATA_DATATREE:
             config = any->value.tree;
             any->value.tree = NULL; /* "unlink" data tree from anydata to have full control */
             break;
         case LYD_ANYDATA_XML:
-            config = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT);
+            config = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT | LYD_OPT_STRICT);
             break;
         case LYD_ANYDATA_JSON:
         case LYD_ANYDATA_JSOND:
@@ -265,8 +265,6 @@ dfs_continue:
                 }
             }
         }
-        /* cleanup */
-        lyd_free_withsiblings(config);
 
         /* commit the result */
         if (sessions->ds != SR_DS_CANDIDATE) {
@@ -301,6 +299,9 @@ srerror:
         /* mark candidate as modified */
         sessions->flags |= NP2S_CAND_CHANGED;
     }
+
+    /* cleanup */
+    lyd_free_withsiblings(config);
 
     return nc_server_reply_ok();
 

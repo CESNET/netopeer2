@@ -26,6 +26,7 @@
 #include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <pwd.h>
 
 #include <libyang/libyang.h>
 #include <nc_server.h>
@@ -138,13 +139,12 @@ signal_handler(int sig)
 }
 
 void
-np2srv_notif_clb(const char *xpath, const sr_node_t *trees, const size_t tree_cnt, void *private_ctx)
+np2srv_notif_clb(const char *xpath, const sr_node_t *trees, const size_t UNUSED(tree_cnt), time_t UNUSED(timestamp), void *UNUSED(private_ctx))
 {
     struct ly_set *set;
     struct lys_node *snotif;
     const struct lys_module *mod;
     const sr_node_t *srnode, *srnext;
-    struct lyd_node *node, *next, *start;
 
     mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-yang-library", NULL);
     set = lys_find_xpath(mod->data->prev, xpath, 0);
@@ -224,6 +224,64 @@ dfs_nextsibling:
     return EXIT_SUCCESS;
 }
 
+static void
+np2srv_clean_dslock(struct nc_session *ncs)
+{
+    pthread_rwlock_wrlock(&dslock_rwl);
+
+    if (dslock.running == ncs) {
+        dslock.running = NULL;
+    }
+    if (dslock.startup == ncs) {
+        dslock.startup = NULL;
+    }
+    if (dslock.candidate == ncs) {
+        dslock.candidate = NULL;
+    }
+
+    pthread_rwlock_unlock(&dslock_rwl);
+}
+
+void
+free_ds(void *ptr)
+{
+    struct np2_sessions *s;
+
+    if (ptr) {
+        s = (struct np2_sessions *)ptr;
+        if (s->srs) {
+            sr_session_stop(s->srs);
+        }
+        np2srv_clean_dslock(s->ncs);
+        free(s);
+    }
+}
+
+int
+np2srv_verify_clb(const struct nc_session *session)
+{
+    char buf[256];
+    const char *user;
+    size_t buflen = 256;
+    struct passwd pwd, *ret;
+    int rc;
+
+    user = nc_session_get_username(session);
+
+    errno = 0;
+    rc = getpwnam_r(user, &pwd, buf, buflen, &ret);
+    if (!ret) {
+        if (!rc) {
+            ERR("Username \"%s\" resolved by TLS authentication does not exist on the system.", user);
+        } else {
+            ERR("Getting system passwd entry for \"%s\" failed (%s).", user, strerror(rc));
+        }
+        return 0;
+    }
+
+    return 1;
+}
+
 static char *
 np2srv_ly_import_clb(const char *mod_name, const char *mod_rev, const char *submod_name, const char *UNUSED(submod_rev),
                      void *UNUSED(user_data), LYS_INFORMAT *format, void (**free_module_data)(void *model_data))
@@ -245,8 +303,8 @@ np2srv_ly_import_clb(const char *mod_name, const char *mod_rev, const char *subm
     return NULL;
 }
 
-void
-np2srv_module_install_clb(const char *module_name, const char *revision, bool installed, void *UNUSED(private_ctx))
+static void
+np2srv_module_install_clb(const char *module_name, const char *revision, sr_module_state_t state, void *UNUSED(private_ctx))
 {
     int rc;
     char *data = NULL;
@@ -254,7 +312,7 @@ np2srv_module_install_clb(const char *module_name, const char *revision, bool in
     sr_schema_t *schemas = NULL;
     size_t count, i, j;
 
-    if (installed) {
+    if (state == SR_MS_IMPLEMENTED) {
         /* adding another module into the current libyang context */
         rc = sr_get_schema(np2srv.sr_sess.srs, module_name, revision, NULL, SR_SCHEMA_YIN, &data);
         if (rc != SR_ERR_OK) {
@@ -295,6 +353,8 @@ np2srv_module_install_clb(const char *module_name, const char *revision, bool in
             /* set RPC, action and notification callbacks */
             np2srv_module_assign_clbs(mod);
         }
+    } else if (state == SR_MS_IMPORTED) {
+        /* TODO nothing to do, it will either be loaded when parsing an imported module or it should not be needed, right? */
     } else {
         VRB("Removing schema \"%s%s%s\" according to changes in sysrepo.", module_name, revision ? "@" : "",
             revision ? revision : "");
@@ -333,6 +393,28 @@ np2srv_feature_change_clb(const char *module_name, const char *feature_name, boo
         lys_features_disable(mod, feature_name);
     }
     pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
+}
+
+void
+np2srv_new_ch_session_clb(const char *UNUSED(client_name), struct nc_session *new_session)
+{
+    int c;
+
+    ncm_session_add(new_session);
+
+    c = 0;
+    while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, new_session)) {
+        /* presumably timeout, give it a shot 2 times */
+        usleep(10000);
+        ++c;
+    }
+
+    if (c == 3) {
+        /* there is some serious problem in synchronization/system planner */
+        EINT;
+        ncm_session_del(new_session, 1);
+        nc_session_free(new_session, free_ds);
+    }
 }
 
 static int
@@ -561,19 +643,29 @@ server_init(void)
 
     /* set server options */
     mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-server", NULL);
-    if (mod) {
-        if (ietf_netconf_server_init()) {
+    if (mod && strcmp(NP2SRV_AUTHD_DIR, "none")) {
+        nc_server_tls_set_verify_clb(np2srv_verify_clb);
+        if (ietf_netconf_server_init(mod)) {
             goto error;
         }
+
+        mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-system", NULL);
+        if (mod) {
+            if (ietf_system_init(mod)) {
+                goto error;
+            }
+        } else {
+            WRN("Sysrepo does not have the \"ietf-system\" module, SSH publickey authentication will not work.");
+        }
     } else {
-        WRN("Sysrepo does not have the \"ietf-netconf-server\" module, using default NETCONF server options.");
+        WRN("Sysrepo does not have the \"ietf-netconf-server\" module or authd keys dir unknown, using default NETCONF server options.");
         if (nc_server_add_endpt("main", NC_TI_LIBSSH)) {
             goto error;
         }
         if (nc_server_endpt_set_address("main", "0.0.0.0")) {
             goto error;
         }
-        if (nc_server_endpt_set_port("main", 6001)) {
+        if (nc_server_endpt_set_port("main", 830)) {
             goto error;
         }
         if (nc_server_ssh_endpt_add_hostkey("main", NP2SRV_HOST_KEY)) {
@@ -586,39 +678,6 @@ server_init(void)
 error:
     ERR("Server init failed.");
     return EXIT_FAILURE;
-}
-
-static void
-np2srv_clean_dslock(struct nc_session *ncs)
-{
-    pthread_rwlock_wrlock(&dslock_rwl);
-
-    if (dslock.running == ncs) {
-        dslock.running = NULL;
-    }
-    if (dslock.startup == ncs) {
-        dslock.startup = NULL;
-    }
-    if (dslock.candidate == ncs) {
-        dslock.candidate = NULL;
-    }
-
-    pthread_rwlock_unlock(&dslock_rwl);
-}
-
-void
-free_ds(void *ptr)
-{
-    struct np2_sessions *s;
-
-    if (ptr) {
-        s = (struct np2_sessions *)ptr;
-        if (s->srs) {
-            sr_session_stop(s->srs);
-        }
-        np2srv_clean_dslock(s->ncs);
-        free(s);
-    }
 }
 
 static int
@@ -861,6 +920,8 @@ restart:
                     ncm_session_del(ncs, 1);
                     nc_session_free(ncs, free_ds);
                 }
+            } else if (msgtype == NC_MSG_WOULDBLOCK) {
+                usleep(10000);
             }
         }
     }

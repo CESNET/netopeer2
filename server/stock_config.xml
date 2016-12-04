@@ -1,0 +1,16 @@
+<netconf-server xmlns="urn:ietf:params:xml:ns:yang:ietf-netconf-server">
+  <listen>
+    <endpoint>
+      <name>main_ssh</name>
+      <ssh>
+        <address>0.0.0.0</address>
+        <host-keys>
+          <host-key>
+            <name>host_key</name>
+            <public-key>ssh_host_rsa_key</public-key>
+          </host-key>
+        </host-keys>
+      </ssh>
+    </endpoint>
+  </listen>
+</netconf-server>

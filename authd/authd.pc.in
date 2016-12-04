@@ -1,0 +1,5 @@
+Name: @PROJECT_NAME@
+Description: authd sysrepo plugin
+Version: 0.0
+
+AUTHD_KEYS_DIR=@AUTHD_KEYS_DIR@
