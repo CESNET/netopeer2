@@ -410,13 +410,15 @@ np2srv_init_schemas(int first)
                 lys_features_enable(mod, schemas[i].enabled_features[j]);
             }
 
-            /* set RPC callbacks */
-            LY_TREE_FOR(mod->data, top) {
-                LY_TREE_DFS_BEGIN(top, next, snode) {
-                    if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
-                        nc_set_rpc_callback(snode, op_generic);
+            /* set RPC callbacks (except ietf-netconf, those are set separately later) */
+            if (strcmp(mod->name, "ietf-netconf") && strcmp(mod->name, "ietf-netconf-monitoring")) {
+                LY_TREE_FOR(mod->data, top) {
+                    LY_TREE_DFS_BEGIN(top, next, snode) {
+                        if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
+                            nc_set_rpc_callback(snode, op_generic);
+                        }
+                        LY_TREE_DFS_END(top, next, snode);
                     }
-                    LY_TREE_DFS_END(top, next, snode);
                 }
             }
         }
@@ -550,7 +552,6 @@ server_init(void)
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:cancel-commit");
     nc_set_rpc_callback(snode, op_cancel);
-
      */
 
     /* set server options */
