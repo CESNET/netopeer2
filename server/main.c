@@ -219,12 +219,14 @@ server_init(void)
                 lys_features_enable(mod, schemas[i].enabled_features[j]);
             }
 
-            LY_TREE_FOR(mod->data, top) {
-                LY_TREE_DFS_BEGIN(top, next, snode) {
-                    if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
-                        lys_set_private(snode, op_generic);
+            if (strcmp(mod->name, "ietf-netconf") && strcmp(mod->name, "ietf-netconf-monitoring")) {
+                LY_TREE_FOR(mod->data, top) {
+                    LY_TREE_DFS_BEGIN(top, next, snode) {
+                        if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
+                            lys_set_private(snode, op_generic);
+                        }
+                        LY_TREE_DFS_END(top, next, snode);
                     }
-                    LY_TREE_DFS_END(top, next, snode);
                 }
             }
         }
