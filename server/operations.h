@@ -91,7 +91,10 @@ struct nc_server_reply *op_discardchanges(struct lyd_node *rpc, struct nc_sessio
 struct nc_server_reply *op_validate(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_generic(struct lyd_node *rpc, struct nc_session *ncs);
 
-struct nc_server_reply *op_ntfsubscribe(struct lyd_node *rpc, struct nc_session *ncs);
+struct nc_server_reply *op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs);
+void op_ntf_unsubscribe(struct nc_session *session);
+void np2srv_ntf_clb(const char *xpath, const sr_node_t *trees, const size_t tree_cnt, time_t timestamp, void *private_ctx);
+struct lyd_node *ntf_get_data(void);
 
 
 #endif /* NP2SRV_OPERATIONS_H_ */

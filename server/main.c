@@ -138,52 +138,17 @@ signal_handler(int sig)
     }
 }
 
-void
-np2srv_notif_clb(const char *xpath, const sr_node_t *trees, const size_t UNUSED(tree_cnt), time_t UNUSED(timestamp), void *UNUSED(private_ctx))
-{
-    struct ly_set *set;
-    struct lys_node *snotif;
-    const struct lys_module *mod;
-    const sr_node_t *srnode, *srnext;
-
-    mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-yang-library", NULL);
-    set = lys_find_xpath(mod->data->prev, xpath, 0);
-    if (!set || set->number != 1) {
-        ly_set_free(set);
-        ERR("Unknown Event Notification \"%s\".", xpath);
-        return;
-    }
-    snotif = set->set.s[0];
-    ly_set_free(set);
-
-    for (srnode = srnext = trees; srnode; srnode = srnext) {
-
-        /* select element for the next run - children first */
-        srnext = srnode->first_child;
-        if (!srnext) {
-            /* no children, try siblings */
-            srnext = srnode->next;
-        }
-        while (!srnext) {
-            /* parent is already processed, go to its sibling */
-            srnode = srnode->parent;
-
-            if (srnode == trees->parent) {
-                /* we are done, no next element to process */
-                break;
-            }
-            srnext = srnode->next;
-        }
-    }
-
-    ERR("Received notification \"%s\"", xpath);
-}
-
 static int
 np2srv_module_assign_clbs(const struct lys_module *mod)
 {
     struct lys_node *snode, *next;
     char *path;
+
+    if (!strcmp(mod->name, "ietf-netconf-monitoring") || !strcmp(mod->name, "ietf-netconf") ||
+            !strcmp(mod->name, "ietf-netconf-monitoring")) {
+        /* skip it, use internal implementations from libnetconf2 */
+        return EXIT_SUCCESS;
+    }
 
     /* set RPC and Notifications callbacks */
     LY_TREE_DFS_BEGIN(mod->data, next, snode) {
@@ -192,7 +157,7 @@ np2srv_module_assign_clbs(const struct lys_module *mod)
             goto dfs_nextsibling;
         } else if (snode->nodetype & LYS_NOTIF) {
             path = lys_path(snode);
-            sr_event_notif_subscribe_tree(np2srv.sr_sess.srs, path, np2srv_notif_clb, NULL, SR_SUBSCR_CTX_REUSE,
+            sr_event_notif_subscribe_tree(np2srv.sr_sess.srs, path, np2srv_ntf_clb, NULL, SR_SUBSCR_CTX_REUSE,
                                           &np2srv.sr_subscr);
             free(path);
             goto dfs_nextsibling;
@@ -288,6 +253,12 @@ np2srv_ly_import_clb(const char *mod_name, const char *mod_rev, const char *subm
 {
     char *data = NULL;
     int rc;
+
+    if (!strcmp(mod_name, "notifications")) {
+        /* hack for internal notifications module, which is available in internal context, but not in
+         * sysrepo, so tell libyang that we don't have this module, it will get it from the context */
+        return NULL;
+    }
 
     *free_module_data = free;
     *format = LYS_YIN;
@@ -412,7 +383,7 @@ np2srv_new_ch_session_clb(const char *UNUSED(client_name), struct nc_session *ne
     if (c == 3) {
         /* there is some serious problem in synchronization/system planner */
         EINT;
-        ncm_session_del(new_session, 1);
+        ncm_session_del(new_session);
         nc_session_free(new_session, free_ds);
     }
 }
@@ -592,6 +563,10 @@ server_init(void)
     /* set with-defaults capability basic-mode */
     nc_server_set_capab_withdefaults(NC_WD_EXPLICIT, NC_WD_ALL | NC_WD_ALL_TAG | NC_WD_TRIM | NC_WD_EXPLICIT);
 
+    /* set capabilities for the NETCONF Notifications */
+    nc_server_set_capability("urn:ietf:params:netconf:capability:notification:1.0");
+    nc_server_set_capability("urn:ietf:params:netconf:capability:interleave:1.0");
+
     /* prepare poll session structure for libnetconf2 */
     np2srv.nc_ps = nc_ps_new();
 
@@ -639,7 +614,7 @@ server_init(void)
 
     /* set Notifications subscription callback */
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/notifications:create-subscription");
-    nc_set_rpc_callback(snode, op_ntfsubscribe);
+    nc_set_rpc_callback(snode, op_ntf_subscribe);
 
     /* set server options */
     mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-server", NULL);
@@ -762,8 +737,9 @@ process_loop(void *arg)
             ncm_session_rpc_reply_error(ncs);
         }
         if (rc & NC_PSPOLL_SESSION_TERM) {
+            op_ntf_unsubscribe(ncs);
+            ncm_session_del(ncs);
             nc_ps_del_session(np2srv.nc_ps, ncs);
-            ncm_session_del(ncs, (rc & NC_PSPOLL_SESSION_ERROR ? 1 : 0));
             nc_session_free(ncs, free_ds);
         } else if (rc & NC_PSPOLL_SSH_CHANNEL) {
             /* a new SSH channel on existing session was created */
@@ -917,7 +893,7 @@ restart:
                 if (c == 3) {
                     /* there is some serious problem in synchronization/system planner */
                     EINT;
-                    ncm_session_del(ncs, 1);
+                    ncm_session_del(ncs);
                     nc_session_free(ncs, free_ds);
                 }
             } else if (msgtype == NC_MSG_WOULDBLOCK) {

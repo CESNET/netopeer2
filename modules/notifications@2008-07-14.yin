@@ -83,14 +83,4 @@ Must be used with startTime.</text>
       </leaf>
     </input>
   </rpc>
-  <container name="notification">
-    <description>
-      <text>internal struct to start a notification</text>
-    </description>
-    <config value="false"/>
-    <leaf name="eventTime">
-      <mandatory value="true"/>
-      <type name="yang:date-and-time"/>
-    </leaf>
-  </container>
 </module>
