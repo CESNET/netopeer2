@@ -30,23 +30,36 @@
 #include "operations.h"
 #include "netconf_monitoring.h"
 
-/* add subtree to root */
+/* add whole subtree */
 static int
-opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, const char *subtree_path)
+opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, const char *subtree_path,
+                                 const struct lys_node *snode)
 {
     sr_val_t *value;
     sr_val_iter_t *sriter;
     struct lyd_node *node, *iter;
-    char *subtree_children_path, buf[128];
+    struct ly_set *set;
+    char *subtree_children_path = NULL, buf[128];
     int rc;
 
-    if (asprintf(&subtree_children_path, "%s//*", subtree_path) == -1) {
-        EMEM;
+    set = lys_find_xpath(snode, subtree_path, 0);
+    if (!set) {
+        EINT;
         return -1;
+    } else if ((set->number != 1) || (set->set.s[0]->nodetype != LYS_LEAF)) {
+        /* it's not just a leaf */
+        if (asprintf(&subtree_children_path, "%s//*", subtree_path) == -1) {
+            EMEM;
+            return -1;
+        }
     }
 
-    rc = sr_get_items_iter(ds, subtree_children_path, &sriter);
-    if (rc != SR_ERR_OK) {
+    rc = sr_get_items_iter(ds, subtree_children_path ? subtree_children_path : subtree_path, &sriter);
+    if ((rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_NOT_FOUND)) {
+        /* it's ok, model without data */
+        free(subtree_children_path);
+        return 0;
+    } else if (rc != SR_ERR_OK) {
         ERR("Getting items (%s) from sysrepo failed (%s).", subtree_children_path, sr_strerror(rc));
         free(subtree_children_path);
         return -1;
@@ -565,17 +578,15 @@ error:
 struct nc_server_reply *
 op_get(struct lyd_node *rpc, struct nc_session *ncs)
 {
-    sr_val_t *values = NULL;
-    size_t value_count = 0;
     const struct lys_module *module;
     const struct lys_node *snode;
     struct lyd_node_leaf_list *leaf;
-    struct lyd_node *root = NULL, *node, *yang_lib_data = NULL, *ncm_data = NULL, *iter;
+    struct lyd_node *root = NULL, *node, *yang_lib_data = NULL, *ncm_data = NULL;
     struct lyd_attr *attr;
-    char **filters = NULL, buf[21], *path;
-    int rc, filter_count = 0;
+    char **filters = NULL, *path;
+    int filter_count = 0;
     unsigned int config_only;
-    uint32_t i, j;
+    uint32_t i;
     struct lyxml_elem *subtree_filter;
     struct np2_sessions *sessions;
     struct ly_set *nodeset;
@@ -742,6 +753,10 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         }
     }
 
+    /* we just need to have any schema data node */
+    module = ly_ctx_get_module(rpc->schema->module->ctx, "ietf-yang-library", NULL);
+    snode = module->data->next;
+
     /*
      * create the data tree for the data reply
      */
@@ -783,69 +798,10 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             continue;
         }
 
-        rc = sr_get_items(sessions->srs, filters[i], &values, &value_count);
-        if ((rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_NOT_FOUND)) {
-            /* skip internal modules not known to sysrepo and modules without data */
-            continue;
-        } else if (rc != SR_ERR_OK) {
-            ERR("Getting items (%s) from sysrepo failed (%s).", filters[i], sr_strerror(rc));
-            goto srerror;
+        /* create this subtree */
+        if (opget_build_subtree_from_sysrepo(sessions->srs, &root, filters[i], snode)) {
+            goto error;
         }
-
-        for (j = 0; j < value_count; ++j) {
-            node = NULL;
-            /* create subtree root */
-            ly_errno = LY_SUCCESS;
-            node = lyd_new_path(root, np2srv.ly_ctx, values[j].xpath, op_get_srval(np2srv.ly_ctx, &values[j], buf), 0,
-                                LYD_PATH_OPT_UPDATE);
-            if (ly_errno) {
-                goto error;
-            }
-
-            if (!root) {
-                /* node cannot be NULL */
-                assert(node);
-                root = node;
-            }
-
-            if (node) {
-                /* propagate default flag */
-                if (values[j].dflt) {
-                    /* go down */
-                    for (iter = node;
-                         !(iter->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYXML)) && iter->child;
-                         iter = iter->child);
-                    /* go up, back to the node */
-                    for (; ; iter = iter->parent) {
-                        if (iter->schema->nodetype == LYS_CONTAINER && ((struct lys_node_container *)iter->schema)->presence) {
-                            /* presence container */
-                            break;
-                        } else if (iter->schema->nodetype == LYS_LIST && ((struct lys_node_list *)iter->schema)->keys_size) {
-                            /* list with keys */
-                            break;
-                        }
-                        iter->dflt = 1;
-                        if (iter == node) {
-                            /* done */
-                            break;
-                        }
-                    }
-                } else { /* non default node, propagate it to the parents */
-                    for (iter = node->parent; iter && iter->dflt; iter = iter->parent) {
-                        iter->dflt = 0;
-                    }
-                }
-            }
-
-            /* create the full subtree */
-            if (opget_build_subtree_from_sysrepo(sessions->srs, &root, values[j].xpath)) {
-                goto error;
-            }
-        }
-
-        sr_free_values(values, value_count);
-        value_count = 0;
-        values = NULL;
     }
     lyd_free_withsiblings(yang_lib_data);
     lyd_free_withsiblings(ncm_data);
@@ -875,8 +831,6 @@ error:
         nc_err_set_msg(e, np2log_lasterr(), "en");
         ereply = nc_server_reply_err(e);
     }
-
-    sr_free_values(values, value_count);
 
     for (i = 0; (signed)i < filter_count; ++i) {
         free(filters[i]);
