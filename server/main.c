@@ -37,7 +37,6 @@
 #include "netconf_monitoring.h"
 
 #include "../modules/ietf-netconf@2011-06-01.h"
-#include "../modules/ietf-netconf-notifications@2012-02-06.h"
 #include "../modules/ietf-netconf-monitoring.h"
 #include "../modules/ietf-netconf-with-defaults@2011-06-01.h"
 #include "../modules/nc-notifications@2008-07-14.h"
