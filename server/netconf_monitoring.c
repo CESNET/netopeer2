@@ -152,23 +152,25 @@ ncm_session_add(struct nc_session *session)
 
     pthread_mutex_unlock(&stats.lock);
 
-    /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
-    host = (char*)nc_session_get_host(session);
-    event_data = calloc(host ? 3 : 2, sizeof *event_data);
-    event_data[0].xpath = "/ietf-netconf-notifications:netconf-session-start/username";
-    event_data[0].type = SR_STRING_T;
-    event_data[0].data.string_val = (char*)nc_session_get_username(session);
-    event_data[1].xpath = "/ietf-netconf-notifications:netconf-session-start/session-id";
-    event_data[1].type = SR_UINT32_T;
-    event_data[1].data.uint32_val = nc_session_get_id(session);
-    if (host) {
-        event_data[2].xpath = "/ietf-netconf-notifications:netconf-session-start/source-host";
-        event_data[2].type = SR_STRING_T;
-        event_data[2].data.string_val = host;
+    if (ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL)) {
+        /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
+        host = (char*)nc_session_get_host(session);
+        event_data = calloc(host ? 3 : 2, sizeof *event_data);
+        event_data[0].xpath = "/ietf-netconf-notifications:netconf-session-start/username";
+        event_data[0].type = SR_STRING_T;
+        event_data[0].data.string_val = (char*)nc_session_get_username(session);
+        event_data[1].xpath = "/ietf-netconf-notifications:netconf-session-start/session-id";
+        event_data[1].type = SR_UINT32_T;
+        event_data[1].data.uint32_val = nc_session_get_id(session);
+        if (host) {
+            event_data[2].xpath = "/ietf-netconf-notifications:netconf-session-start/source-host";
+            event_data[2].type = SR_STRING_T;
+            event_data[2].data.string_val = host;
+        }
+        sr_event_notif_send(np2srv.sr_sess.srs, "/ietf-netconf-notifications:netconf-session-start", event_data,
+                            host ? 3 : 2);
+        free(event_data);
     }
-    sr_event_notif_send(np2srv.sr_sess.srs, "/ietf-netconf-notifications:netconf-session-start", event_data,
-                        host ? 3 : 2);
-    free(event_data);
 }
 
 void
@@ -198,44 +200,46 @@ ncm_session_del(struct nc_session *session)
 
     pthread_mutex_unlock(&stats.lock);
 
-    /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
-    host = (char*)nc_session_get_host(session);
-    c = host ? 4 : 3;
-    i = 0;
-    event_data = calloc(c, sizeof *event_data);
-    event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/username";
-    event_data[i].type = SR_STRING_T;
-    event_data[i++].data.string_val = (char*)nc_session_get_username(session);
-    event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/session-id";
-    event_data[i].type = SR_UINT32_T;
-    event_data[i++].data.uint32_val = nc_session_get_id(session);
-    if (host) {
-        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/source-host";
+    if (ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL)) {
+        /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
+        host = (char*)nc_session_get_host(session);
+        c = host ? 4 : 3;
+        i = 0;
+        event_data = calloc(c, sizeof *event_data);
+        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/username";
         event_data[i].type = SR_STRING_T;
-        event_data[i++].data.string_val = host;
+        event_data[i++].data.string_val = (char*)nc_session_get_username(session);
+        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/session-id";
+        event_data[i].type = SR_UINT32_T;
+        event_data[i++].data.uint32_val = nc_session_get_id(session);
+        if (host) {
+            event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/source-host";
+            event_data[i].type = SR_STRING_T;
+            event_data[i++].data.string_val = host;
+        }
+        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/termination-reason";
+        event_data[i].type = SR_ENUM_T;
+        switch (nc_session_get_termreason(session)) {
+        case NC_SESSION_TERM_CLOSED:
+            event_data[i++].data.enum_val = "closed";
+            break;
+        case NC_SESSION_TERM_KILLED:
+            /* TODO killed-by */
+            event_data[i++].data.enum_val = "killed";
+            break;
+        case NC_SESSION_TERM_DROPPED:
+            event_data[i++].data.enum_val = "dropped";
+            break;
+        case NC_SESSION_TERM_TIMEOUT:
+            event_data[i++].data.enum_val = "timeout";
+            break;
+        default:
+            event_data[i++].data.enum_val = "other";
+            break;
+        }
+        sr_event_notif_send(np2srv.sr_sess.srs, "/ietf-netconf-notifications:netconf-session-end", event_data, c);
+        free(event_data);
     }
-    event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/termination-reason";
-    event_data[i].type = SR_ENUM_T;
-    switch (nc_session_get_termreason(session)) {
-    case NC_SESSION_TERM_CLOSED:
-    	event_data[i++].data.enum_val = "closed";
-    	break;
-    case NC_SESSION_TERM_KILLED:
-    	/* TODO killed-by */
-    	event_data[i++].data.enum_val = "killed";
-    	break;
-    case NC_SESSION_TERM_DROPPED:
-    	event_data[i++].data.enum_val = "dropped";
-    	break;
-    case NC_SESSION_TERM_TIMEOUT:
-    	event_data[i++].data.enum_val = "timeout";
-    	break;
-    default:
-    	event_data[i++].data.enum_val = "other";
-    	break;
-    }
-    sr_event_notif_send(np2srv.sr_sess.srs, "/ietf-netconf-notifications:netconf-session-end", event_data, c);
-    free(event_data);
 }
 
 void
