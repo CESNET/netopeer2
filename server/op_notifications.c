@@ -75,7 +75,23 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
 		/* TODO filter is ignored for now */
 	}
 
-	/* TODO check for the correct time boundaries */
+	/* check for the correct time boundaries */
+	if (start > now) {
+	    /* it is not valid to specify future start time */
+	    e = nc_err(NC_ERR_BAD_ELEM, NC_ERR_TYPE_PROT, "startTime");
+	    nc_err_set_msg(e, "Requested startTime is later than the current time.", "en");
+	    goto error;
+	} else if (!start && stop) {
+	    /* stopTime must be used with startTime */
+	    e = nc_err(NC_ERR_MISSING_ELEM, NC_ERR_TYPE_PROT, "startTime");
+	    nc_err_set_msg(e, "The stopTime element must be used with the startTime element.", "en");
+	    goto error;
+	} else if (start > stop) {
+	    /* stopTime must be later than startTime */
+	    e = nc_err(NC_ERR_BAD_ELEM, NC_ERR_TYPE_PROT, "stopTime");
+	    nc_err_set_msg(e, "Requested stopTime is earlier than the specified startTime.", "en");
+	    goto error;
+	}
 
 	pthread_mutex_lock(&subscribers.lock);
 
@@ -224,6 +240,7 @@ np2srv_ntf_clb(const char *xpath, const sr_node_t *trees, const size_t tree_cnt,
     const struct lys_module *mod;
     size_t i;
     char *datetime = NULL, numstr[21];
+    time_t now;
 
     /* if we have no subscribers, it is not needed to do anything here */
     if (!subscribers.num) {
@@ -320,9 +337,24 @@ np2srv_ntf_clb(const char *xpath, const sr_node_t *trees, const size_t tree_cnt,
     ntf = NULL;
     datetime = NULL;
 
+    /* get the current time */
+    now = time(NULL);
+
     /* send notification to the all subscribed receivers */
     pthread_mutex_lock(&subscribers.lock);
     for (i = 0; i < subscribers.num; i++) {
+        /* maintain subscribers list by checking subscription stop times */
+        if (now > subscribers.list[i].stop) {
+            /* expired subscriber, remove it */
+            subscribers.num--;
+            lydict_remove(np2srv.ly_ctx, subscribers.list[i].stream);
+            if (i < subscribers.num) {
+                /* replace it by the last subscriber */
+                memcpy(&subscribers.list[i], &subscribers.list[subscribers.num], sizeof *subscribers.list);
+            } /* else just decrease the number of subscribers and forget */
+            i--;
+        }
+
         /* TODO check subscribed stream, now all the messages are in the default NETCONF stream */
         nc_server_notif_send(subscribers.list[i].session, ntf_msg, 5000);
     }
