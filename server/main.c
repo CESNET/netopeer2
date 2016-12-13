@@ -306,6 +306,7 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
             /* get module's features */
             rc = sr_list_schemas(np2srv.sr_sess.srs, &schemas, &count);
             if (rc != SR_ERR_OK) {
+                pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
                 ERR("Unable to get list of sysrepo schemas for %s%s%s module feature (%s).", module_name,
                     revision ? "@" : "", revision ? revision : "", sr_strerror(rc));
                 return;
