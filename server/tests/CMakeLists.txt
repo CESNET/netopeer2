@@ -10,7 +10,7 @@ foreach(mock_func IN LISTS ${test}_mock_funcs)
 endforeach()
 
 set(test test_get)
-set(${test}_mock_funcs sr_session_refresh sr_get_items)
+set(${test}_mock_funcs sr_session_refresh)
 set(${test}_wrap_link_flags "-Wl")
 foreach(mock_func IN LISTS test_close_session_mock_funcs ${test}_mock_funcs)
     set(${test}_wrap_link_flags "${${test}_wrap_link_flags},--wrap=${mock_func}")

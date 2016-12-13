@@ -195,26 +195,6 @@ __wrap_sr_feature_enable_subscribe(sr_session_ctx_t *session, sr_feature_enable_
 }
 
 int
-__wrap_sr_get_items(sr_session_ctx_t *session, const char *xpath, sr_val_t **values, size_t *value_cnt)
-{
-    (void)session;
-
-    if (!strcmp(xpath, "/ietf-interfaces:*")) {
-        *values = calloc(1, sizeof **values);
-
-        (*values)[0].xpath = strdup("/ietf-interfaces:interfaces");
-        (*values)[0].type = SR_CONTAINER_T;
-
-        *value_cnt = 1;
-    } else {
-        *values = NULL;
-        *value_cnt = 0;
-    }
-
-    return SR_ERR_OK;
-}
-
-int
 __wrap_sr_session_switch_ds(sr_session_ctx_t *session, sr_datastore_t ds)
 {
     (void)session;
@@ -241,7 +221,7 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
     char *path;
     (void)session;
 
-    if (!strcmp(xpath, "/ietf-interfaces:interfaces//*")) {
+    if (!strcmp(xpath, "/ietf-interfaces:*//*")) {
         if (!ietf_if_set) {
             ietf_if_set = lyd_find_xpath(data, xpath);
         }
