@@ -278,6 +278,8 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
 {
     int rc;
     char *data = NULL;
+    struct lyd_node *info, *ntf;
+    const char *setid;
     const struct lys_module *mod;
     sr_schema_t *schemas = NULL;
     size_t count, i, j;
@@ -341,6 +343,23 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
 
     /* unlock libyang context */
     pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
+
+    /* generate yang-library-change notification */
+    rc = 0;
+    info = ly_ctx_info(np2srv.ly_ctx);
+    if (info) {
+        setid = ((struct lyd_node_leaf_list *)info->child->prev)->value_str;
+        ntf = lyd_new_path(NULL, np2srv.ly_ctx, "/ietf-yang-library:yang-library-change", NULL, 0, 0);
+        lyd_new_leaf(ntf, info->schema->module, "module-set-id", setid);
+        rc = lyd_validate(&ntf, LYD_OPT_NOTIF, info);
+        lyd_free_withsiblings(info);
+
+        if (!rc) {
+            /* send notification */
+            np2srv_ntf_send(&ntf, time(NULL));
+        }
+        lyd_free(ntf);
+    }
 }
 
 void
