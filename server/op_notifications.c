@@ -31,7 +31,7 @@
 
 struct subscriber_s {
 	struct nc_session *session;
-	const char *stream;
+	const struct lys_module *stream;
 	time_t start;
 	time_t stop;
 };
@@ -47,20 +47,53 @@ struct nc_server_reply *
 op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
 {
 	uint16_t i;
+	uint32_t idx;
 	time_t now = time(NULL), start = 0, stop = 0;
 	const char *stream;
 	struct lyd_node *node;
+	struct lys_node *snode;
 	struct subscriber_s *new = NULL;
 	struct nc_server_error *e = NULL;
+	const struct lys_module *mod, *pstream;
 
 	/*
 	 * parse RPC to get params
 	 */
 	/* stream is always present - as explicit or default node */
 	stream = ((struct lyd_node_leaf_list *)rpc->child)->value_str;
-	((struct lyd_node_leaf_list *)rpc->child)->value_str = NULL;
 
-	/* TODO check for the correct stream name */
+	/* check for the correct stream name */
+	if (!strcmp(stream, "NETCONF")) {
+	    /* default stream */
+	    pstream = NULL;
+	} else {
+	    /* stream name is supposed to match the name of a schema in the context having some
+	     * notifications defined */
+	    idx = 0;
+	    while ((mod = ly_ctx_get_module_iter(np2srv.ly_ctx, &idx))) {
+	        LY_TREE_FOR(mod->data, snode) {
+	            if (snode->nodetype == LYS_NOTIF) {
+	                break;
+	            }
+	        }
+	        if (!snode) {
+	            /* module has no notification */
+	            continue;
+	        }
+
+	        if (!strcmp(stream, mod->name)) {
+	            /* we have a match */
+	            pstream = mod;
+	            break;
+	        }
+	    }
+	    if (!mod) {
+	        /* requested stream does not match any schema with a notification */
+	        e = nc_err(NC_ERR_BAD_ELEM, NC_ERR_TYPE_PROT, "stream");
+	        nc_err_set_msg(e, "Requested stream name does not match any of the provided streams.", "en");
+	        goto error;
+	    }
+	}
 
 	/* get optional parameters */
 	LY_TREE_FOR(rpc->child->next, node) {
@@ -72,7 +105,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
 		} else if (!strcmp(node->schema->name, "stopTime")) {
 			stop = nc_datetime2time(((struct lyd_node_leaf_list *)node)->value_str);
 		}
-		/* TODO filter is ignored for now */
+		/* TODO support subtree and XPath filters */
 	}
 
 	/* check for the correct time boundaries */
@@ -103,8 +136,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
 				/* previous subscription ended, update it and use it */
 				subscribers.list[i].start = start;
 				subscribers.list[i].stop = stop;
-				lydict_remove(np2srv.ly_ctx, subscribers.list[i].stream);
-				subscribers.list[i].stream = stream;
+				subscribers.list[i].stream = pstream;
 				new = &subscribers.list[i];
 				break;
 			} else {
@@ -118,7 +150,6 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
 			/* check times for the subscribers list maintenance */
 			if (subscribers.list[i].stop && subscribers.list[i].stop < now) {
 				/* expired subscriber, clean it */
-				lydict_remove(np2srv.ly_ctx, subscribers.list[i].stream);
 				subscribers.num--;
 				if (i + 1 < subscribers.num) {
 					/* replace it by the last subscriber */
@@ -151,7 +182,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
 	new->session = ncs;
 	new->start = start;
 	new->stop = stop;
-	new->stream = stream;
+	new->stream = pstream;
 
 	pthread_mutex_unlock(&subscribers.lock);
 
@@ -173,7 +204,6 @@ op_ntf_unsubscribe(struct nc_session *session)
 	for (i = 0; i < subscribers.num; i++) {
 		if (subscribers.list[i].session == session) {
 			/* we have match */
-			lydict_remove(np2srv.ly_ctx, subscribers.list[i].stream);
 			subscribers.num--;
 			if (i < subscribers.num) {
 				/* move here the subscriber from the end of the list */
@@ -186,7 +216,6 @@ op_ntf_unsubscribe(struct nc_session *session)
 			if (subscribers.list[i].stop && subscribers.list[i].stop < now) {
 				/* expired subscriber, remove it */
 				subscribers.num--;
-				lydict_remove(np2srv.ly_ctx, subscribers.list[i].stream);
 				if (i < subscribers.num) {
 					/* replace it by the last subscriber */
 					memcpy(&subscribers.list[i], &subscribers.list[subscribers.num], sizeof *subscribers.list);
@@ -208,19 +237,53 @@ op_ntf_unsubscribe(struct nc_session *session)
 struct lyd_node *
 ntf_get_data(void)
 {
+    uint32_t idx = 0;
     struct lyd_node *root, *stream;
+    struct lys_node *snode;
+    const struct lys_module *mod;
 
     root = lyd_new_path(NULL, np2srv.ly_ctx, "/nc-notifications:netconf/streams", NULL, 0, 0);
     if (!root || !root->child) {
         goto error;
     }
+
+    /* generic stream */
     stream = lyd_new_path(root, np2srv.ly_ctx, "/nc-notifications:netconf/streams/stream[name='NETCONF']", NULL, 0, 0);
     if (!stream) {
         goto error;
     }
-    lyd_new_leaf(stream, stream->schema->module, "description",
-                 "Default NETCONF stream containing all the Event Notifications.");
-    lyd_new_leaf(stream, stream->schema->module, "replaySupport", "false");
+    if (!lyd_new_leaf(stream, stream->schema->module, "description",
+                      "Default NETCONF stream containing all the Event Notifications.")) {
+        goto error;
+    }
+    if (!lyd_new_leaf(stream, stream->schema->module, "replaySupport", "false")) {
+        goto error;
+    }
+
+    /* local streams - matching a module specifying a notifications */
+    while ((mod = ly_ctx_get_module_iter(np2srv.ly_ctx, &idx))) {
+        LY_TREE_FOR(mod->data, snode) {
+            if (snode->nodetype == LYS_NOTIF) {
+                break;
+            }
+        }
+        if (!snode) {
+            /* module has no notification */
+            continue;
+        }
+
+        /* generate information about the stream/module */
+        stream = lyd_new(root->child, root->schema->module, "stream");
+        if (!stream) {
+            goto error;
+        }
+        if (!lyd_new_leaf(stream, stream->schema->module, "name", mod->name)) {
+            goto error;
+        }
+        if (!lyd_new_leaf(stream, stream->schema->module, "replaySupport", "false")) {
+            goto error;
+        }
+    }
 
     return root;
 
@@ -230,25 +293,70 @@ error:
 }
 
 void
+np2srv_ntf_send(struct lyd_node **ntf, time_t timestamp)
+{
+    size_t i;
+    char *datetime;
+    struct nc_server_notif *ntf_msg = NULL;
+    struct lys_module *mod;
+    time_t now;
+
+    /* build the notification */
+    datetime = nc_time2datetime(timestamp, NULL, NULL);
+    ntf_msg = nc_server_notif_new(*ntf, datetime, 0);
+    if (!ntf_msg) {
+        free(datetime);
+        return;
+    }
+    mod = (*ntf)->schema->module;
+    *ntf = NULL;
+
+    /* get the current time */
+    now = time(NULL);
+
+    /* send notification to the all subscribed receivers */
+    pthread_mutex_lock(&subscribers.lock);
+    for (i = 0; i < subscribers.num; i++) {
+        /* maintain subscribers list by checking subscription stop times */
+        if (subscribers.list[i].stop && subscribers.list[i].stop < now) {
+            /* expired subscriber, remove it */
+            subscribers.num--;
+            if (i < subscribers.num) {
+                /* replace it by the last subscriber */
+                memcpy(&subscribers.list[i], &subscribers.list[subscribers.num], sizeof *subscribers.list);
+            } /* else just decrease the number of subscribers and forget */
+            i--;
+            continue;
+        }
+
+        /* check subscribed stream */
+        if (!subscribers.list[i].stream || /* generic NETCONF session where we send all the notifications */
+                subscribers.list[i].stream == mod) { /* notification from the subscribed schema */
+            nc_server_notif_send(subscribers.list[i].session, ntf_msg, 5000);
+        }
+    }
+    pthread_mutex_unlock(&subscribers.lock);
+
+    nc_server_notif_free(ntf_msg);
+}
+
+void
 np2srv_ntf_clb(const char *xpath, const sr_node_t *trees, const size_t tree_cnt, time_t timestamp,
                  void *UNUSED(private_ctx))
 {
-    struct nc_server_notif *ntf_msg = NULL;
     const struct lys_node *snode;
     struct lyd_node *ntf = NULL, *parent, *node;
     const sr_node_t *srnode, *srnext;
     const struct lys_module *mod;
     size_t i;
-    char *datetime = NULL, numstr[21];
-    time_t now;
+    char numstr[21];
 
     /* if we have no subscribers, it is not needed to do anything here */
     if (!subscribers.num) {
         return;
     }
 
-    datetime = nc_time2datetime(timestamp, NULL, NULL);
-    VRB("Received notification \"%s\" (%s).", xpath, datetime);
+    VRB("Received notification \"%s\" (%d).", xpath, timestamp);
 
     ntf = lyd_new_path(NULL, np2srv.ly_ctx, xpath, NULL, 0, 0);
     if (!ntf) {
@@ -333,35 +441,10 @@ np2srv_ntf_clb(const char *xpath, const sr_node_t *trees, const size_t tree_cnt,
             }
         }
     }
-    ntf_msg = nc_server_notif_new(ntf, datetime, 0);
-    ntf = NULL;
-    datetime = NULL;
 
-    /* get the current time */
-    now = time(NULL);
-
-    /* send notification to the all subscribed receivers */
-    pthread_mutex_lock(&subscribers.lock);
-    for (i = 0; i < subscribers.num; i++) {
-        /* maintain subscribers list by checking subscription stop times */
-        if (now > subscribers.list[i].stop) {
-            /* expired subscriber, remove it */
-            subscribers.num--;
-            lydict_remove(np2srv.ly_ctx, subscribers.list[i].stream);
-            if (i < subscribers.num) {
-                /* replace it by the last subscriber */
-                memcpy(&subscribers.list[i], &subscribers.list[subscribers.num], sizeof *subscribers.list);
-            } /* else just decrease the number of subscribers and forget */
-            i--;
-        }
-
-        /* TODO check subscribed stream, now all the messages are in the default NETCONF stream */
-        nc_server_notif_send(subscribers.list[i].session, ntf_msg, 5000);
-    }
-    pthread_mutex_unlock(&subscribers.lock);
+    /* send the notification */
+    np2srv_ntf_send(&ntf, timestamp);
 
 error:
-    free(datetime);
     lyd_free(ntf);
-    nc_server_notif_free(ntf_msg);
 }
