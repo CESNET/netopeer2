@@ -723,7 +723,7 @@ process_loop(void *arg)
         } else {
             /* if there is no active session or timeout, rest for a while */
             pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
-            usleep(100);
+            usleep(100); /* give others time to work with context */
             continue;
         }
 
@@ -753,6 +753,7 @@ process_loop(void *arg)
             }
         }
         pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
+        usleep(100); /* give others time to work with context */
     }
 
     /* cleanup */
