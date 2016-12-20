@@ -282,7 +282,8 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
         pthread_rwlock_wrlock(&np2srv.ly_ctx_lock);
 
         /* remove the specified module from the context */
-        ly_ctx_remove_module(np2srv.ly_ctx, module_name, revision, NULL);
+        mod = ly_ctx_get_module(np2srv.ly_ctx, module_name, revision);
+        ly_ctx_remove_module(mod, NULL);
         /* ignore return value, the function can fail in case the module was already removed
          * because of dependency in some of the previous call */
     }
