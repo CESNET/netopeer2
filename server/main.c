@@ -478,7 +478,7 @@ server_init(void)
     const struct lys_module *mod;
 
     /* connect to the sysrepo */
-    rc = sr_connect("netopeer2", false, &np2srv.sr_conn);
+    rc = sr_connect("netopeer2", SR_CONN_DAEMON_REQUIRED | SR_CONN_DAEMON_START, &np2srv.sr_conn);
     if (rc != SR_ERR_OK) {
         ERR("Unable to connect to sysrepod (%s).", sr_strerror(rc));
         return EXIT_FAILURE;
