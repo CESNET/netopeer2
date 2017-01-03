@@ -29,7 +29,7 @@ else()
 endif()
 
 # set version
-set(NP2SRV_VERSION 0.3.28)
+set(NP2SRV_VERSION 0.3.29)
 
 # set prefix for the PID file
 if (NOT PIDFILE_PREFIX)
