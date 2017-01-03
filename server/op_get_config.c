@@ -817,9 +817,19 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
 send_reply:
     /* build RPC Reply */
+    if (lyd_validate(&root, (config_only ? LYD_OPT_GETCONFIG : LYD_OPT_GET), NULL)) {
+        EINT;
+        goto error;
+    }
     node = root;
     root = lyd_dup(rpc, 0);
+
     lyd_new_output_anydata(root, NULL, "data", node, LYD_ANYDATA_DATATREE);
+    if (lyd_validate(&root, LYD_OPT_RPCREPLY, NULL)) {
+        EINT;
+        goto error;
+    }
+
     return nc_server_reply_data(root, nc_wd, NC_PARAMTYPE_FREE);
 
 srerror:
