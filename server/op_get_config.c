@@ -817,7 +817,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
 send_reply:
     /* build RPC Reply */
-    if (lyd_validate(&root, (config_only ? LYD_OPT_GETCONFIG : LYD_OPT_GET), NULL)) {
+    if (lyd_validate(&root, (config_only ? LYD_OPT_GETCONFIG : LYD_OPT_GET), np2srv.ly_ctx)) {
         EINT;
         goto error;
     }
