@@ -29,7 +29,7 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
 {
     int rc = -2, ret;
     const char *xpath, *key_end, *oper_str;
-    char *path = NULL;
+    char *path = NULL, quot;
     char *list1_key = NULL, *list2_key = NULL;
     sr_val_t *keydata_val = NULL;
     NC_SSH_KEY_TYPE keytype;
@@ -41,7 +41,7 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
 
     xpath = (sr_old_val ? sr_old_val->xpath : sr_new_val->xpath);
 
-    if (strncmp(xpath, "/ietf-system:system/authentication/user[name='", 46)) {
+    if (strncmp(xpath, "/ietf-system:system/authentication/user[name=", 45)) {
         EINT;
         return SR_ERR_INTERNAL;
     }
@@ -62,37 +62,43 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
     }
     VRB("Path \"%s\" %s.", xpath, oper_str);
 
-    xpath += 46;
+    xpath += 45;
 
-    key_end = strchr(xpath, '\'');
+    quot = xpath[0];
+    ++xpath;
+
+    key_end = strchr(xpath, quot);
     if (!key_end) {
         EINT;
         return SR_ERR_INTERNAL;
     }
     list1_key = strndup(xpath, key_end - xpath);
-    xpath = key_end;
+    xpath = key_end + 1;
 
-    if (strncmp(xpath, "']/authorized-key[name='", 24)) {
+    if (strncmp(xpath, "]/authorized-key[name=", 22)) {
         EINT;
         rc = SR_ERR_INTERNAL;
         goto cleanup;
     }
-    xpath += 24;
+    xpath += 22;
 
-    key_end = strchr(xpath, '\'');
+    quot = xpath[0];
+    ++xpath;
+
+    key_end = strchr(xpath, quot);
     if (!key_end) {
         EINT;
         return SR_ERR_INTERNAL;
     }
     list2_key = strndup(xpath, key_end - xpath);
-    xpath = key_end;
+    xpath = key_end + 1;
 
-    if (strncmp(xpath, "']/", 3)) {
+    if (strncmp(xpath, "]/", 2)) {
         EINT;
         rc = SR_ERR_INTERNAL;
         goto cleanup;
     }
-    xpath += 3;
+    xpath += 2;
 
     if (!strcmp(xpath, "name")) {
         /* we actually don't care */

@@ -156,7 +156,7 @@ set_tls_cert(sr_session_ctx_t *session, const char *config_name, sr_change_oper_
              sr_val_t *sr_new_val, int listen_or_ch)
 {
     int rc = EXIT_FAILURE, ret;
-    char *path, *key_begin, *key_end;
+    char *path, *key_begin, *key_end, quot;
     sr_val_t *sr_cert;
 
     switch (sr_oper) {
@@ -187,15 +187,17 @@ set_tls_cert(sr_session_ctx_t *session, const char *config_name, sr_change_oper_
         free(path);
 
         /* get the private key name */
-        key_begin = strstr(sr_cert->xpath, "private-key[name='");
+        key_begin = strstr(sr_cert->xpath, "private-key[name=");
         if (!key_begin) {
             EINT;
             sr_free_val(sr_cert);
             return -1;
         }
-        key_begin += 18;
+        key_begin += 17;
+        quot = key_begin[0];
+        ++key_begin;
 
-        key_end = strchr(key_begin, '\'');
+        key_end = strchr(key_begin, quot);
         if (!key_end) {
             EMEM;
             sr_free_val(sr_cert);
@@ -242,7 +244,7 @@ add_tls_trusted_cert(sr_session_ctx_t *session, const char *config_name, sr_chan
                      sr_val_t *sr_new_val, int listen_or_ch)
 {
     int rc = EXIT_FAILURE, ret;
-    char *str;
+    char *str, quot;
     const char *key_begin, *key_end;
     sr_val_t *sr_certs;
     size_t sr_cert_count, i;
@@ -272,14 +274,16 @@ add_tls_trusted_cert(sr_session_ctx_t *session, const char *config_name, sr_chan
         free(str);
 
         for (i = 0; i < sr_cert_count; ++i) {
-            key_begin = strstr(sr_certs[i].xpath, "trusted-certificate[name='");
+            key_begin = strstr(sr_certs[i].xpath, "trusted-certificate[name=");
             if (!key_begin) {
                 rc = EXIT_FAILURE;
                 break;
             }
-            key_begin += 26;
+            key_begin += 25;
+            quot = key_begin[0];
+            ++key_begin;
 
-            key_end = strchr(key_begin, '\'');
+            key_end = strchr(key_begin, quot);
             if (!key_end) {
                 rc = EXIT_FAILURE;
                 break;
@@ -344,19 +348,23 @@ add_tls_ctn(const char *xpath, const char *config_name, sr_change_oper_t sr_oper
     int rc = EXIT_SUCCESS;
     uint32_t cur_id;
     sr_val_t *sr_val;
+    char quot;
     char *set_fingerprint = NULL;
     NC_TLS_CTN_MAPTYPE set_map_type = 0;
     char *set_name = NULL;
 
-    assert(!strncmp(xpath, "cert-to-name[id='", 17));
-    xpath += 17;
+    assert(!strncmp(xpath, "cert-to-name[id=", 16));
+    xpath += 16;
+    quot = xpath[0];
+    ++xpath;
 
     cur_id = atoi(xpath);
     assert(!*id || (cur_id == *id));
 
-    xpath = strchr(xpath, '\'');
-    assert(!strncmp(xpath, "']/", 3));
-    xpath += 3;
+    xpath = strchr(xpath, quot);
+    ++xpath;
+    assert(!strncmp(xpath, "]/", 2));
+    xpath += 2;
 
     sr_val = (sr_new_val ? sr_new_val : sr_old_val);
 
@@ -706,6 +714,7 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
     int rc = -2;
     const char *xpath, *list1_key = NULL, *list2_key = NULL, *oper_str;
     uint32_t id = 0;
+    char quot;
     char *fingerprint = NULL;
     NC_TLS_CTN_MAPTYPE map_type = 0;
     const char *name = NULL;
@@ -833,11 +842,14 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                     xpath += 13;
                     if (!strncmp(xpath, "certificate", 11)) {
                         xpath += 11;
-                        assert(!strncmp(xpath, "[name='", 7));
-                        xpath += 7;
-                        xpath = strchr(xpath, '\'');
-                        assert(!strncmp(xpath, "']/", 3));
-                        xpath += 3;
+                        assert(!strncmp(xpath, "[name=", 6));
+                        xpath += 6;
+                        quot = xpath[0];
+                        ++xpath;
+                        xpath = strchr(xpath, quot);
+                        ++xpath;
+                        assert(!strncmp(xpath, "]/", 2));
+                        xpath += 2;
 
                         if (!strcmp(xpath, "name")) {
                             rc = set_tls_cert(session, list1_key, sr_oper, sr_old_val, sr_new_val, 0);
@@ -1033,11 +1045,14 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                     xpath += 13;
                     if (!strncmp(xpath, "certificate", 11)) {
                         xpath += 11;
-                        assert(!strncmp(xpath, "[name='", 7));
-                        xpath += 7;
-                        xpath = strchr(xpath, '\'');
-                        assert(!strncmp(xpath, "']/", 3));
-                        xpath += 3;
+                        assert(!strncmp(xpath, "[name=", 6));
+                        xpath += 6;
+                        quot = xpath[0];
+                        ++xpath;
+                        xpath = strchr(xpath, quot);
+                        ++xpath;
+                        assert(!strncmp(xpath, "]/", 2));
+                        xpath += 2;
 
                         if (!strcmp(xpath, "name")) {
                             rc = set_tls_cert(session, list1_key, sr_oper, sr_old_val, sr_new_val, 1);
