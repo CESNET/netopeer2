@@ -382,7 +382,7 @@ np2srv_init_schemas(int first)
     if (!np2srv.ly_ctx) {
         goto error;
     }
-    ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_import_clb, NULL);
+    ly_ctx_set_module_imp_clb(np2srv.ly_ctx, np2srv_ly_import_clb, NULL);
 
     /* 1) use modules from sysrepo */
     for (i = 0; i < count; i++) {
@@ -424,7 +424,7 @@ np2srv_init_schemas(int first)
             }
         }
     }
-    ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_import_clb, NULL);
+    ly_ctx_set_module_imp_clb(np2srv.ly_ctx, np2srv_ly_import_clb, NULL);
     sr_free_schemas(schemas, count);
     schemas = NULL;
 
