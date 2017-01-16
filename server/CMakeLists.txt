@@ -49,6 +49,8 @@ endif()
 if (NOT KEYSTORED_KEYS_DIR)
     message(STATUS "Failed to learn keystored keys directory, set KEYSTORED_KEYS_DIR manually or server configuration will not work.")
     set(KEYSTORED_KEYS_DIR "none")
+else()
+    message(STATUS "keystored keys directory is \"${KEYSTORED_KEYS_DIR}\".")
 endif()
 
 configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_SOURCE_DIR}/config.h" ESCAPE_QUOTES @ONLY)
