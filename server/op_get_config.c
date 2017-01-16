@@ -791,12 +791,16 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         }
     }
     lyd_free_withsiblings(yang_lib_data);
+    yang_lib_data = NULL;
     lyd_free_withsiblings(ncm_data);
+    ncm_data = NULL;
 
     for (i = 0; (signed)i < filter_count; ++i) {
         free(filters[i]);
     }
+    filter_count = 0;
     free(filters);
+    filters = NULL;
 
     /* debug
     lyd_print_file(stdout, root, LYD_XML_FORMAT, LYP_WITHSIBLINGS);
