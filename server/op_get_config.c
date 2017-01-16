@@ -32,39 +32,30 @@
 
 /* add whole subtree */
 static int
-opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, const char *subtree_path,
-                                 const struct lys_node *snode)
+opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, const char *subtree_xpath)
 {
     sr_val_t *value;
     sr_val_iter_t *sriter;
     struct lyd_node *node, *iter;
-    struct ly_set *set;
-    char *subtree_children_path = NULL, buf[128];
+    char *full_subtree_xpath = NULL, buf[128];
     int rc;
 
-    set = lys_find_xpath(snode, subtree_path, 0);
-    if (!set) {
-        EINT;
+    if (asprintf(&full_subtree_xpath, "%s//.", subtree_xpath) == -1) {
+        EMEM;
         return -1;
-    } else if ((set->number != 1) || (set->set.s[0]->nodetype != LYS_LEAF)) {
-        /* it's not just a leaf */
-        if (asprintf(&subtree_children_path, "%s//*", subtree_path) == -1) {
-            EMEM;
-            return -1;
-        }
     }
 
-    rc = sr_get_items_iter(ds, subtree_children_path ? subtree_children_path : subtree_path, &sriter);
+    rc = sr_get_items_iter(ds, full_subtree_xpath, &sriter);
     if ((rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_NOT_FOUND)) {
         /* it's ok, model without data */
-        free(subtree_children_path);
+        free(full_subtree_xpath);
         return 0;
     } else if (rc != SR_ERR_OK) {
-        ERR("Getting items (%s) from sysrepo failed (%s).", subtree_children_path, sr_strerror(rc));
-        free(subtree_children_path);
+        ERR("Getting items (%s) from sysrepo failed (%s).", full_subtree_xpath, sr_strerror(rc));
+        free(full_subtree_xpath);
         return -1;
     }
-    free(subtree_children_path);
+    free(full_subtree_xpath);
 
     ly_errno = LY_SUCCESS;
     while (sr_get_item_next(ds, sriter, &value) == SR_ERR_OK) {
@@ -753,10 +744,6 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         }
     }
 
-    /* we just need to have any schema data node */
-    module = ly_ctx_get_module(rpc->schema->module->ctx, "ietf-yang-library", NULL);
-    snode = module->data->next;
-
     /*
      * create the data tree for the data reply
      */
@@ -799,7 +786,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         }
 
         /* create this subtree */
-        if (opget_build_subtree_from_sysrepo(sessions->srs, &root, filters[i], snode)) {
+        if (opget_build_subtree_from_sysrepo(sessions->srs, &root, filters[i])) {
             goto error;
         }
     }

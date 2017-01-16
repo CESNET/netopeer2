@@ -210,9 +210,9 @@ struct nc_session {
 };
 
 struct nc_pollsession {
-    struct pollfd *pfds;
     struct nc_session **sessions;
     uint16_t session_count;
+    uint16_t last_event_session;
 
     pthread_cond_t cond;
     pthread_mutex_t lock;
@@ -306,8 +306,6 @@ __wrap_nc_ps_clear(struct nc_pollsession *ps, int all, void (*data_free)(void *)
         }
         free(ps->sessions);
         ps->sessions = NULL;
-        free(ps->pfds);
-        ps->pfds = NULL;
         ps->session_count = 0;
     }
 }

@@ -221,7 +221,7 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
     char *path;
     (void)session;
 
-    if (!strcmp(xpath, "/ietf-interfaces:*//*")) {
+    if (!strcmp(xpath, "/ietf-interfaces:*//.")) {
         if (!ietf_if_set) {
             ietf_if_set = lyd_find_xpath(data, xpath);
         }
