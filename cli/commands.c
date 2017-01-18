@@ -3,7 +3,7 @@
  * @author Michal Vasko <mvasko@cesnet.cz>
  * @brief netopeer2-cli commands
  *
- * Copyright (c) 2015 CESNET, z.s.p.o.
+ * Copyright (c) 2017 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -199,10 +199,10 @@ cli_ntf_clb(struct nc_session *session, const struct nc_notif *notif)
 }
 
 static int
-cli_send_recv(struct nc_rpc *rpc, FILE *output)
+cli_send_recv(struct nc_rpc *rpc, FILE *output, NC_WD_MODE wd_mode)
 {
     char *str, *model_data;
-    int ret = 0;
+    int ret = 0, ly_wd;
     uint16_t i, j;
     uint64_t msgid;
     struct lyd_node_anydata *any;
@@ -300,7 +300,26 @@ recv_reply:
                 break;
             }
         }
-        lyd_print_file(output, data_rpl->data, output_format, LYP_WITHSIBLINGS | output_flag);
+
+        switch (wd_mode) {
+        case NC_WD_ALL:
+            ly_wd = LYP_WD_ALL;
+            break;
+        case NC_WD_ALL_TAG:
+            ly_wd = LYP_WD_ALL_TAG;
+            break;
+        case NC_WD_TRIM:
+            ly_wd = LYP_WD_TRIM;
+            break;
+        case NC_WD_EXPLICIT:
+            ly_wd = LYP_WD_EXPLICIT;
+            break;
+        default:
+            ly_wd = 0;
+            break;
+        }
+
+        lyd_print_file(output, data_rpl->data, output_format, LYP_WITHSIBLINGS | ly_wd | output_flag);
         if (output == stdout) {
             fprintf(output, "\n");
         } else {
@@ -2620,7 +2639,7 @@ cmd_cancelcommit(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
 
@@ -2703,7 +2722,7 @@ cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
 
@@ -2892,7 +2911,7 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
 
@@ -2979,7 +2998,7 @@ cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
 
@@ -3048,7 +3067,7 @@ cmd_discardchanges(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
     return ret;
@@ -3240,7 +3259,7 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
 
@@ -3400,9 +3419,9 @@ cmd_get(const char *arg, char **tmp_config_file)
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output);
+        ret = cli_send_recv(rpc, output, wd);
     } else {
-        ret = cli_send_recv(rpc, stdout);
+        ret = cli_send_recv(rpc, stdout, wd);
     }
 
     nc_rpc_free(rpc);
@@ -3586,9 +3605,9 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output);
+        ret = cli_send_recv(rpc, output, wd);
     } else {
-        ret = cli_send_recv(rpc, stdout);
+        ret = cli_send_recv(rpc, stdout, wd);
     }
 
     nc_rpc_free(rpc);
@@ -3678,7 +3697,7 @@ cmd_killsession(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
     return ret;
@@ -3765,7 +3784,7 @@ cmd_lock(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
     return ret;
@@ -3852,7 +3871,7 @@ cmd_unlock(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
     return ret;
@@ -4002,7 +4021,7 @@ cmd_validate(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
 
@@ -4173,7 +4192,7 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
     nc_rpc_free(rpc);
 
     if (ret) {
@@ -4299,9 +4318,9 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output);
+        ret = cli_send_recv(rpc, output, 0);
     } else {
-        ret = cli_send_recv(rpc, stdout);
+        ret = cli_send_recv(rpc, stdout, 0);
     }
 
     nc_rpc_free(rpc);
@@ -4431,9 +4450,9 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output);
+        ret = cli_send_recv(rpc, output, 0);
     } else {
-        ret = cli_send_recv(rpc, stdout);
+        ret = cli_send_recv(rpc, stdout, 0);
     }
 
     nc_rpc_free(rpc);
