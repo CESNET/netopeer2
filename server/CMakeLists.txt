@@ -8,7 +8,7 @@ include(GNUInstallDirs)
 
 # check the supported platform
 if(NOT UNIX)
-	message(FATAL_ERROR "Only *nix like systems are supported.")
+    message(FATAL_ERROR "Only *nix like systems are supported.")
 endif()
 
 # set default build type if not specified by user
@@ -33,7 +33,7 @@ set(NP2SRV_VERSION 0.3.32)
 
 # set prefix for the PID file
 if (NOT PIDFILE_PREFIX)
-	set(PIDFILE_PREFIX "/var/run")
+    set(PIDFILE_PREFIX "/var/run")
 endif()
 
 # get keystored keys directory
@@ -57,19 +57,19 @@ configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_SOURCE_DIR}/config
 
 # source files
 set(srcs
-	ietf_netconf_server.c
-	ietf_system.c
-	netconf_monitoring.c
-	operations.c
-	op_get_config.c
-	op_editconfig.c
-	op_copyconfig.c
-	op_deleteconfig.c
-	op_candidate.c
-	op_validate.c
-	op_un_lock.c
-	op_generic.c
-	log.c)
+    ietf_netconf_server.c
+    ietf_system.c
+    netconf_monitoring.c
+    operations.c
+    op_get_config.c
+    op_editconfig.c
+    op_copyconfig.c
+    op_deleteconfig.c
+    op_candidate.c
+    op_validate.c
+    op_un_lock.c
+    op_generic.c
+    log.c)
 
 # object library to build source codes only once for the main binary and tests
 add_library(serverobj OBJECT ${srcs})
@@ -90,7 +90,7 @@ include_directories(${LIBYANG_INCLUDE_DIRS})
 # dependencies - libnetconf2
 find_package(LibNETCONF2 REQUIRED)
 if (NOT LIBNETCONF2_ENABLED_SSH)
-	message(SEND_ERROR "Missing SSH support in libnetconf2, server requires SSH to be supported.")
+        message(SEND_ERROR "Missing SSH support in libnetconf2, server requires SSH to be supported.")
 endif()
 target_link_libraries(netopeer2-server ${LIBNETCONF2_LIBRARIES})
 include_directories(${LIBNETCONF2_INCLUDE_DIRS})
@@ -130,11 +130,11 @@ install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(CODE "
     execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -l RESULT_VARIABLE RET OUTPUT_VARIABLE INSTALLED_MODULES ERROR_VARIABLE OUT)
     if (RET)
-        string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
-        message(FATAL_ERROR \"  Command sysrepoctl list failed:\n  \${OUT}\")
+        string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+        message(FATAL_ERROR \"  Command sysrepoctl list failed:\\n  \${OUT}\")
     endif()
 
-    string(REGEX MATCH \"ietf-keystore [^\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
+    string(REGEX MATCH \"ietf-keystore [^\\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
     if (NOT INSTALLED_MODULE_LINE)
         message(STATUS \"Server configuration is disabled because sysrepo does not support ietf-keystore (keystored plugin not installed).\")
     else()
@@ -145,8 +145,8 @@ install(CODE "
                 message(STATUS \"Importing module \${MODULE_NAME} into sysrepo...\")
                 execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/\${MODULE_NAME}.yang -o root:root -p 600 RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
                 if (RET)
-                    string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
-                    message(FATAL_ERROR \"  Command sysrepoctl install failed:\n  \${OUT}\")
+                    string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+                    message(FATAL_ERROR \"  Command sysrepoctl install failed:\\n  \${OUT}\")
                 endif()
 
                 if (\${MODULE_NAME} STREQUAL ietf-netconf-server)
@@ -157,15 +157,15 @@ install(CODE "
                 foreach(FEATURE IN LISTS FEATURES)
                     execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -m \${MODULE_NAME} -e \${FEATURE} RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
                     if (RET)
-                        string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
-                        message(FATAL_ERROR \"  Command sysrepoctl enable feature failed:\n  \${OUT}\")
+                        string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+                        message(FATAL_ERROR \"  Command sysrepoctl enable feature failed:\\n  \${OUT}\")
                     endif()
                 endforeach()
 
                 execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -m \${MODULE_NAME} -t RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
                 if (RET)
-                    string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
-                    message(FATAL_ERROR \"  Command sysrepoctl init failed:\n  \${OUT}\")
+                    string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+                    message(FATAL_ERROR \"  Command sysrepoctl init failed:\\n  \${OUT}\")
                 endif()
 
             else()
@@ -179,8 +179,8 @@ install(CODE "
                     if (NOT \"\${INSTALLED_MODULE_LINE}\" MATCHES \"\${FEATURE}\")
                         execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -m \${MODULE_NAME} -e \${FEATURE} RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
                         if (RET)
-                            string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
-                            message(FATAL_ERROR \"  Command sysrepoctl enable feature failed:\n  \${OUT}\")
+                            string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+                            message(FATAL_ERROR \"  Command sysrepoctl enable feature failed:\\n  \${OUT}\")
                         endif()
                     endif()
                 endforeach()
@@ -189,8 +189,8 @@ install(CODE "
 
         execute_process(COMMAND ${SYSREPOCFG_EXECUTABLE} -d startup --export ietf-netconf-server RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
         if (RET)
-            string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
-            message(FATAL_ERROR \"  Command sysrepocfg export failed:\n  \${OUT}\")
+            string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+            message(FATAL_ERROR \"  Command sysrepocfg export failed:\\n  \${OUT}\")
         endif()
 
         if (OUT)
@@ -198,8 +198,8 @@ install(CODE "
         else()
             execute_process(COMMAND ${SYSREPOCFG_EXECUTABLE} -d startup -i ${CMAKE_SOURCE_DIR}/stock_config.xml ietf-netconf-server RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
             if (RET)
-                string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
-                message(FATAL_ERROR \"  Command sysrepocfg import failed:\n  \${OUT}\")
+                string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+                message(FATAL_ERROR \"  Command sysrepocfg import failed:\\n  \${OUT}\")
             endif()
             message(STATUS \"Default NETCONF server configuration imported (SSH listen on 0.0.0.0:830).\")
         endif()
