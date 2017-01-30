@@ -475,6 +475,19 @@ error:
 }
 
 static int
+np2srv_default_hostkey_clb(const char *name, void *UNUSED(user_data), char **privkey_path, char **UNUSED(privkey_data),
+                           int *UNUSED(privkey_data_rsa))
+{
+    if (!strcmp(name, "default")) {
+        *privkey_path = strdup(NP2SRV_HOST_KEY);
+        return 0;
+    }
+
+    EINT;
+    return 1;
+}
+
+static int
 server_init(void)
 {
     int rc;
@@ -577,6 +590,7 @@ server_init(void)
         }
     } else {
         WRN("Sysrepo does not have the \"ietf-netconf-server\" module or keystored keys dir unknown, using default NETCONF server options.");
+        nc_server_ssh_set_hostkey_clb(np2srv_default_hostkey_clb, NULL, NULL);
         if (nc_server_add_endpt("main", NC_TI_LIBSSH)) {
             goto error;
         }
@@ -586,7 +600,7 @@ server_init(void)
         if (nc_server_endpt_set_port("main", 830)) {
             goto error;
         }
-        if (nc_server_ssh_endpt_add_hostkey("main", NP2SRV_HOST_KEY)) {
+        if (nc_server_ssh_endpt_add_hostkey("main", "default")) {
             goto error;
         }
     }

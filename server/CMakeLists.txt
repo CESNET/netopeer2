@@ -59,6 +59,7 @@ configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_SOURCE_DIR}/config
 set(srcs
     ietf_netconf_server.c
     ietf_system.c
+    ietf_keystore.c
     netconf_monitoring.c
     operations.c
     op_get_config.c
