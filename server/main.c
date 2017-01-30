@@ -194,7 +194,7 @@ np2srv_verify_clb(const struct nc_session *session)
 }
 
 static char *
-np2srv_ly_import_clb(const char *mod_name, const char *mod_rev, const char *submod_name, const char *UNUSED(submod_rev),
+np2srv_ly_import_clb(const char *mod_name, const char *mod_rev, const char *submod_name, const char *submod_rev,
                      void *UNUSED(user_data), LYS_INFORMAT *format, void (**free_module_data)(void *model_data))
 {
     char *data = NULL;
@@ -202,11 +202,15 @@ np2srv_ly_import_clb(const char *mod_name, const char *mod_rev, const char *subm
 
     *free_module_data = free;
     *format = LYS_YIN;
-    rc = sr_get_schema(np2srv.sr_sess.srs, mod_name, mod_rev, submod_name, SR_SCHEMA_YIN, &data);
+    if (submod_rev || (submod_name && !mod_name)) {
+        rc = sr_get_submodule_schema(np2srv.sr_sess.srs, submod_name, submod_rev, SR_SCHEMA_YIN, &data);
+    } else {
+        rc = sr_get_schema(np2srv.sr_sess.srs, mod_name, mod_rev, submod_name, SR_SCHEMA_YIN, &data);
+    }
     if (rc == SR_ERR_OK) {
         return data;
     } else if (submod_name) {
-        ERR("Unable to get %s module (as dependency of %s) from sysrepo (%s).", mod_name, submod_name, sr_strerror(rc));
+        ERR("Unable to get %s module from sysrepo (%s).", submod_name, sr_strerror(rc));
     } else {
         ERR("Unable to get %s module from sysrepo (%s).", mod_name, sr_strerror(rc));
     }
