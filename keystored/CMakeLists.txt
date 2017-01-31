@@ -11,7 +11,17 @@ if(NOT UNIX)
     message(FATAL_ERROR "Only *nix like systems are supported.")
 endif()
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -DDEBUG -Wall -Wextra")
+# set default build type if not specified by user
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE debug)
+endif()
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
+set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
+set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -DDEBUG")
+
+# set version
+set(KEYSTORED_VERSION 0.1.0)
 
 # config variables
 if (NOT KEYSTORED_KEYS_DIR)
@@ -35,8 +45,23 @@ if (PKG_CONFIG_FOUND)
     # generate and install pkg-config file
     configure_file("keystored.pc.in" "keystored.pc" @ONLY)
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/keystored.pc" DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
+    execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} "--variable=pc_path" "pkg-config" RESULT_VARIABLE RET OUTPUT_VARIABLE OUT)
+    if (RET)
+        message(WARNING "Failed to check pkg-config search directories.")
+        message(WARNING "For netopeer2-server configuration to work, pkg-config search path must include \"${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/pkgconfig\" or you keystored keys directory will have to be set manually to \"${KEYSTORED_KEYS_DIR}\".")
+    else()
+        string(REGEX MATCH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/pkgconfig" MATCHED "${OUT}")
+        if (MATCHED)
+            message(STATUS "pkg-config check successful, netopeer2-server configuration should work after installation")
+        else()
+            message(WARNING "keystored pkg-config file copied into a directory not searched by pkg-config.")
+            message(WARNING "For netopeer2-server configuration to work, pkg-config search path must include \"${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/pkgconfig\" or keystored keys directory will have to be set manually to \"${KEYSTORED_KEYS_DIR}\".")
+        endif()
+    endif()
+else()
+    message(WARNING "pkg-config not detected.")
+    message(WARNING "For netopeer2-server configuration to work, keystored keys directory will have to be set manually to \"${KEYSTORED_KEYS_DIR}\".")
 endif()
-
 
 # dependencies - sysrepo
 find_package(SYSREPO REQUIRED)
@@ -84,23 +109,23 @@ install(DIRECTORY DESTINATION ${KEYSTORED_KEYS_DIR}
 install(CODE "
     execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -l RESULT_VARIABLE RET OUTPUT_VARIABLE INSTALLED_MODULES ERROR_VARIABLE OUT)
     if (RET)
-        string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
+        string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
         message(FATAL_ERROR \"  Command sysrepoctl list failed:\n  \${OUT}\")
     endif()
 
-    string(REGEX MATCH \"ietf-keystore [^\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
+    string(REGEX MATCH \"ietf-keystore [^\\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
     if (NOT INSTALLED_MODULE_LINE)
         message(STATUS \"Importing module ietf-keystore into sysrepo...\")
         execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/ietf-keystore.yang -o root:root -p 600 RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
         if (RET)
-            string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
-            message(FATAL_ERROR \"  Command sysrepoctl install failed:\n  \${OUT}\")
+            string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+            message(FATAL_ERROR \"  Command sysrepoctl install failed:\\n  \${OUT}\")
         endif()
 
         execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -m ietf-keystore -t RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
         if (RET)
-            string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
-            message(FATAL_ERROR \"  Command sysrepoctl init failed:\n  \${OUT}\")
+            string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+            message(FATAL_ERROR \"  Command sysrepoctl init failed:\\n  \${OUT}\")
         endif()
 
     else()
@@ -111,12 +136,14 @@ install(CODE "
 install(CODE "
     execute_process(COMMAND ${SYSREPOCFG_EXECUTABLE} -d startup --export ietf-keystore RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
     if (RET)
-        string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
-        message(FATAL_ERROR \"  Command sysrepocfg export failed:\n  \${OUT}\")
+        string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+        message(FATAL_ERROR \"  Command sysrepocfg export failed:\\n  \${OUT}\")
     endif()
 
     if (OUT)
         message(STATUS \"Some ietf-keystore configuration set, no keys will be imported.\")
+    elseif(NOT EXISTS \"/etc/ssh/ssh_host_rsa_key\")
+        message(WARNING \"Default OpenSSH RSA host key \\\"/etc/ssh/ssh_host_rsa_key\\\" not found so a key will have to be imported or generated manually for netopeer2-server to use.\")
     else()
         message(STATUS \"Importing stock OpenSSH RSA key.\")
         file(READ /etc/ssh/ssh_host_rsa_key RSA_KEY)
@@ -124,13 +151,13 @@ install(CODE "
         execute_process(COMMAND ${CHMOD_EXECUTABLE} go-rw ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem)
         execute_process(COMMAND ${OPENSSL_EXECUTABLE} rsa -pubout -in ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem -out ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pub.pem RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
         if (RET)
-            string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
-            message(FATAL_ERROR \"  Command openssl generate public key failed:\n  \${OUT}\")
+            string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+            message(FATAL_ERROR \"  Command openssl generate public key failed:\\n  \${OUT}\")
         endif()
         execute_process(COMMAND ${SYSREPOCFG_EXECUTABLE} -d startup -i ${CMAKE_SOURCE_DIR}/stock_key_config.xml ietf-keystore RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
         if (RET)
-            string(REPLACE \"\n\" \"\n  \" OUT \${OUT})
-            message(FATAL_ERROR \"  Command sysrepocfg import failed:\n  \${OUT}\")
+            string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+            message(FATAL_ERROR \"  Command sysrepocfg import failed:\\n  \${OUT}\")
         endif()
     endif()")
 
