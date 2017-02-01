@@ -213,6 +213,11 @@ convert_str_to_map_type(const char *map_type)
 {
     NC_TLS_CTN_MAPTYPE ret = 0;
 
+    if (strncmp(map_type, "ietf-x509-cert-to-name:", 23)) {
+        return ret;
+    }
+    map_type += 23;
+
     if (!strcmp(map_type, "specified")) {
         ret = NC_TLS_CTN_SPECIFIED;
     } else if (!strcmp(map_type, "san-rfc822-name")) {
