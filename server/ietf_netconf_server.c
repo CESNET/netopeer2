@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <ctype.h>
 
 #include <libyang/libyang.h>
 #include <nc_server.h>
@@ -237,24 +238,22 @@ convert_str_to_map_type(const char *map_type)
 
 static int
 add_tls_ctn(const char *xpath, const char *config_name, sr_change_oper_t sr_oper, sr_val_t *sr_old_val,
-            sr_val_t *sr_new_val, int listen_or_ch, uint32_t *id, char **fingerprint, NC_TLS_CTN_MAPTYPE *map_type,
-            const char **name)
+            sr_val_t *sr_new_val, int listen_or_ch)
 {
     int rc = EXIT_SUCCESS;
-    uint32_t cur_id;
     sr_val_t *sr_val;
     char quot;
-    char *set_fingerprint = NULL;
-    NC_TLS_CTN_MAPTYPE set_map_type = 0;
-    char *set_name = NULL;
+    uint32_t id;
+    const char *fingerprint = NULL, *name = NULL;
+    NC_TLS_CTN_MAPTYPE map_type = 0;
 
     assert(!strncmp(xpath, "cert-to-name[id=", 16));
     xpath += 16;
     quot = xpath[0];
     ++xpath;
 
-    cur_id = atoi(xpath);
-    assert(!*id || (cur_id == *id));
+    assert(isdigit(xpath[0]));
+    id = atoi(xpath);
 
     xpath = strchr(xpath, quot);
     ++xpath;
@@ -266,88 +265,35 @@ add_tls_ctn(const char *xpath, const char *config_name, sr_change_oper_t sr_oper
     switch (sr_oper) {
     case SR_OP_CREATED:
     case SR_OP_DELETED:
+    case SR_OP_MODIFIED:
         if (!strcmp(xpath, "id")) {
-            assert(!*id);
-            *id = sr_val->data.uint32_val;
+            assert(id == sr_val->data.uint32_val);
         } else if (!strcmp(xpath, "fingerprint")) {
-            assert(!*fingerprint);
-            *fingerprint = strdup(sr_val->data.string_val);
+            fingerprint = sr_val->data.string_val;
         } else if (!strcmp(xpath, "map-type")) {
-            assert(!*map_type);
-            *map_type = convert_str_to_map_type(sr_val->data.identityref_val);
-            if (!*map_type) {
+            map_type = convert_str_to_map_type(sr_val->data.identityref_val);
+            if (!map_type) {
                 EINT;
                 return EXIT_FAILURE;
             }
         } else if (!strcmp(xpath, "name")) {
-            assert(!*name && (*map_type == NC_TLS_CTN_SPECIFIED));
-            *name = sr_val->data.string_val;
+            name = sr_val->data.string_val;
         } else {
             EINT;
             return EXIT_FAILURE;
         }
 
-        if (*map_type && ((*map_type != NC_TLS_CTN_SPECIFIED) || *name)) {
-            /* we have all the information about the entry */
-            if (sr_oper == SR_OP_CREATED) {
-                if (!listen_or_ch) {
-                    rc = nc_server_tls_endpt_add_ctn(config_name, *id, *fingerprint, *map_type, *name);
-                } else {
-                    rc = nc_server_tls_ch_client_add_ctn(config_name, *id, *fingerprint, *map_type, *name);
-                }
-            } else {
-                if (!listen_or_ch) {
-                    rc = nc_server_tls_endpt_del_ctn(config_name, *id, *fingerprint, *map_type, *name);
-                } else {
-                    rc = nc_server_tls_ch_client_del_ctn(config_name, *id, *fingerprint, *map_type, *name);
-                }
-            }
-
-            *id = 0;
-            free(*fingerprint);
-            *fingerprint = NULL;
-            *map_type = 0;
-            *name = NULL;
-        }
-        break;
-    case SR_OP_MODIFIED:
-        /* get the entry */
-        if (!listen_or_ch) {
-            rc = nc_server_tls_endpt_get_ctn(config_name, &cur_id, &set_fingerprint, &set_map_type, &set_name);
-        } else {
-            rc = nc_server_tls_ch_client_get_ctn(config_name, &cur_id, &set_fingerprint, &set_map_type, &set_name);
-        }
-        if (!rc) {
-            /* remove the entry */
+        if (sr_oper == SR_OP_CREATED) {
             if (!listen_or_ch) {
-                nc_server_tls_endpt_del_ctn(config_name, cur_id, set_fingerprint, set_map_type, set_name);
+                rc = nc_server_tls_endpt_add_ctn(config_name, id, fingerprint, map_type, name);
             } else {
-                nc_server_tls_ch_client_del_ctn(config_name, cur_id, set_fingerprint, set_map_type, set_name);
+                rc = nc_server_tls_ch_client_add_ctn(config_name, id, fingerprint, map_type, name);
             }
-            if (!strcmp(xpath, "fingerprint")) {
-                free(set_fingerprint);
-                set_fingerprint = strdup(sr_val->data.string_val);
-            } else if (!strcmp(xpath, "map-type")) {
-                set_map_type = convert_str_to_map_type(sr_val->data.identityref_val);
-                if (!set_map_type) {
-                    EINT;
-                    rc = EXIT_FAILURE;
-                }
-            } else if (!strcmp(xpath, "name")) {
-                free(set_name);
-                set_name = strdup(sr_val->data.string_val);
+        } else {
+            if (!listen_or_ch) {
+                rc = nc_server_tls_endpt_del_ctn(config_name, id, fingerprint, map_type, name);
             } else {
-                EINT;
-                rc = EXIT_FAILURE;
-            }
-
-            if (!rc) {
-                /* re-add modified entry */
-                if (!listen_or_ch) {
-                    rc = nc_server_tls_endpt_add_ctn(config_name, cur_id, set_fingerprint, set_map_type, set_name);
-                } else {
-                    rc = nc_server_tls_ch_client_add_ctn(config_name, cur_id, set_fingerprint, set_map_type, set_name);
-                }
+                rc = nc_server_tls_ch_client_del_ctn(config_name, id, fingerprint, map_type, name);
             }
         }
         break;
@@ -601,11 +547,7 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
 {
     int rc = -2;
     const char *xpath, *list1_key = NULL, *list2_key = NULL, *oper_str;
-    uint32_t id = 0;
     char quot;
-    char *fingerprint = NULL;
-    NC_TLS_CTN_MAPTYPE map_type = 0;
-    const char *name = NULL;
 
     xpath = (sr_old_val ? sr_old_val->xpath : sr_new_val->xpath);
     assert(!strncmp(xpath, "/ietf-netconf-server:netconf-server/", 36));
@@ -757,7 +699,7 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
                         rc = 0;
                     } else if (!strncmp(xpath, "cert-maps/", 10)) {
                         xpath += 10;
-                        rc = add_tls_ctn(xpath, list1_key, sr_oper, sr_old_val, sr_new_val, 0, &id, &fingerprint, &map_type, &name);
+                        rc = add_tls_ctn(xpath, list1_key, sr_oper, sr_old_val, sr_new_val, 0);
                     }
                 }
             }
@@ -960,7 +902,7 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
                         rc = 0;
                     } else if (!strncmp(xpath, "cert-maps/", 10)) {
                         xpath += 10;
-                        rc = add_tls_ctn(xpath, list1_key, sr_oper, sr_old_val, sr_new_val, 1, &id, &fingerprint, &map_type, &name);
+                        rc = add_tls_ctn(xpath, list1_key, sr_oper, sr_old_val, sr_new_val, 1);
                     }
                 }
             } else if (!strcmp(xpath, "connection-type")) {
