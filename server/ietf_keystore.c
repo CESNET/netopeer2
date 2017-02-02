@@ -40,7 +40,7 @@ np_server_cert_clb(const char *name, void *UNUSED(user_data), char **UNUSED(cert
     char *path, *key_begin, *key_end, quot;
     sr_val_t *sr_cert;
 
-    ret = asprintf(&path, "/ietf-system-keychain:keychain/private-keys/private-key/certificate-chains/"
+    ret = asprintf(&path, "/ietf-keystore:keystore/private-keys/private-key/certificate-chains/"
                    "certificate-chain[name='%s']/certificate[1]", name);
     if (ret == -1) {
         EMEM;
@@ -90,24 +90,24 @@ np_trusted_cert_list_clb(const char *name, void *UNUSED(user_data), char ***UNUS
                          char ***cert_data, int *cert_data_count)
 {
     int ret;
-    char *str;
+    char *path;
     sr_val_t *sr_certs;
     size_t sr_cert_count, i;
 
-    ret = asprintf(&str, "/ietf-system-keychain:keychain/trusted-certificates[name='%s']/trusted-certificate/certificate",
+    ret = asprintf(&path, "/ietf-keystore:keystore/trusted-certificates[name='%s']/trusted-certificate/certificate",
                    name);
     if (ret == -1) {
         EMEM;
         return 1;
     }
 
-    ret = sr_get_items(np2srv.sr_sess.srs, str, &sr_certs, &sr_cert_count);
+    ret = sr_get_items(np2srv.sr_sess.srs, path, &sr_certs, &sr_cert_count);
     if (ret != SR_ERR_OK) {
-        ERR("Failed to get \"%s\" from sysrepo (%s).", str, sr_strerror(ret));
-        free(str);
+        ERR("Failed to get \"%s\" from sysrepo (%s).", path, sr_strerror(ret));
+        free(path);
         return 1;
     }
-    free(str);
+    free(path);
 
     *cert_data = calloc(sr_cert_count, sizeof **cert_data);
     for (i = 0; i < sr_cert_count; ++i) {
