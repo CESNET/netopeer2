@@ -318,11 +318,56 @@ np2srv_feature_change_clb(const char *module_name, const char *feature_name, boo
     pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
 }
 
+static int
+connect_ds(struct nc_session *ncs)
+{
+    struct np2_sessions *s;
+    int rc;
+
+    if (!ncs) {
+        return EXIT_FAILURE;
+    }
+
+    s = calloc(1, sizeof *s);
+    if (!s) {
+        EMEM;
+        return EXIT_FAILURE;
+    }
+    s->ncs = ncs;
+    s->ds = SR_DS_RUNNING;
+    s->opts = SR_SESS_DEFAULT;
+    rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), s->ds, s->opts, &s->srs);
+    if (rc != SR_ERR_OK) {
+        ERR("Unable to create sysrepo session for NETCONF session %d (%s; datastore %d; options %d).",
+            nc_session_get_id(ncs), sr_strerror(rc), s->ds, s->opts);
+        goto error;
+    }
+
+    /* connect sysrepo sessions (datastore) with NETCONF session */
+    nc_session_set_data(ncs, s);
+
+    return EXIT_SUCCESS;
+
+error:
+    if (s->srs) {
+        sr_session_stop(s->srs);
+    }
+    free(s);
+    return EXIT_FAILURE;
+}
+
 void
 np2srv_new_ch_session_clb(const char *UNUSED(client_name), struct nc_session *new_session)
 {
     int c;
 
+    if (connect_ds(new_session)) {
+        /* error */
+        ERR("Terminating session %d due to failure when connecting to sysrepo.",
+            nc_session_get_id(new_session));
+        nc_session_free(new_session, free_ds);
+        return;
+    }
     ncm_session_add(new_session);
 
     c = 0;
@@ -609,44 +654,6 @@ server_init(void)
 
 error:
     ERR("Server init failed.");
-    return EXIT_FAILURE;
-}
-
-static int
-connect_ds(struct nc_session *ncs)
-{
-    struct np2_sessions *s;
-    int rc;
-
-    if (!ncs) {
-        return EXIT_FAILURE;
-    }
-
-    s = calloc(1, sizeof *s);
-    if (!s) {
-        EMEM;
-        return EXIT_FAILURE;
-    }
-    s->ncs = ncs;
-    s->ds = SR_DS_RUNNING;
-    s->opts = SR_SESS_DEFAULT;
-    rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), s->ds, s->opts, &s->srs);
-    if (rc != SR_ERR_OK) {
-        ERR("Unable to create sysrepo session for NETCONF session %d (%s; datastore %d; options %d).",
-            nc_session_get_id(ncs), sr_strerror(rc), s->ds, s->opts);
-        goto error;
-    }
-
-    /* connect sysrepo sessions (datastore) with NETCONF session */
-    nc_session_set_data(ncs, s);
-
-    return EXIT_SUCCESS;
-
-error:
-    if (s->srs) {
-        sr_session_stop(s->srs);
-    }
-    free(s);
     return EXIT_FAILURE;
 }
 
