@@ -1436,11 +1436,12 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
         printf("Waiting %ds for an SSH Call Home connection on port %u...\n", timeout, port);
         ret = nc_accept_callhome(timeout * 1000, NULL, &session);
         nc_client_ssh_ch_del_bind(host, port);
-        if (ret == -1) {
-            ERROR(func_name, "Receiving SSH Call Home on port %d as user \"%s\" failed.", port, user);
-            return EXIT_FAILURE;
-        } else if (ret == 0) {
-            ERROR(func_name, "Receiving SSH Call Home on port %d as user \"%s\" timeouted.", port, user);
+        if (ret != 1) {
+            if (ret == 0) {
+                ERROR(func_name, "Receiving SSH Call Home on port %d as user \"%s\" timeout elapsed.", port, user);
+            } else {
+                ERROR(func_name, "Receiving SSH Call Home on port %d as user \"%s\" failed.", port, user);
+            }
             return EXIT_FAILURE;
         }
     }
@@ -2227,8 +2228,12 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         ERROR(func_name, "Waiting %ds for a TLS Call Home connection on port %u...", timeout, port);
         ret = nc_accept_callhome(timeout * 1000, NULL, &session);
         nc_client_tls_ch_del_bind(host, port);
-        if (ret) {
-            ERROR(func_name, "Receiving TLS Call Home on port %d failed.", port);
+        if (ret != 1) {
+            if (ret == 0) {
+                ERROR(func_name, "Receiving TLS Call Home on port %d timeout elapsed.", port);
+            } else {
+                ERROR(func_name, "Receiving TLS Call Home on port %d failed.", port);
+            }
             goto error_cleanup;
         }
     }
