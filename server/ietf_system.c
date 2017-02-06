@@ -75,6 +75,11 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
     list1_key = strndup(xpath, key_end - xpath);
     xpath = key_end + 1;
 
+    if (!strcmp(xpath, "]/name")) {
+        /* don't care */
+        rc = 0;
+        goto cleanup;
+    }
     if (strncmp(xpath, "]/authorized-key[name=", 22)) {
         EINT;
         rc = SR_ERR_INTERNAL;
@@ -206,7 +211,8 @@ subtree_change_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), sr_notif
     }
     while ((rc = sr_get_change_next(session, sr_iter, &sr_oper, &sr_old_val, &sr_new_val)) == SR_ERR_OK) {
         if ((sr_old_val && ((sr_old_val->type == SR_LIST_T) && (sr_oper != SR_OP_MOVED)))
-                || (sr_new_val && ((sr_new_val->type == SR_LIST_T) && (sr_oper != SR_OP_MOVED)))) {
+                || (sr_new_val && ((sr_new_val->type == SR_LIST_T) && (sr_oper != SR_OP_MOVED)))
+                || (sr_old_val && (sr_old_val->type == SR_CONTAINER_T)) || (sr_new_val && (sr_new_val->type == SR_CONTAINER_T))) {
             /* no semantic meaning */
             continue;
         }
