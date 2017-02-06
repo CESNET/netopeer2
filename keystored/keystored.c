@@ -420,7 +420,7 @@ ks_privkey_load_cb(const char *UNUSED(xpath), const sr_node_t *input, const size
 {
     struct keystored_ctx *ctx = (struct keystored_ctx *)private_ctx;
     pid_t pid;
-    int ret, status, len, fd;
+    int ret = SR_ERR_OK, status, len, fd;
     char *priv_path = NULL, *pub_path = NULL;
     FILE *privkey = NULL;
 
