@@ -293,6 +293,7 @@ All of the modules are still drafts and specially *ietf-keystore* has some issue
 - probably most importantly, **only RSA** keys are supported at the moment,
 - uniqueness of `private-key` `name` key values is not checked, which means that if a key with an existing name is loaded/generated, it will overwrite the existing one,
 - private keys themselves only support `running` datastore, which actually acts as a `startup` as well,
+- `key-length` of a key is never returned,
 - `generate-certificate-signing-request` action is not supported,
 - `certificate-expiration` is not checked and the notification is never generated,
 - NETCONF client configuration is completely custom and hence the whole subtree `user-auth-credentials` is not supported.
@@ -311,6 +312,7 @@ module: ietf-keystore
     +--rw keystore
        +--rw private-keys
        |  +--rw private-key*
+             +--ro key-length?           uint32
        |     +---x generate-certificate-signing-request
        |        +---w input
        |        |  +---w subject       binary
