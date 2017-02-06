@@ -39,7 +39,7 @@ module: ietf-netconf-server
 
 Testing SSH listen configuration is set during server installation because in this basic form is not a security risk (the usernames and passwords are read from the local system). With this configuration (`../stock_config.xml`) the server should listen on all IPv4 interfaces (0.0.0.0) on the port 830.
 
-Also, the server must use a private key to authenticate to the client. A default OpenSSH RSA host key is imported during installation if available. Otherwise a host key must be loaded or generated manually (section [Private Keys](###Private Keys)).
+Also, the server must use a private key to authenticate to the client. A default OpenSSH RSA host key is imported during installation if available. Otherwise a host key must be loaded or generated manually (section [Private Keys](#private-keys)).
 
 #### Configure
 
@@ -60,11 +60,11 @@ module: ietf-netconf-server
 
 ### TLS
 
-To set up TLS listen, you first need to import server certificate private key. How to do so is described in the section [Private Keys](###Private Keys). Then you need to configure the corresponding certificate. Use `load_server_certs.xml` to do this. It simply adds the certificate `tls/server.crt` content to the imported server key. In addition to that, it sets `tls/ca.pem` as a trusted CA certificate (more in [Trusted Certificates](###Trusted Certificates)). This Certificate Authority was used to sign `tls/server.crt` and `tls/client.crt`.
+To set up TLS listen, you first need to import server certificate private key. How to do so is described in the section [Private Keys](#private-keys). Then you need to configure the corresponding certificate. Use `load_server_certs.xml` to do this. It simply adds the certificate `tls/server.crt` content to the imported server key. In addition to that, it sets `tls/ca.pem` as a trusted CA certificate (more in [Trusted Certificates](#trusted-certificates)). This Certificate Authority was used to sign `tls/server.crt` and `tls/client.crt`.
 
 Now that certificates are set, you can configure TLS listen itself. In the XML `tls_listen.xml`, which you need to send to the server, you will see that again all IPv4 interfaces are listened on and the port used si the default TLS one, 6513. Other than that, the server will use the certificate *test_server_cert* we configured in the step before.
 
-Lastly, if a client authenticates using this configuration, their username will resolve to **test** (more information in [TLS cert-to-name Authentication](###TLS cert-to-name Authentication)). It is required that this username exists on the local system (just like for SSH), so you will need to (temporarily) create this user. The simplest way is executing `# useradd -MN test`, which creates the user without a home directory and user group.
+Lastly, if a client authenticates using this configuration, their username will resolve to **test** (more information in [TLS cert-to-name Authentication](#tls-cert-to-name-authentication)). It is required that this username exists on the local system (just like for SSH), so you will need to (temporarily) create this user. The simplest way is executing `# useradd -MN test`, which creates the user without a home directory and user group.
 
 #### Client
 
@@ -158,11 +158,11 @@ module: ietf-netconf-server
 
 ### TLS
 
-For working TLS listen you are going to need to have imported server certificate and applied `load_server_certs.xml` (follow instructions in [Listen TLS](###TLS)). Other than that, you need to set the Call Home configuration, which is prepared in `tls_callhome.xml`. Meaning of each node is similar to TLS listen nodes.
+For working TLS listen you are going to need to have imported server certificate and applied `load_server_certs.xml` (follow instructions in [Listen TLS](#tls)). Other than that, you need to set the Call Home configuration, which is prepared in `tls_callhome.xml`. Meaning of each node is similar to TLS listen nodes.
 
 #### Client
 
-Having set up client and trusted certificates the same way as for [Listen TLS Client](###Client), just use the following *netopeer2-cli* command.
+Having set up client and trusted certificates the same way as for [Listen TLS Client](#client), just use the following *netopeer2-cli* command.
 
 ```
 listen --tls
@@ -247,9 +247,9 @@ module: ietf-netconf-server
 
 ### Private Keys
 
-To use additional private keys (add them to the *sysrepo* datastore) 2 actions from *ietf-keystore* can be used. To generate a new private key, the action **generate-private-key** is used. You can try it using *netopeer2-cli* command `user-rpc` with the content of `generate_private_key.xml`, but be aware of an issue with name uniqueness ([Known Issues](##Known Issues)).
+To use additional private keys (add them to the *sysrepo* datastore) 2 actions from *ietf-keystore* can be used. To generate a new private key, the action **generate-private-key** is used. You can try it using *netopeer2-cli* command `user-rpc` with the content of `generate_private_key.xml`, but be aware of an issue with name uniqueness ([Known Issues](#known-issues)).
 
-If you have a private key and just want to import it into *sysrepo*, use **load-private-key**. When setting up [TLS](##TLS), you will need to import the key `tls/server.key`, which is prepared in `load_server_key.xml`. Again, be aware of [Known Issues](###Known Issues).
+If you have a private key and just want to import it into *sysrepo*, use **load-private-key**. When setting up [TLS](#tls), you will need to import the key `tls/server.key`, which is prepared in `load_server_key.xml`. Again, be aware of [Known Issues](#known-issues).
 
 #### Action
 
