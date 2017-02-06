@@ -7,7 +7,7 @@
         <port>830</port>
         <host-keys>
           <host-key>
-            <name>test_ssh_host_key</name>
+            <name>test_ssh_listen_key</name>
             <public-key>ssh_host_rsa_key</public-key>
           </host-key>
         </host-keys>
