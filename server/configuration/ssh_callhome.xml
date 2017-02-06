@@ -1,0 +1,25 @@
+<netconf-server xmlns="urn:ietf:params:xml:ns:yang:ietf-netconf-server">
+  <call-home>
+    <netconf-client>
+      <name>test_ssh_ch_client</name>
+      <ssh>
+        <endpoints>
+          <endpoint>
+            <name>test_ssh_ch_endpt</name>
+            <address>127.0.0.1</address>
+            <port>4334</port>
+          </endpoint>
+        </endpoints>
+        <host-keys>
+          <host-key>
+            <name>test_ssh_callhome_key</name>
+            <public-key>ssh_host_rsa_key</public-key>
+          </host-key>
+        </host-keys>
+      </ssh>
+      <connection-type>
+        <persistent/>
+      </connection-type>
+    </netconf-client>
+  </call-home>
+</netconf-server>

@@ -75,4 +75,5 @@ the Netopeer2 CLI can be used:
 $ netopeer2-cli
 > connect
 ```
-
+Local system users are used for authentication. To learn how to change this and configure lots of
+other server features look into the `configuration` directory.

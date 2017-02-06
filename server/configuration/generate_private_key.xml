@@ -1,0 +1,10 @@
+<action xmlns="urn:ietf:params:xml:ns:yang:1">
+  <keystore xmlns="urn:ietf:params:xml:ns:yang:ietf-keystore">
+    <private-keys>
+      <generate-private-key>
+        <name>new_test_rsa_key</name>
+        <algorithm>rsa</algorithm>
+      </generate-private-key>
+    </private-keys>
+  </keystore>
+</action>
