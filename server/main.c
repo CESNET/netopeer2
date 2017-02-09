@@ -645,7 +645,7 @@ server_init(void)
         if (nc_server_endpt_set_port("main", 830)) {
             goto error;
         }
-        if (nc_server_ssh_endpt_add_hostkey("main", "default")) {
+        if (nc_server_ssh_endpt_add_hostkey("main", "default", -1)) {
             goto error;
         }
     }

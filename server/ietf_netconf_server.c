@@ -139,10 +139,10 @@ set_listen_endpoint_ssh_host_key(const char *endpt_name, sr_change_oper_t UNUSED
 
     /* TODO broken order (if creating, not called on move for now) */
     if (sr_new_val) {
-        rc = nc_server_ssh_endpt_add_hostkey(endpt_name, sr_new_val->data.string_val);
+        rc = nc_server_ssh_endpt_add_hostkey(endpt_name, sr_new_val->data.string_val, -1);
     }
     if (!rc && sr_old_val) {
-        rc = nc_server_ssh_endpt_del_hostkey(endpt_name, sr_old_val->data.string_val);
+        rc = nc_server_ssh_endpt_del_hostkey(endpt_name, sr_old_val->data.string_val, -1);
     }
 
     return rc;
@@ -353,10 +353,10 @@ set_ch_client_ssh_host_key(const char *client_name, sr_change_oper_t UNUSED(sr_o
 
     /* TODO broken order (if creating, not called on move for now) */
     if (sr_new_val) {
-        rc = nc_server_ssh_ch_client_add_hostkey(client_name, sr_new_val->data.string_val);
+        rc = nc_server_ssh_ch_client_add_hostkey(client_name, sr_new_val->data.string_val, -1);
     }
     if (!rc && sr_old_val) {
-        rc = nc_server_ssh_ch_client_del_hostkey(client_name, sr_old_val->data.string_val);
+        rc = nc_server_ssh_ch_client_del_hostkey(client_name, sr_old_val->data.string_val, -1);
     }
 
     return rc;
