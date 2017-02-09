@@ -698,7 +698,7 @@ cmd_copyconfig_help(void)
         }
     }
 
-    printf("copy-config [--help] --target %s%s%s%s (--source %s%s%s%s | --src-config [<file>])%s\n",
+    printf("copy-config [--help] --target %s%s%s%s (--source %s%s%s%s | --src-config[=<file>])%s\n",
            running, startup, candidate, url,
            running, startup, candidate, url, defaults);
 }
@@ -791,7 +791,7 @@ cmd_editconfig_help(void)
         bracket = "";
     }
 
-    printf("edit-config [--help] --target %s%s %s--config [<file>]%s [--defop merge|replace|none] "
+    printf("edit-config [--help] --target %s%s %s--config[=<file>]%s [--defop merge|replace|none] "
            "%s[--error stop|continue%s]\n", running, candidate, bracket, url, validate, rollback);
 }
 
@@ -812,7 +812,7 @@ cmd_get_help(void)
         xpath = "";
     }
 
-    fprintf(stdout, "get [--help] [--filter-subtree [<file>]%s] %s[--out <file>]\n", xpath, defaults);
+    fprintf(stdout, "get [--help] [--filter-subtree[=<file>]%s] %s[--out <file>]\n", xpath, defaults);
 }
 
 void
@@ -845,7 +845,7 @@ cmd_getconfig_help(void)
         candidate = "";
     }
 
-    printf("get-config [--help] --source running%s%s [--filter-subtree [<file>]%s] %s[--out <file>]\n",
+    printf("get-config [--help] --source running%s%s [--filter-subtree[=<file>]%s] %s[--out <file>]\n",
            startup, candidate, xpath, defaults);
 }
 
@@ -928,7 +928,7 @@ cmd_validate_help(void)
             url = "";
         }
     }
-    printf("validate [--help] (--source running%s%s%s | --src-config [<file>])\n",
+    printf("validate [--help] (--source running%s%s%s | --src-config[=<file>])\n",
            startup, candidate, url);
 }
 
@@ -948,7 +948,7 @@ cmd_subscribe_help(void)
         xpath = "";
     }
 
-    printf("subscribe [--help] [--filter-subtree [<file>]%s] [--begin <time>] [--end <time>] [--stream <stream>] [--out <file>]\n", xpath);
+    printf("subscribe [--help] [--filter-subtree[=<file>]%s] [--begin <time>] [--end <time>] [--stream <stream>] [--out <file>]\n", xpath);
     printf("\t<time> has following format:\n");
     printf("\t\t+<num>  - current time plus the given number of seconds.\n");
     printf("\t\t<num>   - absolute time as number of seconds since 1970-01-01.\n");
