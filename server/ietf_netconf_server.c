@@ -18,6 +18,7 @@
 #include <assert.h>
 #include <string.h>
 #include <ctype.h>
+#include <pthread.h>
 
 #include <libyang/libyang.h>
 #include <nc_server.h>
@@ -131,18 +132,99 @@ set_listen_endpoint_port(const char *endpt_name, sr_change_oper_t sr_oper, sr_va
     return rc;
 }
 
+struct thread_arg {
+    sr_session_ctx_t *session;
+    int listen_or_ch;
+    const char *endpt_client_name;
+    const char *key_name;
+};
+
+static void *
+get_ssh_host_key_public_key(void *arg)
+{
+    struct thread_arg *targ = (struct thread_arg *)arg;
+    char *path, *value;
+    int ret;
+    sr_val_t *sr_val = NULL;
+
+    if (targ->listen_or_ch) {
+        asprintf(&path, "/ietf-netconf-server:netconf-server/listen/endpoint[name='%s']/ssh/host-keys/host-key[name='%s']/public-key", targ->endpt_client_name, targ->key_name);
+        ret = sr_get_item(targ->session, path, &sr_val);
+        free(path);
+    } else {
+        asprintf(&path, "/ietf-netconf-server:netconf-server/call-home/netconf-client[name='%s']/ssh/host-keys/host-key[name='%s']/public-key", targ->endpt_client_name, targ->key_name);
+        ret = sr_get_item(targ->session, path, &sr_val);
+        free(path);
+    }
+
+    if (ret != SR_ERR_OK) {
+        ERR("Failed to get data from sysrepo (%s).", sr_strerror(ret));
+    }
+
+    value = (sr_val ? strdup(sr_val->data.string_val) : NULL);
+    sr_free_val(sr_val);
+    return value;
+}
+
 static int
-set_listen_endpoint_ssh_host_key(const char *endpt_name, sr_change_oper_t UNUSED(sr_oper), sr_val_t *sr_old_val,
-                                 sr_val_t *sr_new_val)
+set_listen_endpoint_ssh_host_key(sr_session_ctx_t *session, const char *endpt_name, sr_change_oper_t sr_oper,
+                                 sr_val_t *sr_old_val, sr_val_t *sr_new_val)
 {
     int rc = EXIT_SUCCESS;
+    char *key1, *key2, quot;
+    const char *ptr;
+    pthread_t tid;
+    struct thread_arg targ;
 
-    /* TODO broken order (if creating, not called on move for now) */
-    if (sr_new_val) {
-        rc = nc_server_ssh_endpt_add_hostkey(endpt_name, sr_new_val->data.string_val, -1);
-    }
-    if (!rc && sr_old_val) {
+    switch (sr_oper) {
+    case SR_OP_DELETED:
         rc = nc_server_ssh_endpt_del_hostkey(endpt_name, sr_old_val->data.string_val, -1);
+        break;
+    case SR_OP_MODIFIED:
+        rc = nc_server_ssh_endpt_mod_hostkey(endpt_name, sr_old_val->data.string_val, sr_new_val->data.string_val);
+        break;
+    case SR_OP_CREATED:
+        rc = nc_server_ssh_endpt_add_hostkey(endpt_name, sr_new_val->data.string_val, -1);
+        break;
+    case SR_OP_MOVED:
+        /* old and new_val are different in this case (nodes one level up) */
+
+        targ.session = session;
+        targ.listen_or_ch = 1;
+        targ.endpt_client_name = endpt_name;
+
+        ptr = strrchr(sr_new_val->xpath, '[');
+        assert(!strncmp(ptr, "[name=", 6));
+        ptr += 6;
+        quot = ptr[0];
+        ++ptr;
+        targ.key_name = strndup(ptr, strchr(ptr, quot) - ptr);
+
+        pthread_create(&tid, NULL, get_ssh_host_key_public_key, &targ);
+        pthread_join(tid, (void **)&key1);
+        free((char *)targ.key_name);
+        if (!key1) {
+            ERR("Failed to get a public key from sysrepo.");
+            return SR_ERR_INTERNAL;
+        }
+
+        ptr = strrchr(sr_old_val->xpath, '[');
+        assert(!strncmp(ptr, "[name=", 6));
+        ptr += 6;
+        quot = ptr[0];
+        ++ptr;
+        targ.key_name = strndup(ptr, strchr(ptr, quot) - ptr);
+
+        pthread_create(&tid, NULL, get_ssh_host_key_public_key, &targ);
+        pthread_join(tid, (void **)&key2);
+        free((char *)targ.key_name);
+        if (!key2) {
+            ERR("Failed to get a public key from sysrepo.");
+            return SR_ERR_INTERNAL;
+        }
+
+        rc = nc_server_ssh_endpt_mov_hostkey(endpt_name, key1, key2);
+        break;
     }
 
     return rc;
@@ -346,17 +428,63 @@ set_ch_client_endpoint_port(const char *client_name, const char *endpt_name, sr_
 }
 
 static int
-set_ch_client_ssh_host_key(const char *client_name, sr_change_oper_t UNUSED(sr_oper), sr_val_t *sr_old_val,
-                           sr_val_t *sr_new_val)
+set_ch_client_ssh_host_key(sr_session_ctx_t *session, const char *client_name, sr_change_oper_t sr_oper,
+                           sr_val_t *sr_old_val, sr_val_t *sr_new_val)
 {
     int rc = EXIT_SUCCESS;
+    char *key1, *key2, quot;
+    const char *ptr;
+    pthread_t tid;
+    struct thread_arg targ;
 
-    /* TODO broken order (if creating, not called on move for now) */
-    if (sr_new_val) {
-        rc = nc_server_ssh_ch_client_add_hostkey(client_name, sr_new_val->data.string_val, -1);
-    }
-    if (!rc && sr_old_val) {
+    switch (sr_oper) {
+    case SR_OP_DELETED:
         rc = nc_server_ssh_ch_client_del_hostkey(client_name, sr_old_val->data.string_val, -1);
+        break;
+    case SR_OP_MODIFIED:
+        rc = nc_server_ssh_ch_client_mod_hostkey(client_name, sr_old_val->data.string_val, sr_new_val->data.string_val);
+        break;
+    case SR_OP_CREATED:
+        rc = nc_server_ssh_ch_client_add_hostkey(client_name, sr_new_val->data.string_val, -1);
+        break;
+    case SR_OP_MOVED:
+        /* old and new_val are different in this case (nodes one level up) */
+        targ.session = session;
+        targ.listen_or_ch = 0;
+        targ.endpt_client_name = client_name;
+
+        ptr = strrchr(sr_new_val->xpath, '[');
+        assert(!strncmp(ptr, "[name=", 6));
+        ptr += 6;
+        quot = ptr[0];
+        ++ptr;
+        targ.key_name = strndup(ptr, strchr(ptr, quot) - ptr);
+
+        pthread_create(&tid, NULL, get_ssh_host_key_public_key, &targ);
+        pthread_join(tid, (void **)&key1);
+        free((char *)targ.key_name);
+        if (!key1) {
+            ERR("Failed to get a public key from sysrepo.");
+            return SR_ERR_INTERNAL;
+        }
+
+        ptr = strrchr(sr_old_val->xpath, '[');
+        assert(!strncmp(ptr, "[name=", 6));
+        ptr += 6;
+        quot = ptr[0];
+        ++ptr;
+        targ.key_name = strndup(ptr, strchr(ptr, quot) - ptr);
+
+        pthread_create(&tid, NULL, get_ssh_host_key_public_key, &targ);
+        pthread_join(tid, (void **)&key2);
+        free((char *)targ.key_name);
+        if (!key2) {
+            ERR("Failed to get a public key from sysrepo.");
+            return SR_ERR_INTERNAL;
+        }
+
+        rc = nc_server_ssh_ch_client_mov_hostkey(client_name, key1, key2);
+        break;
     }
 
     return rc;
@@ -542,8 +670,8 @@ parse_list_key(const char **predicate, const char **key_val, const char *key_nam
 }
 
 static int
-module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *sr_new_val, const char **list1_key_del,
-                      const char **list2_key_del)
+module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *sr_new_val,
+                      const char **list1_key_del, const char **list2_key_del)
 {
     int rc = -2;
     const char *xpath, *list1_key = NULL, *list2_key = NULL, *oper_str;
@@ -640,7 +768,8 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
                         parse_list_key(&xpath, &list2_key, "name");
 
                         if (!xpath[0]) {
-                            /* TODO list moved */
+                            /* list moved */
+                            rc = set_listen_endpoint_ssh_host_key(session, list1_key, sr_oper, sr_old_val, sr_new_val);
                         } else if (xpath[0] == '/') {
                             ++xpath;
 
@@ -648,7 +777,7 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
                                 /* we just don't care  */
                                 rc = EXIT_SUCCESS;
                             } else if (!strcmp(xpath, "public-key")) {
-                                rc = set_listen_endpoint_ssh_host_key(list1_key, sr_oper, sr_old_val, sr_new_val);
+                                rc = set_listen_endpoint_ssh_host_key(session, list1_key, sr_oper, sr_old_val, sr_new_val);
                             }
                         }
                     }
@@ -803,7 +932,8 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
                         parse_list_key(&xpath, &list2_key, "name");
 
                         if (!xpath[0]) {
-                            /* TODO list moved */
+                            /* list moved */
+                            rc = set_ch_client_ssh_host_key(session, list1_key, sr_oper, sr_old_val, sr_new_val);
                         } else if (xpath[0] == '/') {
                             ++xpath;
 
@@ -811,7 +941,7 @@ module_change_resolve(sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *
                                 /* we just don't care  */
                                 rc = EXIT_SUCCESS;
                             } else if (!strcmp(xpath, "public-key")) {
-                                rc = set_ch_client_ssh_host_key(list1_key, sr_oper, sr_old_val, sr_new_val);
+                                rc = set_ch_client_ssh_host_key(session, list1_key, sr_oper, sr_old_val, sr_new_val);
                             }
                         }
                     }
@@ -997,7 +1127,7 @@ module_change_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), sr_
             continue;
         }
 
-        rc2 = module_change_resolve(sr_oper, sr_old_val, sr_new_val, &list1_key_del, &list2_key_del);
+        rc2 = module_change_resolve(session, sr_oper, sr_old_val, sr_new_val, &list1_key_del, &list2_key_del);
 
         sr_free_val(sr_old_val);
         sr_free_val(sr_new_val);
@@ -1054,7 +1184,7 @@ feature_change_ietf_netconf_server(const char *feature_name, bool enabled)
                 continue;
             }
 
-            rc2 = module_change_resolve(SR_OP_CREATED, NULL, sr_val, NULL, NULL);
+            rc2 = module_change_resolve(np2srv.sr_sess.srs, SR_OP_CREATED, NULL, sr_val, NULL, NULL);
             sr_free_val(sr_val);
             if (rc2) {
                 ERR("Failed to enable nodes depending on the \"%s\" ietf-netconf-server feature.", feature_name);
