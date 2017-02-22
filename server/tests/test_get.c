@@ -31,6 +31,9 @@
 #undef NP2SRV_PIDFILE
 #define NP2SRV_PIDFILE "/tmp/test_np2srv.pid"
 
+#undef NP2SRV_THREAD_COUNT
+#define NP2SRV_THREAD_COUNT 1
+
 #include "../main.c"
 
 #undef main
@@ -162,6 +165,8 @@ struct nc_session {
 
     NC_TRANSPORT_IMPL ti_type;
     pthread_mutex_t *ti_lock;
+    pthread_cond_t *ti_cond;
+    volatile int *ti_inuse;
     union {
         struct {
             int in;
@@ -188,11 +193,11 @@ struct nc_session {
 
     union {
         struct {
-            volatile pthread_t *ntf_tid;
             uint64_t msgid;
             const char **cpblts;
             struct nc_msg_cont *replies;
             struct nc_msg_cont *notifs;
+            volatile pthread_t *ntf_tid;
         } client;
         struct {
             time_t session_start;
@@ -261,6 +266,10 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
         (*session)->id = 1;
         (*session)->ti_lock = malloc(sizeof *(*session)->ti_lock);
         pthread_mutex_init((*session)->ti_lock, NULL);
+        (*session)->ti_cond = malloc(sizeof *(*session)->ti_cond);
+        pthread_cond_init((*session)->ti_cond, NULL);
+        (*session)->ti_inuse = malloc(sizeof *(*session)->ti_inuse);
+        *(*session)->ti_inuse = 0;
         (*session)->ti_type = NC_TI_FD;
         (*session)->ti.fd.in = pipes[1][0];
         (*session)->ti.fd.out = pipes[0][1];
@@ -288,6 +297,9 @@ __wrap_nc_session_free(struct nc_session *session, void (*data_free)(void *))
     }
     pthread_mutex_destroy(session->ti_lock);
     free(session->ti_lock);
+    pthread_cond_destroy(session->ti_cond);
+    free(session->ti_cond);
+    free((int *)session->ti_inuse);
     free(session);
 }
 

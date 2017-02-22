@@ -44,6 +44,8 @@ struct np2srv np2srv;
 struct np2srv_dslock dslock;
 pthread_rwlock_t dslock_rwl = PTHREAD_RWLOCK_INITIALIZER;
 
+static void *worker_thread(void *arg);
+
 /**
  * @brief Control flags for the main loop
  */
@@ -357,7 +359,7 @@ error:
 }
 
 void
-np2srv_new_ch_session_clb(const char *UNUSED(client_name), struct nc_session *new_session)
+np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_session)
 {
     int c;
 
@@ -383,6 +385,14 @@ np2srv_new_ch_session_clb(const char *UNUSED(client_name), struct nc_session *ne
         ncm_session_del(new_session, 1);
         nc_session_free(new_session, free_ds);
     }
+}
+
+static void
+np2srv_del_session_clb(struct nc_session *session, int dropped)
+{
+    nc_ps_del_session(np2srv.nc_ps, session);
+    ncm_session_del(session, dropped);
+    nc_session_free(session, free_ds);
 }
 
 static int
@@ -657,18 +667,16 @@ error:
     return EXIT_FAILURE;
 }
 
-void *
-process_loop(void *arg)
+static void *
+worker_thread(void *arg)
 {
-    (void)arg; /* UNUSED */
-
     NC_MSG_TYPE msgtype;
-    int rc;
+    int rc, idx = *((int *)arg);
     struct nc_session *ncs;
 
     nc_libssh_thread_verbosity(np2_verbose_level);
 
-    while (control == LOOP_CONTINUE) {
+    while ((control == LOOP_CONTINUE) && np2srv.workers[idx]) {
 
         /* lock for using libyang context */
         pthread_rwlock_rdlock(&np2srv.ly_ctx_lock);
@@ -680,36 +688,46 @@ process_loop(void *arg)
             break;
         }
 
-        /* listen for incomming requests on active NETCONF sessions */
-        if (nc_ps_session_count(np2srv.nc_ps) > 0) {
-            rc = nc_ps_poll(np2srv.nc_ps, 500, &ncs);
-        } else {
+        /* try to accept new NETCONF sessions */
+        if (!np2srv.nc_max_sessions || (nc_ps_session_count(np2srv.nc_ps) < np2srv.nc_max_sessions)) {
+            msgtype = nc_accept(100, &ncs);
+            if (msgtype == NC_MSG_HELLO) {
+                np2srv_new_session_clb(NULL, ncs);
+            }
+        }
+
+        /* listen for incoming requests on active NETCONF sessions */
+        rc = nc_ps_poll(np2srv.nc_ps, 100, &ncs);
+
+        if (rc & (NC_PSPOLL_NOSESSIONS | NC_PSPOLL_TIMEOUT)) {
             /* if there is no active session or timeout, rest for a while */
             pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
-            usleep(100);
+            usleep(2000);
             continue;
         }
 
         /* process the result of nc_ps_poll(), increase counters */
         if (rc & NC_PSPOLL_BAD_RPC) {
             ncm_session_bad_rpc(ncs);
+            VRB("Session %d: thread %d event bad RPC.", nc_session_get_id(ncs), idx);
         }
         if (rc & NC_PSPOLL_RPC) {
             ncm_session_rpc(ncs);
+            VRB("Session %d: thread %d event new RPC.", nc_session_get_id(ncs), idx);
         }
         if (rc & NC_PSPOLL_REPLY_ERROR) {
             ncm_session_rpc_reply_error(ncs);
+            VRB("Session %d: thread %d event reply error.", nc_session_get_id(ncs), idx);
         }
         if (rc & NC_PSPOLL_SESSION_TERM) {
-            nc_ps_del_session(np2srv.nc_ps, ncs);
-            ncm_session_del(ncs, (rc & NC_PSPOLL_SESSION_ERROR ? 1 : 0));
-            nc_session_free(ncs, free_ds);
+            VRB("Session %d: thread %d event session terminated.", nc_session_get_id(ncs), idx);
+            np2srv_del_session_clb(ncs, (rc & NC_PSPOLL_SESSION_ERROR ? 1 : 0));
         } else if (rc & NC_PSPOLL_SSH_CHANNEL) {
             /* a new SSH channel on existing session was created */
+            VRB("Session %d: thread %d event new SSH channel.", nc_session_get_id(ncs), idx);
             msgtype = nc_session_accept_ssh_channel(ncs, &ncs);
             if (msgtype == NC_MSG_HELLO) {
-                nc_ps_add_session(np2srv.nc_ps, ncs);
-                ncm_session_add(ncs);
+                np2srv_new_session_clb(NULL, ncs);
             } else if (msgtype == NC_MSG_BAD_HELLO) {
                 ncm_bad_hello();
             }
@@ -718,9 +736,9 @@ process_loop(void *arg)
     }
 
     /* cleanup */
-    nc_ps_clear(np2srv.nc_ps, 1, free_ds);
     nc_thread_destroy();
-
+    free(arg);
+    np2srv.workers[idx] = 0;
     return NULL;
 }
 
@@ -728,15 +746,13 @@ int
 main(int argc, char *argv[])
 {
     int ret = EXIT_SUCCESS;
-    int c;
+    int c, *idx;
     int daemonize = 1;
     int pidfd;
     char pid[8];
-    NC_MSG_TYPE msgtype;
     struct sigaction action;
     sigset_t block_mask;
-    struct nc_session *ncs;
-    pthread_t tid;
+    pthread_attr_t thread_attr;
 
     /* process command line options */
     while ((c = getopt(argc, argv, OPTSTRING)) != -1) {
@@ -826,47 +842,30 @@ restart:
         goto cleanup;
     }
 
-    /* create processing thread for handling requests from active sessions */
-    pthread_create(&tid, NULL, process_loop, NULL);
-
-    /* listen for new NETCONF sessions */
-    while (control == LOOP_CONTINUE) {
-        if (np2srv.nc_max_sessions && (nc_ps_session_count(np2srv.nc_ps) < np2srv.nc_max_sessions)) {
-            /* just sleep, no new sessions can connect */
-            usleep(500000);
-        } else {
-            msgtype = nc_accept(500, &ncs);
-            if (msgtype == NC_MSG_HELLO) {
-                if (connect_ds(ncs)) {
-                    /* error */
-                    ERR("Terminating session %d due to failure when connecting to sysrepo.",
-                        nc_session_get_id(ncs));
-                    nc_session_free(ncs, free_ds);
-                    continue;
-                }
-                ncm_session_add(ncs);
-
-                c = 0;
-                while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, ncs)) {
-                    /* presumably timeout, give it a shot 2 times */
-                    usleep(10000);
-                    ++c;
-                }
-
-                if (c == 3) {
-                    /* there is some serious problem in synchronization/system planner */
-                    EINT;
-                    ncm_session_del(ncs, 1);
-                    nc_session_free(ncs, free_ds);
-                }
-            } else if (msgtype == NC_MSG_WOULDBLOCK) {
-                usleep(10000);
-            }
-        }
+    pthread_attr_init(&thread_attr);
+    pthread_attr_setdetachstate(&thread_attr, PTHREAD_CREATE_DETACHED);
+    /* start additional worker threads */
+    for (c = 1; c < NP2SRV_THREAD_COUNT; ++c) {
+        idx = malloc(sizeof *idx);
+        *idx = c;
+        pthread_create(&np2srv.workers[*idx], &thread_attr, worker_thread, idx);
     }
+    pthread_attr_destroy(&thread_attr);
+
+    /* one worker will use this thread */
+    np2srv.workers[0] = pthread_self();
+    idx = malloc(sizeof *idx);
+    *idx = 0;
+    worker_thread(idx);
 
     /* wait for finishing processing thread */
-    pthread_join(tid, NULL);
+    do {
+        for (c = 0; c < NP2SRV_THREAD_COUNT; ++c) {
+            if (np2srv.workers[c]) {
+                break;
+            }
+        }
+    } while (c < NP2SRV_THREAD_COUNT);
 
 cleanup:
 
@@ -880,6 +879,7 @@ cleanup:
     sr_disconnect(np2srv.sr_conn);
 
     /* libnetconf2 cleanup */
+    nc_ps_clear(np2srv.nc_ps, 1, free_ds);
     nc_ps_free(np2srv.nc_ps);
     nc_server_destroy();
 

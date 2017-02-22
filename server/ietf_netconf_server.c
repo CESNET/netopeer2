@@ -872,7 +872,7 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                 if (sr_oper == SR_OP_CREATED) {
                     rc = nc_server_ch_add_client(list1_key, NC_TI_LIBSSH);
                     if (!rc) {
-                        rc = nc_connect_ch_client_dispatch(list1_key, np2srv_new_ch_session_clb);
+                        rc = nc_connect_ch_client_dispatch(list1_key, np2srv_new_session_clb);
                     }
                 } else {
                     rc = 0;
@@ -950,7 +950,7 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                 if (sr_oper == SR_OP_CREATED) {
                     rc = nc_server_ch_add_client(list1_key, NC_TI_OPENSSL);
                     if (!rc) {
-                        rc = nc_connect_ch_client_dispatch(list1_key, np2srv_new_ch_session_clb);
+                        rc = nc_connect_ch_client_dispatch(list1_key, np2srv_new_session_clb);
                     }
                 } else {
                     rc = 0;

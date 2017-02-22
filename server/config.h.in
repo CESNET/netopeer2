@@ -32,4 +32,8 @@
  */
 #define NP2SRV_KEYSTORED_DIR "@KEYSTORED_KEYS_DIR@"
 
+/** @brief Maximum number of threads handling session requests
+ */
+#define NP2SRV_THREAD_COUNT @THREAD_COUNT@
+
 #endif /* NP2SRV_CONFIG_H_ */
