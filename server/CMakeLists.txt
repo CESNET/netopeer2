@@ -11,6 +11,9 @@ if(NOT UNIX)
     message(FATAL_ERROR "Only *nix like systems are supported.")
 endif()
 
+# set version
+set(NP2SRV_VERSION 0.3.39)
+
 # set default build type if not specified by user
 if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE debug)
@@ -20,6 +23,7 @@ set(CMAKE_C_FLAGS         "${CMAKE_C_FLAGS} -Wall -Wextra")
 set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
 set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -DDEBUG")
 
+# build options
 if(CMAKE_BUILD_TYPE STREQUAL debug)
     option(ENABLE_BUILD_TESTS "Build tests" ON)
     option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" ON)
@@ -27,9 +31,7 @@ else()
     option(ENABLE_BUILD_TESTS "Build tests" OFF)
     option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" OFF)
 endif()
-
-# set version
-set(NP2SRV_VERSION 0.3.39)
+set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
 
 # set prefix for the PID file
 if (NOT PIDFILE_PREFIX)
@@ -37,13 +39,11 @@ if (NOT PIDFILE_PREFIX)
 endif()
 
 # get keystored keys directory
-if (NOT KEYSTORED_KEYS_DIR)
-    find_package(PkgConfig)
-    if (PKG_CONFIG_FOUND)
-        execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} "--variable=KEYSTORED_KEYS_DIR" "keystored" OUTPUT_VARIABLE KEYSTORED_KEYS_DIR)
-        if (KEYSTORED_KEYS_DIR)
-            string(STRIP ${KEYSTORED_KEYS_DIR} KEYSTORED_KEYS_DIR)
-        endif()
+find_package(PkgConfig)
+if (NOT KEYSTORED_KEYS_DIR AND PKG_CONFIG_FOUND)
+    execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} "--variable=KEYSTORED_KEYS_DIR" "keystored" OUTPUT_VARIABLE KEYSTORED_KEYS_DIR)
+    if (KEYSTORED_KEYS_DIR)
+        string(STRIP ${KEYSTORED_KEYS_DIR} KEYSTORED_KEYS_DIR)
     endif()
 endif()
 if (NOT KEYSTORED_KEYS_DIR)
@@ -51,6 +51,19 @@ if (NOT KEYSTORED_KEYS_DIR)
     set(KEYSTORED_KEYS_DIR "none")
 else()
     message(STATUS "keystored keys directory is \"${KEYSTORED_KEYS_DIR}\".")
+endif()
+
+# check that lnc2 supports np2srv thread count
+if (PKG_CONFIG_FOUND)
+    execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} "--variable=LNC2_MAX_THREAD_COUNT" "libnetconf2" OUTPUT_VARIABLE LNC2_THREAD_COUNT)
+    string(STRIP ${LNC2_THREAD_COUNT} LNC2_THREAD_COUNT)
+    if (LNC2_THREAD_COUNT LESS THREAD_COUNT)
+        message(FATAL_ERROR "libnetconf2 was compiled with support up to ${LNC2_THREAD_COUNT} threads, server is configured with ${THREAD_COUNT}.")
+    else()
+        message(STATUS "libnetconf2 was compiled with support of up to ${LNC2_THREAD_COUNT} threads")
+    endif()
+else()
+    message(STATUS "pkg-config not found, so it was not possible to check if libnetconf2 supports ${THREAD_COUNT} threads")
 endif()
 
 configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_SOURCE_DIR}/config.h" ESCAPE_QUOTES @ONLY)
@@ -91,7 +104,7 @@ include_directories(${LIBYANG_INCLUDE_DIRS})
 # dependencies - libnetconf2
 find_package(LibNETCONF2 REQUIRED)
 if (NOT LIBNETCONF2_ENABLED_SSH)
-        message(SEND_ERROR "Missing SSH support in libnetconf2, server requires SSH to be supported.")
+    message(FATAL_ERROR "Missing SSH support in libnetconf2, server requires SSH to be supported.")
 endif()
 target_link_libraries(netopeer2-server ${LIBNETCONF2_LIBRARIES})
 include_directories(${LIBNETCONF2_INCLUDE_DIRS})
