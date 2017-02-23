@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.6)
 set(tests test_close_session test_get test_edit_get_config test_un_lock)
 
 set(test test_close_session)
-set(${test}_mock_funcs sr_connect sr_session_start sr_list_schemas sr_get_schema sr_module_install_subscribe sr_feature_enable_subscribe sr_session_start_user sr_session_stop sr_disconnect nc_server_ssh_add_endpt_listen nc_server_ssh_endpt_set_hostkey nc_accept nc_session_free nc_ps_clear)
+set(${test}_mock_funcs sr_connect sr_session_start sr_list_schemas sr_get_schema sr_module_install_subscribe sr_feature_enable_subscribe sr_module_change_subscribe sr_session_start_user sr_session_stop sr_disconnect nc_accept nc_session_free)
 set(${test}_wrap_link_flags "-Wl")
 foreach(mock_func IN LISTS ${test}_mock_funcs)
     set(${test}_wrap_link_flags "${${test}_wrap_link_flags},--wrap=${mock_func}")
@@ -34,7 +34,7 @@ foreach(src IN LISTS srcs)
     list(APPEND test_srcs "../${src}")
 endforeach()
 
-set(CMAKE_C_FLAGS         "${CMAKE_C_FLAGS} -DNP2SRV_THREAD_COUNT=1")
+set(CMAKE_C_FLAGS         "${CMAKE_C_FLAGS} -DNP2SRV_THREAD_COUNT=1 -DNP2SRV_KEYSTORED_DIR=\\\"${CMAKE_SOURCE_DIR}/tests/files\\\"")
 
 # object library to build source codes only once for all the tests
 add_library(testobj OBJECT ${test_srcs})

@@ -65,8 +65,10 @@ int
 __wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t *schema_cnt)
 {
     (void)session;
-    *schemas = NULL;
-    *schema_cnt = 0;
+
+    *schemas = calloc(1, sizeof **schemas);
+    *schema_cnt = 1;
+    (*schemas)->module_name = strdup("ietf-netconf-server");
     return SR_ERR_OK;
 }
 
@@ -75,11 +77,14 @@ __wrap_sr_get_schema(sr_session_ctx_t *session, const char *module_name, const c
                      const char *submodule_name, sr_schema_format_t format, char **schema_content)
 {
     (void)session;
-    (void)module_name;
     (void)revision;
     (void)submodule_name;
     (void)format;
-    (void)schema_content;
+
+    if (!strcmp(module_name, "ietf-netconf-server")) {
+        *schema_content = strdup("<module name=\"ietf-netconf-server\" xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\"><namespace uri=\"ns\"/><prefix value=\"pr\"/></module>");
+    }
+
     return SR_ERR_OK;
 }
 
@@ -134,6 +139,21 @@ __wrap_sr_feature_enable_subscribe(sr_session_ctx_t *session, sr_feature_enable_
     (void)session;
     (void)callback;
     (void)private_ctx;
+    (void)opts;
+    (void)subscription;
+    return SR_ERR_OK;
+}
+
+int
+__wrap_sr_module_change_subscribe(sr_session_ctx_t *session, const char *module_name, sr_module_change_cb callback,
+                                  void *private_ctx, uint32_t priority, sr_subscr_options_t opts,
+                                  sr_subscription_ctx_t **subscription)
+{
+    (void)session;
+    (void)module_name;
+    (void)callback;
+    (void)private_ctx;
+    (void)priority;
     (void)opts;
     (void)subscription;
     return SR_ERR_OK;
@@ -211,29 +231,6 @@ struct nc_session {
     } opts;
 };
 
-struct nc_pollsession {
-    struct nc_session **sessions;
-    uint16_t session_count;
-    uint16_t last_event_session;
-};
-
-int
-__wrap_nc_server_ssh_add_endpt_listen(const char *name, const char *address, uint16_t port)
-{
-    (void)name;
-    (void)address;
-    (void)port;
-    return 0;
-}
-
-int
-__wrap_nc_server_ssh_endpt_set_hostkey(const char *endpt_name, const char *privkey_path)
-{
-    (void)endpt_name;
-    (void)privkey_path;
-    return 0;
-}
-
 NC_MSG_TYPE
 __wrap_nc_accept(int timeout, struct nc_session **session)
 {
@@ -292,25 +289,6 @@ __wrap_nc_session_free(struct nc_session *session, void (*data_free)(void *))
     free(session->ti_cond);
     free((int *)session->ti_inuse);
     free(session);
-}
-
-void
-__wrap_nc_ps_clear(struct nc_pollsession *ps, int all, void (*data_free)(void *))
-{
-    int i;
-
-    if (!all) {
-        fail();
-    }
-
-    for (i = 0; i < ps->session_count; ++i) {
-        for (i = 0; i < ps->session_count; i++) {
-            nc_session_free(ps->sessions[i], data_free);
-        }
-        free(ps->sessions);
-        ps->sessions = NULL;
-        ps->session_count = 0;
-    }
 }
 
 /*
@@ -483,6 +461,12 @@ test_get(void **state)
                     "<conformance-type>implement</conformance-type>"
                 "</module>"
                 "<module>"
+                    "<name>ietf-netconf-server</name>"
+                    "<revision/>"
+                    "<namespace>ns</namespace>"
+                    "<conformance-type>implement</conformance-type>"
+                "</module>"
+                "<module>"
                     "<name>ietf-netconf</name>"
                     "<revision>2011-06-01</revision>"
                     "<namespace>urn:ietf:params:xml:ns:netconf:base:1.0</namespace>"
@@ -506,7 +490,7 @@ test_get(void **state)
                     "<namespace>urn:ietf:params:xml:ns:yang:ietf-netconf-with-defaults</namespace>"
                     "<conformance-type>implement</conformance-type>"
                 "</module>"
-                "<module-set-id>8</module-set-id>"
+                "<module-set-id>9</module-set-id>"
             "</modules-state>"
             "<netconf-state xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring\">"
                 "<capabilities>"
@@ -522,7 +506,8 @@ test_get(void **state)
                     "<capability>urn:ietf:params:xml:ns:yang:1?module=yang&amp;revision=2016-02-11</capability>"
                     "<capability>urn:ietf:params:xml:ns:yang:ietf-inet-types?module=ietf-inet-types&amp;revision=2013-07-15</capability>"
                     "<capability>urn:ietf:params:xml:ns:yang:ietf-yang-types?module=ietf-yang-types&amp;revision=2013-07-15</capability>"
-                    "<capability>urn:ietf:params:xml:ns:yang:ietf-yang-library?module=ietf-yang-library&amp;revision=2016-06-21&amp;module-set-id=8</capability>"
+                    "<capability>urn:ietf:params:xml:ns:yang:ietf-yang-library?module=ietf-yang-library&amp;revision=2016-06-21&amp;module-set-id=9</capability>"
+                    "<capability>ns?module=ietf-netconf-server</capability>"
                     "<capability>urn:ietf:params:xml:ns:netconf:base:1.0?module=ietf-netconf&amp;revision=2011-06-01&amp;features=writable-running,candidate,rollback-on-error,validate,startup,xpath</capability>"
                     "<capability>urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring?module=ietf-netconf-monitoring&amp;revision=2010-10-04</capability>"
                     "<capability>urn:ietf:params:xml:ns:yang:ietf-netconf-with-defaults?module=ietf-netconf-with-defaults&amp;revision=2011-06-01</capability>"
@@ -593,6 +578,20 @@ test_get(void **state)
                         "<version>2016-06-21</version>"
                         "<format>yin</format>"
                         "<namespace>urn:ietf:params:xml:ns:yang:ietf-yang-library</namespace>"
+                        "<location>NETCONF</location>"
+                    "</schema>"
+                    "<schema>"
+                        "<identifier>ietf-netconf-server</identifier>"
+                        "<version/>"
+                        "<format>yang</format>"
+                        "<namespace>ns</namespace>"
+                        "<location>NETCONF</location>"
+                    "</schema>"
+                    "<schema>"
+                        "<identifier>ietf-netconf-server</identifier>"
+                        "<version/>"
+                        "<format>yin</format>"
+                        "<namespace>ns</namespace>"
                         "<location>NETCONF</location>"
                     "</schema>"
                     "<schema>"
@@ -722,6 +721,12 @@ test_get_filter2(void **state)
                     "<namespace>urn:ietf:params:xml:ns:yang:ietf-yang-library</namespace>"
                 "</module>"
                 "<module>"
+                    "<name>ietf-netconf-server</name>"
+                    "<revision/>"
+                    "<conformance-type>implement</conformance-type>"
+                    "<namespace>ns</namespace>"
+                "</module>"
+                "<module>"
                     "<name>ietf-netconf</name>"
                     "<revision>2011-06-01</revision>"
                     "<conformance-type>implement</conformance-type>"
@@ -785,6 +790,11 @@ test_get_filter3(void **state)
                     "<conformance-type>implement</conformance-type>"
                 "</module>"
                 "<module>"
+                    "<name>ietf-netconf-server</name>"
+                    "<revision/>"
+                    "<conformance-type>implement</conformance-type>"
+                "</module>"
+                "<module>"
                     "<name>ietf-netconf</name>"
                     "<revision>2011-06-01</revision>"
                     "<conformance-type>implement</conformance-type>"
@@ -843,6 +853,10 @@ test_get_filter4(void **state)
                 "<module>"
                     "<name>ietf-yang-library</name>"
                     "<revision>2016-06-21</revision>"
+                "</module>"
+                "<module>"
+                    "<name>ietf-netconf-server</name>"
+                    "<revision/>"
                 "</module>"
                 "<module>"
                     "<name>ietf-netconf</name>"
@@ -945,6 +959,20 @@ test_get_filter5(void **state)
                         "<version>2016-06-21</version>"
                         "<format>yin</format>"
                         "<namespace>urn:ietf:params:xml:ns:yang:ietf-yang-library</namespace>"
+                        "<location>NETCONF</location>"
+                    "</schema>"
+                    "<schema>"
+                        "<identifier>ietf-netconf-server</identifier>"
+                        "<version/>"
+                        "<format>yang</format>"
+                        "<namespace>ns</namespace>"
+                        "<location>NETCONF</location>"
+                    "</schema>"
+                    "<schema>"
+                        "<identifier>ietf-netconf-server</identifier>"
+                        "<version/>"
+                        "<format>yin</format>"
+                        "<namespace>ns</namespace>"
                         "<location>NETCONF</location>"
                     "</schema>"
                     "<schema>"

@@ -65,8 +65,10 @@ int
 __wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t *schema_cnt)
 {
     (void)session;
-    *schemas = NULL;
-    *schema_cnt = 0;
+
+    *schemas = calloc(1, sizeof **schemas);
+    *schema_cnt = 1;
+    (*schemas)->module_name = strdup("ietf-netconf-server");
     return SR_ERR_OK;
 }
 
@@ -75,11 +77,14 @@ __wrap_sr_get_schema(sr_session_ctx_t *session, const char *module_name, const c
                      const char *submodule_name, sr_schema_format_t format, char **schema_content)
 {
     (void)session;
-    (void)module_name;
     (void)revision;
     (void)submodule_name;
     (void)format;
-    (void)schema_content;
+
+    if (!strcmp(module_name, "ietf-netconf-server")) {
+        *schema_content = strdup("<module name=\"ietf-netconf-server\" xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\"><namespace uri=\"ns\"/><prefix value=\"pr\"/></module>");
+    }
+
     return SR_ERR_OK;
 }
 
@@ -134,6 +139,21 @@ __wrap_sr_feature_enable_subscribe(sr_session_ctx_t *session, sr_feature_enable_
     (void)session;
     (void)callback;
     (void)private_ctx;
+    (void)opts;
+    (void)subscription;
+    return SR_ERR_OK;
+}
+
+int
+__wrap_sr_module_change_subscribe(sr_session_ctx_t *session, const char *module_name, sr_module_change_cb callback,
+                                  void *private_ctx, uint32_t priority, sr_subscr_options_t opts,
+                                  sr_subscription_ctx_t **subscription)
+{
+    (void)session;
+    (void)module_name;
+    (void)callback;
+    (void)private_ctx;
+    (void)priority;
     (void)opts;
     (void)subscription;
     return SR_ERR_OK;
@@ -257,35 +277,6 @@ struct nc_session {
     } opts;
 };
 
-struct nc_pollsession {
-    struct nc_session **sessions;
-    uint16_t session_count;
-    uint16_t last_event_session;
-
-    pthread_cond_t cond;
-    pthread_mutex_t lock;
-    uint8_t queue[6];
-    uint8_t queue_begin;
-    uint8_t queue_len;
-};
-
-int
-__wrap_nc_server_ssh_add_endpt_listen(const char *name, const char *address, uint16_t port)
-{
-    (void)name;
-    (void)address;
-    (void)port;
-    return 0;
-}
-
-int
-__wrap_nc_server_ssh_endpt_set_hostkey(const char *endpt_name, const char *privkey_path)
-{
-    (void)endpt_name;
-    (void)privkey_path;
-    return 0;
-}
-
 NC_MSG_TYPE
 __wrap_nc_accept(int timeout, struct nc_session **session)
 {
@@ -344,25 +335,6 @@ __wrap_nc_session_free(struct nc_session *session, void (*data_free)(void *))
     free(session->ti_cond);
     free((int *)session->ti_inuse);
     free(session);
-}
-
-void
-__wrap_nc_ps_clear(struct nc_pollsession *ps, int all, void (*data_free)(void *))
-{
-    int i;
-
-    if (!all) {
-        fail();
-    }
-
-    for (i = 0; i < ps->session_count; ++i) {
-        for (i = 0; i < ps->session_count; i++) {
-            nc_session_free(ps->sessions[i], data_free);
-        }
-        free(ps->sessions);
-        ps->sessions = NULL;
-        ps->session_count = 0;
-    }
 }
 
 /*
