@@ -31,9 +31,6 @@
 #undef NP2SRV_PIDFILE
 #define NP2SRV_PIDFILE "/tmp/test_np2srv.pid"
 
-#undef NP2SRV_THREAD_COUNT
-#define NP2SRV_THREAD_COUNT 1
-
 #include "../main.c"
 
 #undef main
@@ -218,12 +215,6 @@ struct nc_pollsession {
     struct nc_session **sessions;
     uint16_t session_count;
     uint16_t last_event_session;
-
-    pthread_cond_t cond;
-    pthread_mutex_t lock;
-    uint8_t queue[6];
-    uint8_t queue_begin;
-    uint8_t queue_len;
 };
 
 int

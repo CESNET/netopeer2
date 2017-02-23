@@ -36,9 +36,6 @@
 #undef NP2SRV_PIDFILE
 #define NP2SRV_PIDFILE "/tmp/test_np2srv.pid"
 
-#undef NP2SRV_THREAD_COUNT
-#define NP2SRV_THREAD_COUNT 1
-
 #include "../main.c"
 
 #undef main

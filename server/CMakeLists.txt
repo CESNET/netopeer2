@@ -85,7 +85,7 @@ set(srcs
     op_generic.c
     log.c)
 
-# object library to build source codes only once for the main binary and tests
+# object library to build source codes only once for the main binary
 add_library(serverobj OBJECT ${srcs})
 
 # netopeer2-server target

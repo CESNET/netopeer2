@@ -297,6 +297,7 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
     /* unlock libyang context */
     pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
 }
+
 static void
 np2srv_feature_change_clb(const char *module_name, const char *feature_name, bool enabled, void *UNUSED(private_ctx))
 {

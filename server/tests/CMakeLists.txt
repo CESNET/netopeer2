@@ -30,8 +30,17 @@ foreach(mock_func IN LISTS test_close_session_mock_funcs test_get_mock_funcs ${t
     set(${test}_wrap_link_flags "${${test}_wrap_link_flags},--wrap=${mock_func}")
 endforeach()
 
+foreach(src IN LISTS srcs)
+    list(APPEND test_srcs "../${src}")
+endforeach()
+
+set(CMAKE_C_FLAGS         "${CMAKE_C_FLAGS} -DNP2SRV_THREAD_COUNT=1")
+
+# object library to build source codes only once for all the tests
+add_library(testobj OBJECT ${test_srcs})
+
 foreach(test_name IN LISTS tests)
-    add_executable(${test_name} $<TARGET_OBJECTS:serverobj> ${test_name}.c)
+    add_executable(${test_name} $<TARGET_OBJECTS:testobj> ${test_name}.c)
     target_link_libraries(${test_name} ${CMOCKA_LIBRARIES} pthread ${LIBYANG_LIBRARIES} ${LIBNETCONF2_LIBRARIES} ${SYSREPO_LIBRARIES})
     set_target_properties(${test_name} PROPERTIES LINK_FLAGS "${${test_name}_wrap_link_flags}")
     add_test(NAME ${test_name} COMMAND $<TARGET_FILE:${test_name}>)
