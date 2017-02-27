@@ -627,7 +627,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         ly_set_free(nodeset);
         LY_TREE_FOR(node->attr, attr) {
             if (!strcmp(attr->name, "type")) {
-                if (!strcmp(attr->value, "xpath")) {
+                if (!strcmp(attr->value_str, "xpath")) {
                     LY_TREE_FOR(node->attr, attr) {
                         if (!strcmp(attr->name, "select")) {
                             break;
@@ -638,7 +638,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                         goto error;
                     }
                     break;
-                } else if (!strcmp(attr->value, "subtree")) {
+                } else if (!strcmp(attr->value_str, "subtree")) {
                     attr = NULL;
                     break;
                 }
@@ -675,11 +675,11 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             }
         } else {
             /* xpath */
-            if (!attr->value || !attr->value[0]) {
+            if (!attr->value_str || !attr->value_str[0]) {
                 /* empty select, okay, I guess... */
                 goto send_reply;
             }
-            path = strdup(attr->value);
+            path = strdup(attr->value_str);
             if (!path) {
                 EMEM;
                 goto error;
