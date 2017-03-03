@@ -326,7 +326,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 op_size += 16;
                 op_new = realloc(op, op_size * sizeof *op);
                 if (!op_new) {
-                    ERR("%s: memory allocation failed (%s) - %s:%d", __func__, strerror(errno), __FILE__, __LINE__);
+                    EMEM;
                     goto internalerror;
                 }
                 op = op_new;
@@ -338,7 +338,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 path_levels_size += 16;
                 path_levels_new = realloc(path_levels, path_levels_size * sizeof *path_levels);
                 if (!path_levels_new) {
-                    ERR("%s: memory allocation failed (%s) - %s:%d", __func__, strerror(errno), __FILE__, __LINE__);
+                    EMEM;
                     goto internalerror;
                 }
                 path_levels = path_levels_new;
