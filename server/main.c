@@ -907,9 +907,9 @@ restart:
     pthread_attr_init(&thread_attr);
     pthread_attr_setdetachstate(&thread_attr, PTHREAD_CREATE_DETACHED);
     /* start additional worker threads */
-    for (c = 1; c < NP2SRV_THREAD_COUNT; ++c) {
+    for (i = 1; i < NP2SRV_THREAD_COUNT; ++i) {
         idx = malloc(sizeof *idx);
-        *idx = c;
+        *idx = i;
         pthread_create(&np2srv.workers[*idx], &thread_attr, worker_thread, idx);
     }
     pthread_attr_destroy(&thread_attr);
@@ -922,12 +922,12 @@ restart:
 
     /* wait for finishing processing thread */
     do {
-        for (c = 0; c < NP2SRV_THREAD_COUNT; ++c) {
-            if (np2srv.workers[c]) {
+        for (i = 0; i < NP2SRV_THREAD_COUNT; ++i) {
+            if (np2srv.workers[i]) {
                 break;
             }
         }
-    } while (c < NP2SRV_THREAD_COUNT);
+    } while (i < NP2SRV_THREAD_COUNT);
 
 cleanup:
 
