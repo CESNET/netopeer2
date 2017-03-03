@@ -46,6 +46,8 @@ struct np2srv np2srv;
 struct np2srv_dslock dslock;
 pthread_rwlock_t dslock_rwl = PTHREAD_RWLOCK_INITIALIZER;
 
+static void *worker_thread(void *arg);
+
 /**
  * @brief Control flags for the main loop
  */
@@ -63,15 +65,14 @@ volatile enum LOOPCTRL control = LOOP_CONTINUE;
 static void
 print_version(void)
 {
-    fprintf(stdout, "Netopeer2 Server %s\n", NP2SRV_VERSION);
+    fprintf(stdout, "netopeer2-server %s\n", NP2SRV_VERSION);
     fprintf(stdout, "compile time: %s, %s\n", __DATE__, __TIME__);
-    return;
 }
 
 /**
  * @brief Command line options definition for getopt()
  */
-#define OPTSTRING "dhv:V"
+#define OPTSTRING "dhv:Vc:"
 /**
  * @brief Print command line options description
  * @param[in] progname Name of the process.
@@ -88,8 +89,8 @@ print_usage(char* progname)
     fprintf(stdout, "                         0 - errors\n");
     fprintf(stdout, "                         1 - errors and warnings\n");
     fprintf(stdout, "                         2 - errors, warnings and verbose messages\n");
-    fprintf(stdout, "                         3 - all messages including debug notes\n");
-    exit(0);
+    fprintf(stdout, " -c category[,category]*  verbose debug level, print only these debug message categories\n");
+    fprintf(stdout, " categories: DICT, YANG, YIN, XPATH, DIFF, MSG, EDIT_CONFIG, SSH\n\n");
 }
 
 /**
@@ -247,25 +248,23 @@ np2srv_verify_clb(const struct nc_session *session)
 }
 
 static char *
-np2srv_ly_import_clb(const char *mod_name, const char *mod_rev, const char *submod_name, const char *UNUSED(submod_rev),
+np2srv_ly_import_clb(const char *mod_name, const char *mod_rev, const char *submod_name, const char *submod_rev,
                      void *UNUSED(user_data), LYS_INFORMAT *format, void (**free_module_data)(void *model_data))
 {
     char *data = NULL;
     int rc;
 
-    if (!strcmp(mod_name, "notifications")) {
-        /* hack for internal notifications module, which is available in internal context, but not in
-         * sysrepo, so tell libyang that we don't have this module, it will get it from the context */
-        return NULL;
-    }
-
     *free_module_data = free;
     *format = LYS_YIN;
-    rc = sr_get_schema(np2srv.sr_sess.srs, mod_name, mod_rev, submod_name, SR_SCHEMA_YIN, &data);
+    if (submod_rev || (submod_name && !mod_name)) {
+        rc = sr_get_submodule_schema(np2srv.sr_sess.srs, submod_name, submod_rev, SR_SCHEMA_YIN, &data);
+    } else {
+        rc = sr_get_schema(np2srv.sr_sess.srs, mod_name, mod_rev, submod_name, SR_SCHEMA_YIN, &data);
+    }
     if (rc == SR_ERR_OK) {
         return data;
     } else if (submod_name) {
-        ERR("Unable to get %s module (as dependency of %s) from sysrepo (%s).", mod_name, submod_name, sr_strerror(rc));
+        ERR("Unable to get %s module from sysrepo (%s).", submod_name, sr_strerror(rc));
     } else {
         ERR("Unable to get %s module from sysrepo (%s).", mod_name, sr_strerror(rc));
     }
@@ -336,7 +335,8 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
         pthread_rwlock_wrlock(&np2srv.ly_ctx_lock);
 
         /* remove the specified module from the context */
-        ly_ctx_remove_module(np2srv.ly_ctx, module_name, revision, NULL);
+        mod = ly_ctx_get_module(np2srv.ly_ctx, module_name, revision);
+        ly_ctx_remove_module(mod, NULL);
         /* ignore return value, the function can fail in case the module was already removed
          * because of dependency in some of the previous call */
     }
@@ -362,7 +362,7 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
     }
 }
 
-void
+static void
 np2srv_feature_change_clb(const char *module_name, const char *feature_name, bool enabled, void *UNUSED(private_ctx))
 {
     const struct lys_module *mod;
@@ -385,11 +385,58 @@ np2srv_feature_change_clb(const char *module_name, const char *feature_name, boo
     pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
 }
 
+static int
+connect_ds(struct nc_session *ncs)
+{
+    struct np2_sessions *s;
+    int rc;
+
+    if (!ncs) {
+        return EXIT_FAILURE;
+    }
+
+    s = calloc(1, sizeof *s);
+    if (!s) {
+        EMEM;
+        return EXIT_FAILURE;
+    }
+    s->ncs = ncs;
+    s->ds = SR_DS_RUNNING;
+    s->opts = SR_SESS_DEFAULT;
+    rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), s->ds, s->opts, &s->srs);
+    if (rc != SR_ERR_OK) {
+        ERR("Unable to create sysrepo session for NETCONF session %d (%s; datastore %d; options %d).",
+            nc_session_get_id(ncs), sr_strerror(rc), s->ds, s->opts);
+        goto error;
+    }
+
+    /* connect sysrepo sessions (datastore) with NETCONF session */
+    nc_session_set_data(ncs, s);
+
+    return EXIT_SUCCESS;
+
+error:
+    if (s->srs) {
+        sr_session_stop(s->srs);
+    }
+    free(s);
+    return EXIT_FAILURE;
+}
+
 void
-np2srv_new_ch_session_clb(const char *UNUSED(client_name), struct nc_session *new_session)
+np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_session)
 {
     int c;
+    sr_val_t *event_data;
+    char *host;
 
+    if (connect_ds(new_session)) {
+        /* error */
+        ERR("Terminating session %d due to failure when connecting to sysrepo.",
+            nc_session_get_id(new_session));
+        nc_session_free(new_session, free_ds);
+        return;
+    }
     ncm_session_add(new_session);
 
     c = 0;
@@ -405,6 +452,87 @@ np2srv_new_ch_session_clb(const char *UNUSED(client_name), struct nc_session *ne
         ncm_session_del(new_session);
         nc_session_free(new_session, free_ds);
     }
+
+    if (ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL)) {
+        /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
+        host = (char*)nc_session_get_host(new_session);
+        event_data = calloc(host ? 3 : 2, sizeof *event_data);
+        event_data[0].xpath = "/ietf-netconf-notifications:netconf-session-start/username";
+        event_data[0].type = SR_STRING_T;
+        event_data[0].data.string_val = (char*)nc_session_get_username(new_session);
+        event_data[1].xpath = "/ietf-netconf-notifications:netconf-session-start/session-id";
+        event_data[1].type = SR_UINT32_T;
+        event_data[1].data.uint32_val = nc_session_get_id(new_session);
+        if (host) {
+            event_data[2].xpath = "/ietf-netconf-notifications:netconf-session-start/source-host";
+            event_data[2].type = SR_STRING_T;
+            event_data[2].data.string_val = host;
+        }
+        sr_event_notif_send(np2srv.sr_sess.srs, "/ietf-netconf-notifications:netconf-session-start", event_data,
+                            host ? 3 : 2, SR_EV_NOTIF_DEFAULT);
+        free(event_data);
+
+        VRB("Generated new event (netconf-session-start).");
+    }
+}
+
+static void
+np2srv_del_session_clb(struct nc_session *session)
+{
+    int i;
+    char *host;
+    sr_val_t *event_data;
+    size_t c = 0;
+
+    op_ntf_unsubscribe(session);
+    nc_ps_del_session(np2srv.nc_ps, session);
+    ncm_session_del(session);
+
+    if (ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL)) {
+        /* generate ietf-netconf-notification's netconf-session-end event for sysrepo */
+        host = (char*)nc_session_get_host(session);
+        c = host ? 4 : 3;
+        i = 0;
+        event_data = calloc(c, sizeof *event_data);
+        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/username";
+        event_data[i].type = SR_STRING_T;
+        event_data[i++].data.string_val = (char*)nc_session_get_username(session);
+        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/session-id";
+        event_data[i].type = SR_UINT32_T;
+        event_data[i++].data.uint32_val = nc_session_get_id(session);
+        if (host) {
+            event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/source-host";
+            event_data[i].type = SR_STRING_T;
+            event_data[i++].data.string_val = host;
+        }
+        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/termination-reason";
+        event_data[i].type = SR_ENUM_T;
+        switch (nc_session_get_termreason(session)) {
+        case NC_SESSION_TERM_CLOSED:
+            event_data[i++].data.enum_val = "closed";
+            break;
+        case NC_SESSION_TERM_KILLED:
+            /* TODO killed-by */
+            event_data[i++].data.enum_val = "killed";
+            break;
+        case NC_SESSION_TERM_DROPPED:
+            event_data[i++].data.enum_val = "dropped";
+            break;
+        case NC_SESSION_TERM_TIMEOUT:
+            event_data[i++].data.enum_val = "timeout";
+            break;
+        default:
+            event_data[i++].data.enum_val = "other";
+            break;
+        }
+        sr_event_notif_send(np2srv.sr_sess.srs, "/ietf-netconf-notifications:netconf-session-end", event_data, c,
+                            SR_EV_NOTIF_DEFAULT);
+        free(event_data);
+
+        VRB("Generated new event (netconf-session-end).");
+    }
+
+    nc_session_free(session, free_ds);
 }
 
 static int
@@ -452,7 +580,7 @@ np2srv_init_schemas(int first)
     if (!np2srv.ly_ctx) {
         goto error;
     }
-    ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_import_clb, NULL);
+    ly_ctx_set_module_imp_clb(np2srv.ly_ctx, np2srv_ly_import_clb, NULL);
 
     /* 1) use modules from sysrepo */
     for (i = 0; i < count; i++) {
@@ -485,7 +613,7 @@ np2srv_init_schemas(int first)
             np2srv_module_assign_clbs(mod);
         }
     }
-    ly_ctx_set_module_clb(np2srv.ly_ctx, np2srv_ly_import_clb, NULL);
+    ly_ctx_set_module_imp_clb(np2srv.ly_ctx, np2srv_ly_import_clb, NULL);
     sr_free_schemas(schemas, count);
     schemas = NULL;
 
@@ -542,6 +670,19 @@ error:
 }
 
 static int
+np2srv_default_hostkey_clb(const char *name, void *UNUSED(user_data), char **privkey_path, char **UNUSED(privkey_data),
+                           int *UNUSED(privkey_data_rsa))
+{
+    if (!strcmp(name, "default")) {
+        *privkey_path = strdup(NP2SRV_HOST_KEY);
+        return 0;
+    }
+
+    EINT;
+    return 1;
+}
+
+static int
 server_init(void)
 {
     int rc;
@@ -549,7 +690,7 @@ server_init(void)
     const struct lys_module *mod;
 
     /* connect to the sysrepo */
-    rc = sr_connect("netopeer2", false, &np2srv.sr_conn);
+    rc = sr_connect("netopeer2", SR_CONN_DAEMON_REQUIRED | SR_CONN_DAEMON_START, &np2srv.sr_conn);
     if (rc != SR_ERR_OK) {
         ERR("Unable to connect to sysrepod (%s).", sr_strerror(rc));
         return EXIT_FAILURE;
@@ -628,7 +769,6 @@ server_init(void)
 
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:cancel-commit");
     nc_set_rpc_callback(snode, op_cancel);
-
      */
 
     /* set Notifications subscription callback */
@@ -637,7 +777,7 @@ server_init(void)
 
     /* set server options */
     mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-server", NULL);
-    if (mod && strcmp(NP2SRV_AUTHD_DIR, "none")) {
+    if (mod && strcmp(NP2SRV_KEYSTORED_DIR, "none")) {
         nc_server_tls_set_verify_clb(np2srv_verify_clb);
         if (ietf_netconf_server_init(mod)) {
             goto error;
@@ -652,7 +792,8 @@ server_init(void)
             WRN("Sysrepo does not have the \"ietf-system\" module, SSH publickey authentication will not work.");
         }
     } else {
-        WRN("Sysrepo does not have the \"ietf-netconf-server\" module or authd keys dir unknown, using default NETCONF server options.");
+        WRN("Sysrepo does not have the \"ietf-netconf-server\" module or keystored keys dir unknown, using default NETCONF server options.");
+        nc_server_ssh_set_hostkey_clb(np2srv_default_hostkey_clb, NULL, NULL);
         if (nc_server_add_endpt("main", NC_TI_LIBSSH)) {
             goto error;
         }
@@ -662,7 +803,7 @@ server_init(void)
         if (nc_server_endpt_set_port("main", 830)) {
             goto error;
         }
-        if (nc_server_ssh_endpt_add_hostkey("main", NP2SRV_HOST_KEY)) {
+        if (nc_server_ssh_endpt_add_hostkey("main", "default", -1)) {
             goto error;
         }
     }
@@ -674,56 +815,16 @@ error:
     return EXIT_FAILURE;
 }
 
-static int
-connect_ds(struct nc_session *ncs)
+static void *
+worker_thread(void *arg)
 {
-    struct np2_sessions *s;
-    int rc;
-
-    if (!ncs) {
-        return EXIT_FAILURE;
-    }
-
-    s = calloc(1, sizeof *s);
-    if (!s) {
-        EMEM;
-        return EXIT_FAILURE;
-    }
-    s->ncs = ncs;
-    s->ds = SR_DS_RUNNING;
-    s->opts = SR_SESS_DEFAULT;
-    rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), s->ds, s->opts, &s->srs);
-    if (rc != SR_ERR_OK) {
-        ERR("Unable to create sysrepo session for NETCONF session %d (%s; datastore %d; options %d).",
-            nc_session_get_id(ncs), sr_strerror(rc), s->ds, s->opts);
-        goto error;
-    }
-
-    /* connect sysrepo sessions (datastore) with NETCONF session */
-    nc_session_set_data(ncs, s);
-
-    return EXIT_SUCCESS;
-
-error:
-    if (s->srs) {
-        sr_session_stop(s->srs);
-    }
-    free(s);
-    return EXIT_FAILURE;
-}
-
-void *
-process_loop(void *arg)
-{
-    (void)arg; /* UNUSED */
-
     NC_MSG_TYPE msgtype;
-    int rc;
+    int rc, idx = *((int *)arg);
     struct nc_session *ncs;
 
     nc_libssh_thread_verbosity(np2_verbose_level);
 
-    while (control == LOOP_CONTINUE) {
+    while ((control == LOOP_CONTINUE) && np2srv.workers[idx]) {
 
         /* lock for using libyang context */
         pthread_rwlock_rdlock(&np2srv.ly_ctx_lock);
@@ -735,37 +836,46 @@ process_loop(void *arg)
             break;
         }
 
+        /* try to accept new NETCONF sessions */
+        if (!np2srv.nc_max_sessions || (nc_ps_session_count(np2srv.nc_ps) < np2srv.nc_max_sessions)) {
+            msgtype = nc_accept(100, &ncs);
+            if (msgtype == NC_MSG_HELLO) {
+                np2srv_new_session_clb(NULL, ncs);
+            }
+        }
+
         /* listen for incoming requests on active NETCONF sessions */
-        if (nc_ps_session_count(np2srv.nc_ps) > 0) {
-            rc = nc_ps_poll(np2srv.nc_ps, 500, &ncs);
-        } else {
+        rc = nc_ps_poll(np2srv.nc_ps, 100, &ncs);
+
+        if (rc & (NC_PSPOLL_NOSESSIONS | NC_PSPOLL_TIMEOUT)) {
             /* if there is no active session or timeout, rest for a while */
             pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
-            usleep(100); /* give others time to work with context */
+            usleep(2000);
             continue;
         }
 
         /* process the result of nc_ps_poll(), increase counters */
         if (rc & NC_PSPOLL_BAD_RPC) {
             ncm_session_bad_rpc(ncs);
+            VRB("Session %d: thread %d event bad RPC.", nc_session_get_id(ncs), idx);
         }
         if (rc & NC_PSPOLL_RPC) {
             ncm_session_rpc(ncs);
+            VRB("Session %d: thread %d event new RPC.", nc_session_get_id(ncs), idx);
         }
         if (rc & NC_PSPOLL_REPLY_ERROR) {
             ncm_session_rpc_reply_error(ncs);
+            VRB("Session %d: thread %d event reply error.", nc_session_get_id(ncs), idx);
         }
         if (rc & NC_PSPOLL_SESSION_TERM) {
-            op_ntf_unsubscribe(ncs);
-            ncm_session_del(ncs);
-            nc_ps_del_session(np2srv.nc_ps, ncs);
-            nc_session_free(ncs, free_ds);
+            VRB("Session %d: thread %d event session terminated.", nc_session_get_id(ncs), idx);
+            np2srv_del_session_clb(ncs);
         } else if (rc & NC_PSPOLL_SSH_CHANNEL) {
             /* a new SSH channel on existing session was created */
+            VRB("Session %d: thread %d event new SSH channel.", nc_session_get_id(ncs), idx);
             msgtype = nc_session_accept_ssh_channel(ncs, &ncs);
             if (msgtype == NC_MSG_HELLO) {
-                nc_ps_add_session(np2srv.nc_ps, ncs);
-                ncm_session_add(ncs);
+                np2srv_new_session_clb(NULL, ncs);
             } else if (msgtype == NC_MSG_BAD_HELLO) {
                 ncm_bad_hello();
             }
@@ -775,9 +885,9 @@ process_loop(void *arg)
     }
 
     /* cleanup */
-    nc_ps_clear(np2srv.nc_ps, 1, free_ds);
     nc_thread_destroy();
-
+    free(arg);
+    np2srv.workers[idx] = 0;
     return NULL;
 }
 
@@ -785,15 +895,13 @@ int
 main(int argc, char *argv[])
 {
     int ret = EXIT_SUCCESS;
-    int c;
-    int daemonize = 1;
+    int c, *idx, i;
+    int daemonize = 1, verb = 0;
     int pidfd;
-    char pid[8];
-    NC_MSG_TYPE msgtype;
+    char pid[8], *ptr;
     struct sigaction action;
     sigset_t block_mask;
-    struct nc_session *ncs;
-    pthread_t tid;
+    pthread_attr_t thread_attr;
 
     /* process command line options */
     while ((c = getopt(argc, argv, OPTSTRING)) != -1) {
@@ -805,13 +913,78 @@ main(int argc, char *argv[])
             print_usage(argv[0]);
             return EXIT_SUCCESS;
         case 'v':
+            if (verb) {
+                ERR("Do not combine -v and -c parameters.");
+                return EXIT_FAILURE;
+            }
+            verb = 1;
+
             c = atoi(optarg);
             /* normalize verbose level */
-            np2_verbose_level = (c > NC_VERB_ERROR) ? ((c > NC_VERB_DEBUG) ? NC_VERB_DEBUG : c) : NC_VERB_ERROR;
+            np2_verbose_level = (c > NC_VERB_ERROR) ? ((c > NC_VERB_VERBOSE) ? NC_VERB_VERBOSE : c) : NC_VERB_ERROR;
+            switch (np2_verbose_level) {
+            case NC_VERB_ERROR:
+                np2_libssh_verbose_level = 0;
+                break;
+            case NC_VERB_WARNING:
+            case NC_VERB_VERBOSE:
+                np2_libssh_verbose_level = 1;
+                break;
+            }
+
+            nc_verbosity(np2_verbose_level);
+            nc_libssh_thread_verbosity(np2_libssh_verbose_level);
             break;
         case 'V':
             print_version();
             return EXIT_SUCCESS;
+        case 'c':
+            if (verb) {
+                ERR("Do not combine -v and -c parameters.");
+                return EXIT_FAILURE;
+            }
+
+            /* set verbose for all, we change to debug later if requested */
+            np2_verbose_level = NC_VERB_VERBOSE;
+            nc_verbosity(np2_verbose_level);
+            np2_libssh_verbose_level = 1;
+
+            ptr = strtok(optarg, ",");
+            do {
+                if (!strcmp(ptr, "DICT")) {
+                    verb |= LY_LDGDICT;
+                } else if (!strcmp(ptr, "YANG")) {
+                    verb |= LY_LDGYANG;
+                } else if (!strcmp(ptr, "YIN")) {
+                    verb |= LY_LDGYIN;
+                } else if (!strcmp(ptr, "XPATH")) {
+                    verb |= LY_LDGXPATH;
+                } else if (!strcmp(ptr, "DIFF")) {
+                    verb |= LY_LDGDIFF;
+                } else if (!strcmp(ptr, "MSG")) {
+                    /* NETCONF messages - only lnc2 debug verbosity */
+                    nc_verbosity(NC_VERB_DEBUG);
+                } else if (!strcmp(ptr, "EDIT_CONFIG")) {
+                    /* edit-config operations - only netopeer2 debug verbosity */
+                    np2_verbose_level = NC_VERB_DEBUG;
+                } else if (!strcmp(ptr, "SSH")) {
+                    /* 2 should be always enough, 3 is too much useless info */
+                    np2_libssh_verbose_level = 2;
+                } else {
+                    ERR("Unknown debug message category \"%s\", use -h.");
+                    return EXIT_FAILURE;
+                }
+            } while ((ptr = strtok(NULL, ",")));
+            /* set final verbosity ofr libssh and libyang */
+            nc_libssh_thread_verbosity(np2_libssh_verbose_level);
+            if (verb) {
+                ly_verb(LY_LLDBG);
+                ly_verb_dbg(verb);
+            }
+
+            verb = 1;
+            break;
+
         default:
             print_usage(argv[0]);
             return EXIT_SUCCESS;
@@ -873,9 +1046,6 @@ main(int argc, char *argv[])
     ly_set_log_clb(np2log_clb_ly, 1); /* libyang */
     sr_log_set_cb(np2log_clb_sr); /* sysrepo, log level is checked by callback */
 
-    nc_verbosity(np2_verbose_level);
-    nc_libssh_thread_verbosity(np2_verbose_level);
-
 restart:
     /* initiate NETCONF server */
     if (server_init()) {
@@ -883,47 +1053,30 @@ restart:
         goto cleanup;
     }
 
-    /* create processing thread for handling requests from active sessions */
-    pthread_create(&tid, NULL, process_loop, NULL);
-
-    /* listen for new NETCONF sessions */
-    while (control == LOOP_CONTINUE) {
-        if (np2srv.nc_max_sessions && (nc_ps_session_count(np2srv.nc_ps) < np2srv.nc_max_sessions)) {
-            /* just sleep, no new sessions can connect */
-            usleep(500000);
-        } else {
-            msgtype = nc_accept(500, &ncs);
-            if (msgtype == NC_MSG_HELLO) {
-                if (connect_ds(ncs)) {
-                    /* error */
-                    ERR("Terminating session %d due to failure when connecting to sysrepo.",
-                        nc_session_get_id(ncs));
-                    nc_session_free(ncs, free_ds);
-                    continue;
-                }
-                ncm_session_add(ncs);
-
-                c = 0;
-                while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, ncs)) {
-                    /* presumably timeout, give it a shot 2 times */
-                    usleep(10000);
-                    ++c;
-                }
-
-                if (c == 3) {
-                    /* there is some serious problem in synchronization/system planner */
-                    EINT;
-                    ncm_session_del(ncs);
-                    nc_session_free(ncs, free_ds);
-                }
-            } else if (msgtype == NC_MSG_WOULDBLOCK) {
-                usleep(10000);
-            }
-        }
+    pthread_attr_init(&thread_attr);
+    pthread_attr_setdetachstate(&thread_attr, PTHREAD_CREATE_DETACHED);
+    /* start additional worker threads */
+    for (i = 1; i < NP2SRV_THREAD_COUNT; ++i) {
+        idx = malloc(sizeof *idx);
+        *idx = i;
+        pthread_create(&np2srv.workers[*idx], &thread_attr, worker_thread, idx);
     }
+    pthread_attr_destroy(&thread_attr);
+
+    /* one worker will use this thread */
+    np2srv.workers[0] = pthread_self();
+    idx = malloc(sizeof *idx);
+    *idx = 0;
+    worker_thread(idx);
 
     /* wait for finishing processing thread */
-    pthread_join(tid, NULL);
+    do {
+        for (i = 0; i < NP2SRV_THREAD_COUNT; ++i) {
+            if (np2srv.workers[i]) {
+                break;
+            }
+        }
+    } while (i < NP2SRV_THREAD_COUNT);
 
 cleanup:
 
@@ -937,6 +1090,7 @@ cleanup:
     sr_disconnect(np2srv.sr_conn);
 
     /* libnetconf2 cleanup */
+    nc_ps_clear(np2srv.nc_ps, 1, free_ds);
     nc_ps_free(np2srv.nc_ps);
     nc_server_destroy();
 

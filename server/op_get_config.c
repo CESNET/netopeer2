@@ -30,28 +30,32 @@
 #include "operations.h"
 #include "netconf_monitoring.h"
 
-/* add subtree to root */
+/* add whole subtree */
 static int
-opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, const char *subtree_path)
+opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, const char *subtree_xpath)
 {
     sr_val_t *value;
     sr_val_iter_t *sriter;
     struct lyd_node *node, *iter;
-    char *subtree_children_path, buf[128];
+    char *full_subtree_xpath = NULL, buf[128];
     int rc;
 
-    if (asprintf(&subtree_children_path, "%s//*", subtree_path) == -1) {
+    if (asprintf(&full_subtree_xpath, "%s//.", subtree_xpath) == -1) {
         EMEM;
         return -1;
     }
 
-    rc = sr_get_items_iter(ds, subtree_children_path, &sriter);
-    if (rc != SR_ERR_OK) {
-        ERR("Getting items (%s) from sysrepo failed (%s).", subtree_children_path, sr_strerror(rc));
-        free(subtree_children_path);
+    rc = sr_get_items_iter(ds, full_subtree_xpath, &sriter);
+    if ((rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_NOT_FOUND)) {
+        /* it's ok, model without data */
+        free(full_subtree_xpath);
+        return 0;
+    } else if (rc != SR_ERR_OK) {
+        ERR("Getting items (%s) from sysrepo failed (%s).", full_subtree_xpath, sr_strerror(rc));
+        free(full_subtree_xpath);
         return -1;
     }
-    free(subtree_children_path);
+    free(full_subtree_xpath);
 
     ly_errno = LY_SUCCESS;
     while (sr_get_item_next(ds, sriter, &value) == SR_ERR_OK) {
@@ -565,17 +569,15 @@ error:
 struct nc_server_reply *
 op_get(struct lyd_node *rpc, struct nc_session *ncs)
 {
-    sr_val_t *values = NULL;
-    size_t value_count = 0;
     const struct lys_module *module;
     const struct lys_node *snode;
     struct lyd_node_leaf_list *leaf;
-    struct lyd_node *root = NULL, *node, *yang_lib_data = NULL, *ncm_data = NULL, *ntf_data = NULL, *iter;
+    struct lyd_node *root = NULL, *node, *yang_lib_data = NULL, *ncm_data = NULL, *ntf_data = NULL;
     struct lyd_attr *attr;
-    char **filters = NULL, buf[21], *path;
-    int rc, filter_count = 0;
+    char **filters = NULL, *path;
+    int filter_count = 0;
     unsigned int config_only;
-    uint32_t i, j;
+    uint32_t i;
     struct lyxml_elem *subtree_filter;
     struct np2_sessions *sessions;
     struct ly_set *nodeset;
@@ -625,7 +627,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         ly_set_free(nodeset);
         LY_TREE_FOR(node->attr, attr) {
             if (!strcmp(attr->name, "type")) {
-                if (!strcmp(attr->value, "xpath")) {
+                if (!strcmp(attr->value_str, "xpath")) {
                     LY_TREE_FOR(node->attr, attr) {
                         if (!strcmp(attr->name, "select")) {
                             break;
@@ -636,7 +638,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                         goto error;
                     }
                     break;
-                } else if (!strcmp(attr->value, "subtree")) {
+                } else if (!strcmp(attr->value_str, "subtree")) {
                     attr = NULL;
                     break;
                 }
@@ -673,11 +675,11 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             }
         } else {
             /* xpath */
-            if (!attr->value || !attr->value[0]) {
+            if (!attr->value_str || !attr->value_str[0]) {
                 /* empty select, okay, I guess... */
                 goto send_reply;
             }
-            path = strdup(attr->value);
+            path = strdup(attr->value_str);
             if (!path) {
                 EMEM;
                 goto error;
@@ -800,78 +802,24 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             continue;
         }
 
-        rc = sr_get_items(sessions->srs, filters[i], &values, &value_count);
-        if ((rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_NOT_FOUND)) {
-            /* skip internal modules not known to sysrepo and modules without data */
-            continue;
-        } else if (rc != SR_ERR_OK) {
-            ERR("Getting items (%s) from sysrepo failed (%s).", filters[i], sr_strerror(rc));
-            goto srerror;
+        /* create this subtree */
+        if (opget_build_subtree_from_sysrepo(sessions->srs, &root, filters[i])) {
+            goto error;
         }
-
-        for (j = 0; j < value_count; ++j) {
-            node = NULL;
-            /* create subtree root */
-            ly_errno = LY_SUCCESS;
-            node = lyd_new_path(root, np2srv.ly_ctx, values[j].xpath, op_get_srval(np2srv.ly_ctx, &values[j], buf), 0,
-                                LYD_PATH_OPT_UPDATE);
-            if (ly_errno) {
-                goto error;
-            }
-
-            if (!root) {
-                /* node cannot be NULL */
-                assert(node);
-                root = node;
-            }
-
-            if (node) {
-                /* propagate default flag */
-                if (values[j].dflt) {
-                    /* go down */
-                    for (iter = node;
-                         !(iter->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYXML)) && iter->child;
-                         iter = iter->child);
-                    /* go up, back to the node */
-                    for (; ; iter = iter->parent) {
-                        if (iter->schema->nodetype == LYS_CONTAINER && ((struct lys_node_container *)iter->schema)->presence) {
-                            /* presence container */
-                            break;
-                        } else if (iter->schema->nodetype == LYS_LIST && ((struct lys_node_list *)iter->schema)->keys_size) {
-                            /* list with keys */
-                            break;
-                        }
-                        iter->dflt = 1;
-                        if (iter == node) {
-                            /* done */
-                            break;
-                        }
-                    }
-                } else { /* non default node, propagate it to the parents */
-                    for (iter = node->parent; iter && iter->dflt; iter = iter->parent) {
-                        iter->dflt = 0;
-                    }
-                }
-            }
-
-            /* create the full subtree */
-            if (opget_build_subtree_from_sysrepo(sessions->srs, &root, values[j].xpath)) {
-                goto error;
-            }
-        }
-
-        sr_free_values(values, value_count);
-        value_count = 0;
-        values = NULL;
     }
     lyd_free_withsiblings(yang_lib_data);
+    yang_lib_data = NULL;
     lyd_free_withsiblings(ncm_data);
+    ncm_data = NULL;
     lyd_free_withsiblings(ntf_data);
+    ntf_data = NULL;
 
     for (i = 0; (signed)i < filter_count; ++i) {
         free(filters[i]);
     }
+    filter_count = 0;
     free(filters);
+    filters = NULL;
 
     /* debug
     lyd_print_file(stdout, root, LYD_XML_FORMAT, LYP_WITHSIBLINGS);
@@ -879,9 +827,19 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
 send_reply:
     /* build RPC Reply */
+    if (lyd_validate(&root, (config_only ? LYD_OPT_GETCONFIG : LYD_OPT_GET), np2srv.ly_ctx)) {
+        EINT;
+        goto error;
+    }
     node = root;
     root = lyd_dup(rpc, 0);
+
     lyd_new_output_anydata(root, NULL, "data", node, LYD_ANYDATA_DATATREE);
+    if (lyd_validate(&root, LYD_OPT_RPCREPLY, NULL)) {
+        EINT;
+        goto error;
+    }
+
     return nc_server_reply_data(root, nc_wd, NC_PARAMTYPE_FREE);
 
 srerror:
@@ -894,8 +852,6 @@ error:
         ereply = nc_server_reply_err(e);
     }
 
-    sr_free_values(values, value_count);
-
     for (i = 0; (signed)i < filter_count; ++i) {
         free(filters[i]);
     }
@@ -903,6 +859,7 @@ error:
 
     lyd_free_withsiblings(yang_lib_data);
     lyd_free_withsiblings(ncm_data);
+    lyd_free_withsiblings(ntf_data);
     lyd_free_withsiblings(root);
 
     return ereply;

@@ -39,17 +39,17 @@ edit_get_op(struct lyd_node *node, enum NP2_EDIT_OP parentop, enum NP2_EDIT_DEFO
     /* TODO check conflicts between parent and current operations */
     for (attr = node->attr; attr; attr = attr->next) {
         if (!strcmp(attr->name, "operation") &&
-                !strcmp(attr->module->name, "ietf-netconf")) {
+                !strcmp(attr->annotation->module->name, "ietf-netconf")) {
             /* NETCONF operation attribute */
-            if (!strcmp(attr->value, "create")) {
+            if (!strcmp(attr->value_str, "create")) {
                 retval = NP2_EDIT_CREATE;
-            } else if (!strcmp(attr->value, "delete")) {
+            } else if (!strcmp(attr->value_str, "delete")) {
                 retval = NP2_EDIT_DELETE;
-            } else if (!strcmp(attr->value, "remove")) {
+            } else if (!strcmp(attr->value_str, "remove")) {
                 retval = NP2_EDIT_REMOVE;
-            } else if (!strcmp(attr->value, "replace")) {
+            } else if (!strcmp(attr->value_str, "replace")) {
                 retval = NP2_EDIT_REPLACE;
-            } else if (!strcmp(attr->value, "merge")) {
+            } else if (!strcmp(attr->value_str, "merge")) {
                 retval = NP2_EDIT_MERGE;
             } /* else invalid attribute checked by libyang */
 
@@ -87,15 +87,15 @@ edit_get_move(struct lyd_node *node, const char *path, sr_move_position_t *pos, 
     }
 
     for(attr_iter = node->attr; attr_iter; attr_iter = attr_iter->next) {
-        if (!strcmp(attr_iter->module->name, "yang")) {
+        if (!strcmp(attr_iter->annotation->module->name, "yang")) {
             if (!strcmp(attr_iter->name, "insert")) {
-                if (!strcmp(attr_iter->value, "first")) {
+                if (!strcmp(attr_iter->value_str, "first")) {
                     *pos = SR_MOVE_FIRST;
-                } else if (!strcmp(attr_iter->value, "last")) {
+                } else if (!strcmp(attr_iter->value_str, "last")) {
                     *pos = SR_MOVE_LAST;
-                } else if (!strcmp(attr_iter->value, "before")) {
+                } else if (!strcmp(attr_iter->value_str, "before")) {
                     *pos = SR_MOVE_BEFORE;
-                } else if (!strcmp(attr_iter->value, "after")) {
+                } else if (!strcmp(attr_iter->value_str, "after")) {
                     *pos = SR_MOVE_AFTER;
                 }
             } else if (!strcmp(attr_iter->name, name)) {
@@ -326,7 +326,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 op_size += 16;
                 op_new = realloc(op, op_size * sizeof *op);
                 if (!op_new) {
-                    ERR("%s: memory allocation failed (%s) - %s:%d", __func__, strerror(errno), __FILE__, __LINE__);
+                    EMEM;
                     goto internalerror;
                 }
                 op = op_new;
@@ -338,7 +338,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 path_levels_size += 16;
                 path_levels_new = realloc(path_levels, path_levels_size * sizeof *path_levels);
                 if (!path_levels_new) {
-                    ERR("%s: memory allocation failed (%s) - %s:%d", __func__, strerror(errno), __FILE__, __LINE__);
+                    EMEM;
                     goto internalerror;
                 }
                 path_levels = path_levels_new;

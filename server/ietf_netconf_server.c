@@ -3,7 +3,7 @@
  * @author Michal Vasko <mvasko@cesnet.cz>
  * @brief netopeer2-server ietf-netconf-server model subscription and configuration
  *
- * Copyright (c) 2016 CESNET, z.s.p.o.
+ * Copyright (c) 2017 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -17,12 +17,15 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <ctype.h>
+#include <pthread.h>
 
 #include <libyang/libyang.h>
 #include <nc_server.h>
 #include <sysrepo.h>
 
 #include "common.h"
+#include "ietf_keystore.h"
 
 /* setters */
 
@@ -129,104 +132,125 @@ set_listen_endpoint_port(const char *endpt_name, sr_change_oper_t sr_oper, sr_va
     return rc;
 }
 
-static int
-set_listen_endpoint_ssh_host_key(const char *endpt_name, sr_change_oper_t UNUSED(sr_oper), sr_val_t *sr_old_val,
-                                 sr_val_t *sr_new_val)
-{
-    int rc = EXIT_SUCCESS;
-    char *path;
+struct thread_arg {
+    sr_session_ctx_t *session;
+    int listen_or_ch;
+    const char *endpt_client_name;
+    const char *key_name;
+};
 
-    /* TODO broken order (if creating, not called on move for now) */
-    if (sr_new_val) {
-        asprintf(&path, NP2SRV_AUTHD_DIR "/%s.pem", sr_new_val->data.string_val);
-        rc = nc_server_ssh_endpt_add_hostkey(endpt_name, path);
+static void *
+get_ssh_host_key_public_key(void *arg)
+{
+    struct thread_arg *targ = (struct thread_arg *)arg;
+    char *path, *value;
+    int ret;
+    sr_val_t *sr_val = NULL;
+
+    if (targ->listen_or_ch) {
+        asprintf(&path, "/ietf-netconf-server:netconf-server/listen/endpoint[name='%s']/ssh/host-keys/host-key[name='%s']/public-key", targ->endpt_client_name, targ->key_name);
+        ret = sr_get_item(targ->session, path, &sr_val);
+        free(path);
+    } else {
+        asprintf(&path, "/ietf-netconf-server:netconf-server/call-home/netconf-client[name='%s']/ssh/host-keys/host-key[name='%s']/public-key", targ->endpt_client_name, targ->key_name);
+        ret = sr_get_item(targ->session, path, &sr_val);
         free(path);
     }
-    if (!rc && sr_old_val) {
-        asprintf(&path, NP2SRV_AUTHD_DIR "/%s.pem", sr_old_val->data.string_val);
-        rc = nc_server_ssh_endpt_del_hostkey(endpt_name, path);
-        free(path);
+
+    if (ret != SR_ERR_OK) {
+        ERR("Failed to get data from sysrepo (%s).", sr_strerror(ret));
+    }
+
+    value = (sr_val ? strdup(sr_val->data.string_val) : NULL);
+    sr_free_val(sr_val);
+    return value;
+}
+
+static int
+set_listen_endpoint_ssh_host_key(sr_session_ctx_t *session, const char *endpt_name, sr_change_oper_t sr_oper,
+                                 sr_val_t *sr_old_val, sr_val_t *sr_new_val)
+{
+    int rc = EXIT_SUCCESS;
+    char *key1, *key2, quot;
+    const char *ptr;
+    pthread_t tid;
+    struct thread_arg targ;
+
+    switch (sr_oper) {
+    case SR_OP_DELETED:
+        rc = nc_server_ssh_endpt_del_hostkey(endpt_name, sr_old_val->data.string_val, -1);
+        break;
+    case SR_OP_MODIFIED:
+        rc = nc_server_ssh_endpt_mod_hostkey(endpt_name, sr_old_val->data.string_val, sr_new_val->data.string_val);
+        break;
+    case SR_OP_CREATED:
+        rc = nc_server_ssh_endpt_add_hostkey(endpt_name, sr_new_val->data.string_val, -1);
+        break;
+    case SR_OP_MOVED:
+        /* old and new_val are different in this case (nodes one level up) */
+
+        targ.session = session;
+        targ.listen_or_ch = 1;
+        targ.endpt_client_name = endpt_name;
+
+        ptr = strrchr(sr_new_val->xpath, '[');
+        assert(!strncmp(ptr, "[name=", 6));
+        ptr += 6;
+        quot = ptr[0];
+        ++ptr;
+        targ.key_name = strndup(ptr, strchr(ptr, quot) - ptr);
+
+        pthread_create(&tid, NULL, get_ssh_host_key_public_key, &targ);
+        pthread_join(tid, (void **)&key1);
+        free((char *)targ.key_name);
+        if (!key1) {
+            ERR("Failed to get a public key from sysrepo.");
+            return SR_ERR_INTERNAL;
+        }
+
+        ptr = strrchr(sr_old_val->xpath, '[');
+        assert(!strncmp(ptr, "[name=", 6));
+        ptr += 6;
+        quot = ptr[0];
+        ++ptr;
+        targ.key_name = strndup(ptr, strchr(ptr, quot) - ptr);
+
+        pthread_create(&tid, NULL, get_ssh_host_key_public_key, &targ);
+        pthread_join(tid, (void **)&key2);
+        free((char *)targ.key_name);
+        if (!key2) {
+            ERR("Failed to get a public key from sysrepo.");
+            return SR_ERR_INTERNAL;
+        }
+
+        rc = nc_server_ssh_endpt_mov_hostkey(endpt_name, key1, key2);
+        break;
     }
 
     return rc;
 }
 
 static int
-set_tls_cert(sr_session_ctx_t *session, const char *config_name, sr_change_oper_t sr_oper, sr_val_t *UNUSED(sr_old_val),
-             sr_val_t *sr_new_val, int listen_or_ch)
+set_tls_cert(const char *config_name, sr_change_oper_t sr_oper, sr_val_t *UNUSED(sr_old_val), sr_val_t *sr_new_val,
+             int listen_or_ch)
 {
-    int rc = EXIT_FAILURE, ret;
-    char *path, *key_begin, *key_end;
-    sr_val_t *sr_cert;
+    int rc = EXIT_FAILURE;
 
     switch (sr_oper) {
     case SR_OP_DELETED:
         if (!listen_or_ch) {
-            nc_server_tls_endpt_set_key_path(config_name, NULL);
-            nc_server_tls_endpt_set_cert_path(config_name, NULL);
+            nc_server_tls_endpt_set_server_cert(config_name, NULL);
         } else {
-            nc_server_tls_ch_client_set_key_path(config_name, NULL);
-            nc_server_tls_ch_client_set_cert_path(config_name, NULL);
+            nc_server_tls_ch_client_set_server_cert(config_name, NULL);
         }
         rc = 0;
         break;
     case SR_OP_CREATED:
-        ret = asprintf(&path, "/ietf-system-keychain:keychain/private-keys/private-key/certificate-chains/"
-                              "certificate-chain[name='%s']/certificate[1]", sr_new_val->data.string_val);
-        if (ret == -1) {
-            EMEM;
-            return -1;
-        }
-
-        ret = sr_get_item(session, path, &sr_cert);
-        if (ret != SR_ERR_OK) {
-            ERR("Failed to get \"%s\" from sysrepo (%s).", path, sr_strerror(ret));
-            free(path);
-            return ret;
-        }
-        free(path);
-
-        /* get the private key name */
-        key_begin = strstr(sr_cert->xpath, "private-key[name='");
-        if (!key_begin) {
-            EINT;
-            sr_free_val(sr_cert);
-            return -1;
-        }
-        key_begin += 18;
-
-        key_end = strchr(key_begin, '\'');
-        if (!key_end) {
-            EMEM;
-            sr_free_val(sr_cert);
-            return -1;
-        }
-
-        ret = asprintf(&path, NP2SRV_AUTHD_DIR "/%.*s.pem", (int)(key_end - key_begin), key_begin);
-        if (ret == -1) {
-            EMEM;
-            sr_free_val(sr_cert);
-            return -1;
-        }
-
         if (!listen_or_ch) {
-            rc = nc_server_tls_endpt_set_key_path(config_name, path);
+            rc = nc_server_tls_endpt_set_server_cert(config_name, sr_new_val->data.string_val);
         } else {
-            rc = nc_server_tls_ch_client_set_key_path(config_name, path);
+            rc = nc_server_tls_ch_client_set_server_cert(config_name, sr_new_val->data.string_val);
         }
-        free(path);
-        if (rc) {
-            sr_free_val(sr_cert);
-            break;
-        }
-
-        if (!listen_or_ch) {
-            rc = nc_server_tls_endpt_set_cert(config_name, sr_cert->data.binary_val);
-        } else {
-            rc = nc_server_tls_ch_client_set_cert(config_name, sr_cert->data.binary_val);
-        }
-
-        sr_free_val(sr_cert);
         break;
     case SR_OP_MODIFIED:
     case SR_OP_MOVED:
@@ -238,72 +262,25 @@ set_tls_cert(sr_session_ctx_t *session, const char *config_name, sr_change_oper_
 }
 
 static int
-add_tls_trusted_cert(sr_session_ctx_t *session, const char *config_name, sr_change_oper_t sr_oper, sr_val_t *sr_old_val,
-                     sr_val_t *sr_new_val, int listen_or_ch)
+add_tls_trusted_cert(const char *config_name, sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *sr_new_val,
+                     int listen_or_ch)
 {
-    int rc = EXIT_FAILURE, ret;
-    char *str;
-    const char *key_begin, *key_end;
-    sr_val_t *sr_certs;
-    size_t sr_cert_count, i;
+    int rc = EXIT_FAILURE;
 
     switch (sr_oper) {
     case SR_OP_DELETED:
         if (!listen_or_ch) {
-            rc = nc_server_tls_endpt_del_trusted_cert(config_name, sr_old_val->data.string_val);
+            rc = nc_server_tls_endpt_del_trusted_cert_list(config_name, sr_old_val->data.string_val);
         } else {
-            rc = nc_server_tls_ch_client_del_trusted_cert(config_name, sr_old_val->data.string_val);
+            rc = nc_server_tls_ch_client_del_trusted_cert_list(config_name, sr_old_val->data.string_val);
         }
         break;
     case SR_OP_CREATED:
-        ret = asprintf(&str, "/ietf-system-keychain:keychain/trusted-certificates[name='%s']/trusted-certificate/certificate",
-                       sr_new_val->data.string_val);
-        if (ret == -1) {
-            EMEM;
-            return -1;
+        if (!listen_or_ch) {
+            rc = nc_server_tls_endpt_add_trusted_cert_list(config_name, sr_new_val->data.string_val);
+        } else {
+            rc = nc_server_tls_ch_client_add_trusted_cert_list(config_name, sr_new_val->data.string_val);
         }
-
-        ret = sr_get_items(session, str, &sr_certs, &sr_cert_count);
-        if (ret != SR_ERR_OK) {
-            ERR("Failed to get \"%s\" from sysrepo (%s).", str, sr_strerror(ret));
-            free(str);
-            return ret;
-        }
-        free(str);
-
-        for (i = 0; i < sr_cert_count; ++i) {
-            key_begin = strstr(sr_certs[i].xpath, "trusted-certificate[name='");
-            if (!key_begin) {
-                rc = EXIT_FAILURE;
-                break;
-            }
-            key_begin += 26;
-
-            key_end = strchr(key_begin, '\'');
-            if (!key_end) {
-                rc = EXIT_FAILURE;
-                break;
-            }
-
-            str = strndup(key_begin, key_end - key_begin);
-            if (!str) {
-                EMEM;
-                rc = EXIT_FAILURE;
-                break;
-            }
-
-            if (!listen_or_ch) {
-                rc = nc_server_tls_endpt_add_trusted_cert(config_name, str, sr_certs[i].data.binary_val);
-            } else {
-                rc = nc_server_tls_ch_client_add_trusted_cert(config_name, str, sr_certs[i].data.binary_val);
-            }
-            free(str);
-            if (rc) {
-                break;
-            }
-        }
-
-        sr_free_values(sr_certs, sr_cert_count);
         break;
     case SR_OP_MODIFIED:
     case SR_OP_MOVED:
@@ -318,6 +295,11 @@ static NC_TLS_CTN_MAPTYPE
 convert_str_to_map_type(const char *map_type)
 {
     NC_TLS_CTN_MAPTYPE ret = 0;
+
+    if (strncmp(map_type, "ietf-x509-cert-to-name:", 23)) {
+        return ret;
+    }
+    map_type += 23;
 
     if (!strcmp(map_type, "specified")) {
         ret = NC_TLS_CTN_SPECIFIED;
@@ -341,114 +323,59 @@ add_tls_ctn(const char *xpath, const char *config_name, sr_change_oper_t sr_oper
             sr_val_t *sr_new_val, int listen_or_ch)
 {
     int rc = EXIT_SUCCESS;
-    uint32_t cur_id;
     sr_val_t *sr_val;
-    char *set_fingerprint = NULL;
-    NC_TLS_CTN_MAPTYPE set_map_type = 0;
-    char *set_name = NULL;
+    char quot;
+    uint32_t id;
+    const char *fingerprint = NULL, *name = NULL;
+    NC_TLS_CTN_MAPTYPE map_type = 0;
 
-    static uint32_t id = 0;
-    static char *fingerprint = NULL;
-    static NC_TLS_CTN_MAPTYPE map_type = 0;
-    static const char *name = NULL;
+    assert(!strncmp(xpath, "cert-to-name[id=", 16));
+    xpath += 16;
+    quot = xpath[0];
+    ++xpath;
 
-    assert(!strncmp(xpath, "cert-to-name[id='", 17));
-    xpath += 17;
+    assert(isdigit(xpath[0]));
+    id = atoi(xpath);
 
-    cur_id = atoi(xpath);
-    assert(!id || (cur_id == id));
-
-    xpath = strchr(xpath, '\'');
-    assert(!strncmp(xpath, "']/", 3));
-    xpath += 3;
+    xpath = strchr(xpath, quot);
+    ++xpath;
+    assert(!strncmp(xpath, "]/", 2));
+    xpath += 2;
 
     sr_val = (sr_new_val ? sr_new_val : sr_old_val);
 
     switch (sr_oper) {
     case SR_OP_CREATED:
     case SR_OP_DELETED:
+    case SR_OP_MODIFIED:
         if (!strcmp(xpath, "id")) {
-            assert(!id);
-            id = sr_val->data.uint32_val;
+            assert(id == sr_val->data.uint32_val);
         } else if (!strcmp(xpath, "fingerprint")) {
-            assert(!fingerprint);
-            fingerprint = strdup(sr_val->data.string_val);
+            fingerprint = sr_val->data.string_val;
         } else if (!strcmp(xpath, "map-type")) {
-            assert(!map_type);
             map_type = convert_str_to_map_type(sr_val->data.identityref_val);
             if (!map_type) {
                 EINT;
                 return EXIT_FAILURE;
             }
         } else if (!strcmp(xpath, "name")) {
-            assert(!name && (map_type == NC_TLS_CTN_SPECIFIED));
             name = sr_val->data.string_val;
         } else {
             EINT;
             return EXIT_FAILURE;
         }
 
-        if (map_type && ((map_type != NC_TLS_CTN_SPECIFIED) || name)) {
-            /* we have all the information about the entry */
-            if (sr_oper == SR_OP_CREATED) {
-                if (!listen_or_ch) {
-                    rc = nc_server_tls_endpt_add_ctn(config_name, id, fingerprint, map_type, name);
-                } else {
-                    rc = nc_server_tls_ch_client_add_ctn(config_name, id, fingerprint, map_type, name);
-                }
-            } else {
-                if (!listen_or_ch) {
-                    rc = nc_server_tls_endpt_del_ctn(config_name, id, fingerprint, map_type, name);
-                } else {
-                    rc = nc_server_tls_ch_client_del_ctn(config_name, id, fingerprint, map_type, name);
-                }
-            }
-
-            id = 0;
-            free(fingerprint);
-            fingerprint = NULL;
-            map_type = 0;
-            name = NULL;
-        }
-        break;
-    case SR_OP_MODIFIED:
-        /* get the entry */
-        if (!listen_or_ch) {
-            rc = nc_server_tls_endpt_get_ctn(config_name, &cur_id, &set_fingerprint, &set_map_type, &set_name);
-        } else {
-            rc = nc_server_tls_ch_client_get_ctn(config_name, &cur_id, &set_fingerprint, &set_map_type, &set_name);
-        }
-        if (!rc) {
-            /* remove the entry */
+        if (sr_oper == SR_OP_CREATED) {
             if (!listen_or_ch) {
-                nc_server_tls_endpt_del_ctn(config_name, cur_id, set_fingerprint, set_map_type, set_name);
+                rc = nc_server_tls_endpt_add_ctn(config_name, id, fingerprint, map_type, name);
             } else {
-                nc_server_tls_ch_client_del_ctn(config_name, cur_id, set_fingerprint, set_map_type, set_name);
+                rc = nc_server_tls_ch_client_add_ctn(config_name, id, fingerprint, map_type, name);
             }
-            if (!strcmp(xpath, "fingerprint")) {
-                free(set_fingerprint);
-                set_fingerprint = strdup(sr_val->data.string_val);
-            } else if (!strcmp(xpath, "map-type")) {
-                set_map_type = convert_str_to_map_type(sr_val->data.identityref_val);
-                if (!set_map_type) {
-                    EINT;
-                    rc = EXIT_FAILURE;
-                }
-            } else if (!strcmp(xpath, "name")) {
-                free(set_name);
-                set_name = strdup(sr_val->data.string_val);
+        } else {
+            if (!listen_or_ch) {
+                rc = nc_server_tls_endpt_del_ctn(config_name, id, fingerprint, map_type, name);
             } else {
-                EINT;
-                rc = EXIT_FAILURE;
-            }
-
-            if (!rc) {
-                /* re-add modified entry */
-                if (!listen_or_ch) {
-                    rc = nc_server_tls_endpt_add_ctn(config_name, cur_id, set_fingerprint, set_map_type, set_name);
-                } else {
-                    rc = nc_server_tls_ch_client_add_ctn(config_name, cur_id, set_fingerprint, set_map_type, set_name);
-                }
+                rc = nc_server_tls_ch_client_del_ctn(config_name, id, fingerprint, map_type, name);
             }
         }
         break;
@@ -501,24 +428,63 @@ set_ch_client_endpoint_port(const char *client_name, const char *endpt_name, sr_
 }
 
 static int
-set_ch_client_ssh_host_key(const char *client_name, sr_change_oper_t UNUSED(sr_oper), sr_val_t *sr_old_val,
-                           sr_val_t *sr_new_val)
+set_ch_client_ssh_host_key(sr_session_ctx_t *session, const char *client_name, sr_change_oper_t sr_oper,
+                           sr_val_t *sr_old_val, sr_val_t *sr_new_val)
 {
     int rc = EXIT_SUCCESS;
-    char *path;
+    char *key1, *key2, quot;
+    const char *ptr;
+    pthread_t tid;
+    struct thread_arg targ;
 
-    /* TODO broken order (if creating, not called on move for now) */
-    if (sr_new_val) {
-        path = malloc(strlen(NP2SRV_AUTHD_DIR) + 1 + strlen(sr_new_val->data.string_val) + 4 + 1);
-        sprintf(path, NP2SRV_AUTHD_DIR "/%s.pem", sr_new_val->data.string_val);
-        rc = nc_server_ssh_ch_client_add_hostkey(client_name, path);
-        free(path);
-    }
-    if (!rc && sr_old_val) {
-        path = malloc(strlen(NP2SRV_AUTHD_DIR) + 1 + strlen(sr_old_val->data.string_val) + 4 + 1);
-        sprintf(path, NP2SRV_AUTHD_DIR "/%s.pem", sr_old_val->data.string_val);
-        rc = nc_server_ssh_ch_client_del_hostkey(client_name, path);
-        free(path);
+    switch (sr_oper) {
+    case SR_OP_DELETED:
+        rc = nc_server_ssh_ch_client_del_hostkey(client_name, sr_old_val->data.string_val, -1);
+        break;
+    case SR_OP_MODIFIED:
+        rc = nc_server_ssh_ch_client_mod_hostkey(client_name, sr_old_val->data.string_val, sr_new_val->data.string_val);
+        break;
+    case SR_OP_CREATED:
+        rc = nc_server_ssh_ch_client_add_hostkey(client_name, sr_new_val->data.string_val, -1);
+        break;
+    case SR_OP_MOVED:
+        /* old and new_val are different in this case (nodes one level up) */
+        targ.session = session;
+        targ.listen_or_ch = 0;
+        targ.endpt_client_name = client_name;
+
+        ptr = strrchr(sr_new_val->xpath, '[');
+        assert(!strncmp(ptr, "[name=", 6));
+        ptr += 6;
+        quot = ptr[0];
+        ++ptr;
+        targ.key_name = strndup(ptr, strchr(ptr, quot) - ptr);
+
+        pthread_create(&tid, NULL, get_ssh_host_key_public_key, &targ);
+        pthread_join(tid, (void **)&key1);
+        free((char *)targ.key_name);
+        if (!key1) {
+            ERR("Failed to get a public key from sysrepo.");
+            return SR_ERR_INTERNAL;
+        }
+
+        ptr = strrchr(sr_old_val->xpath, '[');
+        assert(!strncmp(ptr, "[name=", 6));
+        ptr += 6;
+        quot = ptr[0];
+        ++ptr;
+        targ.key_name = strndup(ptr, strchr(ptr, quot) - ptr);
+
+        pthread_create(&tid, NULL, get_ssh_host_key_public_key, &targ);
+        pthread_join(tid, (void **)&key2);
+        free((char *)targ.key_name);
+        if (!key2) {
+            ERR("Failed to get a public key from sysrepo.");
+            return SR_ERR_INTERNAL;
+        }
+
+        rc = nc_server_ssh_ch_client_mov_hostkey(client_name, key1, key2);
+        break;
     }
 
     return rc;
@@ -709,6 +675,7 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
 {
     int rc = -2;
     const char *xpath, *list1_key = NULL, *list2_key = NULL, *oper_str;
+    char quot;
 
     xpath = (sr_old_val ? sr_old_val->xpath : sr_new_val->xpath);
     assert(!strncmp(xpath, "/ietf-netconf-server:netconf-server/", 36));
@@ -801,7 +768,8 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                         parse_list_key(&xpath, &list2_key, "name");
 
                         if (!xpath[0]) {
-                            /* TODO list moved */
+                            /* list moved */
+                            rc = set_listen_endpoint_ssh_host_key(session, list1_key, sr_oper, sr_old_val, sr_new_val);
                         } else if (xpath[0] == '/') {
                             ++xpath;
 
@@ -809,7 +777,7 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                                 /* we just don't care  */
                                 rc = EXIT_SUCCESS;
                             } else if (!strcmp(xpath, "public-key")) {
-                                rc = set_listen_endpoint_ssh_host_key(list1_key, sr_oper, sr_old_val, sr_new_val);
+                                rc = set_listen_endpoint_ssh_host_key(session, list1_key, sr_oper, sr_old_val, sr_new_val);
                             }
                         }
                     }
@@ -833,14 +801,17 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                     xpath += 13;
                     if (!strncmp(xpath, "certificate", 11)) {
                         xpath += 11;
-                        assert(!strncmp(xpath, "[name='", 7));
-                        xpath += 7;
-                        xpath = strchr(xpath, '\'');
-                        assert(!strncmp(xpath, "']/", 3));
-                        xpath += 3;
+                        assert(!strncmp(xpath, "[name=", 6));
+                        xpath += 6;
+                        quot = xpath[0];
+                        ++xpath;
+                        xpath = strchr(xpath, quot);
+                        ++xpath;
+                        assert(!strncmp(xpath, "]/", 2));
+                        xpath += 2;
 
                         if (!strcmp(xpath, "name")) {
-                            rc = set_tls_cert(session, list1_key, sr_oper, sr_old_val, sr_new_val, 0);
+                            rc = set_tls_cert(list1_key, sr_oper, sr_old_val, sr_new_val, 0);
                         }
                     }
                 } else if (!strcmp(xpath, "client-auth")) {
@@ -849,9 +820,9 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                 } else if (!strncmp(xpath, "client-auth/", 12)) {
                     xpath += 12;
                     if (!strcmp(xpath, "trusted-ca-certs")) {
-                        rc = add_tls_trusted_cert(session, list1_key, sr_oper, sr_old_val, sr_new_val, 0);
+                        rc = add_tls_trusted_cert(list1_key, sr_oper, sr_old_val, sr_new_val, 0);
                     } else if (!strcmp(xpath, "trusted-client-certs")) {
-                        rc = add_tls_trusted_cert(session, list1_key, sr_oper, sr_old_val, sr_new_val, 0);
+                        rc = add_tls_trusted_cert(list1_key, sr_oper, sr_old_val, sr_new_val, 0);
                     } else if (!strcmp(xpath, "cert-maps")) {
                         /* ignore */
                         rc = 0;
@@ -901,7 +872,7 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                 if (sr_oper == SR_OP_CREATED) {
                     rc = nc_server_ch_add_client(list1_key, NC_TI_LIBSSH);
                     if (!rc) {
-                        rc = nc_connect_ch_client_dispatch(list1_key, np2srv_new_ch_session_clb);
+                        rc = nc_connect_ch_client_dispatch(list1_key, np2srv_new_session_clb);
                     }
                 } else {
                     rc = 0;
@@ -961,7 +932,8 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                         parse_list_key(&xpath, &list2_key, "name");
 
                         if (!xpath[0]) {
-                            /* TODO list moved */
+                            /* list moved */
+                            rc = set_ch_client_ssh_host_key(session, list1_key, sr_oper, sr_old_val, sr_new_val);
                         } else if (xpath[0] == '/') {
                             ++xpath;
 
@@ -969,7 +941,7 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                                 /* we just don't care  */
                                 rc = EXIT_SUCCESS;
                             } else if (!strcmp(xpath, "public-key")) {
-                                rc = set_ch_client_ssh_host_key(list1_key, sr_oper, sr_old_val, sr_new_val);
+                                rc = set_ch_client_ssh_host_key(session, list1_key, sr_oper, sr_old_val, sr_new_val);
                             }
                         }
                     }
@@ -978,7 +950,7 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                 if (sr_oper == SR_OP_CREATED) {
                     rc = nc_server_ch_add_client(list1_key, NC_TI_OPENSSL);
                     if (!rc) {
-                        rc = nc_connect_ch_client_dispatch(list1_key, np2srv_new_ch_session_clb);
+                        rc = nc_connect_ch_client_dispatch(list1_key, np2srv_new_session_clb);
                     }
                 } else {
                     rc = 0;
@@ -1033,14 +1005,17 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                     xpath += 13;
                     if (!strncmp(xpath, "certificate", 11)) {
                         xpath += 11;
-                        assert(!strncmp(xpath, "[name='", 7));
-                        xpath += 7;
-                        xpath = strchr(xpath, '\'');
-                        assert(!strncmp(xpath, "']/", 3));
-                        xpath += 3;
+                        assert(!strncmp(xpath, "[name=", 6));
+                        xpath += 6;
+                        quot = xpath[0];
+                        ++xpath;
+                        xpath = strchr(xpath, quot);
+                        ++xpath;
+                        assert(!strncmp(xpath, "]/", 2));
+                        xpath += 2;
 
                         if (!strcmp(xpath, "name")) {
-                            rc = set_tls_cert(session, list1_key, sr_oper, sr_old_val, sr_new_val, 1);
+                            rc = set_tls_cert(list1_key, sr_oper, sr_old_val, sr_new_val, 1);
                         }
                     }
                 } else if (!strcmp(xpath, "client-auth")) {
@@ -1049,9 +1024,9 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                 } else if (!strncmp(xpath, "client-auth/", 12)) {
                     xpath += 12;
                     if (!strcmp(xpath, "trusted-ca-certs")) {
-                        rc = add_tls_trusted_cert(session, list1_key, sr_oper, sr_old_val, sr_new_val, 1);
+                        rc = add_tls_trusted_cert(list1_key, sr_oper, sr_old_val, sr_new_val, 1);
                     } else if (!strcmp(xpath, "trusted-client-certs")) {
-                        rc = add_tls_trusted_cert(session, list1_key, sr_oper, sr_old_val, sr_new_val, 1);
+                        rc = add_tls_trusted_cert(list1_key, sr_oper, sr_old_val, sr_new_val, 1);
                     } else if (!strcmp(xpath, "cert-maps")) {
                         /* ignore */
                         rc = 0;
@@ -1174,7 +1149,7 @@ module_change_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), sr_
 }
 
 int
-feature_change_ietf_netconf_server(sr_session_ctx_t *session, const char *feature_name, bool enabled)
+feature_change_ietf_netconf_server(const char *feature_name, bool enabled)
 {
     int rc, rc2 = 0;
     const char *path = NULL;
@@ -1209,7 +1184,7 @@ feature_change_ietf_netconf_server(sr_session_ctx_t *session, const char *featur
                 continue;
             }
 
-            rc2 = module_change_resolve(session, SR_OP_CREATED, NULL, sr_val, NULL, NULL);
+            rc2 = module_change_resolve(np2srv.sr_sess.srs, SR_OP_CREATED, NULL, sr_val, NULL, NULL);
             sr_free_val(sr_val);
             if (rc2) {
                 ERR("Failed to enable nodes depending on the \"%s\" ietf-netconf-server feature.", feature_name);
@@ -1253,24 +1228,29 @@ ietf_netconf_server_init(const struct lys_module *module)
         return EXIT_FAILURE;
     }
 
+    /* set callbacks */
+    nc_server_ssh_set_hostkey_clb(np_hostkey_clb, NULL, NULL);
+    nc_server_tls_set_server_cert_clb(np_server_cert_clb, NULL, NULL);
+    nc_server_tls_set_trusted_cert_list_clb(np_trusted_cert_list_clb, NULL, NULL);
+
     /* applies the whole current configuration */
     if (lys_features_state(module, "ssh-listen") == 1) {
-        if (feature_change_ietf_netconf_server(np2srv.sr_sess.srs, "ssh-listen", 1)) {
+        if (feature_change_ietf_netconf_server("ssh-listen", 1)) {
             return EXIT_FAILURE;
         }
     }
     if (lys_features_state(module, "tls-listen") == 1) {
-        if (feature_change_ietf_netconf_server(np2srv.sr_sess.srs, "tls-listen", 1)) {
+        if (feature_change_ietf_netconf_server("tls-listen", 1)) {
             return EXIT_FAILURE;
         }
     }
     if (lys_features_state(module, "ssh-call-home") == 1) {
-        if (feature_change_ietf_netconf_server(np2srv.sr_sess.srs, "ssh-call-home", 1)) {
+        if (feature_change_ietf_netconf_server("ssh-call-home", 1)) {
             return EXIT_FAILURE;
         }
     }
     if (lys_features_state(module, "tls-call-home") == 1) {
-        if (feature_change_ietf_netconf_server(np2srv.sr_sess.srs, "tls-call-home", 1)) {
+        if (feature_change_ietf_netconf_server("tls-call-home", 1)) {
             return EXIT_FAILURE;
         }
     }

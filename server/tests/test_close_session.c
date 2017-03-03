@@ -64,8 +64,10 @@ int
 __wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t *schema_cnt)
 {
     (void)session;
-    *schemas = NULL;
-    *schema_cnt = 0;
+
+    *schemas = calloc(1, sizeof **schemas);
+    *schema_cnt = 1;
+    (*schemas)->module_name = strdup("ietf-netconf-server");
     return SR_ERR_OK;
 }
 
@@ -74,11 +76,14 @@ __wrap_sr_get_schema(sr_session_ctx_t *session, const char *module_name, const c
                      const char *submodule_name, sr_schema_format_t format, char **schema_content)
 {
     (void)session;
-    (void)module_name;
     (void)revision;
     (void)submodule_name;
     (void)format;
-    (void)schema_content;
+
+    if (!strcmp(module_name, "ietf-netconf-server")) {
+        *schema_content = strdup("<module name=\"ietf-netconf-server\" xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\"><namespace uri=\"ns\"/><prefix value=\"pr\"/></module>");
+    }
+
     return SR_ERR_OK;
 }
 
@@ -131,6 +136,21 @@ __wrap_sr_feature_enable_subscribe(sr_session_ctx_t *session, sr_feature_enable_
     return SR_ERR_OK;
 }
 
+int
+__wrap_sr_module_change_subscribe(sr_session_ctx_t *session, const char *module_name, sr_module_change_cb callback,
+                                  void *private_ctx, uint32_t priority, sr_subscr_options_t opts,
+                                  sr_subscription_ctx_t **subscription)
+{
+    (void)session;
+    (void)module_name;
+    (void)callback;
+    (void)private_ctx;
+    (void)priority;
+    (void)opts;
+    (void)subscription;
+    return SR_ERR_OK;
+}
+
 /*
  * LIBNETCONF2 WRAPPER FUNCTIONS
  */
@@ -144,6 +164,8 @@ struct nc_session {
 
     NC_TRANSPORT_IMPL ti_type;
     pthread_mutex_t *ti_lock;
+    pthread_cond_t *ti_cond;
+    volatile int *ti_inuse;
     union {
         struct {
             int in;
@@ -170,11 +192,11 @@ struct nc_session {
 
     union {
         struct {
-            volatile pthread_t *ntf_tid;
             uint64_t msgid;
             const char **cpblts;
             struct nc_msg_cont *replies;
             struct nc_msg_cont *notifs;
+            volatile pthread_t *ntf_tid;
         } client;
         struct {
             time_t session_start;
@@ -190,35 +212,6 @@ struct nc_session {
         } server;
     } opts;
 };
-
-struct nc_pollsession {
-    struct pollfd *pfds;
-    struct nc_session **sessions;
-    uint16_t session_count;
-
-    pthread_cond_t cond;
-    pthread_mutex_t lock;
-    uint8_t queue[6];
-    uint8_t queue_begin;
-    uint8_t queue_len;
-};
-
-int
-__wrap_nc_server_ssh_add_endpt_listen(const char *name, const char *address, uint16_t port)
-{
-    (void)name;
-    (void)address;
-    (void)port;
-    return 0;
-}
-
-int
-__wrap_nc_server_ssh_endpt_set_hostkey(const char *endpt_name, const char *privkey_path)
-{
-    (void)endpt_name;
-    (void)privkey_path;
-    return 0;
-}
 
 NC_MSG_TYPE
 __wrap_nc_accept(int timeout, struct nc_session **session)
@@ -244,6 +237,10 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
         (*session)->id = 1;
         (*session)->ti_lock = malloc(sizeof *(*session)->ti_lock);
         pthread_mutex_init((*session)->ti_lock, NULL);
+        (*session)->ti_cond = malloc(sizeof *(*session)->ti_cond);
+        pthread_cond_init((*session)->ti_cond, NULL);
+        (*session)->ti_inuse = malloc(sizeof *(*session)->ti_inuse);
+        *(*session)->ti_inuse = 0;
         (*session)->ti_type = NC_TI_FD;
         (*session)->ti.fd.in = pipes[1][0];
         (*session)->ti.fd.out = pipes[0][1];
@@ -272,28 +269,10 @@ __wrap_nc_session_free(struct nc_session *session, void (*data_free)(void *))
     }
     pthread_mutex_destroy(session->ti_lock);
     free(session->ti_lock);
+    pthread_cond_destroy(session->ti_cond);
+    free(session->ti_cond);
+    free((int *)session->ti_inuse);
     free(session);
-}
-
-void
-__wrap_nc_ps_clear(struct nc_pollsession *ps, int all, void (*data_free)(void *))
-{
-    int i;
-
-    if (!all) {
-        fail();
-    }
-
-    for (i = 0; i < ps->session_count; ++i) {
-        for (i = 0; i < ps->session_count; i++) {
-            nc_session_free(ps->sessions[i], data_free);
-        }
-        free(ps->sessions);
-        ps->sessions = NULL;
-        free(ps->pfds);
-        ps->pfds = NULL;
-        ps->session_count = 0;
-    }
 }
 
 /*

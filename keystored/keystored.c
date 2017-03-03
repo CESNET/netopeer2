@@ -1,7 +1,7 @@
 /**
- * @file authd.c
+ * @file keystored.c
  * @author Michal Vasko <mvasko@cesnet.cz>
- * @brief Authd plugin for sysrepo
+ * @brief keystored plugin for sysrepo
  *
  * Copyright (c) 2016 CESNET, z.s.p.o.
  *
@@ -25,19 +25,20 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <pthread.h>
 
 #include <sysrepo.h>
 #include <sysrepo/plugins.h>
 
 #include "config.h"
 
-struct authd_ctx {
+struct keystored_ctx {
     sr_subscription_ctx_t *subscription;
     sr_session_ctx_t *session;
 };
 
 static char *
-authd_read_pubkey_skip_type(const char *path)
+keystored_read_pubkey_skip_type(const char *path)
 {
     char *content = NULL;
     unsigned long size;
@@ -87,8 +88,13 @@ authd_read_pubkey_skip_type(const char *path)
         SRP_LOG_ERR("File \"%s\" is not a public key in PEM format.", path);
         goto error;
     }
+    size -= 24;
 
-    content[size - 24] = '\0';
+    if (content[size - 1] == '\n') {
+        --size;
+    }
+
+    content[size] = '\0';
     fclose(file);
     return content;
 
@@ -99,23 +105,7 @@ error:
 }
 
 static int
-sysr_add_val(sr_val_t *new, sr_val_t **values, size_t *values_cnt)
-{
-    void *buf;
-
-    buf = realloc(*values, (*values_cnt + 1) * sizeof **values);
-    if (!buf) {
-        SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
-        return -1;
-    }
-    ++(*values_cnt);
-    *values = buf;
-    (*values)[*values_cnt - 1] = *new;
-    return 0;
-}
-
-static int
-kc_privkey_change_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name), sr_notif_event_t UNUSED(event),
+ks_privkey_change_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name), sr_notif_event_t UNUSED(event),
                      void *UNUSED(private_ctx))
 {
     /* TODO forbid adding keys this way */
@@ -123,7 +113,7 @@ kc_privkey_change_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(modul
 }
 
 static int
-kc_cert_change_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name), sr_notif_event_t UNUSED(event),
+ks_cert_change_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name), sr_notif_event_t UNUSED(event),
                   void *UNUSED(private_ctx))
 {
     /* nothing to do */
@@ -131,125 +121,182 @@ kc_cert_change_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_n
 }
 
 static int
-kc_privkey_get_cb(const char *xpath, sr_val_t **values, size_t *values_cnt, void *UNUSED(private_ctx))
+ks_privkey_get_cb(const char *xpath, sr_val_t **values, size_t *values_cnt, void *UNUSED(private_ctx))
 {
-    int rc, ret;
-    char name[256], *path;
-    sr_val_t *val;
-    DIR *dir;
-    struct dirent buf, *dent;
+    int ret;
+    const char *name;
+    char *path;
+    sr_val_t *val = NULL;
 
     SRP_LOG_INF("Providing node \"%s\".", xpath);
 
-    dir = opendir(AUTHD_KEYS_DIR);
-    if (!dir) {
-        SRP_LOG_ERR("Opening the dir \"%s\" failed (%s).", AUTHD_KEYS_DIR, strerror(errno));
-        return SR_ERR_IO;
+    name = strstr(xpath, "private-key[name='");
+    if (!name) {
+        SRP_LOG_ERR("Internal error (%s:%d).", __FILE__, __LINE__);
+        return SR_ERR_INTERNAL;
+    }
+    name += 18;
+
+    if (asprintf(&path, "%s/%.*s.pub.pem", KEYSTORED_KEYS_DIR, (int)(strchr(name, '\'') - name), name) == -1) {
+        SRP_LOG_ERR("Memory allocation failed (%s:%d).", __FILE__, __LINE__);
+        return SR_ERR_NOMEM;
     }
 
-    while (!(rc = readdir_r(dir, &buf, &dent)) && dent) {
-        if ((strlen(dent->d_name) < 4) || strcmp(dent->d_name + strlen(dent->d_name) - 4, ".pem")) {
-            continue;
-        }
-        if ((strlen(dent->d_name) > 8) && !strcmp(dent->d_name + strlen(dent->d_name) - 8, ".pub.pem")) {
-            continue;
-        }
-        strncpy(name, dent->d_name, strlen(dent->d_name) - 4);
-        name[strlen(dent->d_name) - 4] = '\0';
-
-        if (!strcmp(strrchr(xpath, '/'), "/algorithm")) {
-            /* algorithm */
-            val = calloc(1, sizeof *val);
-            if (!val) {
-                SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
-                ret = SR_ERR_NOMEM;
-                goto error;
-            }
-
-            if (asprintf(&val->xpath, "/ietf-system-keychain:keychain/private-keys/private-key[name='%s']/algorithm", name) == -1) {
-                SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
-                ret = SR_ERR_NOMEM;
-                goto error;
-            }
-            val->type = SR_IDENTITYREF_T;
-            val->data.identityref_val = strdup("rsa");
-            if (!val->data.identityref_val) {
-                SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
-                ret = SR_ERR_NOMEM;
-                goto error;
-            }
-
-            if (sysr_add_val(val, values, values_cnt)) {
-                ret = SR_ERR_NOMEM;
-                goto error;
-            }
-        } else if (!strcmp(strrchr(xpath, '/'), "/key-length")) {
-            /* no key-length */
-
-        } else if (!strcmp(strrchr(xpath, '/'), "/public-key")) {
-            /* public-key */
-            val = calloc(1, sizeof *val);
-            if (!val) {
-                SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
-                ret = SR_ERR_NOMEM;
-                goto error;
-            }
-
-            if (asprintf(&val->xpath, "/ietf-system-keychain:keychain/private-keys/private-key[name='%s']/public-key", name) == -1) {
-                SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
-                ret = SR_ERR_NOMEM;
-                goto error;
-            }
-            val->type = SR_BINARY_T;
-            if (asprintf(&path, "%s/%s.pub.pem", AUTHD_KEYS_DIR, name) == -1) {
-                SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
-                ret = SR_ERR_NOMEM;
-                goto error;
-            }
-            val->data.binary_val = authd_read_pubkey_skip_type(path);
-            free(path);
-            if (!val->data.binary_val) {
-                SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
-                ret = SR_ERR_NOMEM;
-                goto error;
-            }
-
-            if (sysr_add_val(val, values, values_cnt)) {
-                ret = SR_ERR_NOMEM;
-                goto error;
-            }
-        } else {
-            SRP_LOG_ERR("Unknown node \"%s\" value requested.", xpath);
-            ret = SR_ERR_INTERNAL;
-            goto error;
-        }
-    }
-    if (rc) {
-        SRP_LOG_ERR("Reading from a directory failed (%s).", strerror(ret));
+    if (access(path, F_OK) == -1) {
+        SRP_LOG_ERR("File \"%s\" could not be accessed (%s).", path, strerror(errno));
         ret = SR_ERR_IO;
         goto error;
     }
-    closedir(dir);
+
+    if (!strcmp(xpath + strlen(xpath) - 9, "algorithm")) {
+        /* algorithm */
+        val = calloc(1, sizeof *val);
+        if (!val) {
+            SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
+            ret = SR_ERR_NOMEM;
+            goto error;
+        }
+
+        val->xpath = strdup(xpath);
+        val->type = SR_IDENTITYREF_T;
+        val->data.identityref_val = strdup("rsa");
+        if (!val->xpath || !val->data.identityref_val) {
+            SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
+            ret = SR_ERR_NOMEM;
+            goto error;
+        }
+    } else if (!strcmp(xpath + strlen(xpath) - 10, "key-length")) {
+        /* no key-length */
+
+    } else if (!strcmp(xpath + strlen(xpath) - 10, "public-key")) {
+        /* public-key */
+        val = calloc(1, sizeof *val);
+        if (!val) {
+            SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
+            ret = SR_ERR_NOMEM;
+            goto error;
+        }
+
+        val->xpath = strdup(xpath);
+        val->type = SR_BINARY_T;
+        val->data.binary_val = keystored_read_pubkey_skip_type(path);
+        if (!val->xpath || !val->data.binary_val) {
+            SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
+            ret = SR_ERR_NOMEM;
+            goto error;
+        }
+    } else {
+        SRP_LOG_ERR("Unknown node \"%s\" value requested.", xpath);
+        ret = SR_ERR_INTERNAL;
+        goto error;
+    }
+
+    if (val) {
+        *values = val;
+        *values_cnt = 1;
+    }
 
     return SR_ERR_OK;
 
 error:
-    sr_free_values(*values, *values_cnt);
-    *values = NULL;
-    *values_cnt = 0;
     sr_free_val(val);
-    closedir(dir);
+    free(path);
     return ret;
 }
 
+struct thread_arg {
+    sr_session_ctx_t *session;
+    char *key_name;
+};
+
+static void *
+ks_privkey_add_thread(void *arg)
+{
+    struct thread_arg *targ = (struct thread_arg *)arg;
+    int ret;
+    char *xpath;
+
+    if (asprintf(&xpath, "/ietf-keystore:keystore/private-keys/private-key[name='%s']", targ->key_name) == -1) {
+        SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
+        return NULL;
+    }
+
+    ret = sr_session_switch_ds(targ->session, SR_DS_RUNNING);
+    if (ret != SR_ERR_OK) {
+        SRP_LOG_ERR("Failed to switch datastore (%s).", sr_strerror(ret));
+        goto cleanup;
+    }
+    ret = sr_set_item(targ->session, xpath, NULL, 0);
+    if (ret != SR_ERR_OK) {
+        SRP_LOG_ERR("Failed to set item (%s).", sr_strerror(ret));
+        goto cleanup;
+    }
+    ret = sr_commit(targ->session);
+    if (ret != SR_ERR_OK) {
+        SRP_LOG_ERR("Failed to commit (%s).", sr_strerror(ret));
+        goto cleanup;
+    }
+
+    ret = sr_session_switch_ds(targ->session, SR_DS_STARTUP);
+    if (ret != SR_ERR_OK) {
+        SRP_LOG_ERR("Failed to switch datastore (%s).", sr_strerror(ret));
+        goto cleanup;
+    }
+    ret = sr_set_item(targ->session, xpath, NULL, 0);
+    if (ret != SR_ERR_OK) {
+        SRP_LOG_ERR("Failed to set item (%s).", sr_strerror(ret));
+        goto cleanup;
+    }
+    ret = sr_commit(targ->session);
+    if (ret != SR_ERR_OK) {
+        SRP_LOG_ERR("Failed to commit (%s).", sr_strerror(ret));
+        goto cleanup;
+    }
+
+cleanup:
+    free(xpath);
+    free(targ->key_name);
+    free(targ);
+    return NULL;
+}
+
 static int
-kc_privkey_gen_cb(const char *UNUSED(xpath), const sr_node_t *input, const size_t input_cnt, sr_node_t **UNUSED(output),
+ks_privkey_add(sr_session_ctx_t *session, const char *key_name)
+{
+    int ret;
+    pthread_t tid;
+    struct thread_arg *targ;
+
+    targ = malloc(sizeof *targ);
+    if (!targ) {
+        SRP_LOG_ERR("Memory allocation failed (%s:%d).", __FILE__, __LINE__);
+        return 1;
+    }
+
+    targ->session = session;
+    targ->key_name = strdup(key_name);
+    if (!targ->key_name) {
+        SRP_LOG_ERR("Memoy allocation failed (%s:%d).", __FILE__, __LINE__);
+        return 1;
+    }
+
+    ret = pthread_create(&tid, NULL, ks_privkey_add_thread, targ);
+    if (ret) {
+        SRP_LOG_ERR("Creating new thread failed (%s).", strerror(ret));
+        return 1;
+    }
+    pthread_detach(tid);
+
+    return 0;
+}
+
+static int
+ks_privkey_gen_cb(const char *UNUSED(xpath), const sr_node_t *input, const size_t input_cnt, sr_node_t **UNUSED(output),
                   size_t *UNUSED(output_cnt), void *private_ctx)
 {
-    struct authd_ctx *ctx = (struct authd_ctx *)private_ctx;
+    struct keystored_ctx *ctx = (struct keystored_ctx *)private_ctx;
     pid_t pid;
     int ret, status;
-    sr_val_t *val = NULL;
     char *priv_path = NULL, *pub_path = NULL, len_arg[27];
 
     if ((input_cnt < 2) || (input[0].type != SR_STRING_T) || (input[1].type != SR_IDENTITYREF_T)
@@ -273,15 +320,15 @@ kc_privkey_gen_cb(const char *UNUSED(xpath), const sr_node_t *input, const size_
         len_arg[0] = '\0';
     }
 
-    priv_path = malloc(strlen(AUTHD_KEYS_DIR) + 1 + strlen(input[0].data.string_val) + 4 + 1);
-    pub_path = malloc(strlen(AUTHD_KEYS_DIR) + 1 + strlen(input[0].data.string_val) + 4 + 4 + 1);
+    priv_path = malloc(strlen(KEYSTORED_KEYS_DIR) + 1 + strlen(input[0].data.string_val) + 4 + 1);
+    pub_path = malloc(strlen(KEYSTORED_KEYS_DIR) + 1 + strlen(input[0].data.string_val) + 4 + 4 + 1);
     if (!priv_path || !pub_path) {
         SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
         ret = SR_ERR_NOMEM;
         goto cleanup;
     }
-    sprintf(priv_path, "%s/%s.pem", AUTHD_KEYS_DIR, input[0].data.string_val);
-    sprintf(pub_path, "%s/%s.pub.pem", AUTHD_KEYS_DIR, input[0].data.string_val);
+    sprintf(priv_path, "%s/%s.pem", KEYSTORED_KEYS_DIR, input[0].data.string_val);
+    sprintf(pub_path, "%s/%s.pub.pem", KEYSTORED_KEYS_DIR, input[0].data.string_val);
 
     if (!(pid = fork())) {
         /* child */
@@ -359,36 +406,21 @@ kc_privkey_gen_cb(const char *UNUSED(xpath), const sr_node_t *input, const size_
     }*/
 
     /* add the key to the configuration */
-    val = calloc(1, sizeof *val);
-    if (!val) {
-        SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
-        ret = SR_ERR_NOMEM;
-        goto cleanup;
-    }
-    if (asprintf(&val->xpath, "/ietf-system-keychain:keychain/private-keys/private-key[name='%s']",
-            input[0].data.string_val) == -1) {
-        SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
-        ret = SR_ERR_NOMEM;
-        goto cleanup;
-    }
-    val->type = SR_LIST_T;
-    ret = sr_set_item(ctx->session, val->xpath, val, 0);
+    ks_privkey_add(ctx->session, input[0].data.string_val);
 
 cleanup:
     free(priv_path);
     free(pub_path);
-    sr_free_val(val);
     return ret;
 }
 
 static int
-kc_privkey_load_cb(const char *UNUSED(xpath), const sr_node_t *input, const size_t input_cnt, sr_node_t **UNUSED(output),
+ks_privkey_load_cb(const char *UNUSED(xpath), const sr_node_t *input, const size_t input_cnt, sr_node_t **UNUSED(output),
                    size_t *UNUSED(output_cnt), void *private_ctx)
 {
-    struct authd_ctx *ctx = (struct authd_ctx *)private_ctx;
+    struct keystored_ctx *ctx = (struct keystored_ctx *)private_ctx;
     pid_t pid;
-    int ret, status, len, fd;
-    sr_val_t *val = NULL;
+    int ret = SR_ERR_OK, status, len, fd;
     char *priv_path = NULL, *pub_path = NULL;
     FILE *privkey = NULL;
 
@@ -402,15 +434,15 @@ kc_privkey_load_cb(const char *UNUSED(xpath), const sr_node_t *input, const size
 
     /* TODO check that name is unique */
 
-    priv_path = malloc(strlen(AUTHD_KEYS_DIR) + 1 + strlen(input[0].data.string_val) + 4 + 1);
-    pub_path = malloc(strlen(AUTHD_KEYS_DIR) + 1 + strlen(input[0].data.string_val) + 4 + 4 + 1);
+    priv_path = malloc(strlen(KEYSTORED_KEYS_DIR) + 1 + strlen(input[0].data.string_val) + 4 + 1);
+    pub_path = malloc(strlen(KEYSTORED_KEYS_DIR) + 1 + strlen(input[0].data.string_val) + 4 + 4 + 1);
     if (!priv_path || !pub_path) {
         SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
         ret = SR_ERR_NOMEM;
         goto cleanup;
     }
-    sprintf(priv_path, "%s/%s.pem", AUTHD_KEYS_DIR, input[0].data.string_val);
-    sprintf(pub_path, "%s/%s.pub.pem", AUTHD_KEYS_DIR, input[0].data.string_val);
+    sprintf(priv_path, "%s/%s.pem", KEYSTORED_KEYS_DIR, input[0].data.string_val);
+    sprintf(pub_path, "%s/%s.pub.pem", KEYSTORED_KEYS_DIR, input[0].data.string_val);
 
     fd = open(priv_path, O_CREAT | O_TRUNC | O_WRONLY, 00600);
     if (fd == -1) {
@@ -489,20 +521,7 @@ kc_privkey_load_cb(const char *UNUSED(xpath), const sr_node_t *input, const size
     }*/
 
     /* add the key to the configuration */
-    val = calloc(1, sizeof *val);
-    if (!val) {
-        SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
-        ret = SR_ERR_NOMEM;
-        goto cleanup;
-    }
-    if (asprintf(&val->xpath, "/ietf-system-keychain:keychain/private-keys/private-key[name='%s']",
-            input[0].data.string_val) == -1) {
-        SRP_LOG_ERR("Memory allocation failed (%s).", strerror(errno));
-        ret = SR_ERR_NOMEM;
-        goto cleanup;
-    }
-    val->type = SR_LIST_T;
-    ret = sr_set_item(ctx->session, val->xpath, val, 0);
+    ks_privkey_add(ctx->session, input[0].data.string_val);
 
 cleanup:
     if (privkey) {
@@ -510,7 +529,6 @@ cleanup:
     }
     free(priv_path);
     free(pub_path);
-    sr_free_val(val);
     return ret;
 }
 
@@ -518,7 +536,7 @@ int
 sr_plugin_init_cb(sr_session_ctx_t *session, void **private_ctx)
 {
     int rc;
-    struct authd_ctx *ctx;
+    struct keystored_ctx *ctx;
 
     ctx = calloc(1, sizeof *ctx);
     if (!ctx) {
@@ -526,71 +544,71 @@ sr_plugin_init_cb(sr_session_ctx_t *session, void **private_ctx)
     }
 
     /* private keys (for server) */
-    rc = sr_subtree_change_subscribe(session, "/ietf-system-keychain:keychain/private-keys/private-key",
-                                     kc_privkey_change_cb, ctx, 0, SR_SUBSCR_DEFAULT, &ctx->subscription);
+    rc = sr_subtree_change_subscribe(session, "/ietf-keystore:keystore/private-keys/private-key",
+                                     ks_privkey_change_cb, ctx, 0, SR_SUBSCR_DEFAULT, &ctx->subscription);
     if (SR_ERR_OK != rc) {
         goto error;
     }
 
-    rc = sr_dp_get_items_subscribe(session, "/ietf-system-keychain:keychain/private-keys/private-key",
-                                   kc_privkey_get_cb, ctx, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
+    rc = sr_dp_get_items_subscribe(session, "/ietf-keystore:keystore/private-keys/private-key",
+                                   ks_privkey_get_cb, ctx, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
     if (SR_ERR_OK != rc) {
         goto error;
     }
 
-    /*rc = sr_action_subscribe_tree(session, "/ietf-system-keychain:keychain/private-keys/private-key/generate-certificate-signing-request",
+    /*rc = sr_action_subscribe_tree(session, "/ietf-keystore:keystore/private-keys/private-key/generate-certificate-signing-request",
                                   callback, ctx, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
     if (SR_ERR_OK != rc) {
         goto error;
     }*/
 
-    rc = sr_action_subscribe_tree(session, "/ietf-system-keychain:keychain/private-keys/generate-private-key",
-                                  kc_privkey_gen_cb, ctx, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
+    rc = sr_action_subscribe_tree(session, "/ietf-keystore:keystore/private-keys/generate-private-key",
+                                  ks_privkey_gen_cb, ctx, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
     if (SR_ERR_OK != rc) {
         goto error;
     }
 
-    rc = sr_action_subscribe_tree(session, "/ietf-system-keychain:keychain/private-keys/load-private-key",
-                                  kc_privkey_load_cb, ctx, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
+    rc = sr_action_subscribe_tree(session, "/ietf-keystore:keystore/private-keys/load-private-key",
+                                  ks_privkey_load_cb, ctx, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
     if (SR_ERR_OK != rc) {
         goto error;
     }
 
     /* trusted certificates (for server/client) */
-    rc = sr_subtree_change_subscribe(session, "/ietf-system-keychain:keychain/trusted-certificates",
-                                     kc_cert_change_cb, ctx, 0, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
+    rc = sr_subtree_change_subscribe(session, "/ietf-keystore:keystore/trusted-certificates",
+                                     ks_cert_change_cb, ctx, 0, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
     if (SR_ERR_OK != rc) {
         goto error;
     }
 
-    /*rc = sr_event_notif_subscribe_tree(session, "/ietf-system-keychain:keychain/certificate-expiration",
+    /*rc = sr_event_notif_subscribe_tree(session, "/ietf-keystore:keystore/certificate-expiration",
                                        callback, ctx, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
     if (SR_ERR_OK != rc) {
         goto error;
     }*/
 
     /* trusted SSH host keys (for client) */
-    /*rc = sr_subtree_change_subscribe(session, "/ietf-system-keychain:keychain/trusted-ssh-host-keys",
+    /*rc = sr_subtree_change_subscribe(session, "/ietf-keystore:keystore/trusted-ssh-host-keys",
                                      privkeys_change_cb, ctx, 0, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
     if (SR_ERR_OK != rc) {
         goto error;
     }*/
 
     /* user auth credentials (for client) */
-    /*rc = sr_subtree_change_subscribe(session, "/ietf-system-keychain:keychain/user-auth-credentials",
+    /*rc = sr_subtree_change_subscribe(session, "/ietf-keystore:keystore/user-auth-credentials",
                                        cb, ctx, 0, SR_SUBSCR_CTX_REUSE, &ctx->subscription);
     if (SR_ERR_OK != rc) {
         goto error;
     }*/
 
-    SRP_LOG_DBG_MSG("authd plugin initialized successfully.");
+    SRP_LOG_DBG_MSG("keystored plugin initialized successfully.");
 
     ctx->session = session;
     *private_ctx = ctx;
     return SR_ERR_OK;
 
 error:
-    SRP_LOG_ERR("authd plugin initialization failed (%s).", sr_strerror(rc));
+    SRP_LOG_ERR("keystored plugin initialization failed (%s).", sr_strerror(rc));
     sr_unsubscribe(session, ctx->subscription);
     free(ctx);
     return rc;
@@ -599,9 +617,9 @@ error:
 void
 sr_plugin_cleanup_cb(sr_session_ctx_t *session, void *private_ctx)
 {
-    struct authd_ctx *ctx = (struct authd_ctx *)private_ctx;
+    struct keystored_ctx *ctx = (struct keystored_ctx *)private_ctx;
 
     sr_unsubscribe(session, ctx->subscription);
     free(ctx);
-    SRP_LOG_DBG_MSG("authd plugin cleanup finished.");
+    SRP_LOG_DBG_MSG("keystored plugin cleanup finished.");
 }

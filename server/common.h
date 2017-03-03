@@ -3,7 +3,7 @@
  * @author Radek Krejci <rkrejci@cesnet.cz>
  * @brief netopeer2-server common structures and functions
  *
- * Copyright (c) 2016 CESNET, z.s.p.o.
+ * Copyright (c) 2016 - 2017 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ struct np2srv {
 
     struct nc_pollsession *nc_ps;  /**< libnetconf2 pollsession structure */
     uint16_t nc_max_sessions;      /**< maximum number of running sessions */
+    pthread_t workers[NP2SRV_THREAD_COUNT]; /**< worker threads handling sessions */
 
     struct ly_ctx *ly_ctx;         /**< libyang's context */
     pthread_rwlock_t ly_ctx_lock;  /**< libyang's context rwlock */
@@ -54,6 +55,6 @@ extern struct np2srv np2srv;
 int ietf_netconf_server_init(const struct lys_module *module);
 int ietf_system_init(const struct lys_module *module);
 
-void np2srv_new_ch_session_clb(const char *UNUSED(client_name), struct nc_session *new_session);
+void np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_session);
 
 #endif /* NP2SRV_COMMON_H_ */
