@@ -94,7 +94,8 @@ struct nc_server_reply *op_generic(struct lyd_node *rpc, struct nc_session *ncs)
 struct nc_server_reply *op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs);
 void op_ntf_unsubscribe(struct nc_session *session);
 void np2srv_ntf_send(struct lyd_node **ntf, time_t timestamp);
-void np2srv_ntf_clb(const char *xpath, const sr_node_t *trees, const size_t tree_cnt, time_t timestamp, void *private_ctx);
+void np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_node_t *trees,
+                    const size_t tree_cnt, time_t timestamp, void *private_ctx);
 struct lyd_node *ntf_get_data(void);
 
 
