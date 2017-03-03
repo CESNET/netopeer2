@@ -63,15 +63,14 @@ volatile enum LOOPCTRL control = LOOP_CONTINUE;
 static void
 print_version(void)
 {
-    fprintf(stdout, "Netopeer2 Server %s\n", NP2SRV_VERSION);
+    fprintf(stdout, "netopeer2-server %s\n", NP2SRV_VERSION);
     fprintf(stdout, "compile time: %s, %s\n", __DATE__, __TIME__);
-    return;
 }
 
 /**
  * @brief Command line options definition for getopt()
  */
-#define OPTSTRING "dhv:V"
+#define OPTSTRING "dhv:Vc:"
 /**
  * @brief Print command line options description
  * @param[in] progname Name of the process.
@@ -88,8 +87,8 @@ print_usage(char* progname)
     fprintf(stdout, "                         0 - errors\n");
     fprintf(stdout, "                         1 - errors and warnings\n");
     fprintf(stdout, "                         2 - errors, warnings and verbose messages\n");
-    fprintf(stdout, "                         3 - all messages including debug notes\n");
-    exit(0);
+    fprintf(stdout, " -c category[,category]*  verbose debug level, print only these debug message categories\n");
+    fprintf(stdout, " categories: DICT, YANG, YIN, XPATH, DIFF, MSG, EDIT_CONFIG, SSH\n\n");
 }
 
 /**
@@ -747,10 +746,10 @@ int
 main(int argc, char *argv[])
 {
     int ret = EXIT_SUCCESS;
-    int c, *idx;
-    int daemonize = 1;
+    int c, *idx, i;
+    int daemonize = 1, verb = 0;
     int pidfd;
-    char pid[8];
+    char pid[8], *ptr;
     struct sigaction action;
     sigset_t block_mask;
     pthread_attr_t thread_attr;
@@ -765,13 +764,78 @@ main(int argc, char *argv[])
             print_usage(argv[0]);
             return EXIT_SUCCESS;
         case 'v':
+            if (verb) {
+                ERR("Do not combine -v and -c parameters.");
+                return EXIT_FAILURE;
+            }
+            verb = 1;
+
             c = atoi(optarg);
             /* normalize verbose level */
-            np2_verbose_level = (c > NC_VERB_ERROR) ? ((c > NC_VERB_DEBUG) ? NC_VERB_DEBUG : c) : NC_VERB_ERROR;
+            np2_verbose_level = (c > NC_VERB_ERROR) ? ((c > NC_VERB_VERBOSE) ? NC_VERB_VERBOSE : c) : NC_VERB_ERROR;
+            switch (np2_verbose_level) {
+            case NC_VERB_ERROR:
+                np2_libssh_verbose_level = 0;
+                break;
+            case NC_VERB_WARNING:
+            case NC_VERB_VERBOSE:
+                np2_libssh_verbose_level = 1;
+                break;
+            }
+
+            nc_verbosity(np2_verbose_level);
+            nc_libssh_thread_verbosity(np2_libssh_verbose_level);
             break;
         case 'V':
             print_version();
             return EXIT_SUCCESS;
+        case 'c':
+            if (verb) {
+                ERR("Do not combine -v and -c parameters.");
+                return EXIT_FAILURE;
+            }
+
+            /* set verbose for all, we change to debug later if requested */
+            np2_verbose_level = NC_VERB_VERBOSE;
+            nc_verbosity(np2_verbose_level);
+            np2_libssh_verbose_level = 1;
+
+            ptr = strtok(optarg, ",");
+            do {
+                if (!strcmp(ptr, "DICT")) {
+                    verb |= LY_LDGDICT;
+                } else if (!strcmp(ptr, "YANG")) {
+                    verb |= LY_LDGYANG;
+                } else if (!strcmp(ptr, "YIN")) {
+                    verb |= LY_LDGYIN;
+                } else if (!strcmp(ptr, "XPATH")) {
+                    verb |= LY_LDGXPATH;
+                } else if (!strcmp(ptr, "DIFF")) {
+                    verb |= LY_LDGDIFF;
+                } else if (!strcmp(ptr, "MSG")) {
+                    /* NETCONF messages - only lnc2 debug verbosity */
+                    nc_verbosity(NC_VERB_DEBUG);
+                } else if (!strcmp(ptr, "EDIT_CONFIG")) {
+                    /* edit-config operations - only netopeer2 debug verbosity */
+                    np2_verbose_level = NC_VERB_DEBUG;
+                } else if (!strcmp(ptr, "SSH")) {
+                    /* 2 should be always enough, 3 is too much useless info */
+                    np2_libssh_verbose_level = 2;
+                } else {
+                    ERR("Unknown debug message category \"%s\", use -h.");
+                    return EXIT_FAILURE;
+                }
+            } while ((ptr = strtok(NULL, ",")));
+            /* set final verbosity ofr libssh and libyang */
+            nc_libssh_thread_verbosity(np2_libssh_verbose_level);
+            if (verb) {
+                ly_verb(LY_LLDBG);
+                ly_verb_dbg(verb);
+            }
+
+            verb = 1;
+            break;
+
         default:
             print_usage(argv[0]);
             return EXIT_SUCCESS;
@@ -832,9 +896,6 @@ main(int argc, char *argv[])
     nc_set_print_clb(np2log_clb_nc2); /* libnetconf2 */
     ly_set_log_clb(np2log_clb_ly, 1); /* libyang */
     sr_log_set_cb(np2log_clb_sr); /* sysrepo, log level is checked by callback */
-
-    nc_verbosity(np2_verbose_level);
-    nc_libssh_thread_verbosity(np2_verbose_level);
 
 restart:
     /* initiate NETCONF server */
