@@ -1,9 +1,10 @@
 /**
  * @file main.c
  * @author Radek Krejci <rkrejci@cesnet.cz>
+ * @author Michal Vasko <mvasko@cesnet.cz>
  * @brief netopeer2-server - NETCONF server
  *
- * Copyright (c) 2016 CESNET, z.s.p.o.
+ * Copyright (c) 2016 - 2017 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -27,6 +28,7 @@
 #include <syslog.h>
 #include <unistd.h>
 #include <pwd.h>
+#include <assert.h>
 
 #include <libyang/libyang.h>
 #include <nc_server.h>
@@ -41,6 +43,7 @@
 #include "../modules/ietf-netconf-with-defaults@2011-06-01.h"
 #include "../modules/nc-notifications@2008-07-14.h"
 #include "../modules/notifications@2008-07-14.h"
+#include "../modules/ietf-netconf-notifications@2012-02-06.h"
 
 struct np2srv np2srv;
 struct np2srv_dslock dslock;
@@ -151,8 +154,7 @@ np2srv_module_assign_clbs(const struct lys_module *mod)
     struct lys_node *snode, *next;
     char *path;
 
-    if (!strcmp(mod->name, "ietf-netconf-monitoring") || !strcmp(mod->name, "ietf-netconf") ||
-            !strcmp(mod->name, "ietf-netconf-monitoring")) {
+    if (!strcmp(mod->name, "ietf-netconf-monitoring") || !strcmp(mod->name, "ietf-netconf")) {
         /* skip it, use internal implementations from libnetconf2 */
         return EXIT_SUCCESS;
     }
@@ -280,10 +282,90 @@ np2srv_ly_import_clb(const char *mod_name, const char *mod_rev, const char *subm
 }
 
 static void
+np2srv_send_capab_change_notif(const char *added_uri, const char *deleted_uri, const char *modified_uri)
+{
+    sr_val_t *data;
+
+    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL)) {
+        return;
+    }
+
+    /* generate ietf-netconf-notification's netconf-capability-change event for sysrepo */
+    data = calloc(3, sizeof *data);
+    data[0].xpath = "/ietf-netconf-notifications:netconf-capability-change/changed-by";
+    data[0].type = SR_CONTAINER_T;
+    data[1].xpath = "/ietf-netconf-notifications:netconf-capability-change/changed-by/server";
+    data[1].type = SR_LEAF_EMPTY_T;
+    if (added_uri) {
+        assert(!deleted_uri && !modified_uri);
+        data[2].xpath = "/ietf-netconf-notifications:netconf-capability-change/added-capability";
+        data[2].type = SR_STRING_T;
+        data[2].data.string_val = (char *)added_uri;
+    } else if (deleted_uri) {
+        assert(!added_uri && !modified_uri);
+        data[2].xpath = "/ietf-netconf-notifications:netconf-capability-change/deleted-capability";
+        data[2].type = SR_STRING_T;
+        data[2].data.string_val = (char *)deleted_uri;
+    } else {
+        assert(!added_uri && !deleted_uri);
+        data[2].xpath = "/ietf-netconf-notifications:netconf-capability-change/modified-capability";
+        data[2].type = SR_STRING_T;
+        data[2].data.string_val = (char *)modified_uri;
+    }
+
+    sr_event_notif_send(np2srv.sr_sess.srs, "/ietf-netconf-notifications:netconf-capability-change", data,
+                        3, SR_EV_NOTIF_DEFAULT);
+    free(data);
+    VRB("Generated new event (netconf-capability-change).");
+}
+
+static char *
+np2srv_create_capab(const struct lys_module *mod)
+{
+    int i, has_features = 0;
+    char *cpb, *tmp;
+
+    cpb = malloc(strlen(mod->ns) + 8 + strlen(mod->name) + (mod->rev_size ? 10 + strlen(mod->rev[0].date) : 0) + 1);
+    if (!cpb) {
+        EMEM;
+        return NULL;
+    }
+
+    sprintf(cpb, "%s?module=%s%s%s", mod->ns, mod->name, mod->rev_size ? "&revision=" : "",
+                mod->rev_size ? mod->rev[0].date : "");
+
+    for (i = 0; i < mod->features_size; ++i) {
+        if (mod->features[i].flags & LYS_FENABLED) {
+            if (!has_features) {
+                tmp = realloc(cpb, strlen(cpb) + 10 + strlen(mod->features[i].name) + 1);
+            } else {
+                tmp = realloc(cpb, strlen(cpb) + 1 + strlen(mod->features[i].name) + 1);
+            }
+            if (!tmp) {
+                EMEM;
+                free(cpb);
+                return NULL;
+            }
+            cpb = tmp;
+
+            if (!has_features) {
+                strcat(cpb, "&features=");
+                has_features = 1;
+            } else {
+                strcat(cpb, ",");
+            }
+            strcat(cpb, mod->features[i].name);
+        }
+    }
+
+    return cpb;
+}
+
+static void
 np2srv_module_install_clb(const char *module_name, const char *revision, sr_module_state_t state, void *UNUSED(private_ctx))
 {
     int rc;
-    char *data = NULL;
+    char *data = NULL, *cpb;
     struct lyd_node *info, *ntf;
     const char *setid;
     const struct lys_module *mod;
@@ -331,6 +413,10 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
 
             /* set RPC, action and notification callbacks */
             np2srv_module_assign_clbs(mod);
+
+            cpb = np2srv_create_capab(mod);
+            np2srv_send_capab_change_notif(cpb, NULL, NULL);
+            free(cpb);
         }
     } else if (state == SR_MS_IMPORTED) {
         /* TODO nothing to do, it will either be loaded when parsing an imported module or it should not be needed, right? */
@@ -343,9 +429,13 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
 
         /* remove the specified module from the context */
         mod = ly_ctx_get_module(np2srv.ly_ctx, module_name, revision);
-        ly_ctx_remove_module(mod, NULL);
-        /* ignore return value, the function can fail in case the module was already removed
-         * because of dependency in some of the previous call */
+        cpb = np2srv_create_capab(mod);
+        /* the function can fail in case the module was already removed
+         * because of dependency in some of the previous calls */
+        if (!ly_ctx_remove_module(mod, NULL)) {
+            np2srv_send_capab_change_notif(NULL, cpb, NULL);
+        }
+        free(cpb);
     }
 
     /* unlock libyang context */
@@ -358,14 +448,15 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
         setid = ((struct lyd_node_leaf_list *)info->child->prev)->value_str;
         ntf = lyd_new_path(NULL, np2srv.ly_ctx, "/ietf-yang-library:yang-library-change", NULL, 0, 0);
         lyd_new_leaf(ntf, info->schema->module, "module-set-id", setid);
-        rc = lyd_validate(&ntf, LYD_OPT_NOTIF, info);
-        lyd_free_withsiblings(info);
-
-        if (!rc) {
-            /* send notification */
-            np2srv_ntf_send(&ntf, time(NULL));
+        if (lyd_validate(&ntf, LYD_OPT_NOTIF, info)) {
+            lyd_free_withsiblings(info);
+            lyd_free(ntf);
+            EINT;
+            return;
         }
-        lyd_free(ntf);
+        lyd_free_withsiblings(info);
+        /* send notification */
+        np2srv_ntf_send(ntf, time(NULL), SR_EV_NOTIF_T_REALTIME);
     }
 }
 
@@ -373,6 +464,7 @@ static void
 np2srv_feature_change_clb(const char *module_name, const char *feature_name, bool enabled, void *UNUSED(private_ctx))
 {
     const struct lys_module *mod;
+    char *cpb;
 
     /* lock for modifying libyang context */
     pthread_rwlock_wrlock(&np2srv.ly_ctx_lock);
@@ -389,7 +481,11 @@ np2srv_feature_change_clb(const char *module_name, const char *feature_name, boo
     } else {
         lys_features_disable(mod, feature_name);
     }
+    cpb = np2srv_create_capab(mod);
     pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
+
+    np2srv_send_capab_change_notif(NULL, NULL, cpb);
+    free(cpb);
 }
 
 static int
@@ -491,7 +587,9 @@ np2srv_del_session_clb(struct nc_session *session)
     sr_val_t *event_data;
     size_t c = 0;
 
-    op_ntf_unsubscribe(session);
+    if (nc_session_get_notif_status(session)) {
+        op_ntf_unsubscribe(session, 0);
+    }
     nc_ps_del_session(np2srv.nc_ps, session);
     ncm_session_del(session);
 
@@ -650,13 +748,17 @@ np2srv_init_schemas(int first)
         goto error;
     }
 
-    /* ... notifications and nc-notifications */
+    /* ... notifications, nc-notifications, and ietf-netconf-notifications */
     if (!ly_ctx_get_module(np2srv.ly_ctx, "notifications", "2008-07-14") &&
             !lys_parse_mem(np2srv.ly_ctx, (const char *)notifications_2008_07_14_yin, LYS_IN_YIN)) {
         goto error;
     }
     if (!ly_ctx_get_module(np2srv.ly_ctx, "nc-notifications", "2008-07-14") &&
             !lys_parse_mem(np2srv.ly_ctx, (const char *)nc_notifications_2008_07_14_yin, LYS_IN_YIN)) {
+        goto error;
+    }
+    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", "2012-02-06") &&
+            !lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_notifications_2012_02_06_yin, LYS_IN_YIN)) {
         goto error;
     }
 

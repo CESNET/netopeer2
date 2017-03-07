@@ -46,6 +46,7 @@ struct {
 struct nc_server_reply *
 op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
 {
+    int ret;
     uint16_t i;
     uint32_t idx;
     time_t now = time(NULL), start = 0, stop = 0;
@@ -119,7 +120,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
         e = nc_err(NC_ERR_MISSING_ELEM, NC_ERR_TYPE_PROT, "startTime");
         nc_err_set_msg(e, "The stopTime element must be used with the startTime element.", "en");
         goto error;
-    } else if (start > stop) {
+    } else if (stop && (start > stop)) {
         /* stopTime must be later than startTime */
         e = nc_err(NC_ERR_BAD_ELEM, NC_ERR_TYPE_PROT, "stopTime");
         nc_err_set_msg(e, "Requested stopTime is earlier than the specified startTime.", "en");
@@ -131,52 +132,30 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
     /* check that the session is not in the current subscribers list */
     for (i = 0; i < subscribers.num; i++) {
         if (subscribers.list[i].session == ncs) {
-            /* we have match, check times */
-            if (subscribers.list[i].stop && subscribers.list[i].stop < now) {
-                /* previous subscription ended, update it and use it */
-                subscribers.list[i].start = start;
-                subscribers.list[i].stop = stop;
-                subscribers.list[i].stream = pstream;
-                new = &subscribers.list[i];
-                break;
-            } else {
-                /* already subscribed */
-                pthread_mutex_unlock(&subscribers.lock);
-                e = nc_err(NC_ERR_IN_USE, NC_ERR_TYPE_PROT);
-                nc_err_set_msg(e, "Already subscribed.", "en");
-                goto error;
-            }
-        } else {
-            /* check times for the subscribers list maintenance */
-            if (subscribers.list[i].stop && subscribers.list[i].stop < now) {
-                /* expired subscriber, clean it */
-                subscribers.num--;
-                if (i + 1 < subscribers.num) {
-                    /* replace it by the last subscriber */
-                    memcpy(&subscribers.list[i], &subscribers.list[subscribers.num], sizeof *subscribers.list);
-                } /* else just decrease the number of subscribers and forget */
-                i--;
-            }
+            /* already subscribed */
+            pthread_mutex_unlock(&subscribers.lock);
+            e = nc_err(NC_ERR_IN_USE, NC_ERR_TYPE_PROT);
+            nc_err_set_msg(e, "Already subscribed.", "en");
+            goto error;
         }
     }
-    if (!new) {
-        /* new subscriber, add it into the list */
-        if (subscribers.num == subscribers.size) {
-            subscribers.size += 4;
-            new = realloc(subscribers.list, subscribers.size * sizeof *subscribers.list);
-            if (!new) {
-                /* realloc failed */
-                pthread_mutex_unlock(&subscribers.lock);
-                EMEM;
-                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                subscribers.size -= 4;
-                goto error;
-            }
-            subscribers.list = new;
+
+    /* new subscriber, add it into the list */
+    if (subscribers.num == subscribers.size) {
+        subscribers.size += 4;
+        new = realloc(subscribers.list, subscribers.size * sizeof *subscribers.list);
+        if (!new) {
+            /* realloc failed */
+            pthread_mutex_unlock(&subscribers.lock);
+            EMEM;
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            subscribers.size -= 4;
+            goto error;
         }
-        new = &subscribers.list[subscribers.num];
-        subscribers.num++;
+        subscribers.list = new;
     }
+    new = &subscribers.list[subscribers.num];
+    subscribers.num++;
 
     /* store information about the new subscriber */
     new->session = ncs;
@@ -188,6 +167,16 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
 
     nc_session_set_notif_status(ncs, 1);
 
+    /* subscribe for replay */
+    if (start) {
+        ret = sr_event_notif_replay(np2srv.sr_sess.srs, np2srv.sr_subscr, start, stop);
+        if (ret) {
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, sr_strerror(ret), "en");
+            goto error;
+        }
+    }
+
     return nc_server_reply_ok();
 
 error:
@@ -195,36 +184,28 @@ error:
 }
 
 void
-op_ntf_unsubscribe(struct nc_session *session)
+op_ntf_unsubscribe(struct nc_session *session, time_t stop)
 {
     unsigned int i;
-    time_t now = time(NULL);
 
     pthread_mutex_lock(&subscribers.lock);
 
     for (i = 0; i < subscribers.num; i++) {
-        if (subscribers.list[i].session == session) {
-            /* we have match */
-            subscribers.num--;
-            if (i < subscribers.num) {
-                /* move here the subscriber from the end of the list */
-                memcpy(&subscribers.list[i], &subscribers.list[subscribers.num], sizeof *subscribers.list);
-            }
-            /* we are done */
+        if ((subscribers.list[i].session == session) || (stop && (subscribers.list[i].stop == stop))) {
+            /* in case only stop time was passed */
+            session = subscribers.list[i].session;
             break;
-        } else {
-            /* check times for the subscribers list maintenance */
-            if (subscribers.list[i].stop && subscribers.list[i].stop < now) {
-                /* expired subscriber, remove it */
-                subscribers.num--;
-                if (i < subscribers.num) {
-                    /* replace it by the last subscriber */
-                    memcpy(&subscribers.list[i], &subscribers.list[subscribers.num], sizeof *subscribers.list);
-                } /* else just decrease the number of subscribers and forget */
-                i--;
-            }
         }
     }
+
+    assert(i < subscribers.num);
+
+    subscribers.num--;
+    if (i < subscribers.num) {
+        /* move here the subscriber from the end of the list */
+        memcpy(&subscribers.list[i], &subscribers.list[subscribers.num], sizeof *subscribers.list);
+    }
+    nc_session_set_notif_status(session, 0);
 
     if (!subscribers.num) {
         free(subscribers.list);
@@ -233,8 +214,6 @@ op_ntf_unsubscribe(struct nc_session *session)
     }
 
     pthread_mutex_unlock(&subscribers.lock);
-
-    nc_session_set_notif_status(session, 0);
 }
 
 struct lyd_node *
@@ -244,6 +223,7 @@ ntf_get_data(void)
     struct lyd_node *root, *stream;
     struct lys_node *snode;
     const struct lys_module *mod;
+    const char *replay_sup;
 
     root = lyd_new_path(NULL, np2srv.ly_ctx, "/nc-notifications:netconf/streams", NULL, 0, 0);
     if (!root || !root->child) {
@@ -259,7 +239,7 @@ ntf_get_data(void)
                       "Default NETCONF stream containing all the Event Notifications.")) {
         goto error;
     }
-    if (!lyd_new_leaf(stream, stream->schema->module, "replaySupport", "false")) {
+    if (!lyd_new_leaf(stream, stream->schema->module, "replaySupport", "true")) {
         goto error;
     }
 
@@ -283,7 +263,13 @@ ntf_get_data(void)
         if (!lyd_new_leaf(stream, stream->schema->module, "name", mod->name)) {
             goto error;
         }
-        if (!lyd_new_leaf(stream, stream->schema->module, "replaySupport", "false")) {
+        if (!strcmp(mod->name, "ietf-yang-library")) {
+            /* we generate the notification locally, we do not store it */
+            replay_sup = "false";
+        } else {
+            replay_sup = "true";
+        }
+        if (!lyd_new_leaf(stream, stream->schema->module, "replaySupport", replay_sup)) {
             goto error;
         }
     }
@@ -296,48 +282,42 @@ error:
 }
 
 void
-np2srv_ntf_send(struct lyd_node **ntf, time_t timestamp)
+np2srv_ntf_send(struct lyd_node *ntf, time_t timestamp, const sr_ev_notif_type_t notif_type)
 {
-    size_t i;
+    int i;
     char *datetime;
-    struct nc_server_notif *ntf_msg = NULL;
-    struct lys_module *mod;
-    time_t now;
+    struct nc_server_notif *ntf_msg;
 
     /* build the notification */
     datetime = nc_time2datetime(timestamp, NULL, NULL);
-    ntf_msg = nc_server_notif_new(*ntf, datetime, 0);
+    ntf_msg = nc_server_notif_new(ntf, datetime, 0);
     if (!ntf_msg) {
         free(datetime);
+        lyd_free(ntf);
         return;
     }
-    mod = (*ntf)->schema->module;
-    *ntf = NULL;
 
-    /* get the current time */
-    now = time(NULL);
-
-    /* send notification to the all subscribed receivers */
+    /* send the notification */
     pthread_mutex_lock(&subscribers.lock);
-    for (i = 0; i < subscribers.num; i++) {
-        /* maintain subscribers list by checking subscription stop times */
-        if (subscribers.list[i].stop && subscribers.list[i].stop < now) {
-            /* expired subscriber, remove it */
-            subscribers.num--;
-            if (i < subscribers.num) {
-                /* replace it by the last subscriber */
-                memcpy(&subscribers.list[i], &subscribers.list[subscribers.num], sizeof *subscribers.list);
-            } /* else just decrease the number of subscribers and forget */
-            i--;
+
+    for (i = 0; i < subscribers.num; ++i) {
+        if (subscribers.list[i].stream && (subscribers.list[i].stream != ntf->schema->module)) {
+            /* wrong stream */
+            continue;
+        }
+        if ((notif_type == SR_EV_NOTIF_T_REALTIME) && (subscribers.list[i].stop && (timestamp > subscribers.list[i].stop))) {
+            /* replay subscription that will finish before this notification's timestamp */
+            continue;
+        }
+        if ((notif_type == SR_EV_NOTIF_T_REPLAY) && (!subscribers.list[i].start || (subscribers.list[i].start > timestamp)
+                || (subscribers.list[i].stop && (subscribers.list[i].stop < timestamp)))) {
+            /* notification not relevant for this subscription */
             continue;
         }
 
-        /* check subscribed stream */
-        if (!subscribers.list[i].stream || /* generic NETCONF session where we send all the notifications */
-                subscribers.list[i].stream == mod) { /* notification from the subscribed schema */
-            nc_server_notif_send(subscribers.list[i].session, ntf_msg, 5000);
-        }
+        nc_server_notif_send(subscribers.list[i].session, ntf_msg, 5000);
     }
+
     pthread_mutex_unlock(&subscribers.lock);
 
     nc_server_notif_free(ntf_msg);
@@ -353,11 +333,37 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
     const struct lys_module *mod;
     size_t i;
     char numstr[21];
+    const char *str = NULL;
 
-    VRB("Received notification \"%s\" (%d).", xpath, timestamp);
+    switch (notif_type) {
+    case SR_EV_NOTIF_T_REALTIME:
+        str = "realtime";
+        break;
+    case SR_EV_NOTIF_T_REPLAY:
+        str = "replay";
+        break;
+    case SR_EV_NOTIF_T_REPLAY_COMPLETE:
+        str = "replay complete";
+        break;
+    case SR_EV_NOTIF_T_REPLAY_STOP:
+        str = "replay stop";
+        break;
+    }
+    VRB("Received a %s notification \"%s\" (%d).", str, xpath, timestamp);
 
     /* if we have no subscribers, it is not needed to do anything here */
     if (!subscribers.num) {
+        assert(notif_type == SR_EV_NOTIF_T_REALTIME);
+        return;
+    }
+
+    /* special "fake" notifications */
+    if (notif_type == SR_EV_NOTIF_T_REPLAY_COMPLETE) {
+        /* alright, whatever */
+        return;
+    } else if (notif_type == SR_EV_NOTIF_T_REPLAY_STOP) {
+        /* subscription is over */
+        op_ntf_unsubscribe(NULL, timestamp);
         return;
     }
 
@@ -446,7 +452,8 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
     }
 
     /* send the notification */
-    np2srv_ntf_send(&ntf, timestamp);
+    np2srv_ntf_send(ntf, timestamp, notif_type);
+    return;
 
 error:
     lyd_free(ntf);
