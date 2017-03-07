@@ -674,7 +674,7 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                       const char **list1_key_del, const char **list2_key_del)
 {
     int rc = -2;
-    const char *xpath, *list1_key = NULL, *list2_key = NULL, *oper_str;
+    const char *xpath, *list1_key = NULL, *list2_key = NULL, *oper_str = NULL;
     char quot;
 
     xpath = (sr_old_val ? sr_old_val->xpath : sr_new_val->xpath);

@@ -72,7 +72,11 @@ print_version(void)
 /**
  * @brief Command line options definition for getopt()
  */
-#define OPTSTRING "dhv:Vc:"
+#ifndef NDEBUG
+#   define OPTSTRING "dhv:Vc:"
+#else
+#   define OPTSTRING "dhv:V"
+#endif
 /**
  * @brief Print command line options description
  * @param[in] progname Name of the process.
@@ -89,8 +93,11 @@ print_usage(char* progname)
     fprintf(stdout, "                         0 - errors\n");
     fprintf(stdout, "                         1 - errors and warnings\n");
     fprintf(stdout, "                         2 - errors, warnings and verbose messages\n");
+#ifndef NDEBUG
     fprintf(stdout, " -c category[,category]*  verbose debug level, print only these debug message categories\n");
-    fprintf(stdout, " categories: DICT, YANG, YIN, XPATH, DIFF, MSG, EDIT_CONFIG, SSH\n\n");
+    fprintf(stdout, " categories: DICT, YANG, YIN, XPATH, DIFF, MSG, EDIT_CONFIG, SSH\n");
+#endif
+    fprintf(stdout, "\n");
 }
 
 /**
@@ -898,7 +905,10 @@ main(int argc, char *argv[])
     int c, *idx, i;
     int daemonize = 1, verb = 0;
     int pidfd;
-    char pid[8], *ptr;
+    char pid[8];
+#ifndef NDEBUG
+    char *ptr;
+#endif
     struct sigaction action;
     sigset_t block_mask;
     pthread_attr_t thread_attr;
@@ -938,6 +948,7 @@ main(int argc, char *argv[])
         case 'V':
             print_version();
             return EXIT_SUCCESS;
+#ifndef NDEBUG
         case 'c':
             if (verb) {
                 ERR("Do not combine -v and -c parameters.");
@@ -984,6 +995,7 @@ main(int argc, char *argv[])
 
             verb = 1;
             break;
+#endif
 
         default:
             print_usage(argv[0]);

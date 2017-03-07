@@ -156,7 +156,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 {
     struct nc_server_error *e = NULL;
     struct nc_server_reply *ereply = NULL;
-    struct np2_sessions *sessions;
+    struct np2_sessions *sessions = NULL;
     sr_datastore_t ds = 0;
     sr_move_position_t pos = SR_MOVE_LAST;
     sr_val_t value;

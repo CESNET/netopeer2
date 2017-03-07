@@ -28,7 +28,7 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
                        sr_val_t *sr_new_val, NC_SSH_KEY_TYPE *prev_keytype)
 {
     int rc = -2, ret;
-    const char *xpath, *key_end, *oper_str;
+    const char *xpath, *key_end, *oper_str = NULL;
     char *path = NULL, quot;
     char *list1_key = NULL, *list2_key = NULL;
     sr_val_t *keydata_val = NULL;
