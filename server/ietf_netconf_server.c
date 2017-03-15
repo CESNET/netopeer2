@@ -678,7 +678,7 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
     char quot;
 
     xpath = (sr_old_val ? sr_old_val->xpath : sr_new_val->xpath);
-    assert(!strncmp(xpath, "/ietf-netconf-server:netconf-server/", 36));
+    assert(!strncmp(xpath, "/ietf-netconf-server:netconf-server", 35));
 
     switch (sr_oper) {
     case SR_OP_CREATED:
@@ -697,7 +697,15 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
 
     VRB("Path \"%s\" %s.", xpath, oper_str);
 
-    xpath += 36;
+    xpath += 35;
+
+    if (!xpath[0]) {
+        /* while container was deleted/created, ok, whatever */
+        return 0;
+    }
+
+    assert(xpath[0] == '/');
+    ++xpath;
 
     if (!strcmp(xpath, "session-options")) {
         rc = 0;
