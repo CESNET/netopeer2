@@ -696,7 +696,8 @@ worker_thread(void *arg)
         }
 
         /* try to accept new NETCONF sessions */
-        if (!np2srv.nc_max_sessions || (nc_ps_session_count(np2srv.nc_ps) < np2srv.nc_max_sessions)) {
+        if (nc_server_endpt_count()
+                && (!np2srv.nc_max_sessions || (nc_ps_session_count(np2srv.nc_ps) < np2srv.nc_max_sessions))) {
             msgtype = nc_accept(100, &ncs);
             if (msgtype == NC_MSG_HELLO) {
                 np2srv_new_session_clb(NULL, ncs);
