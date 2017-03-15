@@ -26,7 +26,7 @@
 
 /** @brief Netopeer2 Server SSH default RSA host key path
  */
-#define NP2SRV_HOST_KEY "/etc/ssh/ssh_host_rsa_key"
+#define NP2SRV_HOST_KEY "@DEFAULT_HOST_KEY@"
 
 /** @brief keystored default directory
  */

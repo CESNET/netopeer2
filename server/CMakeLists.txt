@@ -33,6 +33,7 @@ else()
 endif()
 option(ENABLE_CONFIGURATION "Enable server configuration" ON)
 set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
+set(DEFAULT_HOST_KEY "/etc/ssh/ssh_host_rsa_key" CACHE STRING "Default server host key (used only if configuration is disabled)")
 
 # set prefix for the PID file
 if (NOT PIDFILE_PREFIX)
@@ -49,13 +50,25 @@ if (ENABLE_CONFIGURATION)
         endif()
     endif()
     if (NOT KEYSTORED_KEYS_DIR)
-        message(STATUS "Failed to learn keystored keys directory, set KEYSTORED_KEYS_DIR manually or server configuration will not work.")
+        message(STATUS "Failed to learn keystored keys directory, rerun cmake and set KEYSTORED_KEYS_DIR manually or the server configuration will not work.")
         set(KEYSTORED_KEYS_DIR "none")
     else()
         message(STATUS "keystored keys directory is \"${KEYSTORED_KEYS_DIR}\".")
     endif()
 else()
     set(KEYSTORED_KEYS_DIR "none")
+endif()
+
+# set default SSH key
+if (KEYSTORED_KEYS_DIR STREQUAL "none")
+    message(STATUS "Server configuration off, default SSH host key will be used.")
+    # if (EXISTS) succeeds only if the file is readable, we do not care about that
+    execute_process(COMMAND ls "${DEFAULT_HOST_KEY}" RESULT_VARIABLE RET OUTPUT_QUIET ERROR_QUIET)
+    if (NOT RET)
+        message(STATUS "Default host key set to \"${DEFAULT_HOST_KEY}\".")
+    else()
+        message(FATAL_ERROR "Host key \"${DEFAULT_HOST_KEY}\" not found, rerun cmake and set DEFAULT_HOST_KEY manually to point to an RSA SSH key.")
+    endif()
 endif()
 
 # check that lnc2 supports np2srv thread count
