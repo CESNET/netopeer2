@@ -152,6 +152,7 @@ static int
 np2srv_module_assign_clbs(const struct lys_module *mod)
 {
     struct lys_node *snode, *next;
+    int notif;
     char *path;
 
     if (!strcmp(mod->name, "ietf-netconf-monitoring") || !strcmp(mod->name, "ietf-netconf")) {
@@ -160,15 +161,13 @@ np2srv_module_assign_clbs(const struct lys_module *mod)
     }
 
     /* set RPC and Notifications callbacks */
+    notif = 0;
     LY_TREE_DFS_BEGIN(mod->data, next, snode) {
         if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
             nc_set_rpc_callback(snode, op_generic);
             goto dfs_nextsibling;
         } else if (snode->nodetype & LYS_NOTIF) {
-            path = lys_path(snode);
-            sr_event_notif_subscribe_tree(np2srv.sr_sess.srs, path, np2srv_ntf_clb, NULL, SR_SUBSCR_CTX_REUSE,
-                                          &np2srv.sr_subscr);
-            free(path);
+            notif = 1;
             goto dfs_nextsibling;
         }
 
@@ -193,6 +192,14 @@ dfs_nextsibling:
             }
             next = snode->next;
         }
+    }
+
+    if (notif) {
+        path = malloc(1 + strlen(mod->name) + 6);
+        sprintf(path, "/%s:*//.", mod->name);
+        sr_event_notif_subscribe_tree(np2srv.sr_sess.srs, path, np2srv_ntf_clb, NULL, SR_SUBSCR_CTX_REUSE,
+                                        &np2srv.sr_subscr);
+        free(path);
     }
 
     return EXIT_SUCCESS;
