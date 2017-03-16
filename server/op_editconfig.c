@@ -303,7 +303,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
             ereply = op_build_err_sr(ereply, sessions->srs);
             free(path);
-            goto errorreply;
+            return ereply;
         }
     }
 
@@ -370,7 +370,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         ret = -1;
         rel = NULL;
         lastkey = 0;
-        switch(iter->schema->nodetype) {
+        switch (iter->schema->nodetype) {
         case LYS_CONTAINER:
             cont = (struct lys_node_container *)iter->schema;
             if (op[op_index] < NP2_EDIT_DELETE && !cont->presence) {
@@ -449,7 +449,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             goto internalerror;
         }
 
-        if (op[op_index] < NP2_EDIT_DELETE && !lastkey) {
+        if ((op[op_index] < NP2_EDIT_DELETE) && !lastkey) {
             /* set value for sysrepo */
             op_set_srval(iter, NULL, 0, &value, &valbuf);
         }
@@ -495,72 +495,45 @@ resultcheck:
         case SR_ERR_UNAUTHORIZED:
             e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
             nc_err_set_path(e, path);
+            if (ereply) {
+                nc_server_reply_add_err(ereply, e);
+            } else {
+                ereply = nc_server_reply_err(e);
+            }
             break;
         case SR_ERR_DATA_EXISTS:
             e = nc_err(NC_ERR_DATA_EXISTS, NC_ERR_TYPE_PROT);
             nc_err_set_path(e, path);
+            if (ereply) {
+                nc_server_reply_add_err(ereply, e);
+            } else {
+                ereply = nc_server_reply_err(e);
+            }
             break;
         case SR_ERR_DATA_MISSING:
             e = nc_err(NC_ERR_DATA_MISSING, NC_ERR_TYPE_PROT);
             nc_err_set_path(e, path);
+            if (ereply) {
+                nc_server_reply_add_err(ereply, e);
+            } else {
+                ereply = nc_server_reply_err(e);
+            }
             break;
         default:
             /* not covered error */
             ereply = op_build_err_sr(ereply, sessions->srs);
-            switch (erropt) {
-            case NP2_EDIT_ERROPT_CONT:
-                DBG("EDIT_CONFIG: continue-on-error.");
-                goto dfs_nextsibling;
-            case NP2_EDIT_ERROPT_ROLLBACK:
-                DBG("EDIT_CONFIG: rollback-on-error.");
-                sr_discard_changes(sessions->srs);
-                goto cleanup;
-            case NP2_EDIT_ERROPT_STOP:
-                DBG("EDIT_CONFIG: stop-on-error (%s).", nc_err_get_msg(e));
-                if (sessions->ds != SR_DS_CANDIDATE) {
-                    sr_commit(sessions->srs);
-                } else {
-                    if (sr_validate(sessions->srs) != SR_ERR_OK) {
-                        ereply = op_build_err_sr(ereply, sessions->srs);
-                        /* content is not valid, rollback */
-                        sr_discard_changes(sessions->srs);
-                    } else {
-                        /* mark candidate as modified */
-                        sessions->flags |= NP2S_CAND_CHANGED;
-                    }
-                }
-                goto cleanup;
-            }
+            break;
         }
-        if (e) {
+        if (ereply) {
             switch (erropt) {
             case NP2_EDIT_ERROPT_CONT:
-                DBG("EDIT_CONFIG: continue-on-error (%s).", nc_err_get_msg(e));
-                if (ereply) {
-                    nc_server_reply_add_err(ereply, e);
-                } else {
-                    ereply = nc_server_reply_err(e);
-                }
-                e = NULL;
+                DBG("EDIT_CONFIG: continue-on-error (%s).", nc_err_get_msg(nc_server_reply_get_last_err(ereply)));
                 goto dfs_nextsibling;
             case NP2_EDIT_ERROPT_ROLLBACK:
-                DBG("EDIT_CONFIG: rollback-on-error (%s).", nc_err_get_msg(e));
-                sr_discard_changes(sessions->srs);
+                DBG("EDIT_CONFIG: rollback-on-error (%s).", nc_err_get_msg(nc_server_reply_get_last_err(ereply)));
                 goto cleanup;
             case NP2_EDIT_ERROPT_STOP:
-                DBG("EDIT_CONFIG: stop-on-error (%s).", nc_err_get_msg(e));
-                if (sessions->ds != SR_DS_CANDIDATE) {
-                    sr_commit(sessions->srs);
-                } else {
-                    if (sr_validate(sessions->srs) != SR_ERR_OK) {
-                        ereply = op_build_err_sr(ereply, sessions->srs);
-                        /* content is not valid, rollback */
-                        sr_discard_changes(sessions->srs);
-                    } else {
-                        /* mark candidate as modified */
-                        sessions->flags |= NP2S_CAND_CHANGED;
-                    }
-                }
+                DBG("EDIT_CONFIG: stop-on-error (%s).", nc_err_get_msg(nc_server_reply_get_last_err(ereply)));
                 goto cleanup;
             }
         }
@@ -573,8 +546,9 @@ resultcheck:
             goto resultcheck;
         }
 
-        if ((op[op_index] == NP2_EDIT_DELETE) || (op[op_index] == NP2_EDIT_REMOVE)) {
-            /* when delete or remove subtree
+        if ((op[op_index] == NP2_EDIT_DELETE) || (op[op_index] == NP2_EDIT_REMOVE)
+                || ((op[op_index] == NP2_EDIT_CREATE) && (ret == SR_ERR_DATA_EXISTS))) {
+            /* when delete, remove subtree, or failed create
              * no need to go into children */
             if (lastkey) {
                 /* we were processing list's keys */
@@ -642,54 +616,48 @@ cleanup:
     lyd_free_withsiblings(config);
     config = NULL;
 
-    if (e || ereply) {
-        /* send error reply */
-        goto errorreply;
-    } else {
-        switch (testopt) {
-        case NP2_EDIT_TESTOPT_SET:
-            VRB("edit-config test-option \"set\" not supported, validation will be performed.");
-            /* fallthrough */
-        case NP2_EDIT_TESTOPT_TESTANDSET:
-            if (sessions->ds != SR_DS_CANDIDATE) {
-                /* commit in candidate causes copy to running */
-                ret = sr_commit(sessions->srs);
-                switch (ret) {
-                case SR_ERR_OK:
-                    break;
-                default:
-                    ereply = op_build_err_sr(ereply, sessions->srs);
-                    sr_discard_changes(sessions->srs); /* rollback the changes */
-                    goto errorreply;
-                }
-            } else {
-                if (sr_validate(sessions->srs) != SR_ERR_OK) {
-                    ereply = op_build_err_sr(ereply, sessions->srs);
-                    /* content is not valid, rollback */
-                    sr_discard_changes(sessions->srs);
-                    goto errorreply;
-                } else {
-                    /* mark candidate as modified */
-                    sessions->flags |= NP2S_CAND_CHANGED;
-                }
+    switch (testopt) {
+    case NP2_EDIT_TESTOPT_SET:
+        VRB("edit-config test-option \"set\" not supported, validation will be performed.");
+        /* fallthrough */
+    case NP2_EDIT_TESTOPT_TESTANDSET:
+        if (sessions->ds != SR_DS_CANDIDATE) {
+            /* commit in candidate causes copy to running */
+            if (sr_commit(sessions->srs) != SR_ERR_OK) {
+                ereply = op_build_err_sr(ereply, sessions->srs);
+                sr_discard_changes(sessions->srs); /* rollback the changes */
             }
-            break;
-        case NP2_EDIT_TESTOPT_TEST:
-            sr_discard_changes(sessions->srs);
-            break;
+        } else {
+            if (sr_validate(sessions->srs) != SR_ERR_OK) {
+                ereply = op_build_err_sr(ereply, sessions->srs);
+                /* content is not valid, rollback */
+                sr_discard_changes(sessions->srs);
+            } else {
+                /* mark candidate as modified */
+                sessions->flags |= NP2S_CAND_CHANGED;
+            }
         }
-
-        /* build positive RPC Reply */
-        DBG("EDIT_CONFIG: done.");
-        return nc_server_reply_ok();
+        break;
+    case NP2_EDIT_TESTOPT_TEST:
+        sr_discard_changes(sessions->srs);
+        break;
     }
+
+    if (ereply) {
+        return ereply;
+    }
+
+    /* build positive RPC Reply */
+    DBG("EDIT_CONFIG: success.");
+    return nc_server_reply_ok();
 
 internalerror:
     e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
     nc_err_set_msg(e, np2log_lasterr(), "en");
     if (ereply) {
         nc_server_reply_add_err(ereply, e);
-        e = NULL;
+    } else {
+        ereply = nc_server_reply_err(e);
     }
 
     /* fatal error, so continue-on-error does not apply here,
@@ -701,11 +669,5 @@ internalerror:
     free(op);
     free(path_levels);
     lyd_free_withsiblings(config);
-
-errorreply:
-    if (ereply) {
-        return ereply;
-    } else {
-        return nc_server_reply_err(e);
-    }
+    return ereply;
 }
