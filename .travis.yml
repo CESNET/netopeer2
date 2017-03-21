@@ -27,5 +27,5 @@ script:
   - mkdir build-server && cd build-server && cmake ../server && make -j2 && ctest -V
 
 after_success:
-  - if [ "${CC}" = "gcc" ]; then bash <(curl -s https://codecov.io/bash); fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" -a "$CC" = "gcc" ]; then codecov; fi
 
