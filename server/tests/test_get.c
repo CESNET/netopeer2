@@ -291,6 +291,12 @@ __wrap_nc_session_free(struct nc_session *session, void (*data_free)(void *))
     free(session);
 }
 
+int
+__wrap_nc_server_endpt_count(void)
+{
+    return 1;
+}
+
 /*
  * SERVER THREAD
  */
