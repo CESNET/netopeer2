@@ -29,11 +29,17 @@
 #include "common.h"
 #include "operations.h"
 
+uint16_t sr_subsc_count;
+
 struct subscriber_s {
     struct nc_session *session;
     const struct lys_module *stream;
     time_t start;
     time_t stop;
+    struct nc_server_notif **replay_notifs;
+    uint16_t replay_notif_count;
+    uint16_t replay_complete_count;
+    uint16_t notif_complete_count;
 };
 
 struct {
@@ -159,9 +165,13 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
 
     /* store information about the new subscriber */
     new->session = ncs;
+    new->stream = pstream;
     new->start = start;
     new->stop = stop;
-    new->stream = pstream;
+    new->replay_notifs = NULL;
+    new->replay_notif_count = 0;
+    new->replay_complete_count = 0;
+    new->notif_complete_count = 0;
 
     pthread_mutex_unlock(&subscribers.lock);
 
@@ -184,21 +194,37 @@ error:
 }
 
 void
-op_ntf_unsubscribe(struct nc_session *session, time_t stop)
+op_ntf_unsubscribe(struct nc_session *session, int have_lock)
 {
-    unsigned int i;
+    unsigned int i, j;
+    const struct lys_module *mod;
+    struct lyd_node *event;
+    struct nc_server_notif *notif;
 
-    pthread_mutex_lock(&subscribers.lock);
+    if (!have_lock) {
+        pthread_mutex_lock(&subscribers.lock);
+    }
 
     for (i = 0; i < subscribers.num; i++) {
-        if ((subscribers.list[i].session == session) || (stop && (subscribers.list[i].stop == stop))) {
-            /* in case only stop time was passed */
-            session = subscribers.list[i].session;
+        if (subscribers.list[i].session == session) {
             break;
         }
     }
 
     assert(i < subscribers.num);
+
+    /* send notificationComplete */
+    mod = ly_ctx_get_module(np2srv.ly_ctx, "nc-notifications", NULL);
+    event = lyd_new(NULL, mod, "notificationComplete");
+    notif = nc_server_notif_new(event, nc_time2datetime(time(NULL), NULL, NULL), NC_PARAMTYPE_FREE);
+    nc_server_notif_send(session, notif, 5000);
+    nc_server_notif_free(notif);
+
+    /* free the subscriber */
+    for (j = 0; j < subscribers.list[i].replay_notif_count; ++j) {
+        nc_server_notif_free(subscribers.list[i].replay_notifs[j]);
+    }
+    free(subscribers.list[i].replay_notifs);
 
     subscribers.num--;
     if (i < subscribers.num) {
@@ -213,7 +239,53 @@ op_ntf_unsubscribe(struct nc_session *session, time_t stop)
         subscribers.size = 0;
     }
 
-    pthread_mutex_unlock(&subscribers.lock);
+    if (!have_lock) {
+        pthread_mutex_unlock(&subscribers.lock);
+    }
+}
+
+static int
+op_notif_time_cmp(const void *ntf1, const void *ntf2)
+{
+    struct nc_server_notif *notif1, *notif2;
+
+    notif1 = *(struct nc_server_notif **)ntf1;
+    notif2 = *(struct nc_server_notif **)ntf2;
+
+    return strcmp(nc_server_notif_get_time(notif1), nc_server_notif_get_time(notif2));
+}
+
+static void
+op_notif_replay_send(struct subscriber_s *subscriber)
+{
+    const struct lys_module *mod;
+    struct lyd_node *event;
+    struct nc_server_notif *notif;
+    uint16_t i;
+
+    assert(subscriber->replay_complete_count == sr_subsc_count);
+
+    if (subscriber->replay_notif_count > 1) {
+        /* sort replay notifications */
+        qsort(subscriber->replay_notifs, subscriber->replay_notif_count, sizeof *subscriber->replay_notifs, op_notif_time_cmp);
+    }
+
+    /* send all the replay notifications */
+    for (i = 0; i < subscriber->replay_notif_count; ++i) {
+        nc_server_notif_send(subscriber->session, subscriber->replay_notifs[i], 5000);
+        nc_server_notif_free(subscriber->replay_notifs[i]);
+    }
+    free(subscriber->replay_notifs);
+
+    subscriber->replay_notif_count = 0;
+    subscriber->replay_notifs = NULL;
+
+    /* send replayComplete at the end */
+    mod = ly_ctx_get_module(np2srv.ly_ctx, "nc-notifications", NULL);
+    event = lyd_new(NULL, mod, "replayComplete");
+    notif = nc_server_notif_new(event, nc_time2datetime(time(NULL), NULL, NULL), NC_PARAMTYPE_FREE);
+    nc_server_notif_send(subscriber->session, notif, 5000);
+    nc_server_notif_free(notif);
 }
 
 struct lyd_node *
@@ -282,20 +354,13 @@ error:
 }
 
 void
-np2srv_ntf_send(struct lyd_node *ntf, time_t timestamp, const sr_ev_notif_type_t notif_type)
+np2srv_ntf_send(struct lyd_node *ntf, const char *xpath, time_t timestamp, const sr_ev_notif_type_t notif_type)
 {
     int i;
     char *datetime;
-    struct nc_server_notif *ntf_msg;
+    struct nc_server_notif *ntf_msg = NULL;
 
-    /* build the notification */
     datetime = nc_time2datetime(timestamp, NULL, NULL);
-    ntf_msg = nc_server_notif_new(ntf, datetime, 0);
-    if (!ntf_msg) {
-        free(datetime);
-        lyd_free(ntf);
-        return;
-    }
 
     /* send the notification */
     pthread_mutex_lock(&subscribers.lock);
@@ -315,12 +380,49 @@ np2srv_ntf_send(struct lyd_node *ntf, time_t timestamp, const sr_ev_notif_type_t
             continue;
         }
 
-        nc_server_notif_send(subscribers.list[i].session, ntf_msg, 5000);
+        if (!strcmp(xpath, "/nc-notifications:replayComplete")) {
+            if (subscribers.list[i].start && (subscribers.list[i].replay_complete_count < sr_subsc_count)) {
+                ++subscribers.list[i].replay_complete_count;
+                if (subscribers.list[i].replay_complete_count == sr_subsc_count) {
+                    op_notif_replay_send(&subscribers.list[i]);
+                }
+            }
+            continue;
+        } else if (!strcmp(xpath, "/nc-notifications:notificationComplete")) {
+            if ((subscribers.list[i].stop == timestamp) && (subscribers.list[i].notif_complete_count < sr_subsc_count)) {
+                ++subscribers.list[i].notif_complete_count;
+                if (subscribers.list[i].notif_complete_count == sr_subsc_count) {
+                    op_ntf_unsubscribe(subscribers.list[i].session, 1);
+                    --i;
+                }
+            }
+            continue;
+        }
+
+        assert(ntf);
+        ntf_msg = nc_server_notif_new(ntf, datetime, NC_PARAMTYPE_DUP_AND_FREE);
+        if (!ntf_msg) {
+            free(datetime);
+            lyd_free(ntf);
+            return;
+        }
+
+        if (notif_type == SR_EV_NOTIF_T_REALTIME) {
+            nc_server_notif_send(subscribers.list[i].session, ntf_msg, 5000);
+            nc_server_notif_free(ntf_msg);
+        } else {
+            ++subscribers.list[i].replay_notif_count;
+            subscribers.list[i].replay_notifs =
+                realloc(subscribers.list[i].replay_notifs,
+                        subscribers.list[i].replay_notif_count * sizeof *subscribers.list[i].replay_notifs);
+            subscribers.list[i].replay_notifs[subscribers.list[i].replay_notif_count - 1] = ntf_msg;
+        }
     }
 
     pthread_mutex_unlock(&subscribers.lock);
 
-    nc_server_notif_free(ntf_msg);
+    free(datetime);
+    lyd_free(ntf);
 }
 
 void
@@ -333,23 +435,9 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
     const struct lys_module *mod;
     size_t i;
     char numstr[21];
-    const char *str = NULL;
 
-    switch (notif_type) {
-    case SR_EV_NOTIF_T_REALTIME:
-        str = "realtime";
-        break;
-    case SR_EV_NOTIF_T_REPLAY:
-        str = "replay";
-        break;
-    case SR_EV_NOTIF_T_REPLAY_COMPLETE:
-        str = "replay complete";
-        break;
-    case SR_EV_NOTIF_T_REPLAY_STOP:
-        str = "replay stop";
-        break;
-    }
-    VRB("Received a %s notification \"%s\" (%d).", str, xpath, timestamp);
+    VRB("Received a %s notification \"%s\" (%d).",
+        (notif_type == SR_EV_NOTIF_T_REPLAY ? "replay" : "realtime"), xpath, timestamp);
 
     /* if we have no subscribers, it is not needed to do anything here */
     if (!subscribers.num) {
@@ -357,102 +445,95 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
         return;
     }
 
-    /* special "fake" notifications */
-    if (notif_type == SR_EV_NOTIF_T_REPLAY_COMPLETE) {
-        /* alright, whatever */
-        return;
-    } else if (notif_type == SR_EV_NOTIF_T_REPLAY_STOP) {
-        /* subscription is over */
-        op_ntf_unsubscribe(NULL, timestamp);
-        return;
-    }
+    /* for special notifications the notif container is useless, they have no data */
+    if (strcmp(xpath, "/nc-notifications:replayComplete") && strcmp(xpath, "/nc-notifications:notificationComplete")) {
+        ntf = lyd_new_path(NULL, np2srv.ly_ctx, xpath, NULL, 0, 0);
+        if (!ntf) {
+            ERR("Creating notification \"%s\" failed.", xpath);
+            goto error;
+        }
 
-    ntf = lyd_new_path(NULL, np2srv.ly_ctx, xpath, NULL, 0, 0);
-    if (!ntf) {
-        ERR("Creating notification \"%s\" failed.", xpath);
-        goto error;
-    }
+        for (i = 0; i < tree_cnt; i++) {
+            parent = ntf;
 
-    for (i = 0; i < tree_cnt; i++) {
-        parent = ntf;
+            for (srnode = srnext = &trees[i]; srnode; srnode = srnext) {
+                mod = ly_ctx_get_module(np2srv.ly_ctx, srnode->module_name, NULL);
+                if (!mod) {
+                    ERR("Data from unknown module (%s%s) received in sysrepo notification \"%s\"", srnode->module_name,
+                        srnode->name, xpath);
+                    goto error;
+                } else if (!mod->implemented) {
+                    mod = lys_implemented_module(mod);
+                    if (!mod->implemented) {
+                        ERR("Non-implemented data (%s:%s) received in sysrepo notification \"%s\"", srnode->module_name,
+                            srnode->name, xpath);
+                        goto error;
+                    }
+                }
 
-        for (srnode = srnext = &trees[i]; srnode; srnode = srnext) {
-            mod = ly_ctx_get_module(np2srv.ly_ctx, srnode->module_name, NULL);
-            if (!mod) {
-                ERR("Data from unknown module (%s%s) received in sysrepo notification \"%s\"", srnode->module_name,
-                    srnode->name, xpath);
-                goto error;
-            } else if (!mod->implemented) {
-                mod = lys_implemented_module(mod);
-                if (!mod->implemented) {
-                    ERR("Non-implemented data (%s:%s) received in sysrepo notification \"%s\"", srnode->module_name,
+                snode = NULL;
+                while ((snode = lys_getnext(snode, parent->schema, mod, 0))) {
+                    if (strcmp(srnode->name, snode->name) || strcmp(srnode->module_name, snode->module->name)) {
+                        continue;
+                    }
+                    /* match */
+                    break;
+                }
+                if (!snode) {
+                    ERR("Unknown data (%s:%s) received in sysrepo notification \"%s\"", srnode->module_name,
                         srnode->name, xpath);
                     goto error;
                 }
-            }
-
-            snode = NULL;
-            while ((snode = lys_getnext(snode, parent->schema, mod, 0))) {
-                if (strcmp(srnode->name, snode->name) || strcmp(srnode->module_name, snode->module->name)) {
-                    continue;
-                }
-                /* match */
-                break;
-            }
-            if (!snode) {
-                ERR("Unknown data (%s:%s) received in sysrepo notification \"%s\"", srnode->module_name,
-                    srnode->name, xpath);
-                goto error;
-            }
-            switch (snode->nodetype) {
-            case LYS_LEAFLIST:
-            case LYS_LEAF:
-                node = lyd_new_leaf(parent, mod, srnode->name, op_get_srval(np2srv.ly_ctx, (sr_val_t *)srnode, numstr));
-                break;
-            case LYS_CONTAINER:
-            case LYS_LIST:
-                node = lyd_new(parent, mod, srnode->name);
-                break;
-            case LYS_ANYXML:
-            case LYS_ANYDATA:
-                node = lyd_new_anydata(parent, mod, srnode->name,
-                                       op_get_srval(np2srv.ly_ctx, (sr_val_t *)srnode, numstr), LYD_ANYDATA_SXML);
-                break;
-            default:
-                ERR("Invalid node type (%d) received in sysrepo notification \"%s\"", snode->nodetype, xpath);
-                goto error;
-            }
-
-            if (!node) {
-                ERR("Creating notification (%s) data (%d: %s:%s) failed.", xpath, snode->nodetype, srnode->module_name,
-                    srnode->name);
-                goto error;
-            }
-
-            /* select element for the next run - children first */
-            srnext = srnode->first_child;
-            if (!srnext) {
-                /* no children, try siblings */
-                srnext = srnode->next;
-            } else {
-                parent = node;
-            }
-            while (!srnext) {
-                /* parent is already processed, go to its sibling */
-                srnode = srnode->parent;
-
-                if (srnode == trees->parent) {
-                    /* we are done, no next element to process */
+                switch (snode->nodetype) {
+                case LYS_LEAFLIST:
+                case LYS_LEAF:
+                    node = lyd_new_leaf(parent, mod, srnode->name, op_get_srval(np2srv.ly_ctx, (sr_val_t *)srnode, numstr));
                     break;
+                case LYS_CONTAINER:
+                case LYS_LIST:
+                    node = lyd_new(parent, mod, srnode->name);
+                    break;
+                case LYS_ANYXML:
+                case LYS_ANYDATA:
+                    node = lyd_new_anydata(parent, mod, srnode->name,
+                                        op_get_srval(np2srv.ly_ctx, (sr_val_t *)srnode, numstr), LYD_ANYDATA_SXML);
+                    break;
+                default:
+                    ERR("Invalid node type (%d) received in sysrepo notification \"%s\"", snode->nodetype, xpath);
+                    goto error;
                 }
-                srnext = srnode->next;
-                parent = parent->parent;
+
+                if (!node) {
+                    ERR("Creating notification (%s) data (%d: %s:%s) failed.", xpath, snode->nodetype, srnode->module_name,
+                        srnode->name);
+                    goto error;
+                }
+
+                /* select element for the next run - children first */
+                srnext = srnode->first_child;
+                if (!srnext) {
+                    /* no children, try siblings */
+                    srnext = srnode->next;
+                } else {
+                    parent = node;
+                }
+                while (!srnext) {
+                    /* parent is already processed, go to its sibling */
+                    srnode = srnode->parent;
+
+                    if (srnode == trees->parent) {
+                        /* we are done, no next element to process */
+                        break;
+                    }
+                    srnext = srnode->next;
+                    parent = parent->parent;
+                }
             }
         }
     }
 
     /* send the notification */
-    np2srv_ntf_send(ntf, timestamp, notif_type);
+    np2srv_ntf_send(ntf, xpath, timestamp, notif_type);
     return;
 
 error:

@@ -166,7 +166,7 @@ np2srv_module_assign_clbs(const struct lys_module *mod)
         if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
             nc_set_rpc_callback(snode, op_generic);
             goto dfs_nextsibling;
-        } else if (snode->nodetype & LYS_NOTIF) {
+        } else if (snode->nodetype == LYS_NOTIF) {
             notif = 1;
             goto dfs_nextsibling;
         }
@@ -197,9 +197,10 @@ dfs_nextsibling:
     if (notif) {
         path = malloc(1 + strlen(mod->name) + 6);
         sprintf(path, "/%s:*//.", mod->name);
-        sr_event_notif_subscribe_tree(np2srv.sr_sess.srs, path, np2srv_ntf_clb, NULL, SR_SUBSCR_CTX_REUSE,
-                                        &np2srv.sr_subscr);
+        sr_event_notif_subscribe_tree(np2srv.sr_sess.srs, path, np2srv_ntf_clb, NULL,
+                                      SR_SUBSCR_NOTIF_REPLAY_FIRST | SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr);
         free(path);
+        ++sr_subsc_count;
     }
 
     return EXIT_SUCCESS;
@@ -374,6 +375,7 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
     int rc;
     char *data = NULL, *cpb;
     struct lyd_node *info, *ntf;
+    struct lys_node *snode, *next;
     const char *setid;
     const struct lys_module *mod;
     sr_schema_t *schemas = NULL;
@@ -443,6 +445,16 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
             np2srv_send_capab_change_notif(NULL, cpb, NULL);
         }
         free(cpb);
+
+        /* remove notif subscription */
+        LY_TREE_DFS_BEGIN(mod->data, next, snode) {
+            if (snode->nodetype == LYS_NOTIF) {
+                --sr_subsc_count;
+                break;
+            }
+
+            LY_TREE_DFS_END(mod->data, next, snode);
+        }
     }
 
     /* unlock libyang context */
@@ -463,7 +475,7 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
         }
         lyd_free_withsiblings(info);
         /* send notification */
-        np2srv_ntf_send(ntf, time(NULL), SR_EV_NOTIF_T_REALTIME);
+        np2srv_ntf_send(ntf, "/ietf-yang-library:yang-library-change", time(NULL), SR_EV_NOTIF_T_REALTIME);
     }
 }
 
