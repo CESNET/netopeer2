@@ -173,9 +173,8 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     enum NP2_EDIT_OP *op = NULL, *op_new;
     uint16_t *path_levels = NULL, *path_levels_new;
     uint16_t path_levels_index, path_levels_size = 0;
-    int op_index, op_size, path_index = 0, missing_keys = 0, lastkey = 0;
+    int op_index, op_size, path_index = 0, missing_keys = 0, lastkey = 0, np_cont;
     int ret, path_len, new_len;
-    struct lys_node_container *cont;
     struct lyd_node_anydata *any;
 
     /* init */
@@ -370,15 +369,19 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         ret = -1;
         rel = NULL;
         lastkey = 0;
+        np_cont = 0;
         switch (iter->schema->nodetype) {
         case LYS_CONTAINER:
-            cont = (struct lys_node_container *)iter->schema;
-            if (op[op_index] < NP2_EDIT_DELETE && !cont->presence) {
+            if (!((struct lys_node_container *)iter->schema)->presence) {
+                np_cont = 1;
+            }
+            if ((op[op_index] < NP2_EDIT_REPLACE) && np_cont) {
                 /* do nothing, creating non-presence containers is not necessary */
                 goto dfs_continue;
             }
 
-            DBG("EDIT_CONFIG: presence container %s, operation %s", path, op2str(op[op_index]));
+
+            DBG("EDIT_CONFIG: %s container %s, operation %s", (!np_cont ? "presence" : ""), path, op2str(op[op_index]));
             break;
         case LYS_LEAF:
             if (missing_keys) {
@@ -458,7 +461,9 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         switch (op[op_index]) {
         case NP2_EDIT_MERGE:
             /* create the node */
-            ret = sr_set_item(sessions->srs, path, &value, 0);
+            if (!np_cont) {
+                ret = sr_set_item(sessions->srs, path, &value, 0);
+            }
             break;
         case NP2_EDIT_REPLACE_INNER:
         case NP2_EDIT_CREATE:
@@ -469,10 +474,17 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             /* remove the node, but it must exists */
             ret = sr_delete_item(sessions->srs, path, SR_EDIT_STRICT);
             break;
-        case NP2_EDIT_REPLACE:
         case NP2_EDIT_REMOVE:
             /* remove the node */
             ret = sr_delete_item(sessions->srs, path, 0);
+            break;
+        case NP2_EDIT_REPLACE:
+            /* remove the node first */
+            ret = sr_delete_item(sessions->srs, path, 0);
+            /* create it again (but we removed all the children, sysrepo forbids creating NP containers as it's redundant) */
+            if ((ret == SR_ERR_OK) && !np_cont) {
+                ret = sr_set_item(sessions->srs, path, &value, 0);
+            }
             break;
         default:
             /* do nothing */
