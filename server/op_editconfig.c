@@ -168,7 +168,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* default value for error-option is "stop-on-error" */
     enum NP2_EDIT_ERROPT erropt = NP2_EDIT_ERROPT_STOP;
     struct lyd_node *config = NULL, *next, *iter;
-    char *str, *path, *rel, *valbuf;
+    char *str, *path, *rel, *valbuf, quot;
     const char *cstr;
     enum NP2_EDIT_OP *op = NULL, *op_new;
     uint16_t *path_levels = NULL, *path_levels_new;
@@ -394,8 +394,14 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                     path_len = new_len;
                     path = realloc(path, new_len);
                 }
-                path_index += sprintf(&path[path_index], "[%s=\'%s\']", iter->schema->name,
-                                      ((struct lyd_node_leaf_list *)iter)->value_str);
+
+                if (strchr(((struct lyd_node_leaf_list *)iter)->value_str, '\'')) {
+                    quot = '\"';
+                } else {
+                    quot = '\'';
+                }
+                path_index += sprintf(&path[path_index], "[%s=%c%s%c]", iter->schema->name, quot,
+                                      ((struct lyd_node_leaf_list *)iter)->value_str, quot);
                 if (!missing_keys) {
                     /* the last key, create the list instance */
                     lastkey = 1;
@@ -426,7 +432,12 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
                 path_len = new_len;
                 path = realloc(path, new_len);
             }
-            path_index += sprintf(&path[path_index], "[.=\'%s\']", ((struct lyd_node_leaf_list *)iter)->value_str);
+            if (strchr(((struct lyd_node_leaf_list *)iter)->value_str, '\'')) {
+                quot = '\"';
+            } else {
+                quot = '\'';
+            }
+            path_index += sprintf(&path[path_index], "[.=%c%s%c]", quot, ((struct lyd_node_leaf_list *)iter)->value_str, quot);
 
             break;
         case LYS_LIST:
