@@ -3,7 +3,7 @@
  * @author Radek Krejci <rkrejci@cesnet.cz>
  * @brief Implementation of NETCONF Event Notifications handling
  *
- * Copyright (c) 2016 CESNET, z.s.p.o.
+ * Copyright (c) 2016-2017 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -36,6 +36,8 @@ struct subscriber_s {
     const struct lys_module *stream;
     time_t start;
     time_t stop;
+    char **filters;
+    int filter_count;
     struct nc_server_notif **replay_notifs;
     uint16_t replay_notif_count;
     uint16_t replay_complete_count;
@@ -52,11 +54,12 @@ struct {
 struct nc_server_reply *
 op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
 {
-    int ret;
+    int ret, filter_count = 0;
     uint16_t i;
     uint32_t idx;
     time_t now = time(NULL), start = 0, stop = 0;
     const char *stream;
+    char **filters = NULL;
     struct lyd_node *node;
     struct lys_node *snode;
     struct subscriber_s *new = NULL;
@@ -111,8 +114,13 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
             start = nc_datetime2time(((struct lyd_node_leaf_list *)node)->value_str);
         } else if (!strcmp(node->schema->name, "stopTime")) {
             stop = nc_datetime2time(((struct lyd_node_leaf_list *)node)->value_str);
+        } else if (!strcmp(node->schema->name, "filter")) {
+            if (op_filter_create(node, &filters, &filter_count)) {
+                e = nc_err(NC_ERR_BAD_ELEM, NC_ERR_TYPE_PROT, "filter");
+                nc_err_set_msg(e, "Failed to process filter.", "en");
+                goto error;
+            }
         }
-        /* TODO support subtree and XPath filters */
     }
 
     /* check for the correct time boundaries */
@@ -168,6 +176,10 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
     new->stream = pstream;
     new->start = start;
     new->stop = stop;
+    new->filters = filters;
+    filters = NULL;
+    new->filter_count = filter_count;
+    filter_count = 0;
     new->replay_notifs = NULL;
     new->replay_notif_count = 0;
     new->replay_complete_count = 0;
@@ -190,6 +202,10 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
     return nc_server_reply_ok();
 
 error:
+    for (i = 0; i < filter_count; ++i) {
+        free(filters[i]);
+    }
+    free(filters);
     return nc_server_reply_err(e);
 }
 
@@ -221,6 +237,10 @@ op_ntf_unsubscribe(struct nc_session *session, int have_lock)
     nc_server_notif_free(notif);
 
     /* free the subscriber */
+    for (j = 0; j < (unsigned)subscribers.list[i].filter_count; ++j) {
+        free(subscribers.list[i].filters[j]);
+    }
+    free(subscribers.list[i].filters);
     for (j = 0; j < subscribers.list[i].replay_notif_count; ++j) {
         nc_server_notif_free(subscribers.list[i].replay_notifs[j]);
     }
@@ -354,10 +374,11 @@ error:
 }
 
 void
-np2srv_ntf_send(struct lyd_node *ntf, const char *xpath, time_t timestamp, const sr_ev_notif_type_t notif_type)
+np2srv_ntf_send(struct lyd_node *ntf, const char *UNUSED(xpath), time_t timestamp, const sr_ev_notif_type_t notif_type)
 {
-    int i;
+    int i, j;
     char *datetime;
+    struct lyd_node *filtered_ntf;
     struct nc_server_notif *ntf_msg = NULL;
 
     datetime = nc_time2datetime(timestamp, NULL, NULL);
@@ -366,7 +387,7 @@ np2srv_ntf_send(struct lyd_node *ntf, const char *xpath, time_t timestamp, const
     pthread_mutex_lock(&subscribers.lock);
 
     for (i = 0; i < subscribers.num; ++i) {
-        if (subscribers.list[i].stream && (subscribers.list[i].stream != ntf->schema->module)) {
+        if (subscribers.list[i].stream && ntf && (subscribers.list[i].stream != ntf->schema->module)) {
             /* wrong stream */
             continue;
         }
@@ -380,7 +401,7 @@ np2srv_ntf_send(struct lyd_node *ntf, const char *xpath, time_t timestamp, const
             continue;
         }
 
-        if (!strcmp(xpath, "/nc-notifications:replayComplete")) {
+        if (notif_type == SR_EV_NOTIF_T_REPLAY_COMPLETE) {
             if (subscribers.list[i].start && (subscribers.list[i].replay_complete_count < sr_subsc_count)) {
                 ++subscribers.list[i].replay_complete_count;
                 if (subscribers.list[i].replay_complete_count == sr_subsc_count) {
@@ -388,7 +409,7 @@ np2srv_ntf_send(struct lyd_node *ntf, const char *xpath, time_t timestamp, const
                 }
             }
             continue;
-        } else if (!strcmp(xpath, "/nc-notifications:notificationComplete")) {
+        } else if (notif_type == SR_EV_NOTIF_T_REPLAY_STOP) {
             if ((subscribers.list[i].stop == timestamp) && (subscribers.list[i].notif_complete_count < sr_subsc_count)) {
                 ++subscribers.list[i].notif_complete_count;
                 if (subscribers.list[i].notif_complete_count == sr_subsc_count) {
@@ -400,7 +421,26 @@ np2srv_ntf_send(struct lyd_node *ntf, const char *xpath, time_t timestamp, const
         }
 
         assert(ntf);
-        ntf_msg = nc_server_notif_new(ntf, datetime, NC_PARAMTYPE_DUP_AND_FREE);
+        if (subscribers.list[i].filters) {
+            filtered_ntf = NULL;
+            for (j = 0; j < subscribers.list[i].filter_count; ++j) {
+                if (op_filter_get_tree_from_data(&filtered_ntf, ntf, subscribers.list[i].filters[j])) {
+                    free(datetime);
+                    lyd_free(ntf);
+                    lyd_free(filtered_ntf);
+                    return;
+                }
+            }
+            if (!filtered_ntf) {
+                /* it is completely filtered out */
+                continue;
+            }
+            ntf_msg = nc_server_notif_new(filtered_ntf, datetime, NC_PARAMTYPE_DUP_AND_FREE);
+            lyd_free(filtered_ntf);
+        } else {
+            ntf_msg = nc_server_notif_new(ntf, datetime, NC_PARAMTYPE_DUP_AND_FREE);
+        }
+
         if (!ntf_msg) {
             free(datetime);
             lyd_free(ntf);
@@ -434,10 +474,24 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
     const sr_node_t *srnode, *srnext;
     const struct lys_module *mod;
     size_t i;
+    const char *ntf_type_str;
     char numstr[21];
 
-    VRB("Received a %s notification \"%s\" (%d).",
-        (notif_type == SR_EV_NOTIF_T_REPLAY ? "replay" : "realtime"), xpath, timestamp);
+    switch (notif_type) {
+    case SR_EV_NOTIF_T_REALTIME:
+        ntf_type_str = "realtime";
+        break;
+    case SR_EV_NOTIF_T_REPLAY:
+        ntf_type_str = "replay";
+        break;
+    case SR_EV_NOTIF_T_REPLAY_COMPLETE:
+        ntf_type_str = "replay complete";
+        break;
+    case SR_EV_NOTIF_T_REPLAY_STOP:
+        ntf_type_str = "replay stop";
+        break;
+    }
+    VRB("Received a %s notification \"%s\" (%d).", ntf_type_str, xpath, timestamp);
 
     /* if we have no subscribers, it is not needed to do anything here */
     if (!subscribers.num) {
@@ -446,7 +500,7 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
     }
 
     /* for special notifications the notif container is useless, they have no data */
-    if (strcmp(xpath, "/nc-notifications:replayComplete") && strcmp(xpath, "/nc-notifications:notificationComplete")) {
+    if ((notif_type == SR_EV_NOTIF_T_REALTIME) || (notif_type == SR_EV_NOTIF_T_REPLAY)) {
         ntf = lyd_new_path(NULL, np2srv.ly_ctx, xpath, NULL, 0, 0);
         if (!ntf) {
             ERR("Creating notification \"%s\" failed.", xpath);
