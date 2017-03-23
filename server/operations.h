@@ -82,6 +82,10 @@ int op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val, char
  */
 struct nc_server_reply *op_build_err_sr(struct nc_server_reply *ereply, sr_session_ctx_t *session);
 
+int op_filter_get_tree_from_data(struct lyd_node **root, struct lyd_node *data, const char *subtree_path);
+int op_filter_xpath_add_filter(char *new_filter, char ***filters, int *filter_count);
+int op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_count);
+
 struct nc_server_reply *op_get(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_lock(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_unlock(struct lyd_node *rpc, struct nc_session *ncs);
