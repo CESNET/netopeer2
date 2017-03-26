@@ -834,7 +834,7 @@ main(int argc, char *argv[])
                     /* 2 should be always enough, 3 is too much useless info */
                     np2_libssh_verbose_level = 2;
                 } else {
-                    ERR("Unknown debug message category \"%s\", use -h.");
+                    ERR("Unknown debug message category \"%s\", use -h.", ptr);
                     return EXIT_FAILURE;
                 }
             } while ((ptr = strtok(NULL, ",")));
