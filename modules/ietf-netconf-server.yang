@@ -366,7 +366,7 @@
                        have a notification subscription active are
                        never dropped.";
                   }
-                  leaf reconnect-timeout {
+                  leaf reconnect_timeout {
                     type uint16 {
                       range "1..max";
                     }
