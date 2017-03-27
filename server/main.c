@@ -765,6 +765,9 @@ main(int argc, char *argv[])
     sigset_t block_mask;
     pthread_attr_t thread_attr;
 
+    /* until daemonized, write messages to both syslog and stderr */
+    openlog("netopeer2-server", LOG_PID | LOG_PERROR, LOG_DAEMON);
+
     /* process command line options */
     while ((c = getopt(argc, argv, OPTSTRING)) != -1) {
         switch (c) {
@@ -834,7 +837,7 @@ main(int argc, char *argv[])
                     /* 2 should be always enough, 3 is too much useless info */
                     np2_libssh_verbose_level = 2;
                 } else {
-                    ERR("Unknown debug message category \"%s\", use -h.");
+                    ERR("Unknown debug message category \"%s\", use -h.", ptr);
                     return EXIT_FAILURE;
                 }
             } while ((ptr = strtok(NULL, ",")));
@@ -862,9 +865,8 @@ main(int argc, char *argv[])
             return EXIT_FAILURE;
         }
 
+        /* from now print only to syslog, not stderr */
         openlog("netopeer2-server", LOG_PID, LOG_DAEMON);
-    } else {
-        openlog("netopeer2-server", LOG_PID | LOG_PERROR, LOG_DAEMON);
     }
 
     /* make sure we are the only instance - lock the PID file and write the PID */
