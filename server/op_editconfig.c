@@ -639,6 +639,12 @@ cleanup:
     lyd_free_withsiblings(config);
     config = NULL;
 
+    /* just rollback and return error */
+    if ((erropt == NP2_EDIT_ERROPT_ROLLBACK) && ereply) {
+        sr_discard_changes(sessions->srs);
+        return ereply;
+    }
+
     switch (testopt) {
     case NP2_EDIT_TESTOPT_SET:
         VRB("edit-config test-option \"set\" not supported, validation will be performed.");
