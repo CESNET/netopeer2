@@ -152,13 +152,17 @@ ncm_session_add(struct nc_session *session)
 }
 
 void
-ncm_session_del(struct nc_session *session, int dropped)
+ncm_session_del(struct nc_session *session)
 {
     uint32_t i;
 
     pthread_mutex_lock(&stats.lock);
 
-    if (dropped) {
+    if (!nc_session_get_termreason(session)) {
+        EINT;
+    }
+
+    if (nc_session_get_termreason(session) != NC_SESSION_TERM_CLOSED) {
         ++stats.dropped_sessions;
     }
 

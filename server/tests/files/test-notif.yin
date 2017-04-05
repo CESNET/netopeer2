@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module name="test-notif"
+        xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+        xmlns:tn="urn:libyang:test:notif">
+  <namespace uri="urn:libyang:test:notif"/>
+  <prefix value="tn"/>
+  <revision date="2017-03-22">
+        <description>
+            <text>Initial revision.</text>
+        </description>
+  </revision>
+  <notification name="test-notif1">
+      <leaf name="l1">
+          <type name="string"/>
+      </leaf>
+  </notification>
+</module>

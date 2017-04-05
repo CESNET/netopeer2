@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module name="nc-notifications"
+        xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+        xmlns:manageEvent="urn:ietf:params:xml:ns:netmod:notification"
+        xmlns:yang="urn:ietf:params:xml:ns:yang:ietf-yang-types"
+        xmlns:ncEvent="urn:ietf:params:xml:ns:netconf:notification:1.0">
+  <namespace uri="urn:ietf:params:xml:ns:netmod:notification"/>
+  <prefix value="manageEvent"/>
+  <import module="ietf-yang-types">
+    <prefix value="yang"/>
+  </import>
+  <import module="notifications">
+    <prefix value="ncEvent"/>
+  </import>
+  <organization>
+    <text>IETF NETCONF WG</text>
+  </organization>
+  <contact>
+    <text>netconf@ietf.org</text>
+  </contact>
+  <description>
+    <text>Conversion of the 'manageEvent' XSD in the NETCONF
+Notifications RFC.</text>
+  </description>
+  <reference>
+    <text>RFC 5277</text>
+  </reference>
+  <revision date="2008-07-14">
+    <description>
+      <text>RFC 5277 version.</text>
+    </description>
+  </revision>
+  <container name="netconf">
+    <description>
+      <text>Top-level element in the notification namespace</text>
+    </description>
+    <config value="false"/>
+    <container name="streams">
+      <description>
+        <text>The list of event streams supported by the system. When
+a query is issued, the returned set of streams is 
+determined based on user privileges.</text>
+      </description>
+      <list name="stream">
+        <description>
+          <text>Stream name, description and other information.</text>
+        </description>
+        <key value="name"/>
+        <min-elements value="1"/>
+        <leaf name="name">
+          <description>
+            <text>The name of the event stream. If this is the default
+NETCONF stream, this must have the value 'NETCONF'.</text>
+          </description>
+          <type name="ncEvent:streamNameType"/>
+        </leaf>
+        <leaf name="description">
+          <description>
+            <text>A description of the event stream, including such
+information as the type of events that are sent over
+this stream.</text>
+          </description>
+          <type name="string"/>
+          <mandatory value="true"/>
+        </leaf>
+        <leaf name="replaySupport">
+          <description>
+            <text>A description of the event stream, including such
+information as the type of events that are sent over
+this stream.</text>
+          </description>
+          <type name="boolean"/>
+          <mandatory value="true"/>
+        </leaf>
+        <leaf name="replayLogCreationTime">
+          <description>
+            <text>The timestamp of the creation of the log used to support
+the replay function on this stream. Note that this might
+be earlier then the earliest available notification in
+the log. This object is updated if the log resets for 
+some reason.  This object MUST be present if replay is
+supported.</text>
+          </description>
+          <type name="yang:date-and-time"/>
+        </leaf>
+      </list>
+    </container>
+  </container>
+  <notification name="replayComplete">
+    <description>
+      <text>This notification is sent to signal the end of a replay
+portion of a subscription.</text>
+    </description>
+  </notification>
+  <notification name="notificationComplete">
+    <description>
+      <text>This notification is sent to signal the end of a notification
+subscription. It is sent in the case that stopTime was
+specified during the creation of the subscription..</text>
+    </description>
+  </notification>
+</module>

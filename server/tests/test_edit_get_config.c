@@ -446,6 +446,7 @@ struct nc_session {
         struct {
             time_t session_start;
             time_t last_rpc;
+            int ntf_status;
             pthread_mutex_t *ch_lock;
             pthread_cond_t *ch_cond;
 #ifdef NC_ENABLED_SSH

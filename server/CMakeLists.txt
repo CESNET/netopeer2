@@ -16,7 +16,7 @@ set(NP2SRV_VERSION 0.3.51)
 
 # set default build type if not specified by user
 if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE debug)
+    set(CMAKE_BUILD_TYPE debug)
 endif()
 
 set(CMAKE_C_FLAGS         "${CMAKE_C_FLAGS} -Wall -Wextra")
@@ -105,6 +105,7 @@ set(srcs
     op_validate.c
     op_un_lock.c
     op_generic.c
+    op_notifications.c
     log.c)
 
 # object library to build source codes only once for the main binary
