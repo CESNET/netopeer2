@@ -25,7 +25,7 @@ set(KEYSTORED_VERSION 0.1.1)
 
 # config variables
 if (NOT KEYSTORED_KEYS_DIR)
-    set(KEYSTORED_KEYS_DIR "${CMAKE_INSTALL_PREFIX}/etc/keystored/keys")
+    set(KEYSTORED_KEYS_DIR "${CMAKE_INSTALL_FULL_SYSCONFDIR}/keystored/keys")
 endif()
 if (NOT OPENSSL_EXECUTABLE)
     find_program(OPENSSL_EXECUTABLE openssl)
