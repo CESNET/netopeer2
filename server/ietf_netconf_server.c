@@ -1079,7 +1079,7 @@ module_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_va
                     xpath += 9;
                     if (!strcmp(xpath, "idle-timeout")) {
                         rc = set_ch_period_idle_timeout(list1_key, sr_oper, sr_old_val, sr_new_val);
-                    } else if (!strcmp(xpath, "reconnect-timeout")) {
+                    } else if (!strcmp(xpath, "reconnect_timeout")) {
                         rc = set_ch_period_reconnect_timeout(list1_key, sr_oper, sr_old_val, sr_new_val);
                     }
                 }
