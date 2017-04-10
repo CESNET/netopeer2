@@ -34,11 +34,6 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
     sr_val_t *keydata_val = NULL;
     NC_SSH_KEY_TYPE keytype;
 
-    if (sr_oper == SR_OP_MOVED) {
-        EINT;
-        return SR_ERR_INTERNAL;
-    }
-
     xpath = (sr_old_val ? sr_old_val->xpath : sr_new_val->xpath);
 
     if (strncmp(xpath, "/ietf-system:system/authentication/user[name=", 45)) {
@@ -56,6 +51,9 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
     case SR_OP_MODIFIED:
         oper_str = "modified";
         break;
+    default:
+        EINT;
+        return SR_ERR_INTERNAL;
     }
     VRB("Path \"%s\" %s.", xpath, oper_str);
 
