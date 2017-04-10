@@ -90,7 +90,8 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
     key_end = strchr(xpath, quot);
     if (!key_end) {
         EINT;
-        return SR_ERR_INTERNAL;
+        rc = SR_ERR_INTERNAL;
+        goto cleanup;
     }
     list2_key = strndup(xpath, key_end - xpath);
     xpath = key_end + 1;
