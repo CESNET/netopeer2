@@ -56,9 +56,6 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
     case SR_OP_MODIFIED:
         oper_str = "modified";
         break;
-    case SR_OP_MOVED:
-        oper_str = "moved";
-        break;
     }
     VRB("Path \"%s\" %s.", xpath, oper_str);
 
