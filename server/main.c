@@ -98,7 +98,7 @@ print_usage(char* progname)
     fprintf(stdout, "                         2 - errors, warnings and verbose messages\n");
 #ifndef NDEBUG
     fprintf(stdout, " -c category[,category]*  verbose debug level, print only these debug message categories\n");
-    fprintf(stdout, " categories: DICT, YANG, YIN, XPATH, DIFF, MSG, EDIT_CONFIG, SSH\n");
+    fprintf(stdout, " categories: DICT, YANG, YIN, XPATH, DIFF, MSG, EDIT_CONFIG, SSH, SYSREPO\n");
 #endif
     fprintf(stdout, "\n");
 }
@@ -1066,9 +1066,14 @@ main(int argc, char *argv[])
             switch (np2_verbose_level) {
             case NC_VERB_ERROR:
                 np2_libssh_verbose_level = 0;
+                np2_sr_verbose_level = SR_LL_ERR;
                 break;
             case NC_VERB_WARNING:
+                np2_sr_verbose_level = SR_LL_WRN;
+                np2_libssh_verbose_level = 1;
+                break;
             case NC_VERB_VERBOSE:
+                np2_sr_verbose_level = SR_LL_INF;
                 np2_libssh_verbose_level = 1;
                 break;
             }
@@ -1112,6 +1117,8 @@ main(int argc, char *argv[])
                 } else if (!strcmp(ptr, "SSH")) {
                     /* 2 should be always enough, 3 is too much useless info */
                     np2_libssh_verbose_level = 2;
+                } else if (!strcmp(ptr, "SYSREPO")) {
+                    np2_sr_verbose_level = SR_LL_DBG;
                 } else {
                     ERR("Unknown debug message category \"%s\", use -h.", ptr);
                     return EXIT_FAILURE;

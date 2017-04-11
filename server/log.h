@@ -30,6 +30,11 @@ extern volatile uint8_t np2_verbose_level;
 extern volatile uint8_t np2_libssh_verbose_level;
 
 /**
+ * @brief libsysrepo verbose level variable
+ */
+extern volatile uint8_t np2_sr_verbose_level;
+
+/**
  * @brief internal printing function, follows the levels from libnetconf2
  * @param[in] level Verbose level
  * @param[in] format Formatting string

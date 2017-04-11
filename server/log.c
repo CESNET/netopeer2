@@ -35,6 +35,11 @@ volatile uint8_t np2_verbose_level;
  */
 volatile uint8_t np2_libssh_verbose_level;
 
+/**
+ * @brief libsysrepo verbose level variable
+ */
+volatile uint8_t np2_sr_verbose_level;
+
 enum ERR_SOURCE {
     ERRS_NETOPEER,
     ERRS_LIBYANG,
@@ -180,7 +185,7 @@ np2log_clb_sr(sr_log_level_t level, const char *msg)
 {
     struct np2err *e = NULL;
 
-    if (np2_verbose_level >= level - 1) {
+    if (np2_sr_verbose_level >= level) {
 
         if (level == SR_LL_ERR) {
             e = np2_err_location();
