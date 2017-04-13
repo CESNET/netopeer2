@@ -99,7 +99,7 @@ edit_get_move(struct lyd_node *node, const char *path, sr_move_position_t *pos, 
                     *pos = SR_MOVE_AFTER;
                 }
             } else if (!strcmp(attr_iter->name, name)) {
-                if (asprintf(rel, format, path, attr_iter->value)) {
+                if (asprintf(rel, format, path, attr_iter->value) == -1) {
                     ERR("%s: memory allocation failed (%s) - %s:%d",
                         __func__, strerror(errno), __FILE__, __LINE__);
                     return EXIT_FAILURE;
