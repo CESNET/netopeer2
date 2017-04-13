@@ -32,7 +32,8 @@
 
 /* add subtree to root */
 static int
-opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, const char *subtree_path)
+opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, const char *subtree_path,
+        unsigned int config_only)
 {
     sr_val_t *value;
     sr_val_iter_t *sriter;
@@ -62,6 +63,11 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, c
             sr_free_val(value);
             sr_free_val_iter(sriter);
             return -1;
+        }
+
+        if (config_only && node && node->schema->flags & LYS_CONFIG_R) {
+            lyd_free(node);
+            continue;
         }
 
         if (!(*root)) {
@@ -799,6 +805,11 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
                 goto error;
             }
 
+            if (config_only && node && node->schema->flags & LYS_CONFIG_R) {
+                lyd_free(node);
+                continue;
+            }
+
             if (!root) {
                 /* node cannot be NULL */
                 assert(node);
@@ -835,7 +846,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
             }
 
             /* create the full subtree */
-            if (opget_build_subtree_from_sysrepo(sessions->srs, &root, values[j].xpath)) {
+            if (opget_build_subtree_from_sysrepo(sessions->srs, &root, values[j].xpath, config_only)) {
                 goto error;
             }
         }
