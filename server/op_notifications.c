@@ -472,9 +472,9 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
     const struct lys_node *snode;
     struct lyd_node *ntf = NULL, *parent, *node;
     const sr_node_t *srnode, *srnext;
-    const struct lys_module *mod;
+    const struct lys_module *mod = NULL;
     size_t i;
-    const char *ntf_type_str;
+    const char *ntf_type_str, *module_name = NULL;
     char numstr[21];
 
     switch (notif_type) {
@@ -511,15 +511,18 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
             parent = ntf;
 
             for (srnode = srnext = &trees[i]; srnode; srnode = srnext) {
-                mod = ly_ctx_get_module(np2srv.ly_ctx, srnode->module_name, NULL);
+                if(srnode->module_name) {
+                    module_name = srnode->module_name;
+                    mod = ly_ctx_get_module(np2srv.ly_ctx, module_name, NULL);
+                }
                 if (!mod) {
-                    ERR("Data from unknown module (%s%s) received in sysrepo notification \"%s\"", srnode->module_name,
+                    ERR("Data from unknown module (%s%s) received in sysrepo notification \"%s\"", module_name,
                         srnode->name, xpath);
                     goto error;
                 } else if (!mod->implemented) {
                     mod = lys_implemented_module(mod);
                     if (!mod->implemented) {
-                        ERR("Non-implemented data (%s:%s) received in sysrepo notification \"%s\"", srnode->module_name,
+                        ERR("Non-implemented data (%s:%s) received in sysrepo notification \"%s\"", module_name,
                             srnode->name, xpath);
                         goto error;
                     }
@@ -527,14 +530,14 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
 
                 snode = NULL;
                 while ((snode = lys_getnext(snode, parent->schema, mod, 0))) {
-                    if (strcmp(srnode->name, snode->name) || strcmp(srnode->module_name, snode->module->name)) {
+                    if (strcmp(srnode->name, snode->name) || strcmp(module_name, snode->module->name)) {
                         continue;
                     }
                     /* match */
                     break;
                 }
                 if (!snode) {
-                    ERR("Unknown data (%s:%s) received in sysrepo notification \"%s\"", srnode->module_name,
+                    ERR("Unknown data (%s:%s) received in sysrepo notification \"%s\"", module_name,
                         srnode->name, xpath);
                     goto error;
                 }
@@ -558,7 +561,7 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
                 }
 
                 if (!node) {
-                    ERR("Creating notification (%s) data (%d: %s:%s) failed.", xpath, snode->nodetype, srnode->module_name,
+                    ERR("Creating notification (%s) data (%d: %s:%s) failed.", xpath, snode->nodetype, module_name,
                         srnode->name);
                     goto error;
                 }
