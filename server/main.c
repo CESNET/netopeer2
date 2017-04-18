@@ -714,6 +714,10 @@ np2srv_init_schemas(int first)
 
     /* 1) use modules from sysrepo */
     for (i = 0; i < count; i++) {
+        if (!schemas[i].implemented) {
+            continue;
+        }
+
         data = NULL;
         mod = NULL;
 

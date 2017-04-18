@@ -69,7 +69,11 @@ __wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t 
     *schemas = calloc(2, sizeof **schemas);
     *schema_cnt = 2;
     (*schemas)[0].module_name = strdup("ietf-netconf-server");
+    (*schemas)[0].implemented = 1;
+
     (*schemas)[1].module_name = strdup("custom-op");
+    (*schemas)[1].implemented = 1;
+
     return SR_ERR_OK;
 }
 
