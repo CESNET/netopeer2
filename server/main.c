@@ -727,6 +727,11 @@ np2srv_init_schemas(int first)
             VRB("Module %s%s%s already present in context.", schemas[i].module_name,
                 schemas[i].revision.revision ? "@" : "",
                 schemas[i].revision.revision ? schemas[i].revision.revision : "");
+            if (!mod->implemented && lys_set_implemented(mod)) {
+                WRN("Implementing %s%s%s schema failed, data from this module won't be available.",
+                    schemas[i].module_name, schemas[i].revision.revision ? "@" : "",
+                    schemas[i].revision.revision ? schemas[i].revision.revision : "");
+            }
         } else if (sr_get_schema(np2srv.sr_sess.srs, schemas[i].module_name,
                                  schemas[i].revision.revision, NULL, SR_SCHEMA_YIN, &data) == SR_ERR_OK) {
             mod = lys_parse_mem(np2srv.ly_ctx, data, LYS_IN_YIN);
