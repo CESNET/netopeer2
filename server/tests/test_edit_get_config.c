@@ -77,7 +77,7 @@ __wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t 
     *schemas = calloc(4, sizeof **schemas);
 
     (*schemas)[0].module_name = strdup("ietf-netconf-server");
-    (*schemas)[0].implemented = 1;
+    (*schemas)[0].installed = 1;
 
     (*schemas)[1].module_name = strdup("ietf-interfaces");
     (*schemas)[1].ns = strdup("urn:ietf:params:xml:ns:yang:ietf-interfaces");
@@ -87,7 +87,7 @@ __wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t 
     (*schemas)[1].enabled_features = malloc(sizeof(char *));
     (*schemas)[1].enabled_features[0] = strdup("if-mib");
     (*schemas)[1].enabled_feature_cnt = 1;
-    (*schemas)[1].implemented = 1;
+    (*schemas)[1].installed = 1;
 
     (*schemas)[2].module_name = strdup("ietf-ip");
     (*schemas)[2].ns = strdup("urn:ietf:params:xml:ns:yang:ietf-ip");
@@ -98,14 +98,14 @@ __wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t 
     (*schemas)[2].enabled_features[0] = strdup("ipv4-non-contiguous-netmasks");
     (*schemas)[2].enabled_features[1] = strdup("ipv6-privacy-autoconf");
     (*schemas)[2].enabled_feature_cnt = 2;
-    (*schemas)[2].implemented = 1;
+    (*schemas)[2].installed = 1;
 
     (*schemas)[3].module_name = strdup("iana-if-type");
     (*schemas)[3].ns = strdup("urn:ietf:params:xml:ns:yang:iana-if-type");
     (*schemas)[3].prefix = strdup("if");
     (*schemas)[3].revision.revision = strdup("2014-05-08");
     (*schemas)[3].revision.file_path_yin = strdup(TESTS_DIR"/files/iana-if-type.yin");
-    (*schemas)[3].implemented = 1;
+    (*schemas)[3].installed = 1;
 
     return SR_ERR_OK;
 }

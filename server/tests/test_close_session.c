@@ -68,7 +68,7 @@ __wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t 
     *schemas = calloc(1, sizeof **schemas);
     *schema_cnt = 1;
     (*schemas)->module_name = strdup("ietf-netconf-server");
-    (*schemas)->implemented = 1;
+    (*schemas)->installed = 1;
     return SR_ERR_OK;
 }
 
