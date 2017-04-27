@@ -714,13 +714,8 @@ np2srv_init_schemas(int first)
 
     /* 1) use modules from sysrepo */
     for (i = 0; i < count; i++) {
-        if (!schemas[i].installed) {
-            continue;
-        }
-
         data = NULL;
         mod = NULL;
-
         VRB("Loading schema \"%s%s%s\" from sysrepo.", schemas[i].module_name, schemas[i].revision.revision ? "@" : "",
             schemas[i].revision.revision ? schemas[i].revision.revision : "");
         if ((mod = ly_ctx_get_module(np2srv.ly_ctx, schemas[i].module_name, schemas[i].revision.revision))) {
