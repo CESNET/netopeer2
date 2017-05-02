@@ -201,12 +201,6 @@ if (ENABLE_CONFIGURATION)
                         endif()
                     endforeach()
 
-                    execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -m \${MODULE_NAME} -t RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
-                    if (RET)
-                        string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
-                        message(FATAL_ERROR \"  Command sysrepoctl init failed:\\n  \${OUT}\")
-                    endif()
-
                 else()
                     message(STATUS \"Module \${MODULE_NAME} already in sysrepo.\")
                     if (\${MODULE_NAME} STREQUAL ietf-netconf-server)
