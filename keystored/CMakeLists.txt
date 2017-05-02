@@ -122,7 +122,7 @@ install(CODE "
             message(FATAL_ERROR \"  Command sysrepoctl install failed:\\n  \${OUT}\")
         endif()
 
-        execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -m ietf-keystore -t RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
+        execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -m ietf-keystore RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
         if (RET)
             string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
             message(FATAL_ERROR \"  Command sysrepoctl init failed:\\n  \${OUT}\")
