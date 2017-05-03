@@ -294,8 +294,8 @@ ncm_get_data(void)
                 break;
 #endif
             default: /* NC_TI_FD, NC_TI_NONE */
-                lyd_new_leaf(list, NULL, "transport", "transport");
-                break;
+                ERR("ietf-netconf-monitoring unsupported session transport type.");
+                goto error;
             }
             lyd_new_leaf(list, NULL, "username", nc_session_get_username(stats.sessions[i]));
             lyd_new_leaf(list, NULL, "source-host", nc_session_get_host(stats.sessions[i]));
