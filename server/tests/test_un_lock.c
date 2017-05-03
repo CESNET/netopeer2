@@ -217,6 +217,18 @@ __wrap_sr_unlock_datastore(sr_session_ctx_t *session)
     return SR_ERR_OK;
 }
 
+int
+__wrap_sr_event_notif_send(sr_session_ctx_t *session, const char *xpath, const sr_val_t *values,
+                           const size_t values_cnt, sr_ev_notif_flag_t opts)
+{
+    (void)session;
+    (void)xpath;
+    (void)values;
+    (void)values_cnt;
+    (void)opts;
+    return SR_ERR_OK;
+}
+
 /*
  * LIBNETCONF2 WRAPPER FUNCTIONS
  */

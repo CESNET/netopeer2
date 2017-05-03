@@ -171,6 +171,18 @@ __wrap_sr_get_items(sr_session_ctx_t *session, const char *xpath, sr_val_t **val
     return SR_ERR_OK;
 }
 
+int
+__wrap_sr_event_notif_send(sr_session_ctx_t *session, const char *xpath, const sr_val_t *values,
+                           const size_t values_cnt, sr_ev_notif_flag_t opts)
+{
+    (void)session;
+    (void)xpath;
+    (void)values;
+    (void)values_cnt;
+    (void)opts;
+    return SR_ERR_OK;
+}
+
 /*
  * LIBNETCONF2 WRAPPER FUNCTIONS
  */
@@ -732,23 +744,10 @@ test_get(void **state)
                         "<location>NETCONF</location>"
                     "</schema>"
                 "</schemas>"
-                "<sessions>"
-                    "<session>"
-                        "<session-id>1</session-id>"
-                        "<transport>transport</transport>"
-                        "<username>user1</username>"
-                        "<source-host>localhost</source-host>"
-                        "<login-time>0000-00-00T00:00:00+00:00</login-time>"
-                        "<in-rpcs>0</in-rpcs>"
-                        "<in-bad-rpcs>0</in-bad-rpcs>"
-                        "<out-rpc-errors>0</out-rpc-errors>"
-                        "<out-notifications>0</out-notifications>"
-                    "</session>"
-                "</sessions>"
                 "<statistics>"
                     "<netconf-start-time>0000-00-00T00:00:00+00:00</netconf-start-time>"
                     "<in-bad-hellos>0</in-bad-hellos>"
-                    "<in-sessions>1</in-sessions>"
+                    "<in-sessions>0</in-sessions>"
                     "<dropped-sessions>0</dropped-sessions>"
                     "<in-rpcs>0</in-rpcs>"
                     "<in-bad-rpcs>0</in-bad-rpcs>"
