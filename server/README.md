@@ -19,8 +19,6 @@ Follow [libnetconf2 instructions](https://github.com/CESNET/libnetconf2/blob/mas
 ### sysrepo
 
 Follow [sysrepo instructions](https://github.com/sysrepo/sysrepo/blob/master/INSTALL.md).
-For the next section, we expect that the `REPOSITORY_LOC` is set to `/etc/sysrepo`. If you
-have used another path, please reflect it when installing and setting up the Netopeer2 server.
 
 ### Netopeer2
 
@@ -32,11 +30,10 @@ $ make
 # make install
 ```
 
-#### Add the server's data models into the sysrepo
-```
-# cp ../modules/*.yang /etc/sysrepo/yang/
-# cp ../modules/*.yin /etc/sysrepo/yang/
-```
+#### Server configuration
+
+To learn how to enable configuration and various server options with examples look
+into the [configuration](configuration) directory, specifically [README](configuration/README.md).
 
 #### Starting the server
 
@@ -51,7 +48,7 @@ $ netopeer2-server
 ```
 
 The daemon accepts several arguments for specifying log verbosity level
-or for debugging. You can display them by executing sysrepod -h:
+or for debugging. You can display them by executing netopeer2-server -h:
 ```
 $ netopeer2-server -h
 Usage: netopeer2-server [-dhV] [-v level]
@@ -63,7 +60,8 @@ Usage: netopeer2-server [-dhV] [-v level]
                          0 - errors
                          1 - errors and warnings
                          2 - errors, warnings and verbose messages
-                         3 - all messages including debug notes
+ -c category[,category]*  verbose debug level, print only these debug message categories
+ categories: DICT, YANG, YIN, XPATH, DIFF, MSG, EDIT_CONFIG, SSH, SYSREPO
 ```
 
 #### Connecting to the server
@@ -75,5 +73,4 @@ the Netopeer2 CLI can be used:
 $ netopeer2-cli
 > connect
 ```
-Local system users are used for authentication. To learn how to change this and configure lots of
-other server features look into the `configuration` directory.
+Local system users are used for authentication.
