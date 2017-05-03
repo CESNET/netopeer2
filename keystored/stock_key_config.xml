@@ -1,0 +1,7 @@
+<keystore xmlns="urn:ietf:params:xml:ns:yang:ietf-keystore">
+    <private-keys>
+        <private-key>
+            <name>ssh_host_rsa_key</name>
+        </private-key>
+    </private-keys>
+</keystore>

@@ -17,6 +17,8 @@
 
 #include <nc_server.h>
 
+extern uint16_t sr_subsc_count;
+
 struct np2srv_dslock {
     struct nc_session *running;
     time_t running_time;
@@ -52,8 +54,8 @@ enum NP2_EDIT_OP {
     NP2_EDIT_NONE,
     NP2_EDIT_MERGE,
     NP2_EDIT_CREATE,
-    NP2_EDIT_REPLACE,
     NP2_EDIT_REPLACE_INNER,
+    NP2_EDIT_REPLACE,
     NP2_EDIT_DELETE,
     NP2_EDIT_REMOVE
 };
@@ -80,6 +82,10 @@ int op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val, char
  */
 struct nc_server_reply *op_build_err_sr(struct nc_server_reply *ereply, sr_session_ctx_t *session);
 
+int op_filter_get_tree_from_data(struct lyd_node **root, struct lyd_node *data, const char *subtree_path);
+int op_filter_xpath_add_filter(char *new_filter, char ***filters, int *filter_count);
+int op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_count);
+
 struct nc_server_reply *op_get(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_lock(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_unlock(struct lyd_node *rpc, struct nc_session *ncs);
@@ -90,5 +96,13 @@ struct nc_server_reply *op_commit(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_discardchanges(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_validate(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_generic(struct lyd_node *rpc, struct nc_session *ncs);
+
+struct nc_server_reply *op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs);
+void op_ntf_unsubscribe(struct nc_session *session, int have_lock);
+void np2srv_ntf_send(struct lyd_node *ntf, const char *xpath, time_t timestamp, const sr_ev_notif_type_t notif_type);
+void np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_node_t *trees,
+                    const size_t tree_cnt, time_t timestamp, void *private_ctx);
+struct lyd_node *ntf_get_data(void);
+
 
 #endif /* NP2SRV_OPERATIONS_H_ */

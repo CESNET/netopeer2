@@ -25,7 +25,7 @@ void ncm_session_bad_rpc(struct nc_session *session);
 void ncm_session_rpc_reply_error(struct nc_session *session);
 void ncm_session_notification(struct nc_session *session);
 void ncm_session_add(struct nc_session *session);
-void ncm_session_del(struct nc_session *session, int dropped);
+void ncm_session_del(struct nc_session *session);
 void ncm_bad_hello(void);
 
 struct lyd_node *ncm_get_data(void);

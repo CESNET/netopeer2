@@ -3,7 +3,7 @@
  * @author Radek Krejci <rkrejci@cesnet.cz>
  * @brief netopeer2-server log functions
  *
- * Copyright (c) 2016 CESNET, z.s.p.o.
+ * Copyright (c) 2016 - 2017 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -28,7 +28,17 @@
 /**
  * @brief libnetconf verbose level variable
  */
-volatile uint8_t np2_verbose_level = 0;
+volatile uint8_t np2_verbose_level;
+
+/**
+ * @brief libssh verbose level variable
+ */
+volatile uint8_t np2_libssh_verbose_level;
+
+/**
+ * @brief libsysrepo verbose level variable
+ */
+volatile uint8_t np2_sr_verbose_level;
 
 enum ERR_SOURCE {
     ERRS_NETOPEER,
@@ -175,7 +185,7 @@ np2log_clb_sr(sr_log_level_t level, const char *msg)
 {
     struct np2err *e = NULL;
 
-    if (np2_verbose_level >= level - 1) {
+    if (np2_sr_verbose_level >= level) {
 
         if (level == SR_LL_ERR) {
             e = np2_err_location();

@@ -1,0 +1,35 @@
+<netconf-server xmlns="urn:ietf:params:xml:ns:yang:ietf-netconf-server">
+  <call-home>
+    <netconf-client>
+      <name>test_tls_ch_client</name>
+      <tls>
+        <endpoints>
+          <endpoint>
+            <name>test_tls_ch_endpt</name>
+            <address>127.0.0.1</address>
+            <port>4335</port>
+          </endpoint>
+        </endpoints>
+        <certificates>
+          <certificate>
+            <name>test_server_cert</name>
+          </certificate>
+        </certificates>
+        <client-auth>
+          <trusted-ca-certs>test_trusted_ca_list</trusted-ca-certs>
+          <cert-maps>
+            <cert-to-name>
+              <id>1</id>
+              <fingerprint>02:E9:38:1F:F6:8B:62:DE:0A:0B:C5:03:81:A8:03:49:A0:00:7F:8B:F3</fingerprint>
+              <map-type xmlns:x509c2n="urn:ietf:params:xml:ns:yang:ietf-x509-cert-to-name">x509c2n:specified</map-type>
+              <name>test</name>
+            </cert-to-name>
+          </cert-maps>
+        </client-auth>
+      </tls>
+      <connection-type>
+        <persistent/>
+      </connection-type>
+    </netconf-client>
+  </call-home>
+</netconf-server>

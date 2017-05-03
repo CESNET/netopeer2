@@ -1,0 +1,12 @@
+<system xmlns="urn:ietf:params:xml:ns:yang:ietf-system">
+  <authentication>
+    <user>
+      <name>[system-username]</name>
+      <authorized-key>
+        <name>[arbitrary-key-name]</name>
+        <algorithm>[key-algorithm]</algorithm>
+        <key-data>[key-data]</key-data>
+      </authorized-key>
+    </user>
+  </authentication>
+</system>

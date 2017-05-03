@@ -1,0 +1,28 @@
+/**
+ * \file config.h
+ * \author Michal Vasko <mvasko@cesnet.cz>
+ * \brief keystored plugin configuration.
+ *
+ * Copyright (c) 2016 CESNET, z.s.p.o.
+ *
+ * This source code is licensed under BSD 3-Clause License (the "License").
+ * You may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://opensource.org/licenses/BSD-3-Clause
+ */
+
+#ifndef KEYSTORED_CONFIG_H_
+#define KEYSTORED_CONFIG_H_
+
+#ifdef __GNUC__
+#  define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
+#else
+#  define UNUSED(x) UNUSED_ ## x
+#endif
+
+#define KEYSTORED_KEYS_DIR "@KEYSTORED_KEYS_DIR@"
+
+#define OPENSSL_EXECUTABLE "@OPENSSL_EXECUTABLE@"
+
+#endif /* KEYSTORED_CONFIG_H_ */

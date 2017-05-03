@@ -152,13 +152,17 @@ ncm_session_add(struct nc_session *session)
 }
 
 void
-ncm_session_del(struct nc_session *session, int dropped)
+ncm_session_del(struct nc_session *session)
 {
     uint32_t i;
 
     pthread_mutex_lock(&stats.lock);
 
-    if (dropped) {
+    if (!nc_session_get_termreason(session)) {
+        EINT;
+    }
+
+    if (nc_session_get_termreason(session) != NC_SESSION_TERM_CLOSED) {
         ++stats.dropped_sessions;
     }
 
@@ -290,8 +294,8 @@ ncm_get_data(void)
                 break;
 #endif
             default: /* NC_TI_FD, NC_TI_NONE */
-                lyd_new_leaf(list, NULL, "transport", "transport");
-                break;
+                ERR("ietf-netconf-monitoring unsupported session transport type.");
+                goto error;
             }
             lyd_new_leaf(list, NULL, "username", nc_session_get_username(stats.sessions[i]));
             lyd_new_leaf(list, NULL, "source-host", nc_session_get_host(stats.sessions[i]));

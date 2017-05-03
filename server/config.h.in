@@ -3,7 +3,7 @@
  * @author Radek Krejci <rkrejci@cesnet.cz>
  * @brief Various configuration constants for netopeer2-server
  *
- * Copyright (c) 2016 CESNET, z.s.p.o.
+ * Copyright (c) 2016 - 2017 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -26,10 +26,18 @@
 
 /** @brief Netopeer2 Server SSH default RSA host key path
  */
-#define NP2SRV_HOST_KEY "/etc/ssh/ssh_host_rsa_key"
+#define NP2SRV_HOST_KEY "@DEFAULT_HOST_KEY@"
 
-/** @brief keychaind default directory
+/** @brief keystored default directory
  */
-#define NP2SRV_KCD_DIR "/etc/keychaind/"
+#ifndef NP2SRV_KEYSTORED_DIR
+#   define NP2SRV_KEYSTORED_DIR "@KEYSTORED_KEYS_DIR@"
+#endif
+
+/** @brief Maximum number of threads handling session requests
+ */
+#ifndef NP2SRV_THREAD_COUNT
+#   define NP2SRV_THREAD_COUNT @THREAD_COUNT@
+#endif
 
 #endif /* NP2SRV_CONFIG_H_ */

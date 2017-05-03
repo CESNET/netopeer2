@@ -45,7 +45,7 @@ Before starting Netopeer2 server, there must be running `sysrepod`:
 $ sysrepod
 ```
 
-Netopeer2 server can be started by executing following command:
+Netopeer2 server can be started by executing the following command:
 ```
 $ netopeer2-server
 ```
@@ -68,11 +68,12 @@ Usage: netopeer2-server [-dhV] [-v level]
 
 #### Connecting to the server
 
-Configuration of the server itself is not implemented yet. Therefore the server
-always listens on port `6001` expecting an SSH connection. To connect to the server
+After installation, server has a default startup configuration which enables SSH connections
+on all the interfaces on the designated NETCONF SSH port 830. To connect to the server on localhost
 the Netopeer2 CLI can be used:
 ```
 $ netopeer2-cli
-> connect --port 6001
+> connect
 ```
-
+Local system users are used for authentication. To learn how to change this and configure lots of
+other server features look into the `configuration` directory.
