@@ -554,8 +554,9 @@ error:
 void
 np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_session)
 {
-    int c;
+    int c, monitored;
     sr_val_t *event_data;
+    const struct lys_module *mod;
     char *host;
 
     if (connect_ds(new_session)) {
@@ -565,7 +566,25 @@ np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_s
         nc_session_free(new_session, free_ds);
         return;
     }
-    ncm_session_add(new_session);
+
+    switch (nc_session_get_ti(new_session)) {
+#ifdef NC_ENABLED_SSH
+    case NC_TI_LIBSSH:
+#endif
+#ifdef NC_ENABLED_TLS
+    case NC_TI_OPENSSL:
+#endif
+#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+        ncm_session_add(new_session);
+        monitored = 1;
+        break;
+#endif
+    default:
+        WRN("Session %d uses a transport protocol not supported by ietf-netconf-monitoring, will not be monitored.",
+            nc_session_get_id(new_session));
+        monitored = 0;
+        break;
+    }
 
     c = 0;
     while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, new_session)) {
@@ -577,7 +596,9 @@ np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_s
     if (c == 3) {
         /* there is some serious problem in synchronization/system planner */
         EINT;
-        ncm_session_del(new_session);
+        if (monitored) {
+            ncm_session_del(new_session);
+        }
         nc_session_free(new_session, free_ds);
     }
 
@@ -616,7 +637,21 @@ np2srv_del_session_clb(struct nc_session *session)
         op_ntf_unsubscribe(session, 0);
     }
     nc_ps_del_session(np2srv.nc_ps, session);
-    ncm_session_del(session);
+
+    switch (nc_session_get_ti(session)) {
+#ifdef NC_ENABLED_SSH
+    case NC_TI_LIBSSH:
+#endif
+#ifdef NC_ENABLED_TLS
+    case NC_TI_OPENSSL:
+#endif
+#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+        ncm_session_del(session);
+        break;
+#endif
+    default:
+        break;
+    }
 
     if (ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL)) {
         /* generate ietf-netconf-notification's netconf-session-end event for sysrepo */
@@ -957,7 +992,7 @@ static void *
 worker_thread(void *arg)
 {
     NC_MSG_TYPE msgtype;
-    int rc, idx = *((int *)arg);
+    int rc, idx = *((int *)arg), monitored;
     struct nc_session *ncs;
 
     nc_libssh_thread_verbosity(np2_verbose_level);
@@ -993,17 +1028,39 @@ worker_thread(void *arg)
             continue;
         }
 
+        switch (nc_session_get_ti(ncs)) {
+#ifdef NC_ENABLED_SSH
+        case NC_TI_LIBSSH:
+#endif
+#ifdef NC_ENABLED_TLS
+        case NC_TI_OPENSSL:
+#endif
+#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+            monitored = 1;
+            break;
+#endif
+        default:
+            monitored = 0;
+            break;
+        }
+
         /* process the result of nc_ps_poll(), increase counters */
         if (rc & NC_PSPOLL_BAD_RPC) {
-            ncm_session_bad_rpc(ncs);
+            if (monitored) {
+                ncm_session_bad_rpc(ncs);
+            }
             VRB("Session %d: thread %d event bad RPC.", nc_session_get_id(ncs), idx);
         }
         if (rc & NC_PSPOLL_RPC) {
-            ncm_session_rpc(ncs);
+            if (monitored) {
+                ncm_session_rpc(ncs);
+            }
             VRB("Session %d: thread %d event new RPC.", nc_session_get_id(ncs), idx);
         }
         if (rc & NC_PSPOLL_REPLY_ERROR) {
-            ncm_session_rpc_reply_error(ncs);
+            if (monitored) {
+                ncm_session_rpc_reply_error(ncs);
+            }
             VRB("Session %d: thread %d event reply error.", nc_session_get_id(ncs), idx);
         }
         if (rc & NC_PSPOLL_SESSION_TERM) {
@@ -1016,7 +1073,9 @@ worker_thread(void *arg)
             if (msgtype == NC_MSG_HELLO) {
                 np2srv_new_session_clb(NULL, ncs);
             } else if (msgtype == NC_MSG_BAD_HELLO) {
-                ncm_bad_hello();
+                if (monitored) {
+                    ncm_bad_hello();
+                }
             }
         }
         pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
