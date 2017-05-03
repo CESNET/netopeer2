@@ -602,7 +602,7 @@ np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_s
         nc_session_free(new_session, free_ds);
     }
 
-    if (ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL)) {
+    if ((mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL)) && mod->implemented) {
         /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
         host = (char*)nc_session_get_host(new_session);
         event_data = calloc(host ? 3 : 2, sizeof *event_data);
@@ -631,6 +631,7 @@ np2srv_del_session_clb(struct nc_session *session)
     int i;
     char *host;
     sr_val_t *event_data;
+    const struct lys_module *mod;
     size_t c = 0;
 
     if (nc_session_get_notif_status(session)) {
@@ -653,7 +654,7 @@ np2srv_del_session_clb(struct nc_session *session)
         break;
     }
 
-    if (ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL)) {
+    if ((mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL)) && mod->implemented) {
         /* generate ietf-netconf-notification's netconf-session-end event for sysrepo */
         host = (char*)nc_session_get_host(session);
         c = host ? 4 : 3;
