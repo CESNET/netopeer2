@@ -155,7 +155,6 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
         rc = sr_action_send(sessions->srs, rpc_xpath, input, in_count, &output, &out_count);
     }
     free(rpc_xpath);
-    free(input);
     /* free the additional memory chunks used in input[] */
     if (strs) {
         for (i = 0; i < strs->number; i++) {
@@ -164,6 +163,10 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
         ly_set_free(strs);
         strs = NULL;
     }
+    for (i = 0; i < in_count; ++i) {
+        free(input[i].xpath);
+    }
+    free(input);
     input = NULL;
     in_count = 0;
 
@@ -193,6 +196,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
         nc_server_get_capab_withdefaults(&nc_wd, NULL);
         return nc_server_reply_data(reply_data, nc_wd, NC_PARAMTYPE_FREE);
     } else {
+        lyd_free(act);
         return nc_server_reply_ok();
     }
 
@@ -209,6 +213,9 @@ error:
             free(strs->set.g[i]);
         }
         ly_set_free(strs);
+    }
+    for (i = 0; i < in_count; ++i) {
+        free(input[i].xpath);
     }
     free(input);
     sr_free_values(output, out_count);
