@@ -73,7 +73,7 @@ if(ENABLE_VALGRIND_TESTS)
     find_program(valgrind_FOUND valgrind)
     if(valgrind_FOUND)
         foreach(test_name IN LISTS tests)
-            add_test(${test_name}_valgrind valgrind --leak-check=full --show-leak-kinds=all
+            add_test(${test_name}_valgrind valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1
                  ${CMAKE_BINARY_DIR}/tests/${test_name})
         endforeach(test_name)
     else(valgrind_FOUND)
