@@ -24,7 +24,7 @@
 char *
 op_get_srval(struct ly_ctx *ctx, sr_val_t *value, char *buf)
 {
-    const struct lys_node *snode;
+    const struct lys_node_leaf *snode;
 
     if (!value) {
         return NULL;
@@ -46,11 +46,14 @@ op_get_srval(struct ly_ctx *ctx, sr_val_t *value, char *buf)
         return value->data.bool_val ? "true" : "false";
     case SR_DECIMAL64_T:
         /* get fraction-digits */
-        snode = ly_ctx_get_node(ctx, NULL, value->xpath);
+        snode = (struct lys_node_leaf *) ly_ctx_get_node(ctx, NULL, value->xpath);
         if (!snode) {
             return NULL;
         }
-        sprintf(buf, "%.*f", ((struct lys_node_leaf *)snode)->type.info.dec64.dig, value->data.decimal64_val);
+        while (snode->type.base == LY_TYPE_LEAFREF) {
+            snode = snode->type.info.lref.target;
+        }
+        sprintf(buf, "%.*f", snode->type.info.dec64.dig, value->data.decimal64_val);
         return buf;
     case SR_UINT8_T:
         sprintf(buf, "%u", value->data.uint8_val);
@@ -88,10 +91,15 @@ copy_bits(const struct lyd_node_leaf_list *leaf, char **dest)
     int i;
     struct lys_node_leaf *sch = (struct lys_node_leaf *) leaf->schema;
     char *bits_str = NULL;
-    int bits_count = sch->type.info.bits.count;
+    int bits_count;
     struct lys_type_bit **bits = leaf->value.bit;
-
     size_t length = 1; /* terminating NULL byte*/
+
+    while (sch->type.base == LY_TYPE_LEAFREF) {
+        sch = sch->type.info.lref.target;
+    }
+    bits_count = sch->type.info.bits.count;
+
     for (i = 0; i < bits_count; i++) {
         if (NULL != bits[i] && NULL != bits[i]->name) {
             length += strlen(bits[i]->name);
@@ -127,6 +135,7 @@ op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val, char **v
     struct lyd_node_leaf_list *leaf;
     const char *str;
     LY_DATA_TYPE type;
+    struct lys_node_leaf *sleaf;
 
     if (!dup) {
         assert(val_buf);
@@ -173,7 +182,11 @@ settype:
         case LY_TYPE_DEC64:
             val->type = SR_DECIMAL64_T;
             val->data.decimal64_val = (double)leaf->value.dec64;
-            for (i = 0; i < ((struct lys_node_leaf *)leaf->schema)->type.info.dec64.dig; i++) {
+            sleaf = (struct lys_node_leaf *) leaf->schema;
+            while (sleaf->type.base == LY_TYPE_LEAFREF) {
+                sleaf = sleaf->type.info.lref.target;
+            }
+            for (i = 0; i < sleaf->type.info.dec64.dig; i++) {
                 /* shift decimal point */
                 val->data.decimal64_val *= 0.1;
             }
