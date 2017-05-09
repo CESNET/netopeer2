@@ -171,6 +171,10 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
         i = 0;
         while ((module = ly_ctx_get_module_iter(np2srv.ly_ctx, &i))) {
+            if (!module->implemented) {
+                continue;
+            }
+
             LY_TREE_FOR(module->data, snode) {
                 if (!(snode->nodetype & (LYS_GROUPING | LYS_NOTIF | LYS_RPC))) {
                     /* module with some actual data definitions */
