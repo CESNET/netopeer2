@@ -13,6 +13,8 @@
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
+#define _BSD_SOURCE 1
+#define _POSIX_C_SOURCE 200809L
 #include <errno.h>
 #ifdef DEBUG
     #include <execinfo.h>
@@ -458,6 +460,8 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
          * because of dependency in some of the previous calls */
         if (!ly_ctx_remove_module(mod, NULL)) {
             np2srv_send_capab_change_notif(NULL, cpb, NULL);
+        } else {
+            ERR("Removing module \"%s%s%s\" failed.", module_name, revision ? "@" : "", revision ? revision : "");
         }
         free(cpb);
 
@@ -741,7 +745,20 @@ np2srv_init_schemas(int first)
         }
 
         /* init rwlock for libyang context */
+#ifdef HAVE_PTHREAD_RWLOCKATTR_SETKIND_NP
+        pthread_rwlockattr_t attr;
+        rc = pthread_rwlockattr_init(&attr);
+        if (rc) {
+            ERR("Initiating schema context lock attributes failed (%s)", strerror(rc));
+            goto error;
+        }
+        /* prefer write locks */
+        pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+        rc = pthread_rwlock_init(&np2srv.ly_ctx_lock, &attr);
+        pthread_rwlockattr_destroy(&attr);
+#else
         rc = pthread_rwlock_init(&np2srv.ly_ctx_lock, NULL);
+#endif
         if (rc) {
             ERR("Initiating schema context lock failed (%s)", strerror(rc));
             goto error;
