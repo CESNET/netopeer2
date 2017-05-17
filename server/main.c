@@ -13,6 +13,8 @@
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
+#define _BSD_SOURCE 1
+#define _POSIX_C_SOURCE 200809L
 #include <errno.h>
 #ifdef DEBUG
     #include <execinfo.h>
@@ -50,6 +52,15 @@ struct np2srv_dslock dslock;
 pthread_rwlock_t dslock_rwl = PTHREAD_RWLOCK_INITIALIZER;
 
 static void *worker_thread(void *arg);
+
+int np_sleep(unsigned int miliseconds)
+{
+    struct timespec ts;
+
+    ts.tv_sec = miliseconds / 1000;
+    ts.tv_nsec = (miliseconds % 1000) * 1000000;
+    return nanosleep(&ts, NULL);
+}
 
 /**
  * @brief Control flags for the main loop
@@ -449,6 +460,8 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
          * because of dependency in some of the previous calls */
         if (!ly_ctx_remove_module(mod, NULL)) {
             np2srv_send_capab_change_notif(NULL, cpb, NULL);
+        } else {
+            ERR("Removing module \"%s%s%s\" failed.", module_name, revision ? "@" : "", revision ? revision : "");
         }
         free(cpb);
 
@@ -589,7 +602,7 @@ np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_s
     c = 0;
     while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, new_session)) {
         /* presumably timeout, give it a shot 2 times */
-        usleep(10000);
+        np_sleep(10);
         ++c;
     }
 
@@ -732,7 +745,20 @@ np2srv_init_schemas(int first)
         }
 
         /* init rwlock for libyang context */
+#ifdef HAVE_PTHREAD_RWLOCKATTR_SETKIND_NP
+        pthread_rwlockattr_t attr;
+        rc = pthread_rwlockattr_init(&attr);
+        if (rc) {
+            ERR("Initiating schema context lock attributes failed (%s)", strerror(rc));
+            goto error;
+        }
+        /* prefer write locks */
+        pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+        rc = pthread_rwlock_init(&np2srv.ly_ctx_lock, &attr);
+        pthread_rwlockattr_destroy(&attr);
+#else
         rc = pthread_rwlock_init(&np2srv.ly_ctx_lock, NULL);
+#endif
         if (rc) {
             ERR("Initiating schema context lock failed (%s)", strerror(rc));
             goto error;
@@ -1013,19 +1039,19 @@ worker_thread(void *arg)
         /* try to accept new NETCONF sessions */
         if (nc_server_endpt_count()
                 && (!np2srv.nc_max_sessions || (nc_ps_session_count(np2srv.nc_ps) < np2srv.nc_max_sessions))) {
-            msgtype = nc_accept(100, &ncs);
+            msgtype = nc_accept(0, &ncs);
             if (msgtype == NC_MSG_HELLO) {
                 np2srv_new_session_clb(NULL, ncs);
             }
         }
 
         /* listen for incoming requests on active NETCONF sessions */
-        rc = nc_ps_poll(np2srv.nc_ps, 100, &ncs);
+        rc = nc_ps_poll(np2srv.nc_ps, 0, &ncs);
 
         if (rc & (NC_PSPOLL_NOSESSIONS | NC_PSPOLL_TIMEOUT)) {
             /* if there is no active session or timeout, rest for a while */
             pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
-            usleep(2000);
+            np_sleep(10);
             continue;
         }
 
@@ -1080,7 +1106,6 @@ worker_thread(void *arg)
             }
         }
         pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
-        usleep(100); /* give others time to work with context */
     }
 
     /* cleanup */

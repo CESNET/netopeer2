@@ -40,4 +40,8 @@
 #   define NP2SRV_THREAD_COUNT @THREAD_COUNT@
 #endif
 
+/** @brief availability of pthread_rwlockattr_setkind_np()
+ */
+#cmakedefine HAVE_PTHREAD_RWLOCKATTR_SETKIND_NP 1
+
 #endif /* NP2SRV_CONFIG_H_ */

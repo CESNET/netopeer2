@@ -5,6 +5,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../CMakeModules/
 
 project(netopeer2-server C)
 include(GNUInstallDirs)
+include(CheckFunctionExists)
 
 # check the supported platform
 if(NOT UNIX)
@@ -12,7 +13,7 @@ if(NOT UNIX)
 endif()
 
 # set version
-set(NP2SRV_VERSION 0.3.65)
+set(NP2SRV_VERSION 0.3.66)
 
 # set default build type if not specified by user
 if(NOT CMAKE_BUILD_TYPE)
@@ -88,8 +89,6 @@ else()
     message(STATUS "pkg-config not found, so it was not possible to check if libnetconf2 supports ${THREAD_COUNT} threads")
 endif()
 
-configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_SOURCE_DIR}/config.h" ESCAPE_QUOTES @ONLY)
-
 # source files
 set(srcs
     ietf_netconf_server.c
@@ -118,6 +117,9 @@ add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> main.c)
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 find_package(Threads REQUIRED)
 target_link_libraries(netopeer2-server ${CMAKE_THREAD_LIBS_INIT})
+
+set(CMAKE_REQUIRED_FLAGS ${CMAKE_THREAD_LIBS_INIT})
+check_function_exists(pthread_rwlockattr_setkind_np HAVE_PTHREAD_RWLOCKATTR_SETKIND_NP)
 
 # dependencies - libyang
 find_package(LibYANG REQUIRED)
@@ -239,6 +241,8 @@ if (ENABLE_CONFIGURATION)
 
         endif()")
 endif()
+
+configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_SOURCE_DIR}/config.h" ESCAPE_QUOTES @ONLY)
 
 # clean cmake cache
 add_custom_target(cleancache
