@@ -51,6 +51,15 @@ pthread_rwlock_t dslock_rwl = PTHREAD_RWLOCK_INITIALIZER;
 
 static void *worker_thread(void *arg);
 
+int np_sleep(unsigned int miliseconds)
+{
+    struct timespec ts;
+
+    ts.tv_sec = miliseconds / 1000;
+    ts.tv_nsec = (miliseconds % 1000) * 1000000;
+    return nanosleep(&ts, NULL);
+}
+
 /**
  * @brief Control flags for the main loop
  */
@@ -589,7 +598,7 @@ np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_s
     c = 0;
     while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, new_session)) {
         /* presumably timeout, give it a shot 2 times */
-        usleep(10000);
+        np_sleep(10);
         ++c;
     }
 
@@ -1013,19 +1022,19 @@ worker_thread(void *arg)
         /* try to accept new NETCONF sessions */
         if (nc_server_endpt_count()
                 && (!np2srv.nc_max_sessions || (nc_ps_session_count(np2srv.nc_ps) < np2srv.nc_max_sessions))) {
-            msgtype = nc_accept(100, &ncs);
+            msgtype = nc_accept(0, &ncs);
             if (msgtype == NC_MSG_HELLO) {
                 np2srv_new_session_clb(NULL, ncs);
             }
         }
 
         /* listen for incoming requests on active NETCONF sessions */
-        rc = nc_ps_poll(np2srv.nc_ps, 100, &ncs);
+        rc = nc_ps_poll(np2srv.nc_ps, 0, &ncs);
 
         if (rc & (NC_PSPOLL_NOSESSIONS | NC_PSPOLL_TIMEOUT)) {
             /* if there is no active session or timeout, rest for a while */
             pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
-            usleep(2000);
+            np_sleep(10);
             continue;
         }
 
@@ -1080,7 +1089,6 @@ worker_thread(void *arg)
             }
         }
         pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
-        usleep(100); /* give others time to work with context */
     }
 
     /* cleanup */
