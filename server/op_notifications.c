@@ -474,7 +474,7 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
     const sr_node_t *srnode, *srnext;
     const struct lys_module *mod = NULL;
     size_t i;
-    const char *ntf_type_str, *module_name = NULL;
+    const char *ntf_type_str = NULL, *module_name = NULL;
     char numstr[21];
 
     switch (notif_type) {
