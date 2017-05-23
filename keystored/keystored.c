@@ -296,7 +296,7 @@ ks_privkey_gen_cb(const char *UNUSED(xpath), const sr_node_t *input, const size_
 {
     struct keystored_ctx *ctx = (struct keystored_ctx *)private_ctx;
     pid_t pid;
-    int ret, status;
+    int ret = SR_ERR_OK, status;
     char *priv_path = NULL, *pub_path = NULL, len_arg[27];
 
     if ((input_cnt < 2) || (input[0].type != SR_STRING_T) || (input[1].type != SR_IDENTITYREF_T)
@@ -540,6 +540,7 @@ sr_plugin_init_cb(sr_session_ctx_t *session, void **private_ctx)
 
     ctx = calloc(1, sizeof *ctx);
     if (!ctx) {
+        rc = SR_ERR_NOMEM;
         goto error;
     }
 
