@@ -650,7 +650,9 @@ np2srv_del_session_clb(struct nc_session *session)
     if (nc_session_get_notif_status(session)) {
         op_ntf_unsubscribe(session, 0);
     }
-    nc_ps_del_session(np2srv.nc_ps, session);
+    if (nc_ps_del_session(np2srv.nc_ps, session)) {
+        ERR("Removing session from ps failed.");
+    }
 
     switch (nc_session_get_ti(session)) {
 #ifdef NC_ENABLED_SSH
@@ -669,7 +671,7 @@ np2srv_del_session_clb(struct nc_session *session)
 
     if ((mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL)) && mod->implemented) {
         /* generate ietf-netconf-notification's netconf-session-end event for sysrepo */
-        host = (char*)nc_session_get_host(session);
+        host = (char *)nc_session_get_host(session);
         c = host ? 4 : 3;
         i = 0;
         event_data = calloc(c, sizeof *event_data);
