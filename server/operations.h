@@ -60,7 +60,7 @@ enum NP2_EDIT_OP {
     NP2_EDIT_REMOVE
 };
 
-char *op_get_srval(struct ly_ctx *ctx, sr_val_t *value, char *buf);
+char *op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char *buf);
 
 /**
  * @brief Fill sr_val_t for communication with sysrepo
