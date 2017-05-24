@@ -45,7 +45,7 @@ foreach(mock_func IN LISTS test_close_session_mock_funcs test_get_mock_funcs ${t
 endforeach()
 
 set(test test_notif)
-set(${test}_mock_funcs sr_event_notif_subscribe_tree sr_event_notif_replay)
+set(${test}_mock_funcs sr_event_notif_subscribe sr_event_notif_replay)
 set(${test}_wrap_link_flags "-Wl")
 foreach(mock_func IN LISTS test_close_session_mock_funcs ${test}_mock_funcs)
     set(${test}_wrap_link_flags "${${test}_wrap_link_flags},--wrap=${mock_func}")
