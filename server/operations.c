@@ -22,9 +22,9 @@
 #include "operations.h"
 
 char *
-op_get_srval(struct ly_ctx *ctx, sr_val_t *value, char *buf)
+op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char *buf)
 {
-    const struct lys_node *snode;
+    struct lys_node_leaf *sleaf;
 
     if (!value) {
         return NULL;
@@ -46,11 +46,14 @@ op_get_srval(struct ly_ctx *ctx, sr_val_t *value, char *buf)
         return value->data.bool_val ? "true" : "false";
     case SR_DECIMAL64_T:
         /* get fraction-digits */
-        snode = ly_ctx_get_node(ctx, NULL, value->xpath);
-        if (!snode) {
+        sleaf = (struct lys_node_leaf *)ly_ctx_get_node(ctx, NULL, value->xpath);
+        if (!sleaf) {
             return NULL;
         }
-        sprintf(buf, "%.*f", ((struct lys_node_leaf *)snode)->type.info.dec64.dig, value->data.decimal64_val);
+        while (sleaf->type.base == LY_TYPE_LEAFREF) {
+            sleaf = sleaf->type.info.lref.target;
+        }
+        sprintf(buf, "%.*f", sleaf->type.info.dec64.dig, value->data.decimal64_val);
         return buf;
     case SR_UINT8_T:
         sprintf(buf, "%u", value->data.uint8_val);
