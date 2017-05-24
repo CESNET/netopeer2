@@ -85,44 +85,6 @@ op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char *buf)
 
 }
 
-static int
-copy_bits(const struct lyd_node_leaf_list *leaf, char **dest)
-{
-    int i;
-    struct lys_node_leaf *sch = (struct lys_node_leaf *) leaf->schema;
-    char *bits_str = NULL;
-    int bits_count = sch->type.info.bits.count;
-    struct lys_type_bit **bits = leaf->value.bit;
-
-    size_t length = 1; /* terminating NULL byte*/
-    for (i = 0; i < bits_count; i++) {
-        if (NULL != bits[i] && NULL != bits[i]->name) {
-            length += strlen(bits[i]->name);
-            length++; /*space after bit*/
-        }
-    }
-    bits_str = calloc(length, sizeof(*bits_str));
-    if (NULL == bits_str) {
-        EMEM;
-        return -1;
-    }
-    size_t offset = 0;
-    for (i = 0; i < bits_count; i++) {
-        if (NULL != bits[i] && NULL != bits[i]->name) {
-            strcpy(bits_str + offset, bits[i]->name);
-            offset += strlen(bits[i]->name);
-            bits_str[offset] = ' ';
-            offset++;
-        }
-    }
-    if (0 != offset) {
-        bits_str[offset - 1] = '\0';
-    }
-
-    *dest = bits_str;
-    return 0;
-}
-
 int
 op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val, char **val_buf)
 {
@@ -156,7 +118,7 @@ settype:
         case LY_TYPE_BINARY:
             val->type = SR_BINARY_T;
             str = leaf->value.binary;
-            val->data.binary_val = (dup && str) ? strdup(str) : (char*)str;
+            val->data.binary_val = (dup && str) ? strdup(str) : (char *)str;
             if (NULL == val->data.binary_val) {
                 EMEM;
                 return -1;
@@ -164,10 +126,8 @@ settype:
             break;
         case LY_TYPE_BITS:
             val->type = SR_BITS_T;
-            if (copy_bits(leaf, &(val->data.bits_val))) {
-                ERR("Copy value failed for leaf '%s' of type 'bits'", leaf->schema->name);
-                return -1;
-            }
+            str = leaf->value_str;
+            val->data.bits_val = (dup && str) ? strdup(str) : (char *)str;
             break;
         case LY_TYPE_BOOL:
             val->type = SR_BOOL_T;
