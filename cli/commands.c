@@ -2363,7 +2363,8 @@ cmd_disconnect(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 int
 cmd_status(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 {
-    const char *s, **cpblts;
+    const char *s;
+    const char * const *cpblts;
     int i;
 
     if (!session) {
