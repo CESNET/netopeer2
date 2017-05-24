@@ -208,8 +208,8 @@ dfs_nextsibling:
     if (notif) {
         path = malloc(1 + strlen(mod->name) + 6);
         sprintf(path, "/%s:*//.", mod->name);
-        rc = sr_event_notif_subscribe_tree(np2srv.sr_sess.srs, path, np2srv_ntf_clb, NULL,
-                                           SR_SUBSCR_NOTIF_REPLAY_FIRST | SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr);
+        rc = sr_event_notif_subscribe(np2srv.sr_sess.srs, path, np2srv_ntf_clb, NULL,
+                                      SR_SUBSCR_NOTIF_REPLAY_FIRST | SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr);
         free(path);
         if (rc != SR_ERR_OK) {
             ERR("Failed to subscribe to \"%s\" notifications (%s).", mod->name, sr_strerror(rc));
