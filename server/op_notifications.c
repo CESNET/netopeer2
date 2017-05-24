@@ -466,16 +466,13 @@ np2srv_ntf_send(struct lyd_node *ntf, const char *UNUSED(xpath), time_t timestam
 }
 
 void
-np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_node_t *trees, const size_t tree_cnt,
+np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_val_t *vals, const size_t val_cnt,
                time_t timestamp, void *UNUSED(private_ctx))
 {
-    const struct lys_node *snode;
-    struct lyd_node *ntf = NULL, *parent, *node;
-    const sr_node_t *srnode, *srnext;
-    const struct lys_module *mod = NULL;
+    struct lyd_node *ntf = NULL, *iter, *node;
     size_t i;
-    const char *ntf_type_str = NULL, *module_name = NULL;
-    char numstr[21];
+    const char *ntf_type_str = NULL;
+    char numstr[22];
 
     switch (notif_type) {
     case SR_EV_NOTIF_T_REALTIME:
@@ -507,83 +504,40 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
             goto error;
         }
 
-        for (i = 0; i < tree_cnt; i++) {
-            parent = ntf;
+        for (i = 0; i < val_cnt; i++) {
+            node = lyd_new_path(ntf, np2srv.ly_ctx, vals[i].xpath, op_get_srval(np2srv.ly_ctx, &vals[i], numstr), 0,
+                                LYD_PATH_OPT_UPDATE);
+            if (ly_errno) {
+                ERR("Creating notification (%s) data (%s) failed.", xpath, vals[i].xpath);
+                goto error;
+            }
 
-            for (srnode = srnext = &trees[i]; srnode; srnode = srnext) {
-                if(srnode->module_name) {
-                    module_name = srnode->module_name;
-                    mod = ly_ctx_get_module(np2srv.ly_ctx, module_name, NULL);
-                }
-                if (!mod) {
-                    ERR("Data from unknown module (%s%s) received in sysrepo notification \"%s\"", module_name,
-                        srnode->name, xpath);
-                    goto error;
-                } else if (!mod->implemented) {
-                    mod = lys_implemented_module(mod);
-                    if (!mod->implemented) {
-                        ERR("Non-implemented data (%s:%s) received in sysrepo notification \"%s\"", module_name,
-                            srnode->name, xpath);
-                        goto error;
+            if (node) {
+                /* propagate default flag */
+                if (vals[i].dflt) {
+                    /* go down */
+                    for (iter = node;
+                        !(iter->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYXML)) && iter->child;
+                        iter = iter->child);
+                    /* go up, back to the node */
+                    for (; ; iter = iter->parent) {
+                        if (iter->schema->nodetype == LYS_CONTAINER && ((struct lys_node_container *)iter->schema)->presence) {
+                            /* presence container */
+                            break;
+                        } else if (iter->schema->nodetype == LYS_LIST && ((struct lys_node_list *)iter->schema)->keys_size) {
+                            /* list with keys */
+                            break;
+                        }
+                        iter->dflt = 1;
+                        if (iter == node) {
+                            /* done */
+                            break;
+                        }
                     }
-                }
-
-                snode = NULL;
-                while ((snode = lys_getnext(snode, parent->schema, mod, 0))) {
-                    if (strcmp(srnode->name, snode->name) || strcmp(module_name, snode->module->name)) {
-                        continue;
+                } else { /* non default node, propagate it to the parents */
+                    for (iter = node->parent; iter && iter->dflt; iter = iter->parent) {
+                        iter->dflt = 0;
                     }
-                    /* match */
-                    break;
-                }
-                if (!snode) {
-                    ERR("Unknown data (%s:%s) received in sysrepo notification \"%s\"", module_name,
-                        srnode->name, xpath);
-                    goto error;
-                }
-                switch (snode->nodetype) {
-                case LYS_LEAFLIST:
-                case LYS_LEAF:
-                    node = lyd_new_leaf(parent, mod, srnode->name, op_get_srval(np2srv.ly_ctx, (sr_val_t *)srnode, numstr));
-                    break;
-                case LYS_CONTAINER:
-                case LYS_LIST:
-                    node = lyd_new(parent, mod, srnode->name);
-                    break;
-                case LYS_ANYXML:
-                case LYS_ANYDATA:
-                    node = lyd_new_anydata(parent, mod, srnode->name,
-                                        op_get_srval(np2srv.ly_ctx, (sr_val_t *)srnode, numstr), LYD_ANYDATA_SXML);
-                    break;
-                default:
-                    ERR("Invalid node type (%d) received in sysrepo notification \"%s\"", snode->nodetype, xpath);
-                    goto error;
-                }
-
-                if (!node) {
-                    ERR("Creating notification (%s) data (%d: %s:%s) failed.", xpath, snode->nodetype, module_name,
-                        srnode->name);
-                    goto error;
-                }
-
-                /* select element for the next run - children first */
-                srnext = srnode->first_child;
-                if (!srnext) {
-                    /* no children, try siblings */
-                    srnext = srnode->next;
-                } else {
-                    parent = node;
-                }
-                while (!srnext) {
-                    /* parent is already processed, go to its sibling */
-                    srnode = srnode->parent;
-
-                    if (srnode == trees->parent) {
-                        /* we are done, no next element to process */
-                        break;
-                    }
-                    srnext = srnode->next;
-                    parent = parent->parent;
                 }
             }
         }
