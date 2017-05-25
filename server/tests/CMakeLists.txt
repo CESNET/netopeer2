@@ -74,7 +74,7 @@ if(ENABLE_VALGRIND_TESTS)
     if(valgrind_FOUND)
         foreach(test_name IN LISTS tests)
             add_test(${test_name}_valgrind valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1
-                 ${CMAKE_BINARY_DIR}/tests/${test_name})
+                 ${CMAKE_BINARY_DIR}/server/tests/${test_name})
         endforeach(test_name)
     else(valgrind_FOUND)
         Message("-- valgrind executable not found! Disabling memory leaks tests")
