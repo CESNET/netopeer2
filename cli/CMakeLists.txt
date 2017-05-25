@@ -1,9 +1,7 @@
-cmake_minimum_required(VERSION 2.6)
+project(netopeer2-cli C)
 
 # include custom Modules
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../CMakeModules/")
-
-project(netopeer2-cli C)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules/")
 
 # check the supported platform
 if(NOT UNIX)
@@ -81,10 +79,3 @@ endif()
 
 # install doc (man)
 install(FILES ${PROJECT_SOURCE_DIR}/doc/${PROJECT_NAME}.1 DESTINATION ${MAN_INSTALL_DIR}/man1)
-
-# clean cmake cache
-add_custom_target(cleancache
-                  COMMAND make clean
-                  COMMAND find . -iname '*cmake*' -not -name CMakeLists.txt -exec rm -rf {} +
-                  COMMAND rm -rf Makefile Doxyfile
-                  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

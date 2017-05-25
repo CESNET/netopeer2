@@ -1,9 +1,8 @@
-cmake_minimum_required(VERSION 2.8.9)
+project(netopeer2-server C)
 
 # include custom Modules
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../CMakeModules/")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules/")
 
-project(netopeer2-server C)
 include(GNUInstallDirs)
 include(CheckFunctionExists)
 
@@ -243,13 +242,6 @@ if (ENABLE_CONFIGURATION)
 endif()
 
 configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_SOURCE_DIR}/config.h" ESCAPE_QUOTES @ONLY)
-
-# clean cmake cache
-add_custom_target(cleancache
-                  COMMAND make clean
-                  COMMAND find . -iname '*cmake*' -not -name CMakeLists.txt -exec rm -rf {} +
-                  COMMAND rm -rf Makefile Doxyfile
-                  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(ENABLE_VALGRIND_TESTS)
     set(ENABLE_BUILD_TESTS ON)
