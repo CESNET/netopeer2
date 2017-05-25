@@ -12,5 +12,5 @@
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
-#define TESTS_DIR "@CMAKE_SOURCE_DIR@/tests"
+#define TESTS_DIR "@CMAKE_SOURCE_DIR@/server/tests"
 
