@@ -836,6 +836,8 @@ op_sr_val_to_lyd_node(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_
                 iter->dflt = 1;
             }
             iter->dflt = 1;
+
+            ly_set_free(set);
         } else { /* non default node, propagate it to the parents */
             for (iter = (*new_node)->parent; iter && iter->dflt; iter = iter->parent) {
                 iter->dflt = 0;
