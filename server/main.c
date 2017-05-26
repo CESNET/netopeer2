@@ -163,8 +163,6 @@ static int
 np2srv_module_assign_clbs(const struct lys_module *mod)
 {
     struct lys_node *snode, *next;
-    int notif, rc;
-    char *path;
 
     if (!strcmp(mod->name, "ietf-netconf-monitoring") || !strcmp(mod->name, "ietf-netconf")) {
         /* skip it, use internal implementations from libnetconf2 */
@@ -172,13 +170,9 @@ np2srv_module_assign_clbs(const struct lys_module *mod)
     }
 
     /* set RPC and Notifications callbacks */
-    notif = 0;
     LY_TREE_DFS_BEGIN(mod->data, next, snode) {
         if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
             nc_set_rpc_callback(snode, op_generic);
-            goto dfs_nextsibling;
-        } else if (snode->nodetype == LYS_NOTIF) {
-            notif = 1;
             goto dfs_nextsibling;
         }
 
@@ -203,21 +197,6 @@ dfs_nextsibling:
             }
             next = snode->next;
         }
-    }
-
-    if (notif) {
-        path = malloc(1 + strlen(mod->name) + 6);
-        sprintf(path, "/%s:*//.", mod->name);
-        rc = sr_event_notif_subscribe(np2srv.sr_sess.srs, path, np2srv_ntf_clb, NULL,
-                                      SR_SUBSCR_NOTIF_REPLAY_FIRST | SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr);
-        free(path);
-        if (rc != SR_ERR_OK) {
-            ERR("Failed to subscribe to \"%s\" notifications (%s).", mod->name, sr_strerror(rc));
-            return -1;
-        }
-
-        VRB("Successfully subscribed to \"%s\" notifications.", mod->name);
-        ++sr_subsc_count;
     }
 
     return EXIT_SUCCESS;
@@ -391,12 +370,15 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
 {
     int rc;
     char *data = NULL, *cpb;
-    struct lyd_node *info, *ntf;
-    struct lys_node *snode, *next;
-    const char *setid;
     const struct lys_module *mod;
+    struct lyd_node *info;
     sr_schema_t *schemas = NULL;
     size_t count, i, j;
+
+    if (!strcmp(module_name, "ietf-yang-library")) {
+        /* this module is completely managed by sysrepo, ignore this */
+        return;
+    }
 
     if (state == SR_MS_IMPLEMENTED) {
         /* adding another module into the current libyang context */
@@ -464,37 +446,17 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
             ERR("Removing module \"%s%s%s\" failed.", module_name, revision ? "@" : "", revision ? revision : "");
         }
         free(cpb);
-
-        /* remove notif subscription */
-        LY_TREE_DFS_BEGIN(mod->data, next, snode) {
-            if (snode->nodetype == LYS_NOTIF) {
-                --sr_subsc_count;
-                break;
-            }
-
-            LY_TREE_DFS_END(mod->data, next, snode);
-        }
     }
 
     /* unlock libyang context */
     pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
 
     /* generate yang-library-change notification */
-    rc = 0;
     info = ly_ctx_info(np2srv.ly_ctx);
     if (info) {
-        setid = ((struct lyd_node_leaf_list *)info->child->prev)->value_str;
-        ntf = lyd_new_path(NULL, np2srv.ly_ctx, "/ietf-yang-library:yang-library-change", NULL, 0, 0);
-        lyd_new_leaf(ntf, info->schema->module, "module-set-id", setid);
-        if (lyd_validate(&ntf, LYD_OPT_NOTIF, info)) {
-            lyd_free_withsiblings(info);
-            lyd_free(ntf);
-            EINT;
-            return;
-        }
+        op_ntf_yang_lib_change(info);
+        VRB("Generated new internal event (yang-library-change).");
         lyd_free_withsiblings(info);
-        /* send notification */
-        np2srv_ntf_send(ntf, "/ietf-yang-library:yang-library-change", time(NULL), SR_EV_NOTIF_T_REALTIME);
     }
 }
 
@@ -648,7 +610,7 @@ np2srv_del_session_clb(struct nc_session *session)
     size_t c = 0;
 
     if (nc_session_get_notif_status(session)) {
-        op_ntf_unsubscribe(session, 0);
+        op_ntf_unsubscribe(session);
     }
     if (nc_ps_del_session(np2srv.nc_ps, session)) {
         ERR("Removing session from ps failed.");

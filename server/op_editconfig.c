@@ -650,21 +650,14 @@ cleanup:
         VRB("edit-config test-option \"set\" not supported, validation will be performed.");
         /* fallthrough */
     case NP2_EDIT_TESTOPT_TESTANDSET:
-        if (sessions->ds != SR_DS_CANDIDATE) {
-            /* commit in candidate causes copy to running */
-            if (sr_commit(sessions->srs) != SR_ERR_OK) {
-                ereply = op_build_err_sr(ereply, sessions->srs);
-                sr_discard_changes(sessions->srs); /* rollback the changes */
-            }
-        } else {
-            if (sr_validate(sessions->srs) != SR_ERR_OK) {
-                ereply = op_build_err_sr(ereply, sessions->srs);
-                /* content is not valid, rollback */
-                sr_discard_changes(sessions->srs);
-            } else {
-                /* mark candidate as modified */
-                sessions->flags |= NP2S_CAND_CHANGED;
-            }
+        /* commit changes */
+        if (sr_commit(sessions->srs) != SR_ERR_OK) {
+            ereply = op_build_err_sr(ereply, sessions->srs);
+            sr_discard_changes(sessions->srs); /* rollback the changes */
+        }
+        if (sessions->ds == SR_DS_CANDIDATE) {
+            /* mark candidate as modified */
+            sessions->flags |= NP2S_CAND_CHANGED;
         }
         break;
     case NP2_EDIT_TESTOPT_TEST:
