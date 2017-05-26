@@ -184,10 +184,9 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
                time_t timestamp, void *private_ctx)
 {
     struct np_subscriber *subscriber = (struct np_subscriber *)private_ctx;
-    struct lyd_node *ntf = NULL, *iter, *node;
+    struct lyd_node *ntf = NULL, *node;
     size_t i;
     const char *ntf_type_str = NULL;
-    char numstr[22];
 
     switch (notif_type) {
     case SR_EV_NOTIF_T_REALTIME:
@@ -215,40 +214,9 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
         }
 
         for (i = 0; i < val_cnt; i++) {
-            node = lyd_new_path(ntf, np2srv.ly_ctx, vals[i].xpath, op_get_srval(np2srv.ly_ctx, &vals[i], numstr), 0,
-                                LYD_PATH_OPT_UPDATE);
-            if (ly_errno) {
+            if (op_sr_val_to_lyd_node(ntf, &vals[i], &node)) {
                 ERR("Creating notification (%s) data (%s) failed.", xpath, vals[i].xpath);
                 goto error;
-            }
-
-            if (node) {
-                /* propagate default flag */
-                if (vals[i].dflt) {
-                    /* go down */
-                    for (iter = node;
-                        !(iter->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYXML)) && iter->child;
-                        iter = iter->child);
-                    /* go up, back to the node */
-                    for (; ; iter = iter->parent) {
-                        if (iter->schema->nodetype == LYS_CONTAINER && ((struct lys_node_container *)iter->schema)->presence) {
-                            /* presence container */
-                            break;
-                        } else if (iter->schema->nodetype == LYS_LIST && ((struct lys_node_list *)iter->schema)->keys_size) {
-                            /* list with keys */
-                            break;
-                        }
-                        iter->dflt = 1;
-                        if (iter == node) {
-                            /* done */
-                            break;
-                        }
-                    }
-                } else { /* non default node, propagate it to the parents */
-                    for (iter = node->parent; iter && iter->dflt; iter = iter->parent) {
-                        iter->dflt = 0;
-                    }
-                }
             }
         }
     }
