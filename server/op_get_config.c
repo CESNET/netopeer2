@@ -35,8 +35,8 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, c
 {
     sr_val_t *value;
     sr_val_iter_t *sriter;
-    struct lyd_node *node, *iter;
-    char *full_subtree_xpath = NULL, buf[128];
+    struct lyd_node *node;
+    char *full_subtree_xpath = NULL;
     int rc;
 
     if (asprintf(&full_subtree_xpath, "%s//.", subtree_xpath) == -1) {
@@ -56,12 +56,8 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, c
     }
     free(full_subtree_xpath);
 
-    ly_errno = LY_SUCCESS;
     while (sr_get_item_next(ds, sriter, &value) == SR_ERR_OK) {
-        ly_errno = LY_SUCCESS;
-        node = lyd_new_path(*root, np2srv.ly_ctx, value->xpath,
-                            op_get_srval(np2srv.ly_ctx, value, buf), 0, LYD_PATH_OPT_UPDATE);
-        if (ly_errno) {
+        if (op_sr_val_to_lyd_node(*root, value, &node)) {
             sr_free_val(value);
             sr_free_val_iter(sriter);
             return -1;
@@ -69,35 +65,6 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, c
 
         if (!(*root)) {
             *root = node;
-        }
-
-        if (node) {
-            /* propagate default flag */
-            if (value->dflt) {
-                /* go down */
-                for (iter = node;
-                     !(iter->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYXML)) && iter->child;
-                     iter = iter->child);
-                /* go up, back to the node */
-                for (; ; iter = iter->parent) {
-                    if (iter->schema->nodetype == LYS_CONTAINER && ((struct lys_node_container *)iter->schema)->presence) {
-                        /* presence container */
-                        break;
-                    } else if (iter->schema->nodetype == LYS_LIST && ((struct lys_node_list *)iter->schema)->keys_size) {
-                        /* list with keys */
-                        break;
-                    }
-                    iter->dflt = 1;
-                    if (iter == node) {
-                        /* done */
-                        break;
-                    }
-                }
-            } else { /* non default node, propagate it to the parents */
-                for (iter = node->parent; iter && iter->dflt; iter = iter->parent) {
-                    iter->dflt = 0;
-                }
-            }
         }
         sr_free_val(value);
     }
