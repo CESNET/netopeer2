@@ -805,9 +805,13 @@ op_sr_val_to_lyd_node(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_
     unsigned int u = 0;
     char *str;
 
+    str = op_get_srval(np2srv.ly_ctx, sr_val, numstr);
+    if (!str) {
+        str = "";
+    }
+
     ly_errno = LY_SUCCESS;
-    *new_node = lyd_new_path(root, np2srv.ly_ctx, sr_val->xpath, op_get_srval(np2srv.ly_ctx, sr_val, numstr), 0,
-                             LYD_PATH_OPT_UPDATE);
+    *new_node = lyd_new_path(root, np2srv.ly_ctx, sr_val->xpath, str, 0, LYD_PATH_OPT_UPDATE);
     if (ly_errno) {
         return -1;
     }
@@ -826,7 +830,6 @@ op_sr_val_to_lyd_node(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_
                 return -1;
             } else if (set->number > 1) {
                 /* leaf-list - find the corresponding node for the sr_val according to its value */
-                str = op_get_srval(np2srv.ly_ctx, sr_val, numstr);
                 for (u = 0; u < set->number; u++) {
                     if (!strcmp(str, ((struct lyd_node_leaf_list *)set->set.d[u])->value_str)) {
                         break;
