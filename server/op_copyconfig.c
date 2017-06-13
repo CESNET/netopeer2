@@ -121,6 +121,9 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
         /* remove all the data from the models mentioned in the <config> ... */
         nodeset = ly_set_new();
         LY_TREE_FOR(config, iter) {
+            if (iter->dflt) {
+                continue;
+            }
             ly_set_add(nodeset, iter->schema->module, 0);
         }
         for (i = 0; i < nodeset->number; i++) {
@@ -147,6 +150,12 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
             /* specific handling for different types of nodes */
             lastkey = 0;
+
+            /* skip default nodes */
+            if (iter->dflt) {
+                goto dfs_continue;
+            }
+
             switch(iter->schema->nodetype) {
             case LYS_CONTAINER:
                 if (!((struct lys_node_container *)iter->schema)->presence) {
