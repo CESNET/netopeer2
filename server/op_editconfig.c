@@ -60,8 +60,18 @@ edit_get_op(struct lyd_node *node, enum NP2_EDIT_OP parentop, enum NP2_EDIT_DEFO
     switch (parentop) {
     case NP2_EDIT_REPLACE:
         return NP2_EDIT_REPLACE_INNER;
-    case 0:
-        return (enum NP2_EDIT_OP)defop;
+    case NP2_EDIT_NONE:
+        switch (defop) {
+        case NP2_EDIT_DEFOP_NONE:
+            return NP2_EDIT_NONE;
+        case NP2_EDIT_DEFOP_MERGE:
+            return NP2_EDIT_MERGE;
+        case NP2_EDIT_DEFOP_REPLACE:
+            return NP2_EDIT_REPLACE;
+        default:
+            EINT;
+            return 0;
+        }
     default:
         return parentop;
     }
