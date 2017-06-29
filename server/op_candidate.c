@@ -28,13 +28,7 @@ op_commit(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    if (sessions->ds != SR_DS_CANDIDATE) {
-        /* update sysrepo session */
-        sr_session_switch_ds(sessions->srs, SR_DS_CANDIDATE);
-        sessions->ds = SR_DS_CANDIDATE;
-    }
-
-    rc = sr_commit(sessions->srs);
+    rc = sr_copy_config(sessions->srs, NULL, SR_DS_CANDIDATE, SR_DS_RUNNING);
     if (rc != SR_ERR_OK) {
         /* get the error */
         return op_build_err_sr(NULL, sessions->srs);
