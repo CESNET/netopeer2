@@ -98,7 +98,7 @@ print_version(void)
 static void
 print_usage(char* progname)
 {
-    fprintf(stdout, "Usage: %s [-dhV] [-v level]\n", progname);
+    fprintf(stdout, "Usage: %s [-dhV] [-v level] [-c category]\n", progname);
     fprintf(stdout, " -d                  debug mode (do not daemonize and print\n");
     fprintf(stdout, "                     verbose messages to stderr instead of syslog)\n");
     fprintf(stdout, " -h                  display help\n");
