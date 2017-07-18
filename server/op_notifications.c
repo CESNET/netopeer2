@@ -340,10 +340,9 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
     for (i = 0; i < subscribers.num; i++) {
         if (subscribers.list[i].session == ncs) {
             /* already subscribed */
-            pthread_mutex_unlock(&subscribers.lock);
             e = nc_err(NC_ERR_IN_USE, NC_ERR_TYPE_PROT);
             nc_err_set_msg(e, "Already subscribed.", "en");
-            goto error;
+            goto unlock_error;
         }
     }
 
@@ -353,11 +352,10 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
         new = realloc(subscribers.list, subscribers.size * sizeof *subscribers.list);
         if (!new) {
             /* realloc failed */
-            pthread_mutex_unlock(&subscribers.lock);
             EMEM;
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
             subscribers.size -= 4;
-            goto error;
+            goto unlock_error;
         }
         subscribers.list = new;
     }
@@ -399,7 +397,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
                 nc_err_set_msg(e, msg, "en");
                 free(msg);
-                goto error;
+                goto unlock_error;
             }
 
             new->subscr_count += ret;
@@ -409,7 +407,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
             /* weird */
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
             nc_err_set_msg(e, "No modules with notifications to subscribe to.", "en");
-            goto error;
+            goto unlock_error;
         }
     } else {
         /* stream name is supposed to match the name of a schema in the context having some
@@ -423,18 +421,18 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
             if (start) {
                 e = nc_err(NC_ERR_BAD_ELEM, NC_ERR_TYPE_PROT, "stream");
                 nc_err_set_msg(e, "Requested stream does not support replay.", "en");
-                goto error;
+                goto unlock_error;
             }
         } else if (!mod || !(ret = ntf_module_sr_subscribe(mod, new, &msg))) {
             /* requested stream does not match any schema with a notification */
             e = nc_err(NC_ERR_BAD_ELEM, NC_ERR_TYPE_PROT, "stream");
             nc_err_set_msg(e, "Requested stream name does not match any of the provided streams.", "en");
-            goto error;
+            goto unlock_error;
         } else if (ret == -1) {
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
             nc_err_set_msg(e, msg, "en");
             free(msg);
-            goto error;
+            goto unlock_error;
         }
 
         new->subscr_count += ret;
@@ -455,6 +453,8 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
     nc_session_set_notif_status(ncs, 1);
     return nc_server_reply_ok();
 
+unlock_error:
+    pthread_mutex_unlock(&subscribers.lock);
 error:
     np2srv_subscriber_free(new);
     for (i = 0; i < filter_count; ++i) {
