@@ -176,7 +176,6 @@ np2srv_ntf_send(struct np_subscriber *subscriber, struct lyd_node *ntf, time_t t
     }
 
     free(datetime);
-    lyd_free(ntf);
 }
 
 static void
@@ -223,7 +222,6 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
 
     /* send the notification */
     np2srv_ntf_send(subscriber, ntf, timestamp, notif_type);
-    return;
 
 error:
     lyd_free(ntf);
