@@ -47,8 +47,9 @@ cd ../..
 
 if [ ! -d "protobuf/README.md" ]; then
     echo "Building protobuf from source."
-    git clone https://github.com/google/protobuf.git
-    cd protobuf
+    wget https://github.com/google/protobuf/archive/v3.2.0.tar.gz
+    tar -xzf v3.2.0.tar.gz
+    cd protobuf-3.2.0
     ./autogen.sh && ./configure --prefix=/usr && make -j2 && sudo make install
     cd ..
 else
@@ -60,8 +61,9 @@ fi
 
 if [ ! -d "protobuf-c/README.md" ]; then
     echo "Building protobuf-c from source."
-    git clone https://github.com/protobuf-c/protobuf-c.git
-    cd protobuf-c
+    wget https://github.com/protobuf-c/protobuf-c/archive/v1.2.1.tar.gz
+    tar -xzf v1.2.1.tar.gz
+    cd protobuf-c-1.2.1
     ./autogen.sh && ./configure --prefix=/usr && make -j2 && sudo make install
     cd ..
 else
