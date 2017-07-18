@@ -266,6 +266,10 @@ np2srv_subscriber_free(struct np_subscriber *subscriber)
 {
     int i;
 
+    if (!subscriber) {
+        return;
+    }
+
     if (subscriber->sr_subscr) {
         sr_unsubscribe(np2srv.sr_sess.srs, subscriber->sr_subscr);
     }
