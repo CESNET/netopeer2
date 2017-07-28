@@ -103,7 +103,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         ds = SR_DS_RUNNING;
     } else { /* get-config */
         config_only = SR_SESS_CONFIG_ONLY;
-        nodeset = lyd_find_xpath(rpc, "/ietf-netconf:get-config/source/*");
+        nodeset = lyd_find_path(rpc, "/ietf-netconf:get-config/source/*");
         if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
             ds = SR_DS_RUNNING;
         } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
@@ -126,7 +126,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* create filters */
-    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:*/filter");
+    nodeset = lyd_find_path(rpc, "/ietf-netconf:*/filter");
     if (nodeset->number) {
         node = nodeset->set.d[0];
         ly_set_free(nodeset);
@@ -160,7 +160,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* get with-defaults mode */
-    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:*/ietf-netconf-with-defaults:with-defaults");
+    nodeset = lyd_find_path(rpc, "/ietf-netconf:*/ietf-netconf-with-defaults:with-defaults");
     if (nodeset->number) {
         leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
         if (!strcmp(leaf->value_str, "report-all")) {

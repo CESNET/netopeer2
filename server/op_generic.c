@@ -125,7 +125,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* process input into sysrepo format */
-    set = lyd_find_xpath(rpc, ".//*");
+    set = lyd_find_path(rpc, ".//*");
     in_count = set->number;
     if (in_count) {
         input = calloc(in_count, sizeof *input);
