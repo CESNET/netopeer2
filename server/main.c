@@ -850,9 +850,8 @@ static int
 server_init(void)
 {
     int rc;
+    const struct lys_node *snode;
     const struct lys_module *mod;
-    struct ly_set *rpc_set;
-    uint16_t i;
 
     /* connect to the sysrepo */
     rc = sr_connect("netopeer2", SR_CONN_DAEMON_REQUIRED | SR_CONN_DAEMON_START, &np2srv.sr_conn);
@@ -896,40 +895,49 @@ server_init(void)
     np2srv.nc_ps = nc_ps_new();
 
     /* set NETCONF operations callbacks */
-    mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf", NULL);
-    rpc_set = lys_find_path(mod, NULL, "/*");
-    for (i = 0; i < rpc_set->number; ++i) {
-        if (!strcmp(rpc_set->set.s[i]->name, "get-config")) {
-            nc_set_rpc_callback(rpc_set->set.s[i], op_get);
-        } else if (!strcmp(rpc_set->set.s[i]->name, "edit-config")) {
-            nc_set_rpc_callback(rpc_set->set.s[i], op_editconfig);
-        } else if (!strcmp(rpc_set->set.s[i]->name, "copy-config")) {
-            nc_set_rpc_callback(rpc_set->set.s[i], op_copyconfig);
-        } else if (!strcmp(rpc_set->set.s[i]->name, "delete-config")) {
-            nc_set_rpc_callback(rpc_set->set.s[i], op_deleteconfig);
-        } else if (!strcmp(rpc_set->set.s[i]->name, "lock")) {
-            nc_set_rpc_callback(rpc_set->set.s[i], op_lock);
-        } else if (!strcmp(rpc_set->set.s[i]->name, "unlock")) {
-            nc_set_rpc_callback(rpc_set->set.s[i], op_unlock);
-        } else if (!strcmp(rpc_set->set.s[i]->name, "get")) {
-            nc_set_rpc_callback(rpc_set->set.s[i], op_get);
-        } else if (!strcmp(rpc_set->set.s[i]->name, "commit")) {
-            nc_set_rpc_callback(rpc_set->set.s[i], op_commit);
-        } else if (!strcmp(rpc_set->set.s[i]->name, "discard-changes")) {
-            nc_set_rpc_callback(rpc_set->set.s[i], op_discardchanges);
-        } else if (!strcmp(rpc_set->set.s[i]->name, "validate")) {
-            nc_set_rpc_callback(rpc_set->set.s[i], op_editconfig);
-        }
-        /* leave close-session RPC empty, libnetconf2 will use its callback */
-        /* TODO kill-session, cance-commit */
-    }
-    ly_set_free(rpc_set);
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get-config", 0);
+    nc_set_rpc_callback(snode, op_get);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:edit-config", 0);
+    nc_set_rpc_callback(snode, op_editconfig);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:copy-config", 0);
+    nc_set_rpc_callback(snode, op_copyconfig);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:delete-config", 0);
+    nc_set_rpc_callback(snode, op_deleteconfig);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:lock", 0);
+    nc_set_rpc_callback(snode, op_lock);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:unlock", 0);
+    nc_set_rpc_callback(snode, op_unlock);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get", 0);
+    nc_set_rpc_callback(snode, op_get);
+
+    /* leave close-session RPC empty, libnetconf2 will use its callback */
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:commit", 0);
+    nc_set_rpc_callback(snode, op_commit);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:discard-changes", 0);
+    nc_set_rpc_callback(snode, op_discardchanges);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:validate", 0);
+    nc_set_rpc_callback(snode, op_validate);
+
+    /* TODO
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:kill-session", 0);
+    nc_set_rpc_callback(snode, op_kill);
+
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:cancel-commit", 0);
+    nc_set_rpc_callback(snode, op_cancel);
+     */
 
     /* set Notifications subscription callback */
-    mod = ly_ctx_get_module(np2srv.ly_ctx, "notifications", NULL);
-    rpc_set = lys_find_path(mod, NULL, "/create-subscription");
-    nc_set_rpc_callback(rpc_set->set.s[0], op_ntf_subscribe);
-    ly_set_free(rpc_set);
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/notifications:create-subscription", 0);
+    nc_set_rpc_callback(snode, op_ntf_subscribe);
 
     /* set server options */
     mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-server", NULL);
