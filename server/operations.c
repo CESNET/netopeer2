@@ -263,6 +263,21 @@ op_build_err_sr(struct nc_server_reply *ereply, sr_session_ctx_t *session)
     return ereply;
 }
 
+struct nc_server_reply *
+op_build_err_nacm(struct nc_server_reply *ereply)
+{
+    struct nc_server_error *e = NULL;
+
+    e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
+    if (ereply) {
+        nc_server_reply_add_err(ereply, e);
+    } else {
+        ereply = nc_server_reply_err(e);
+    }
+
+    return ereply;
+}
+
 int
 op_filter_get_tree_from_data(struct lyd_node **root, struct lyd_node *data, const char *subtree_path)
 {

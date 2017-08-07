@@ -24,9 +24,18 @@ op_commit(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
 {
     struct np2_sessions *sessions;
     int rc;
+    bool permitted;
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
+
+    /* check NACM */
+    rc = sr_check_exec_permission(sessions->srs, "/ietf-netconf:commit", &permitted);
+    if (rc != SR_ERR_OK) {
+        return op_build_err_sr(NULL, sessions->srs);
+    } else if (!permitted) {
+        return op_build_err_nacm(NULL);
+    }
 
     rc = sr_copy_config(sessions->srs, NULL, SR_DS_CANDIDATE, SR_DS_RUNNING);
     if (rc != SR_ERR_OK) {
@@ -45,9 +54,18 @@ op_discardchanges(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
 {
     struct np2_sessions *sessions;
     int rc;
+    bool permitted;
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
+
+    /* check NACM */
+    rc = sr_check_exec_permission(sessions->srs, "/ietf-netconf:discard-changes", &permitted);
+    if (rc != SR_ERR_OK) {
+        return op_build_err_sr(NULL, sessions->srs);
+    } else if (!permitted) {
+        return op_build_err_nacm(NULL);
+    }
 
     if (sessions->ds != SR_DS_CANDIDATE) {
         /* update sysrepo session */

@@ -296,6 +296,19 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
     struct np_subscriber *new = NULL;
     struct nc_server_error *e = NULL;
     const struct lys_module *mod;
+    struct np2_sessions *sessions;
+    bool permitted;
+
+    /* get sysrepo connections for this session */
+    sessions = (struct np2_sessions *)nc_session_get_data(ncs);
+
+    /* check NACM */
+    ret = sr_check_exec_permission(sessions->srs, "/notifications:create-subscription", &permitted);
+    if (ret != SR_ERR_OK) {
+        return op_build_err_sr(NULL, sessions->srs);
+    } else if (!permitted) {
+        return op_build_err_nacm(NULL);
+    }
 
     /* stream is always present - as explicit or default node */
     stream = ((struct lyd_node_leaf_list *)rpc->child)->value_str;

@@ -505,7 +505,7 @@ connect_ds(struct nc_session *ncs)
     }
     s->ncs = ncs;
     s->ds = SR_DS_RUNNING;
-    s->opts = SR_SESS_DEFAULT;
+    s->opts = SR_SESS_ENABLE_NACM;
     rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), s->ds, s->opts, &s->srs);
     if (rc != SR_ERR_OK) {
         ERR("Unable to create sysrepo session for NETCONF session %d (%s; datastore %d; options %d).",
@@ -650,7 +650,7 @@ np2srv_del_session_clb(struct nc_session *session)
         }
         event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/termination-reason";
         event_data[i].type = SR_ENUM_T;
-        switch (nc_session_get_termreason(session)) {
+        switch (nc_session_get_term_reason(session)) {
         case NC_SESSION_TERM_CLOSED:
             event_data[i++].data.enum_val = "closed";
             break;

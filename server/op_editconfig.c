@@ -186,6 +186,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     int op_index, op_size, path_index = 0, missing_keys = 0, lastkey = 0, np_cont;
     int ret, path_len, new_len;
     struct lyd_node_anydata *any;
+    bool permitted;
 
     /* init */
     path_len = 128;
@@ -198,6 +199,14 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
+
+    /* check NACM */
+    ret = sr_check_exec_permission(sessions->srs, "/ietf-netconf:edit-config", &permitted);
+    if (ret != SR_ERR_OK) {
+        return op_build_err_sr(NULL, sessions->srs);
+    } else if (!permitted) {
+        return op_build_err_nacm(NULL);
+    }
 
     /*
      * parse parameters

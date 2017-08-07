@@ -158,11 +158,11 @@ ncm_session_del(struct nc_session *session)
 
     pthread_mutex_lock(&stats.lock);
 
-    if (!nc_session_get_termreason(session)) {
+    if (!nc_session_get_term_reason(session)) {
         EINT;
     }
 
-    if (nc_session_get_termreason(session) != NC_SESSION_TERM_CLOSED) {
+    if (nc_session_get_term_reason(session) != NC_SESSION_TERM_CLOSED) {
         ++stats.dropped_sessions;
     }
 

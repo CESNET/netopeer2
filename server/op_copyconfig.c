@@ -42,9 +42,18 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     struct nc_server_error *e = NULL;
     int rc = SR_ERR_OK, path_index = 0, missing_keys = 0, lastkey = 0;
     unsigned int i;
+    bool permitted;
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
+
+    /* check NACM */
+    rc = sr_check_exec_permission(sessions->srs, "/ietf-netconf:copy-config", &permitted);
+    if (rc != SR_ERR_OK) {
+        return op_build_err_sr(NULL, sessions->srs);
+    } else if (!permitted) {
+        return op_build_err_nacm(NULL);
+    }
 
     /* get know which datastore is being affected */
     nodeset = lyd_find_path(rpc, "/ietf-netconf:copy-config/target/*");
