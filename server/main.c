@@ -634,7 +634,13 @@ np2srv_del_session_clb(struct nc_session *session)
     if ((mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL)) && mod->implemented) {
         /* generate ietf-netconf-notification's netconf-session-end event for sysrepo */
         host = (char *)nc_session_get_host(session);
-        c = host ? 4 : 3;
+        c = 3;
+        if (host) {
+            ++c;
+        }
+        if (nc_session_get_killed_by(session)) {
+            ++c;
+        }
         i = 0;
         event_data = calloc(c, sizeof *event_data);
         event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/username";
@@ -648,6 +654,11 @@ np2srv_del_session_clb(struct nc_session *session)
             event_data[i].type = SR_STRING_T;
             event_data[i++].data.string_val = host;
         }
+        if (nc_session_get_killed_by(session)) {
+            event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/killed-by";
+            event_data[i].type = SR_UINT32_T;
+            event_data[i++].data.uint32_val = nc_session_get_killed_by(session);
+        }
         event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/termination-reason";
         event_data[i].type = SR_ENUM_T;
         switch (nc_session_get_term_reason(session)) {
@@ -655,7 +666,6 @@ np2srv_del_session_clb(struct nc_session *session)
             event_data[i++].data.enum_val = "closed";
             break;
         case NC_SESSION_TERM_KILLED:
-            /* TODO killed-by */
             event_data[i++].data.enum_val = "killed";
             break;
         case NC_SESSION_TERM_DROPPED:
@@ -927,10 +937,10 @@ server_init(void)
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:validate", 0);
     nc_set_rpc_callback(snode, op_validate);
 
-    /* TODO
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:kill-session", 0);
     nc_set_rpc_callback(snode, op_kill);
 
+    /* TODO
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:cancel-commit", 0);
     nc_set_rpc_callback(snode, op_cancel);
      */

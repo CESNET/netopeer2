@@ -277,69 +277,18 @@ __wrap_sr_event_notif_replay(sr_session_ctx_t *session, sr_subscription_ctx_t *s
     return SR_ERR_OK;
 }
 
+int
+__wrap_sr_check_exec_permission(sr_session_ctx_t *session, const char *xpath, bool *permitted)
+{
+    (void)session;
+    (void)xpath;
+    *permitted = true;
+    return SR_ERR_OK;
+}
+
 /*
  * LIBNETCONF2 WRAPPER FUNCTIONS
  */
-struct nc_session {
-    NC_STATUS status;
-    NC_SESSION_TERM_REASON term_reason;
-    int side;
-
-    uint32_t id;
-    int version;
-
-    NC_TRANSPORT_IMPL ti_type;
-    pthread_mutex_t *ti_lock;
-    pthread_cond_t *ti_cond;
-    volatile int *ti_inuse;
-    union {
-        struct {
-            int in;
-            int out;
-        } fd;
-#ifdef NC_ENABLED_SSH
-        struct {
-            void *channel;
-            void *session;
-            struct nc_session *next;
-        } libssh;
-#endif
-#ifdef NC_ENABLED_TLS
-        void *tls;
-#endif
-    } ti;
-    const char *username;
-    const char *host;
-    uint16_t port;
-
-    struct ly_ctx *ctx;
-    void *data;
-    uint8_t flags;
-
-    union {
-        struct {
-            uint64_t msgid;
-            const char **cpblts;
-            struct nc_msg_cont *replies;
-            struct nc_msg_cont *notifs;
-            volatile pthread_t *ntf_tid;
-        } client;
-        struct {
-            time_t session_start;
-            time_t last_rpc;
-            int ntf_status;
-            pthread_mutex_t *ch_lock;
-            pthread_cond_t *ch_cond;
-#ifdef NC_ENABLED_SSH
-            uint16_t ssh_auth_attempts;
-#endif
-#ifdef NC_ENABLED_TLS
-            void *client_cert;
-#endif
-        } server;
-    } opts;
-};
-
 NC_MSG_TYPE
 __wrap_nc_accept(int timeout, struct nc_session **session)
 {

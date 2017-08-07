@@ -99,6 +99,7 @@ struct nc_server_reply *op_commit(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_discardchanges(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_validate(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_generic(struct lyd_node *rpc, struct nc_session *ncs);
+struct nc_server_reply *op_kill(struct lyd_node *rpc, struct nc_session *ncs);
 
 struct nc_server_reply *op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs);
 void op_ntf_unsubscribe(struct nc_session *session);

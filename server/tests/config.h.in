@@ -14,3 +14,67 @@
 
 #define TESTS_DIR "@CMAKE_SOURCE_DIR@/tests"
 
+#include <nc_server.h>
+
+/* taken from libnetconf2 session_p.h private header */
+struct nc_session {
+    NC_STATUS status;
+    NC_SESSION_TERM_REASON term_reason;
+    uint32_t killed_by;
+    int side;
+
+    uint32_t id;
+    int version;
+
+    NC_TRANSPORT_IMPL ti_type;
+    pthread_mutex_t *ti_lock;
+    pthread_cond_t *ti_cond;
+    volatile int *ti_inuse;
+    union {
+        struct {
+            int in;
+            int out;
+        } fd;
+#ifdef NC_ENABLED_SSH
+        struct {
+            void *channel;
+            void *session;
+            struct nc_session *next;
+        } libssh;
+#endif
+#ifdef NC_ENABLED_TLS
+        void *tls;
+#endif
+    } ti;
+    const char *username;
+    const char *host;
+    uint16_t port;
+
+    struct ly_ctx *ctx;
+    void *data;
+    uint8_t flags;
+
+    union {
+        struct {
+            uint64_t msgid;
+            const char **cpblts;
+            struct nc_msg_cont *replies;
+            struct nc_msg_cont *notifs;
+            volatile pthread_t *ntf_tid;
+        } client;
+        struct {
+            time_t session_start;
+            time_t last_rpc;
+            int ntf_status;
+            pthread_mutex_t *ch_lock;
+            pthread_cond_t *ch_cond;
+#ifdef NC_ENABLED_SSH
+            uint16_t ssh_auth_attempts;
+#endif
+#ifdef NC_ENABLED_TLS
+            void *client_cert;
+#endif
+        } server;
+    } opts;
+};
+

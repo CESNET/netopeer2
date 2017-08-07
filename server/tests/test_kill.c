@@ -1,7 +1,7 @@
 /**
- * @file test_generic.c
+ * @file test_kill.c
  * @author Michal Vasko <mvasko@cesnet.cz>
- * @brief Cmocka np2srv generic operation test.
+ * @brief Cmocka np2srv <kill-session> test.
  *
  * Copyright (c) 2017 CESNET, z.s.p.o.
  *
@@ -15,7 +15,6 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <stdbool.h>
-#include <errno.h>
 #include <cmocka.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,7 +35,7 @@
 #undef main
 
 volatile int initialized;
-int pipes[2][2], p_in, p_out;
+int pipes[4][2], p_in, p_out;
 
 /*
  * SYSREPO WRAPPER FUNCTIONS
@@ -68,12 +67,16 @@ __wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t 
 
     *schemas = calloc(2, sizeof **schemas);
     *schema_cnt = 2;
+
     (*schemas)[0].module_name = strdup("ietf-netconf-server");
     (*schemas)[0].installed = 1;
 
-    (*schemas)[1].module_name = strdup("custom-op");
+    (*schemas)[1].module_name = strdup("ietf-netconf");
+    (*schemas)[1].ns = strdup("urn:ietf:params:xml:ns:netconf:base:1.0");
+    (*schemas)[1].prefix = strdup("nc");
+    (*schemas)[1].revision.revision = strdup("2011-06-01");
+    (*schemas)[1].revision.file_path_yin = strdup(TESTS_DIR"/files/ietf-netconf.yin");
     (*schemas)[1].installed = 1;
-
     return SR_ERR_OK;
 }
 
@@ -81,54 +84,32 @@ int
 __wrap_sr_get_schema(sr_session_ctx_t *session, const char *module_name, const char *revision,
                      const char *submodule_name, sr_schema_format_t format, char **schema_content)
 {
+    int fd;
+    struct stat st;
     (void)session;
     (void)revision;
     (void)submodule_name;
-    (void)format;
+
+    if (format != SR_SCHEMA_YIN) {
+        fail();
+    }
 
     if (!strcmp(module_name, "ietf-netconf-server")) {
         *schema_content = strdup("<module name=\"ietf-netconf-server\" xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\"><namespace uri=\"ns\"/><prefix value=\"pr\"/></module>");
-    } else if (!strcmp(module_name, "custom-op")) {
-        *schema_content = strdup(
-            "<module name=\"custom-op\" xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\">"
-                "<namespace uri=\"custom-op\"/>"
-                "<prefix value=\"co\"/>"
-                "<yang-version value=\"1.1\"/>"
-                "<rpc name=\"rpc1\">"
-                    "<input>"
-                        "<leaf name=\"l1\">"
-                            "<type name=\"string\"/>"
-                        "</leaf>"
-                    "</input>"
-                    "<output>"
-                        "<leaf name=\"l2\">"
-                            "<type name=\"string\"/>"
-                        "</leaf>"
-                    "</output>"
-                "</rpc>"
-                "<list name=\"li1\">"
-                    "<key value=\"li1-key\"/>"
-                    "<leaf name=\"li1-key\">"
-                        "<type name=\"string\"/>"
-                    "</leaf>"
-                    "<container name=\"cont\">"
-                        "<action name=\"act\">"
-                            "<input>"
-                                "<leaf name=\"l3\">"
-                                    "<type name=\"string\"/>"
-                                "</leaf>"
-                            "</input>"
-                            "<output>"
-                                "<leaf name=\"l4\">"
-                                    "<type name=\"string\"/>"
-                                "</leaf>"
-                            "</output>"
-                        "</action>"
-                    "</container>"
-                "</list>"
-            "</module>"
-        );
+        return SR_ERR_OK;
+    } else if (!strcmp(module_name, "ietf-netconf")) {
+        fd = open(TESTS_DIR "/files/ietf-netconf.yin", O_RDONLY);
+    } else {
+        return SR_ERR_NOT_FOUND;
     }
+    assert_int_not_equal(fd, -1);
+
+    assert_int_equal(fstat(fd, &st), 0);
+
+    *schema_content = malloc((st.st_size + 1) * sizeof(char));
+    assert_int_equal(read(fd, *schema_content, st.st_size), st.st_size);
+    close(fd);
+    (*schema_content)[st.st_size] = '\0';
 
     return SR_ERR_OK;
 }
@@ -156,13 +137,6 @@ void
 __wrap_sr_disconnect(sr_conn_ctx_t *conn_ctx)
 {
     (void)conn_ctx;
-}
-
-int
-__wrap_sr_session_refresh(sr_session_ctx_t *session)
-{
-    (void)session;
-    return SR_ERR_OK;
 }
 
 int
@@ -205,44 +179,6 @@ __wrap_sr_module_change_subscribe(sr_session_ctx_t *session, const char *module_
 }
 
 int
-__wrap_sr_rpc_send(sr_session_ctx_t *session, const char *xpath, const sr_val_t *input, const size_t input_cnt,
-                   sr_val_t **output, size_t *output_cnt)
-{
-    (void)session;
-
-    assert_string_equal(xpath, "/custom-op:rpc1");
-    assert_int_equal(input_cnt, 1);
-    assert_int_equal(input[0].type, SR_STRING_T);
-
-    *output_cnt = 1;
-    *output = calloc(1, sizeof **output);
-    (*output)[0].xpath = strdup("/custom-op:rpc1/l2");
-    (*output)[0].type = SR_STRING_T;
-    (*output)[0].data.string_val = strdup("other_value");
-
-    return SR_ERR_OK;
-}
-
-int
-__wrap_sr_action_send(sr_session_ctx_t *session, const char *xpath, const sr_val_t *input, const size_t input_cnt,
-                      sr_val_t **output, size_t *output_cnt)
-{
-    (void)session;
-
-    assert_string_equal(xpath, "/custom-op:li1[li1-key='key']/cont/act");
-    assert_int_equal(input_cnt, 1);
-    assert_int_equal(input[0].type, SR_STRING_T);
-
-    *output_cnt = 1;
-    *output = calloc(1, sizeof **output);
-    (*output)[0].xpath = strdup("/custom-op:li1[li1-key='key']/cont/act/l4");
-    (*output)[0].type = SR_STRING_T;
-    (*output)[0].data.string_val = strdup("other_val");
-
-    return SR_ERR_OK;
-}
-
-int
 __wrap_sr_event_notif_send(sr_session_ctx_t *session, const char *xpath, const sr_val_t *values,
                            const size_t values_cnt, sr_ev_notif_flag_t opts)
 {
@@ -259,7 +195,7 @@ __wrap_sr_check_exec_permission(sr_session_ctx_t *session, const char *xpath, bo
 {
     (void)session;
     (void)xpath;
-    (void)permitted;
+    *permitted = true;
     return SR_ERR_OK;
 }
 
@@ -271,22 +207,24 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
 {
     NC_MSG_TYPE ret;
 
-    if (!initialized) {
-        pipe(pipes[0]);
-        pipe(pipes[1]);
+    if (initialized < 2) {
+        pipe(pipes[2 * initialized]);
+        pipe(pipes[2 * initialized + 1]);
 
-        fcntl(pipes[0][0], F_SETFL, O_NONBLOCK);
-        fcntl(pipes[0][1], F_SETFL, O_NONBLOCK);
-        fcntl(pipes[1][0], F_SETFL, O_NONBLOCK);
-        fcntl(pipes[1][1], F_SETFL, O_NONBLOCK);
+        fcntl(pipes[2 * initialized][0], F_SETFL, O_NONBLOCK);
+        fcntl(pipes[2 * initialized][1], F_SETFL, O_NONBLOCK);
+        fcntl(pipes[2 * initialized + 1][0], F_SETFL, O_NONBLOCK);
+        fcntl(pipes[2 * initialized + 1][1], F_SETFL, O_NONBLOCK);
 
-        p_in = pipes[0][0];
-        p_out = pipes[1][1];
+        if (!p_in) {
+            p_in = pipes[2 * initialized][0];
+            p_out = pipes[2 * initialized + 1][1];
+        }
 
         *session = calloc(1, sizeof **session);
         (*session)->status = NC_STATUS_RUNNING;
         (*session)->side = 1;
-        (*session)->id = 1;
+        (*session)->id = initialized + 1;
         (*session)->ti_lock = malloc(sizeof *(*session)->ti_lock);
         pthread_mutex_init((*session)->ti_lock, NULL);
         (*session)->ti_cond = malloc(sizeof *(*session)->ti_cond);
@@ -294,15 +232,15 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
         (*session)->ti_inuse = malloc(sizeof *(*session)->ti_inuse);
         *(*session)->ti_inuse = 0;
         (*session)->ti_type = NC_TI_FD;
-        (*session)->ti.fd.in = pipes[1][0];
-        (*session)->ti.fd.out = pipes[0][1];
+        (*session)->ti.fd.in = pipes[2 * initialized + 1][0];
+        (*session)->ti.fd.out = pipes[2 * initialized][1];
         (*session)->ctx = np2srv.ly_ctx;
         (*session)->flags = 1; //shared ctx
         (*session)->username = "user1";
         (*session)->host = "localhost";
         (*session)->opts.server.session_start = (*session)->opts.server.last_rpc = time(NULL);
-        printf("test: New session 1\n");
-        initialized = 1;
+        printf("test: New session %d\n", initialized + 1);
+        ++initialized;
         ret = NC_MSG_HELLO;
     } else {
         usleep(timeout * 1000);
@@ -407,9 +345,9 @@ test_read(int fd, const char *template, int line)
     buf[red] = '\0';
 
     /* unify all datetimes */
-    for (ptr = strchr(buf, '+'); ptr; ptr = strchr(ptr + 1, '+')) {
+    for (ptr = strstr(buf, "+02:00"); ptr; ptr = strstr(ptr + 1, "+02:00")) {
         if ((ptr[-3] == ':') && (ptr[-6] == ':') && (ptr[-9] == 'T') && (ptr[-12] == '-') && (ptr[-15] == '-')) {
-            strncpy(ptr - 19, "0000-00-00T00:00:00+00:00", 25);
+            strncpy(ptr - 19, "0000-00-00T00:00:00", 19);
         }
     }
 
@@ -441,11 +379,12 @@ np_start(void **state)
 {
     (void)state; /* unused */
 
+    optind = 1;
     control = LOOP_CONTINUE;
     initialized = 0;
     assert_int_equal(pthread_create(&server_tid, NULL, server_thread, NULL), 0);
 
-    while (!initialized) {
+    while (initialized < 2) {
         usleep(100000);
     }
 
@@ -460,61 +399,33 @@ np_stop(void **state)
 
     control = LOOP_STOP;
     assert_int_equal(pthread_join(server_tid, (void **)&ret), 0);
-
     close(pipes[0][0]);
     close(pipes[0][1]);
     close(pipes[1][0]);
     close(pipes[1][1]);
+    close(pipes[2][0]);
+    close(pipes[2][1]);
+    close(pipes[3][0]);
+    close(pipes[3][1]);
     return ret;
 }
 
 static void
-test_rpc(void **state)
+test_kill(void **state)
 {
     (void)state; /* unused */
-    const char *op_rpc = "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
-                            "<rpc1 xmlns=\"custom-op\"><l1>valuee</l1></rpc1>"
-                         "</rpc>";
-    const char *op_rpl =
-    "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
-        "<l2 xmlns=\"custom-op\">other_value</l2>"
-    "</rpc-reply>";
+    const char *close_session_rpc = "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\"><kill-session><session-id>2</session-id></kill-session></rpc>";
+    const char *close_session_rpl = "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\"><ok/></rpc-reply>";
 
-    test_write(p_out, op_rpc, __LINE__);
-    test_read(p_in, op_rpl, __LINE__);
-}
-
-static void
-test_action(void **state)
-{
-    (void)state; /* unused */
-    const char *op_rpc = "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
-                            "<action xmlns=\"urn:ietf:params:xml:ns:yang:1\">"
-                                "<li1 xmlns=\"custom-op\">"
-                                    "<li1-key>key</li1-key>"
-                                    "<cont>"
-                                        "<act>"
-                                            "<l3>vl</l3>"
-                                        "</act>"
-                                    "</cont>"
-                                "</li1>"
-                            "</action>"
-                         "</rpc>";
-    const char *op_rpl =
-    "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
-        "<l4 xmlns=\"custom-op\">other_val</l4>"
-    "</rpc-reply>";
-
-    test_write(p_out, op_rpc, __LINE__);
-    test_read(p_in, op_rpl, __LINE__);
+    test_write(p_out, close_session_rpc, __LINE__);
+    test_read(p_in, close_session_rpl, __LINE__);
 }
 
 int
 main(void)
 {
     const struct CMUnitTest tests[] = {
-                    cmocka_unit_test_setup(test_rpc, np_start),
-                    cmocka_unit_test_teardown(test_action, np_stop),
+                    cmocka_unit_test_setup_teardown(test_kill, np_start, np_stop),
     };
 
     if (setenv("CMOCKA_TEST_ABORT", "1", 1)) {

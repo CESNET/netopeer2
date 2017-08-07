@@ -105,6 +105,7 @@ set(srcs
     op_un_lock.c
     op_generic.c
     op_notifications.c
+    op_kill.c
     log.c)
 
 # object library to build source codes only once for the main binary
