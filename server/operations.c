@@ -862,7 +862,7 @@ op_sr_val_to_lyd_node(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_
                 (*new_node)->dflt = 1;
             } else {
                 /* go up, back to the top-most created node */
-                for (iter = set->set.d[u]; iter != *new_node; iter = iter->parent) {
+                for (iter = set->set.d[u]; iter != (*new_node)->parent; iter = iter->parent) {
                     if (iter->schema->nodetype == LYS_CONTAINER && ((struct lys_node_container *)iter->schema)->presence) {
                         /* presence container */
                         break;
