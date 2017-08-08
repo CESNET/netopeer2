@@ -134,7 +134,12 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
             EMEM;
             goto error;
         }
-        for (i = 0; i < in_count; ++i) {
+        for (i = 0; i < set->number; ++i) {
+            if (set->set.d[i]->dflt) {
+                --in_count;
+                continue;
+            }
+
             if (op_set_srval(set->set.d[i], lyd_path(set->set.d[i]), 0, &input[i], &str)) {
                 goto error;
             }
