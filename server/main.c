@@ -758,7 +758,7 @@ np2srv_init_schemas(int first)
             VRB("Module %s%s%s already present in context.", schemas[i].module_name,
                 schemas[i].revision.revision ? "@" : "",
                 schemas[i].revision.revision ? schemas[i].revision.revision : "");
-            if (!mod->implemented && lys_set_implemented(mod)) {
+            if (schemas[i].implemented && !mod->implemented && lys_set_implemented(mod)) {
                 WRN("Implementing %s%s%s schema failed, data from this module won't be available.",
                     schemas[i].module_name, schemas[i].revision.revision ? "@" : "",
                     schemas[i].revision.revision ? schemas[i].revision.revision : "");
