@@ -1232,7 +1232,11 @@ main(int argc, char *argv[])
     }
     ftruncate(pidfd, 0);
     c = snprintf(pid, sizeof(pid), "%d\n", getpid());
-    write(pidfd, pid, c);
+    if (write(pidfd, pid, c) < c) {
+        ERR("Failed to write indo PID file.");
+        close(pidfd);
+        return EXIT_FAILURE;
+    }
     close(pidfd);
 
     /* set the signal handler */
