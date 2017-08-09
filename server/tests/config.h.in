@@ -14,7 +14,14 @@
 
 #define TESTS_DIR "@CMAKE_SOURCE_DIR@/tests"
 
+#include <sysrepo.h>
 #include <nc_server.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <string.h>
+#include <stdlib.h>
 
 /* taken from libnetconf2 session_p.h private header */
 struct nc_session {
@@ -78,3 +85,56 @@ struct nc_session {
     } opts;
 };
 
+/* one wrapper for all the tests */
+int
+__wrap_sr_get_schema(sr_session_ctx_t *session, const char *module_name, const char *revision,
+                     const char *submodule_name, sr_schema_format_t format, char **schema_content)
+{
+    int fd;
+    struct stat st;
+    (void)session;
+    (void)revision;
+    (void)submodule_name;
+
+    if (format != SR_SCHEMA_YIN) {
+        fail();
+    }
+
+    if (!strcmp(module_name, "ietf-netconf-server")) {
+        *schema_content = strdup("<module name=\"ietf-netconf-server\" xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\"><namespace uri=\"ns\"/><prefix value=\"pr\"/></module>");
+        return SR_ERR_OK;
+    }
+    if (!strcmp(module_name, "iana-if-type")) {
+        fd = open(TESTS_DIR "/files/iana-if-type.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "ietf-interfaces")) {
+        fd = open(TESTS_DIR "/files/ietf-interfaces.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "ietf-ip")) {
+        fd = open(TESTS_DIR "/files/ietf-ip.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "custom-op")) {
+        fd = open(TESTS_DIR "/files/custom-op.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "ietf-netconf")) {
+        fd = open(TESTS_DIR "/files/ietf-netconf.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "ietf-netconf-acm")) {
+        fd = open(TESTS_DIR "/files/ietf-netconf-acm.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "ietf-netconf-notifications")) {
+        fd = open(TESTS_DIR "/files/ietf-netconf-notifications.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "notifications")) {
+        fd = open(TESTS_DIR "/files/notifications.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "nc-notifications")) {
+        fd = open(TESTS_DIR "/files/nc-notifications.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "test-notif")) {
+        fd = open(TESTS_DIR "/files/test-notif.yin", O_RDONLY);
+    } else {
+        return SR_ERR_NOT_FOUND;
+    }
+    assert_int_not_equal(fd, -1);
+
+    assert_int_equal(fstat(fd, &st), 0);
+
+    *schema_content = malloc((st.st_size + 1) * sizeof(char));
+    assert_int_equal(read(fd, *schema_content, st.st_size), st.st_size);
+    close(fd);
+    (*schema_content)[st.st_size] = '\0';
+
+    return SR_ERR_OK;
+}

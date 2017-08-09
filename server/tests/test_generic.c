@@ -78,62 +78,6 @@ __wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t 
 }
 
 int
-__wrap_sr_get_schema(sr_session_ctx_t *session, const char *module_name, const char *revision,
-                     const char *submodule_name, sr_schema_format_t format, char **schema_content)
-{
-    (void)session;
-    (void)revision;
-    (void)submodule_name;
-    (void)format;
-
-    if (!strcmp(module_name, "ietf-netconf-server")) {
-        *schema_content = strdup("<module name=\"ietf-netconf-server\" xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\"><namespace uri=\"ns\"/><prefix value=\"pr\"/></module>");
-    } else if (!strcmp(module_name, "custom-op")) {
-        *schema_content = strdup(
-            "<module name=\"custom-op\" xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\">"
-                "<namespace uri=\"custom-op\"/>"
-                "<prefix value=\"co\"/>"
-                "<yang-version value=\"1.1\"/>"
-                "<rpc name=\"rpc1\">"
-                    "<input>"
-                        "<leaf name=\"l1\">"
-                            "<type name=\"string\"/>"
-                        "</leaf>"
-                    "</input>"
-                    "<output>"
-                        "<leaf name=\"l2\">"
-                            "<type name=\"string\"/>"
-                        "</leaf>"
-                    "</output>"
-                "</rpc>"
-                "<list name=\"li1\">"
-                    "<key value=\"li1-key\"/>"
-                    "<leaf name=\"li1-key\">"
-                        "<type name=\"string\"/>"
-                    "</leaf>"
-                    "<container name=\"cont\">"
-                        "<action name=\"act\">"
-                            "<input>"
-                                "<leaf name=\"l3\">"
-                                    "<type name=\"string\"/>"
-                                "</leaf>"
-                            "</input>"
-                            "<output>"
-                                "<leaf name=\"l4\">"
-                                    "<type name=\"string\"/>"
-                                "</leaf>"
-                            "</output>"
-                        "</action>"
-                    "</container>"
-                "</list>"
-            "</module>"
-        );
-    }
-
-    return SR_ERR_OK;
-}
-
-int
 __wrap_sr_session_start_user(sr_conn_ctx_t *conn_ctx, const char *user_name, const sr_datastore_t datastore,
                              const sr_sess_options_t opts, sr_session_ctx_t **session)
 {
