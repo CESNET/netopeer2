@@ -188,15 +188,6 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     struct lyd_node_anydata *any;
     bool permitted;
 
-    /* init */
-    path_len = 128;
-    path = malloc(path_len);
-    if (!path) {
-        EMEM;
-        goto internalerror;
-    }
-    path[path_index] = '\0';
-
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
@@ -207,6 +198,15 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     } else if (!permitted) {
         return op_build_err_nacm(NULL);
     }
+
+    /* init */
+    path_len = 128;
+    path = malloc(path_len);
+    if (!path) {
+        EMEM;
+        goto internalerror;
+    }
+    path[path_index] = '\0';
 
     /*
      * parse parameters
