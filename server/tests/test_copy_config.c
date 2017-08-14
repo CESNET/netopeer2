@@ -110,45 +110,6 @@ __wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t 
 }
 
 int
-__wrap_sr_get_schema(sr_session_ctx_t *session, const char *module_name, const char *revision,
-                     const char *submodule_name, sr_schema_format_t format, char **schema_content)
-{
-    int fd;
-    struct stat st;
-    (void)session;
-    (void)revision;
-    (void)submodule_name;
-
-    if (format != SR_SCHEMA_YIN) {
-        fail();
-    }
-
-    if (!strcmp(module_name, "ietf-netconf-server")) {
-        *schema_content = strdup("<module name=\"ietf-netconf-server\" xmlns=\"urn:ietf:params:xml:ns:yang:yin:1\"><namespace uri=\"ns\"/><prefix value=\"pr\"/></module>");
-        return SR_ERR_OK;
-    }
-    if (!strcmp(module_name, "iana-if-type")) {
-        fd = open(TESTS_DIR "/files/iana-if-type.yin", O_RDONLY);
-    } else if (!strcmp(module_name, "ietf-interfaces")) {
-        fd = open(TESTS_DIR "/files/ietf-interfaces.yin", O_RDONLY);
-    } else if (!strcmp(module_name, "ietf-ip")) {
-        fd = open(TESTS_DIR "/files/ietf-ip.yin", O_RDONLY);
-    } else {
-        return SR_ERR_NOT_FOUND;
-    }
-    assert_int_not_equal(fd, -1);
-
-    assert_int_equal(fstat(fd, &st), 0);
-
-    *schema_content = malloc((st.st_size + 1) * sizeof(char));
-    assert_int_equal(read(fd, *schema_content, st.st_size), st.st_size);
-    close(fd);
-    (*schema_content)[st.st_size] = '\0';
-
-    return SR_ERR_OK;
-}
-
-int
 __wrap_sr_session_start_user(sr_conn_ctx_t *conn_ctx, const char *user_name, const sr_datastore_t datastore,
                              const sr_sess_options_t opts, sr_session_ctx_t **session)
 {
@@ -337,68 +298,18 @@ __wrap_sr_event_notif_send(sr_session_ctx_t *session, const char *xpath, const s
     return SR_ERR_OK;
 }
 
+int
+__wrap_sr_check_exec_permission(sr_session_ctx_t *session, const char *xpath, bool *permitted)
+{
+    (void)session;
+    (void)xpath;
+    *permitted = true;
+    return SR_ERR_OK;
+}
+
 /*
  * LIBNETCONF2 WRAPPER FUNCTIONS
  */
-struct nc_session {
-    NC_STATUS status;
-    NC_SESSION_TERM_REASON term_reason;
-    int side;
-
-    uint32_t id;
-    int version;
-
-    NC_TRANSPORT_IMPL ti_type;
-    pthread_mutex_t *ti_lock;
-    pthread_cond_t *ti_cond;
-    volatile int *ti_inuse;
-    union {
-        struct {
-            int in;
-            int out;
-        } fd;
-#ifdef NC_ENABLED_SSH
-        struct {
-            void *channel;
-            void *session;
-            struct nc_session *next;
-        } libssh;
-#endif
-#ifdef NC_ENABLED_TLS
-        void *tls;
-#endif
-    } ti;
-    const char *username;
-    const char *host;
-    uint16_t port;
-
-    struct ly_ctx *ctx;
-    void *data;
-    uint8_t flags;
-
-    union {
-        struct {
-            uint64_t msgid;
-            const char **cpblts;
-            struct nc_msg_cont *replies;
-            struct nc_msg_cont *notifs;
-            volatile pthread_t *ntf_tid;
-        } client;
-        struct {
-            time_t session_start;
-            time_t last_rpc;
-            pthread_mutex_t *ch_lock;
-            pthread_cond_t *ch_cond;
-#ifdef NC_ENABLED_SSH
-            uint16_t ssh_auth_attempts;
-#endif
-#ifdef NC_ENABLED_TLS
-            void *client_cert;
-#endif
-        } server;
-    } opts;
-};
-
 NC_MSG_TYPE
 __wrap_nc_accept(int timeout, struct nc_session **session)
 {

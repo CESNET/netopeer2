@@ -81,7 +81,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     struct lyd_node_leaf_list *leaf;
     struct lyd_node *root = NULL, *node, *yang_lib_data = NULL, *ncm_data = NULL, *ntf_data = NULL;
     char **filters = NULL, *path;
-    int filter_count = 0;
+    int filter_count = 0, rc;
     unsigned int config_only;
     uint32_t i;
     struct np2_sessions *sessions;
@@ -90,9 +90,22 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     struct nc_server_error *e;
     struct nc_server_reply *ereply = NULL;
     NC_WD_MODE nc_wd;
+    bool permitted;
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
+
+    /* check NACM */
+    if (!strcmp(rpc->schema->name, "get")) {
+        rc = sr_check_exec_permission(sessions->srs, "/ietf-netconf:get", &permitted);
+    } else {
+        rc = sr_check_exec_permission(sessions->srs, "/ietf-netconf:get-config", &permitted);
+    }
+    if (rc != SR_ERR_OK) {
+        return op_build_err_sr(NULL, sessions->srs);
+    } else if (!permitted) {
+        return op_build_err_nacm(NULL);
+    }
 
     /* get default value for with-defaults */
     nc_server_get_capab_withdefaults(&nc_wd, NULL);
@@ -103,7 +116,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         ds = SR_DS_RUNNING;
     } else { /* get-config */
         config_only = SR_SESS_CONFIG_ONLY;
-        nodeset = lyd_find_xpath(rpc, "/ietf-netconf:get-config/source/*");
+        nodeset = lyd_find_path(rpc, "/ietf-netconf:get-config/source/*");
         if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
             ds = SR_DS_RUNNING;
         } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
@@ -126,7 +139,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* create filters */
-    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:*/filter");
+    nodeset = lyd_find_path(rpc, "/ietf-netconf:*/filter");
     if (nodeset->number) {
         node = nodeset->set.d[0];
         ly_set_free(nodeset);
@@ -160,7 +173,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* get with-defaults mode */
-    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:*/ietf-netconf-with-defaults:with-defaults");
+    nodeset = lyd_find_path(rpc, "/ietf-netconf:*/ietf-netconf-with-defaults:with-defaults");
     if (nodeset->number) {
         leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
         if (!strcmp(leaf->value_str, "report-all")) {

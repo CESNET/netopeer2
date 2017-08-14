@@ -98,7 +98,7 @@ print_version(void)
 static void
 print_usage(char* progname)
 {
-    fprintf(stdout, "Usage: %s [-dhV] [-v level]\n", progname);
+    fprintf(stdout, "Usage: %s [-dhV] [-v level] [-c category]\n", progname);
     fprintf(stdout, " -d                  debug mode (do not daemonize and print\n");
     fprintf(stdout, "                     verbose messages to stderr instead of syslog)\n");
     fprintf(stdout, " -h                  display help\n");
@@ -505,7 +505,7 @@ connect_ds(struct nc_session *ncs)
     }
     s->ncs = ncs;
     s->ds = SR_DS_RUNNING;
-    s->opts = SR_SESS_DEFAULT;
+    s->opts = SR_SESS_ENABLE_NACM;
     rc = sr_session_start_user(np2srv.sr_conn, nc_session_get_username(ncs), s->ds, s->opts, &s->srs);
     if (rc != SR_ERR_OK) {
         ERR("Unable to create sysrepo session for NETCONF session %d (%s; datastore %d; options %d).",
@@ -634,7 +634,13 @@ np2srv_del_session_clb(struct nc_session *session)
     if ((mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL)) && mod->implemented) {
         /* generate ietf-netconf-notification's netconf-session-end event for sysrepo */
         host = (char *)nc_session_get_host(session);
-        c = host ? 4 : 3;
+        c = 3;
+        if (host) {
+            ++c;
+        }
+        if (nc_session_get_killed_by(session)) {
+            ++c;
+        }
         i = 0;
         event_data = calloc(c, sizeof *event_data);
         event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/username";
@@ -648,14 +654,18 @@ np2srv_del_session_clb(struct nc_session *session)
             event_data[i].type = SR_STRING_T;
             event_data[i++].data.string_val = host;
         }
+        if (nc_session_get_killed_by(session)) {
+            event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/killed-by";
+            event_data[i].type = SR_UINT32_T;
+            event_data[i++].data.uint32_val = nc_session_get_killed_by(session);
+        }
         event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/termination-reason";
         event_data[i].type = SR_ENUM_T;
-        switch (nc_session_get_termreason(session)) {
+        switch (nc_session_get_term_reason(session)) {
         case NC_SESSION_TERM_CLOSED:
             event_data[i++].data.enum_val = "closed";
             break;
         case NC_SESSION_TERM_KILLED:
-            /* TODO killed-by */
             event_data[i++].data.enum_val = "killed";
             break;
         case NC_SESSION_TERM_DROPPED:
@@ -748,7 +758,7 @@ np2srv_init_schemas(int first)
             VRB("Module %s%s%s already present in context.", schemas[i].module_name,
                 schemas[i].revision.revision ? "@" : "",
                 schemas[i].revision.revision ? schemas[i].revision.revision : "");
-            if (!mod->implemented && lys_set_implemented(mod)) {
+            if (schemas[i].implemented && !mod->implemented && lys_set_implemented(mod)) {
                 WRN("Implementing %s%s%s schema failed, data from this module won't be available.",
                     schemas[i].module_name, schemas[i].revision.revision ? "@" : "",
                     schemas[i].revision.revision ? schemas[i].revision.revision : "");
@@ -895,48 +905,48 @@ server_init(void)
     np2srv.nc_ps = nc_ps_new();
 
     /* set NETCONF operations callbacks */
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get-config");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get-config", 0);
     nc_set_rpc_callback(snode, op_get);
 
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:edit-config");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:edit-config", 0);
     nc_set_rpc_callback(snode, op_editconfig);
 
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:copy-config");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:copy-config", 0);
     nc_set_rpc_callback(snode, op_copyconfig);
 
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:delete-config");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:delete-config", 0);
     nc_set_rpc_callback(snode, op_deleteconfig);
 
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:lock");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:lock", 0);
     nc_set_rpc_callback(snode, op_lock);
 
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:unlock");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:unlock", 0);
     nc_set_rpc_callback(snode, op_unlock);
 
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get", 0);
     nc_set_rpc_callback(snode, op_get);
 
     /* leave close-session RPC empty, libnetconf2 will use its callback */
 
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:commit");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:commit", 0);
     nc_set_rpc_callback(snode, op_commit);
 
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:discard-changes");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:discard-changes", 0);
     nc_set_rpc_callback(snode, op_discardchanges);
 
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:validate");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:validate", 0);
     nc_set_rpc_callback(snode, op_validate);
 
-    /* TODO
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:kill-session");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:kill-session", 0);
     nc_set_rpc_callback(snode, op_kill);
 
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:cancel-commit");
+    /* TODO
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:cancel-commit", 0);
     nc_set_rpc_callback(snode, op_cancel);
      */
 
     /* set Notifications subscription callback */
-    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/notifications:create-subscription");
+    snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/notifications:create-subscription", 0);
     nc_set_rpc_callback(snode, op_ntf_subscribe);
 
     /* set server options */
@@ -1222,7 +1232,11 @@ main(int argc, char *argv[])
     }
     ftruncate(pidfd, 0);
     c = snprintf(pid, sizeof(pid), "%d\n", getpid());
-    write(pidfd, pid, c);
+    if (write(pidfd, pid, c) < c) {
+        ERR("Failed to write indo PID file.");
+        close(pidfd);
+        return EXIT_FAILURE;
+    }
     close(pidfd);
 
     /* set the signal handler */

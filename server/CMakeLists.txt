@@ -13,7 +13,7 @@ if(NOT UNIX)
 endif()
 
 # set version
-set(NP2SRV_VERSION 0.3.76)
+set(NP2SRV_VERSION 0.3.84)
 
 # set default build type if not specified by user
 if(NOT CMAKE_BUILD_TYPE)
@@ -105,6 +105,7 @@ set(srcs
     op_un_lock.c
     op_generic.c
     op_notifications.c
+    op_kill.c
     log.c)
 
 # object library to build source codes only once for the main binary

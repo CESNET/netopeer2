@@ -42,12 +42,21 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     struct nc_server_error *e = NULL;
     int rc = SR_ERR_OK, path_index = 0, missing_keys = 0, lastkey = 0;
     unsigned int i;
+    bool permitted;
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
+    /* check NACM */
+    rc = sr_check_exec_permission(sessions->srs, "/ietf-netconf:copy-config", &permitted);
+    if (rc != SR_ERR_OK) {
+        return op_build_err_sr(NULL, sessions->srs);
+    } else if (!permitted) {
+        return op_build_err_nacm(NULL);
+    }
+
     /* get know which datastore is being affected */
-    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:copy-config/target/*");
+    nodeset = lyd_find_path(rpc, "/ietf-netconf:copy-config/target/*");
     dsname = nodeset->set.d[0]->schema->name;
     ly_set_free(nodeset);
 
@@ -73,7 +82,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* get source */
-    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:copy-config/source/*");
+    nodeset = lyd_find_path(rpc, "/ietf-netconf:copy-config/source/*");
     dsname = nodeset->set.d[0]->schema->name;
 
     if (!strcmp(dsname, "running")) {
@@ -121,6 +130,9 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
         /* remove all the data from the models mentioned in the <config> ... */
         nodeset = ly_set_new();
         LY_TREE_FOR(config, iter) {
+            if (iter->dflt) {
+                continue;
+            }
             ly_set_add(nodeset, iter->schema->module, 0);
         }
         for (i = 0; i < nodeset->number; i++) {
@@ -147,6 +159,12 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
             /* specific handling for different types of nodes */
             lastkey = 0;
+
+            /* skip default nodes */
+            if (iter->dflt) {
+                goto dfs_continue;
+            }
+
             switch(iter->schema->nodetype) {
             case LYS_CONTAINER:
                 if (!((struct lys_node_container *)iter->schema)->presence) {

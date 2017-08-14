@@ -186,6 +186,18 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     int op_index, op_size, path_index = 0, missing_keys = 0, lastkey = 0, np_cont;
     int ret, path_len, new_len;
     struct lyd_node_anydata *any;
+    bool permitted;
+
+    /* get sysrepo connections for this session */
+    sessions = (struct np2_sessions *)nc_session_get_data(ncs);
+
+    /* check NACM */
+    ret = sr_check_exec_permission(sessions->srs, "/ietf-netconf:edit-config", &permitted);
+    if (ret != SR_ERR_OK) {
+        return op_build_err_sr(NULL, sessions->srs);
+    } else if (!permitted) {
+        return op_build_err_nacm(NULL);
+    }
 
     /* init */
     path_len = 128;
@@ -196,15 +208,12 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     }
     path[path_index] = '\0';
 
-    /* get sysrepo connections for this session */
-    sessions = (struct np2_sessions *)nc_session_get_data(ncs);
-
     /*
      * parse parameters
      */
 
     /* target */
-    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:edit-config/target/*");
+    nodeset = lyd_find_path(rpc, "/ietf-netconf:edit-config/target/*");
     cstr = nodeset->set.d[0]->schema->name;
     ly_set_free(nodeset);
 
@@ -221,7 +230,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* default-operation */
-    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:edit-config/default-operation");
+    nodeset = lyd_find_path(rpc, "/ietf-netconf:edit-config/default-operation");
     if (nodeset->number) {
         cstr = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
         if (!strcmp(cstr, "replace")) {
@@ -235,7 +244,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     ly_set_free(nodeset);
 
     /* test-option */
-    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:edit-config/test-option");
+    nodeset = lyd_find_path(rpc, "/ietf-netconf:edit-config/test-option");
     if (nodeset->number) {
         cstr = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
         if (!strcmp(cstr, "set")) {
@@ -249,7 +258,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     ly_set_free(nodeset);
 
     /* error-option */
-    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:edit-config/error-option");
+    nodeset = lyd_find_path(rpc, "/ietf-netconf:edit-config/error-option");
     if (nodeset->number) {
         cstr = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
         if (!strcmp(cstr, "rollback-on-error")) {
@@ -264,7 +273,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
 
     /* config */
-    nodeset = lyd_find_xpath(rpc, "/ietf-netconf:edit-config/config");
+    nodeset = lyd_find_path(rpc, "/ietf-netconf:edit-config/config");
     if (nodeset->number) {
         any = (struct lyd_node_anydata *)nodeset->set.d[0];
         switch (any->value_type) {

@@ -125,7 +125,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* process input into sysrepo format */
-    set = lyd_find_xpath(rpc, ".//*");
+    set = lyd_find_path(rpc, ".//*");
     in_count = set->number;
     if (in_count) {
         input = calloc(in_count, sizeof *input);
@@ -134,7 +134,12 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
             EMEM;
             goto error;
         }
-        for (i = 0; i < in_count; ++i) {
+        for (i = 0; i < set->number; ++i) {
+            if (set->set.d[i]->dflt) {
+                --in_count;
+                continue;
+            }
+
             if (op_set_srval(set->set.d[i], lyd_path(set->set.d[i]), 0, &input[i], &str)) {
                 goto error;
             }

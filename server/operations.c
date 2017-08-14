@@ -46,7 +46,7 @@ op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char *buf)
         return value->data.bool_val ? "true" : "false";
     case SR_DECIMAL64_T:
         /* get fraction-digits */
-        sleaf = (struct lys_node_leaf *)ly_ctx_get_node(ctx, NULL, value->xpath);
+        sleaf = (struct lys_node_leaf *)ly_ctx_get_node(ctx, NULL, value->xpath, 0);
         if (!sleaf) {
             return NULL;
         }
@@ -263,6 +263,21 @@ op_build_err_sr(struct nc_server_reply *ereply, sr_session_ctx_t *session)
     return ereply;
 }
 
+struct nc_server_reply *
+op_build_err_nacm(struct nc_server_reply *ereply)
+{
+    struct nc_server_error *e = NULL;
+
+    e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
+    if (ereply) {
+        nc_server_reply_add_err(ereply, e);
+    } else {
+        ereply = nc_server_reply_err(e);
+    }
+
+    return ereply;
+}
+
 int
 op_filter_get_tree_from_data(struct lyd_node **root, struct lyd_node *data, const char *subtree_path)
 {
@@ -271,7 +286,7 @@ op_filter_get_tree_from_data(struct lyd_node **root, struct lyd_node *data, cons
     struct lys_node_list *slist;
     uint16_t i, j;
 
-    nodeset = lyd_find_xpath(data, subtree_path);
+    nodeset = lyd_find_path(data, subtree_path);
     for (i = 0; i < nodeset->number; ++i) {
         node = nodeset->set.d[i];
         tmp_root = lyd_dup(node, 1);
@@ -824,7 +839,7 @@ op_sr_val_to_lyd_node(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_
         /* propagate default flag */
         if (sr_val->dflt) {
             /* find the actual node supposed to be created */
-            set = lyd_find_xpath(root, sr_val->xpath);
+            set = lyd_find_path(root, sr_val->xpath);
             if (!set) {
                 EINT;
                 return -1;
@@ -847,7 +862,7 @@ op_sr_val_to_lyd_node(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_
                 (*new_node)->dflt = 1;
             } else {
                 /* go up, back to the top-most created node */
-                for (iter = set->set.d[u]; iter != *new_node; iter = iter->parent) {
+                for (iter = set->set.d[u]; iter != (*new_node)->parent; iter = iter->parent) {
                     if (iter->schema->nodetype == LYS_CONTAINER && ((struct lys_node_container *)iter->schema)->presence) {
                         /* presence container */
                         break;

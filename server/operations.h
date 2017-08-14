@@ -79,6 +79,10 @@ int op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val, char
  * @brief Build error reply based on errors from sysrepo
  */
 struct nc_server_reply *op_build_err_sr(struct nc_server_reply *ereply, sr_session_ctx_t *session);
+/**
+ * @brief Build error reply because of NACM access denied
+ */
+struct nc_server_reply *op_build_err_nacm(struct nc_server_reply *ereply);
 
 int op_filter_get_tree_from_data(struct lyd_node **root, struct lyd_node *data, const char *subtree_path);
 int op_filter_xpath_add_filter(char *new_filter, char ***filters, int *filter_count);
@@ -95,6 +99,7 @@ struct nc_server_reply *op_commit(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_discardchanges(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_validate(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_generic(struct lyd_node *rpc, struct nc_session *ncs);
+struct nc_server_reply *op_kill(struct lyd_node *rpc, struct nc_session *ncs);
 
 struct nc_server_reply *op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs);
 void op_ntf_unsubscribe(struct nc_session *session);

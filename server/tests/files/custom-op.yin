@@ -1,0 +1,37 @@
+<module name="custom-op" xmlns="urn:ietf:params:xml:ns:yang:yin:1">
+    <namespace uri="custom-op"/>
+    <prefix value="co"/>
+    <yang-version value="1.1"/>
+    <rpc name="rpc1">
+        <input>
+            <leaf name="l1">
+                <type name="string"/>
+            </leaf>
+        </input>
+        <output>
+            <leaf name="l2">
+                <type name="string"/>
+            </leaf>
+        </output>
+    </rpc>
+    <list name="li1">
+        <key value="li1-key"/>
+        <leaf name="li1-key">
+            <type name="string"/>
+        </leaf>
+        <container name="cont">
+            <action name="act">
+                <input>
+                    <leaf name="l3">
+                        <type name="string"/>
+                    </leaf>
+                </input>
+                <output>
+                    <leaf name="l4">
+                        <type name="string"/>
+                    </leaf>
+                </output>
+            </action>
+        </container>
+    </list>
+</module>
