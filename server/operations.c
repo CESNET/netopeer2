@@ -826,7 +826,9 @@ op_sr_val_to_lyd_node(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_
     }
 
     ly_errno = LY_SUCCESS;
-    *new_node = lyd_new_path(root, np2srv.ly_ctx, sr_val->xpath, str, 0, LYD_PATH_OPT_UPDATE);
+
+    *new_node = lyd_new_path(root, np2srv.ly_ctx, sr_val->xpath, str,
+            (sr_val->type == SR_ANYXML_T || sr_val->type == SR_ANYDATA_T) ? LYD_ANYDATA_SXML : 0, LYD_PATH_OPT_UPDATE);
     if (ly_errno) {
         return -1;
     }
