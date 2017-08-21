@@ -11,14 +11,11 @@ compiler:
 
 branches:
   only:
-    - master
+    - devel-cli
 
 cache:
   directories:
-    - cmocka-1.0.1
     - libssh-0.7.3
-    - protobuf
-    - protobuf-c
 
 before_install:
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then bash .travis-install-libs.sh; fi
@@ -31,4 +28,3 @@ script:
 
 after_success:
   - if [ "$TRAVIS_OS_NAME" = "linux" -a "$CC" = "gcc" ]; then codecov; fi
-

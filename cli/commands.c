@@ -235,6 +235,14 @@ recv_reply:
     } else if (msgtype == NC_MSG_WOULDBLOCK) {
         ERROR(__func__, "Timeout for receiving a reply expired.");
         return -1;
+    } else if (msgtype == NC_MSG_NOTIF) {
+        /* read again */
+        goto recv_reply;
+    } else if (msgtype == NC_MSG_REPLY_ERR_MSGID) {
+        /* unexpected message, try reading again to get the correct reply */
+        ERROR(__func__, "Unexpected reply received - ignoring and waiting for the correct reply.");
+        nc_reply_free(reply);
+        goto recv_reply;
     }
 
     switch (reply->type) {
