@@ -62,6 +62,10 @@ endif()
 
 include(CheckFunctionExists)
 check_function_exists(eaccess HAVE_EACCESS)
+check_function_exists(mkstemps HAVE_MKSTEMPS)
+if(HAVE_MKSTEMPS)
+    set(CMAKE_C_FLAGS         "${CMAKE_C_FLAGS} -DHAVE_MKSTEMPS")
+endif(HAVE_MKSTEMPS)
 
 # install binary
 install(TARGETS netopeer2-cli DESTINATION ${CMAKE_INSTALL_BINDIR})
