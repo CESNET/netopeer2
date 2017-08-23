@@ -27,6 +27,10 @@
 
 #include <nc_client.h>
 
+#ifndef HAVE_EACCESS
+#define eaccess access
+#endif
+
 #include "commands.h"
 #include "linenoise/linenoise.h"
 

@@ -60,6 +60,9 @@ if(LIBNETCONF2_ENABLED_TLS)
     include_directories(${OPENSSL_INCLUDE_DIR})
 endif()
 
+include(CheckFunctionExists)
+check_function_exists(eaccess HAVE_EACCESS)
+
 # install binary
 install(TARGETS netopeer2-cli DESTINATION ${CMAKE_INSTALL_BINDIR})
 
