@@ -1182,7 +1182,7 @@ feature_change_ietf_netconf_server(const char *feature_name, bool enabled)
 
         rc = sr_get_items_iter(np2srv.sr_sess.srs, path, &sr_iter);
         if (rc != SR_ERR_OK) {
-            ERR("Failed to get \"%s\" values iterator from sysrepo (%s).", sr_strerror(rc));
+            ERR("Failed to get \"%s\" values iterator from sysrepo (%s).", path, sr_strerror(rc));
             return EXIT_FAILURE;
         }
 
