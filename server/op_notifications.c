@@ -231,22 +231,18 @@ static int
 ntf_module_sr_subscribe(const struct lys_module *mod, struct np_subscriber *subscr, char **msg)
 {
     struct lys_node *next, *snode, *top;
-    char *path;
     int rc;
 
     LY_TREE_FOR(mod->data, top) {
         LY_TREE_DFS_BEGIN(top, next, snode) {
             if (snode->nodetype == LYS_NOTIF) {
-                path = malloc(1 + strlen(mod->name) + 6);
-                sprintf(path, "/%s:*//.", mod->name);
                 if (subscr->sr_subscr) {
-                    rc = sr_event_notif_subscribe(np2srv.sr_sess.srs, path, np2srv_ntf_clb, subscr,
+                    rc = sr_event_notif_subscribe(np2srv.sr_sess.srs, mod->name, np2srv_ntf_clb, subscr,
                                                 SR_SUBSCR_NOTIF_REPLAY_FIRST | SR_SUBSCR_CTX_REUSE, &subscr->sr_subscr);
                 } else {
-                    rc = sr_event_notif_subscribe(np2srv.sr_sess.srs, path, np2srv_ntf_clb, subscr,
+                    rc = sr_event_notif_subscribe(np2srv.sr_sess.srs, mod->name, np2srv_ntf_clb, subscr,
                                                 SR_SUBSCR_NOTIF_REPLAY_FIRST, &subscr->sr_subscr);
                 }
-                free(path);
                 if (rc != SR_ERR_OK) {
                     asprintf(msg, "Failed to subscribe to \"%s\" notifications (%s).", mod->name, sr_strerror(rc));
                     return -1;
