@@ -109,16 +109,31 @@ install(DIRECTORY DESTINATION ${KEYSTORED_KEYS_DIR}
 install(CODE "
     execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -l RESULT_VARIABLE RET OUTPUT_VARIABLE INSTALLED_MODULES ERROR_VARIABLE OUT)
     if (RET)
-        string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+        string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
         message(FATAL_ERROR \"  Command sysrepoctl list failed:\n  \${OUT}\")
     endif()
 
-    string(REGEX MATCH \"ietf-keystore [^\\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
+    string(REGEX MATCH \"ietf-x509-cert-to-name[^|]*[|][^|]*[|] Installed[^\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
+    if (NOT INSTALLED_MODULE_LINE)
+        message(STATUS \"Importing module ietf-x509-cert-to-name into sysrepo...\")
+
+        execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/ietf-x509-cert-to-name.yang -o root:root -p 600 RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
+        if (RET)
+            string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
+            message(FATAL_ERROR \"  Command sysrepoctl install failed:\\n  \${OUT}\")
+        endif()
+
+    else()
+        message(STATUS \"Module ietf-x509-cert-to-name already in sysrepo.\")
+    endif()
+
+    string(REGEX MATCH \"ietf-keystore [^\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
     if (NOT INSTALLED_MODULE_LINE)
         message(STATUS \"Importing module ietf-keystore into sysrepo...\")
+
         execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/ietf-keystore.yang -o root:root -p 600 RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
         if (RET)
-            string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+            string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
             message(FATAL_ERROR \"  Command sysrepoctl install failed:\\n  \${OUT}\")
         endif()
 
@@ -130,7 +145,7 @@ install(CODE "
 install(CODE "
     execute_process(COMMAND ${SYSREPOCFG_EXECUTABLE} -d startup --export ietf-keystore RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
     if (RET)
-        string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+        string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
         message(FATAL_ERROR \"  Command sysrepocfg export failed:\\n  \${OUT}\")
     endif()
 
@@ -145,12 +160,12 @@ install(CODE "
         execute_process(COMMAND ${CHMOD_EXECUTABLE} go-rw ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem)
         execute_process(COMMAND ${OPENSSL_EXECUTABLE} rsa -pubout -in ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem -out ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pub.pem RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
         if (RET)
-            string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+            string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
             message(FATAL_ERROR \"  Command openssl generate public key failed:\\n  \${OUT}\")
         endif()
         execute_process(COMMAND ${SYSREPOCFG_EXECUTABLE} -d startup -i ${CMAKE_SOURCE_DIR}/stock_key_config.xml ietf-keystore RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
         if (RET)
-            string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
+            string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
             message(FATAL_ERROR \"  Command sysrepocfg import failed:\\n  \${OUT}\")
         endif()
     endif()")
