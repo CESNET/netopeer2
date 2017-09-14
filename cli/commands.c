@@ -37,6 +37,10 @@
 #   include <openssl/x509v3.h>
 #endif
 
+#ifndef HAVE_EACCESS
+#define eaccess access
+#endif
+
 #include "commands.h"
 #include "configuration.h"
 #include "completion.h"
