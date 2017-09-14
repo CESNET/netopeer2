@@ -28,6 +28,10 @@
 #include <libyang/libyang.h>
 #include <nc_client.h>
 
+#ifndef HAVE_EACCESS
+#define eaccess access
+#endif
+
 #include "configuration.h"
 #include "commands.h"
 #include "linenoise/linenoise.h"
