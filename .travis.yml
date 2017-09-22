@@ -11,11 +11,15 @@ compiler:
 
 branches:
   only:
-    - devel-cli
+    - master
+    - devel-server
 
 cache:
   directories:
-    - libssh-0.7.3
+    - libssh-0.7.5
+    - protobuf
+    - protobuf-c
+    - cmocka-1.0.1
 
 before_install:
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then bash .travis-install-libs.sh; fi
@@ -23,7 +27,7 @@ before_install:
 
 script:
   - mkdir build-cli && cd build-cli && cmake ../cli && make -j2
-  - mkdir ../build-server && cd ../build-server && cmake ../server && make -j2 && sudo ctest -V
+  - mkdir ../build-server && cd ../build-server && cmake ../server && make -j2 && ctest --output-on-failure
   - cd ..
 
 after_success:
