@@ -2,7 +2,7 @@
 
 sudo apt-get update -qq
 sudo apt-get install -y zlib1g-dev libssl-dev
-sudo apt-get install -y valgrind
+sudo apt-get install -y --force-yes libavl-dev libev-dev coreutils acl valgrind
 
 if [ ! -d "cmocka-1.0.1/build" ]; then
     echo "Building cmocka from source."
