@@ -970,7 +970,7 @@ cmd_subscribe_help(void)
 void
 cmd_getschema_help(void)
 {
-    if (session && !ly_ctx_get_module(nc_session_get_ctx(session), "ietf-netconf-monitoring", NULL)) {
+    if (session && !ly_ctx_get_module(nc_session_get_ctx(session), "ietf-netconf-monitoring", NULL, 1)) {
         printf("get-schema is not supported by the current session.\n");
         return;
     }

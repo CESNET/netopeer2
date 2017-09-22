@@ -281,7 +281,7 @@ load_config(void)
         }
     }
 
-    ctx = ly_ctx_new(NULL);
+    ctx = ly_ctx_new(NULL, 0);
     if (!ctx) {
         ERROR(__func__, "Failed to create context.");
         ERROR(__func__, "Unable to load configuration due to the previous error.");

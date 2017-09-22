@@ -290,7 +290,7 @@ np2srv_send_capab_change_notif(const char *added_uri, const char *deleted_uri, c
 {
     sr_val_t *data;
 
-    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL)) {
+    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL, 1)) {
         return;
     }
 
@@ -436,7 +436,7 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
         pthread_rwlock_wrlock(&np2srv.ly_ctx_lock);
 
         /* remove the specified module from the context */
-        mod = ly_ctx_get_module(np2srv.ly_ctx, module_name, revision);
+        mod = ly_ctx_get_module(np2srv.ly_ctx, module_name, revision, 0);
         cpb = np2srv_create_capab(mod);
         /* the function can fail in case the module was already removed
          * because of dependency in some of the previous calls */
@@ -469,7 +469,7 @@ np2srv_feature_change_clb(const char *module_name, const char *feature_name, boo
     /* lock for modifying libyang context */
     pthread_rwlock_wrlock(&np2srv.ly_ctx_lock);
 
-    mod = ly_ctx_get_module(np2srv.ly_ctx, module_name, NULL);
+    mod = ly_ctx_get_module(np2srv.ly_ctx, module_name, NULL, 0);
     if (!mod) {
         pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
         ERR("Sysrepo module %s to change feature %s does not present in Netopeer2.", module_name, feature_name);
@@ -577,7 +577,7 @@ np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_s
         nc_session_free(new_session, free_ds);
     }
 
-    if ((mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL)) && mod->implemented) {
+    if ((mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL, 1))) {
         /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
         host = (char*)nc_session_get_host(new_session);
         event_data = calloc(host ? 3 : 2, sizeof *event_data);
@@ -631,7 +631,7 @@ np2srv_del_session_clb(struct nc_session *session)
         break;
     }
 
-    if ((mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL)) && mod->implemented) {
+    if ((mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL, 1))) {
         /* generate ietf-netconf-notification's netconf-session-end event for sysrepo */
         host = (char *)nc_session_get_host(session);
         c = 3;
@@ -742,7 +742,7 @@ np2srv_init_schemas(int first)
     /* build libyang context */
     /* the lock is not supposed to be locked here. In case of first calling, it needn't be used because we are still
      * single-threaded, in other cases the caller (np2srv_module_install_clb()) is supposed to lock it */
-    np2srv.ly_ctx = ly_ctx_new(NULL);
+    np2srv.ly_ctx = ly_ctx_new(NULL, 0);
     if (!np2srv.ly_ctx) {
         goto error;
     }
@@ -754,7 +754,7 @@ np2srv_init_schemas(int first)
         mod = NULL;
         VRB("Loading schema \"%s%s%s\" from sysrepo.", schemas[i].module_name, schemas[i].revision.revision ? "@" : "",
             schemas[i].revision.revision ? schemas[i].revision.revision : "");
-        if ((mod = ly_ctx_get_module(np2srv.ly_ctx, schemas[i].module_name, schemas[i].revision.revision))) {
+        if ((mod = ly_ctx_get_module(np2srv.ly_ctx, schemas[i].module_name, schemas[i].revision.revision, 0))) {
             VRB("Module %s%s%s already present in context.", schemas[i].module_name,
                 schemas[i].revision.revision ? "@" : "",
                 schemas[i].revision.revision ? schemas[i].revision.revision : "");
@@ -788,7 +788,7 @@ np2srv_init_schemas(int first)
     schemas = NULL;
 
     /* 2) add internally used schemas: ietf-netconf, ... */
-    mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf", "2011-06-01");
+    mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf", "2011-06-01", 1);
     if (!mod && !(mod = lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_2011_06_01_yin, LYS_IN_YIN))) {
         goto error;
     }
@@ -802,27 +802,27 @@ np2srv_init_schemas(int first)
     lys_features_enable(mod, "xpath");
 
     /* ... ietf-netconf-monitoring (leave get-schema RPC empty, libnetconf2 will use its callback), */
-    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-monitoring", "2010-10-04") &&
+    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-monitoring", "2010-10-04", 1) &&
             !lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_monitoring_yin, LYS_IN_YIN)) {
         goto error;
     }
 
     /* ... ietf-netconf-with-defaults */
-    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-with-defaults", "2011-06-01") &&
+    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-with-defaults", "2011-06-01", 1) &&
             !lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_with_defaults_2011_06_01_yin, LYS_IN_YIN)) {
         goto error;
     }
 
     /* ... notifications, nc-notifications, and ietf-netconf-notifications */
-    if (!ly_ctx_get_module(np2srv.ly_ctx, "notifications", "2008-07-14") &&
+    if (!ly_ctx_get_module(np2srv.ly_ctx, "notifications", "2008-07-14", 1) &&
             !lys_parse_mem(np2srv.ly_ctx, (const char *)notifications_2008_07_14_yin, LYS_IN_YIN)) {
         goto error;
     }
-    if (!ly_ctx_get_module(np2srv.ly_ctx, "nc-notifications", "2008-07-14") &&
+    if (!ly_ctx_get_module(np2srv.ly_ctx, "nc-notifications", "2008-07-14", 1) &&
             !lys_parse_mem(np2srv.ly_ctx, (const char *)nc_notifications_2008_07_14_yin, LYS_IN_YIN)) {
         goto error;
     }
-    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", "2012-02-06") &&
+    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", "2012-02-06", 1) &&
             !lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_notifications_2012_02_06_yin, LYS_IN_YIN)) {
         goto error;
     }
@@ -950,20 +950,20 @@ server_init(void)
     nc_set_rpc_callback(snode, op_ntf_subscribe);
 
     /* set server options */
-    mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-server", NULL);
+    mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-server", NULL, 1);
     if (mod && strcmp(NP2SRV_KEYSTORED_DIR, "none")) {
         nc_server_tls_set_verify_clb(np2srv_verify_clb);
         if (ietf_netconf_server_init(mod)) {
             goto error;
         }
 
-        mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-system", NULL);
+        mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-system", NULL, 1);
         if (mod) {
             if (ietf_system_init(mod)) {
                 goto error;
             }
         } else {
-            WRN("Sysrepo does not have the \"ietf-system\" module, SSH publickey authentication will not work.");
+            WRN("Sysrepo does not implement the \"ietf-system\" module, SSH publickey authentication will not work.");
         }
     } else {
         WRN("Sysrepo does not have the \"ietf-netconf-server\" module or keystored keys dir unknown, using default NETCONF server options.");

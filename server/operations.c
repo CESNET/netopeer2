@@ -399,7 +399,7 @@ filter_xpath_buf_add_attrs(struct ly_ctx *ctx, struct lyxml_attr *attr, char **b
         if (next->type == LYXML_ATTR_STD) {
             module = NULL;
             if (next->ns) {
-                module = ly_ctx_get_module_by_ns(ctx, next->ns->value, NULL);
+                module = ly_ctx_get_module_by_ns(ctx, next->ns->value, NULL, 1);
             }
             if (!module) {
                 /* attribute without namespace or with unknown one will not match anything anyway */
@@ -471,7 +471,7 @@ filter_xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const 
 
     if (!elem_module_name && elem->ns && (elem->ns->value != *last_ns)
             && strcmp(elem->ns->value, "urn:ietf:params:xml:ns:netconf:base:1.0")) {
-        module = ly_ctx_get_module_by_ns(ctx, elem->ns->value, NULL);
+        module = ly_ctx_get_module_by_ns(ctx, elem->ns->value, NULL, 1);
         if (!module) {
             /* not really an error */
             return 0;
@@ -526,7 +526,7 @@ filter_xpath_buf_add_node(struct ly_ctx *ctx, struct lyxml_elem *elem, const cha
 
     if (!elem_module_name && elem->ns && (elem->ns->value != *last_ns)
             && strcmp(elem->ns->value, "urn:ietf:params:xml:ns:netconf:base:1.0")) {
-        module = ly_ctx_get_module_by_ns(ctx, elem->ns->value, NULL);
+        module = ly_ctx_get_module_by_ns(ctx, elem->ns->value, NULL, 1);
         if (!module) {
             /* not really an error */
             return 0;
@@ -683,7 +683,7 @@ op_filter_build_xpath_from_subtree(struct ly_ctx *ctx, struct lyxml_elem *elem, 
                 goto error;
             }
             module_count = 1;
-            modules[0] = ly_ctx_get_module_by_ns(ctx, next->ns->value, NULL);
+            modules[0] = ly_ctx_get_module_by_ns(ctx, next->ns->value, NULL, 1);
             if (!modules[0]) {
                 /* not really an error */
                 free(modules);
@@ -738,7 +738,8 @@ error:
 }
 
 int
-op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_count) {
+op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_count)
+{
     struct lyd_attr *attr;
     struct lyxml_elem *subtree_filter;
     char *path;

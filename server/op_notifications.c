@@ -86,7 +86,7 @@ np2srv_ntf_replay_sort_send(struct np_subscriber *subscriber)
     subscriber->replay_notifs = NULL;
 
     /* send replayComplete at the end */
-    mod = ly_ctx_get_module(np2srv.ly_ctx, "nc-notifications", NULL);
+    mod = ly_ctx_get_module(np2srv.ly_ctx, "nc-notifications", NULL, 1);
     event = lyd_new(NULL, mod, "replayComplete");
     notif = nc_server_notif_new(event, nc_time2datetime(time(NULL), NULL, NULL), NC_PARAMTYPE_FREE);
     nc_server_notif_send(subscriber->session, notif, 5000);
@@ -121,7 +121,7 @@ np2srv_ntf_send(struct np_subscriber *subscriber, struct lyd_node *ntf, time_t t
         ++subscriber->notif_complete_count;
         if (subscriber->notif_complete_count == subscriber->subscr_count) {
             /* send notificationComplete */
-            mod = ly_ctx_get_module(np2srv.ly_ctx, "nc-notifications", NULL);
+            mod = ly_ctx_get_module(np2srv.ly_ctx, "nc-notifications", NULL, 1);
             if (mod) {
                 filtered_ntf = lyd_new(NULL, mod, "notificationComplete");
                 ntf_msg = nc_server_notif_new(filtered_ntf, nc_time2datetime(time(NULL), NULL, NULL), NC_PARAMTYPE_FREE);
@@ -423,9 +423,9 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
             goto unlock_error;
         }
     } else {
-        /* stream name is supposed to match the name of a schema in the context having some
+        /* stream name is supposed to match the name of an implemented schema in the context having some
          * notifications defined */
-        mod = ly_ctx_get_module(np2srv.ly_ctx, stream, NULL);
+        mod = ly_ctx_get_module(np2srv.ly_ctx, stream, NULL, 1);
         if (!strcmp(stream, "ietf-yang-library")) {
             /* handled internally */
             new->subscr_ietf_yang_library = 1;
