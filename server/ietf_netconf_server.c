@@ -1170,7 +1170,7 @@ feature_change_ietf_netconf_server(const char *feature_name, bool enabled)
         if (!strcmp(feature_name, "ssh-listen")) {
             path = "/ietf-netconf-server:netconf-server/listen/endpoint[ssh]//*";
         } else if (!strcmp(feature_name, "tls-listen")) {
-            path = "/ietf-netconf-server:netconf-server/listen/endpoint[tls]/*";
+            path = "/ietf-netconf-server:netconf-server/listen/endpoint[tls]//*";
         } else if (!strcmp(feature_name, "ssh-call-home")) {
             path = "/ietf-netconf-server:netconf-server/call-home/netconf-client[ssh]//*";
         } else if (!strcmp(feature_name, "tls-call-home")) {

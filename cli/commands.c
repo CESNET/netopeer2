@@ -3,7 +3,7 @@
  * @author Michal Vasko <mvasko@cesnet.cz>
  * @brief netopeer2-cli commands
  *
- * Copyright (c) 2015 CESNET, z.s.p.o.
+ * Copyright (c) 2017 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -35,6 +35,10 @@
 #ifdef NC_ENABLED_TLS
 #   include <openssl/pem.h>
 #   include <openssl/x509v3.h>
+#endif
+
+#ifndef HAVE_EACCESS
+#define eaccess access
 #endif
 
 #include "commands.h"
@@ -199,10 +203,10 @@ cli_ntf_clb(struct nc_session *session, const struct nc_notif *notif)
 }
 
 static int
-cli_send_recv(struct nc_rpc *rpc, FILE *output)
+cli_send_recv(struct nc_rpc *rpc, FILE *output, NC_WD_MODE wd_mode)
 {
     char *str, *model_data;
-    int ret = 0;
+    int ret = 0, ly_wd;
     uint16_t i, j;
     uint64_t msgid;
     struct lyd_node_anydata *any;
@@ -235,6 +239,14 @@ recv_reply:
     } else if (msgtype == NC_MSG_WOULDBLOCK) {
         ERROR(__func__, "Timeout for receiving a reply expired.");
         return -1;
+    } else if (msgtype == NC_MSG_NOTIF) {
+        /* read again */
+        goto recv_reply;
+    } else if (msgtype == NC_MSG_REPLY_ERR_MSGID) {
+        /* unexpected message, try reading again to get the correct reply */
+        ERROR(__func__, "Unexpected reply received - ignoring and waiting for the correct reply.");
+        nc_reply_free(reply);
+        goto recv_reply;
     }
 
     switch (reply->type) {
@@ -300,7 +312,26 @@ recv_reply:
                 break;
             }
         }
-        lyd_print_file(output, data_rpl->data, output_format, LYP_WITHSIBLINGS | output_flag);
+
+        switch (wd_mode) {
+        case NC_WD_ALL:
+            ly_wd = LYP_WD_ALL;
+            break;
+        case NC_WD_ALL_TAG:
+            ly_wd = LYP_WD_ALL_TAG;
+            break;
+        case NC_WD_TRIM:
+            ly_wd = LYP_WD_TRIM;
+            break;
+        case NC_WD_EXPLICIT:
+            ly_wd = LYP_WD_EXPLICIT;
+            break;
+        default:
+            ly_wd = 0;
+            break;
+        }
+
+        lyd_print_file(output, data_rpl->data, output_format, LYP_WITHSIBLINGS | ly_wd | output_flag);
         if (output == stdout) {
             fprintf(output, "\n");
         } else {
@@ -679,7 +710,7 @@ cmd_copyconfig_help(void)
         }
     }
 
-    printf("copy-config [--help] --target %s%s%s%s (--source %s%s%s%s | --src-config [<file>])%s\n",
+    printf("copy-config [--help] --target %s%s%s%s (--source %s%s%s%s | --src-config[=<file>])%s\n",
            running, startup, candidate, url,
            running, startup, candidate, url, defaults);
 }
@@ -772,7 +803,7 @@ cmd_editconfig_help(void)
         bracket = "";
     }
 
-    printf("edit-config [--help] --target %s%s %s--config [<file>]%s [--defop merge|replace|none] "
+    printf("edit-config [--help] --target %s%s %s--config[=<file>]%s [--defop merge|replace|none] "
            "%s[--error stop|continue%s]\n", running, candidate, bracket, url, validate, rollback);
 }
 
@@ -793,7 +824,7 @@ cmd_get_help(void)
         xpath = "";
     }
 
-    fprintf(stdout, "get [--help] [--filter-subtree [<file>]%s] %s[--out <file>]\n", xpath, defaults);
+    fprintf(stdout, "get [--help] [--filter-subtree[=<file>]%s] %s[--out <file>]\n", xpath, defaults);
 }
 
 void
@@ -826,7 +857,7 @@ cmd_getconfig_help(void)
         candidate = "";
     }
 
-    printf("get-config [--help] --source running%s%s [--filter-subtree [<file>]%s] %s[--out <file>]\n",
+    printf("get-config [--help] --source running%s%s [--filter-subtree[=<file>]%s] %s[--out <file>]\n",
            startup, candidate, xpath, defaults);
 }
 
@@ -909,7 +940,7 @@ cmd_validate_help(void)
             url = "";
         }
     }
-    printf("validate [--help] (--source running%s%s%s | --src-config [<file>])\n",
+    printf("validate [--help] (--source running%s%s%s | --src-config[=<file>])\n",
            startup, candidate, url);
 }
 
@@ -929,7 +960,7 @@ cmd_subscribe_help(void)
         xpath = "";
     }
 
-    printf("subscribe [--help] [--filter-subtree [<file>]%s] [--begin <time>] [--end <time>] [--stream <stream>] [--out <file>]\n", xpath);
+    printf("subscribe [--help] [--filter-subtree[=<file>]%s] [--begin <time>] [--end <time>] [--stream <stream>] [--out <file>]\n", xpath);
     printf("\t<time> has following format:\n");
     printf("\t\t+<num>  - current time plus the given number of seconds.\n");
     printf("\t\t<num>   - absolute time as number of seconds since 1970-01-01.\n");
@@ -1417,11 +1448,12 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
         printf("Waiting %ds for an SSH Call Home connection on port %u...\n", timeout, port);
         ret = nc_accept_callhome(timeout * 1000, NULL, &session);
         nc_client_ssh_ch_del_bind(host, port);
-        if (ret == -1) {
-            ERROR(func_name, "Receiving SSH Call Home on port %d as user \"%s\" failed.", port, user);
-            return EXIT_FAILURE;
-        } else if (ret == 0) {
-            ERROR(func_name, "Receiving SSH Call Home on port %d as user \"%s\" timeouted.", port, user);
+        if (ret != 1) {
+            if (ret == 0) {
+                ERROR(func_name, "Receiving SSH Call Home on port %d as user \"%s\" timeout elapsed.", port, user);
+            } else {
+                ERROR(func_name, "Receiving SSH Call Home on port %d as user \"%s\" failed.", port, user);
+            }
             return EXIT_FAILURE;
         }
     }
@@ -2162,11 +2194,11 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         goto error_cleanup;
     }
 
-    nc_client_tls_set_cert_key_paths(cert, key);
-    nc_client_tls_set_trusted_ca_paths(trusted_store, trusted_dir);
-    nc_client_tls_set_crl_paths(NULL, crl_dir);
-
     if (is_connect) {
+        nc_client_tls_set_cert_key_paths(cert, key);
+        nc_client_tls_set_trusted_ca_paths(trusted_store, trusted_dir);
+        nc_client_tls_set_crl_paths(NULL, crl_dir);
+
         /* default port */
         if (!port) {
             port = NC_PORT_TLS;
@@ -2184,6 +2216,10 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
             goto error_cleanup;
         }
     } else {
+        nc_client_tls_ch_set_cert_key_paths(cert, key);
+        nc_client_tls_ch_set_trusted_ca_paths(trusted_store, trusted_dir);
+        nc_client_tls_ch_set_crl_paths(NULL, crl_dir);
+
         /* default timeout */
         if (!timeout) {
             timeout = CLI_CH_TIMEOUT;
@@ -2204,8 +2240,12 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         ERROR(func_name, "Waiting %ds for a TLS Call Home connection on port %u...", timeout, port);
         ret = nc_accept_callhome(timeout * 1000, NULL, &session);
         nc_client_tls_ch_del_bind(host, port);
-        if (ret) {
-            ERROR(func_name, "Receiving TLS Call Home on port %d failed.", port);
+        if (ret != 1) {
+            if (ret == 0) {
+                ERROR(func_name, "Receiving TLS Call Home on port %d timeout elapsed.", port);
+            } else {
+                ERROR(func_name, "Receiving TLS Call Home on port %d failed.", port);
+            }
             goto error_cleanup;
         }
     }
@@ -2335,7 +2375,8 @@ cmd_disconnect(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 int
 cmd_status(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 {
-    const char *s, **cpblts;
+    const char *s;
+    const char * const *cpblts;
     int i;
 
     if (!session) {
@@ -2616,7 +2657,7 @@ cmd_cancelcommit(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
 
@@ -2699,7 +2740,7 @@ cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
 
@@ -2888,7 +2929,7 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
 
@@ -2975,7 +3016,7 @@ cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
 
@@ -3044,7 +3085,7 @@ cmd_discardchanges(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
     return ret;
@@ -3236,7 +3277,7 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
 
@@ -3396,9 +3437,9 @@ cmd_get(const char *arg, char **tmp_config_file)
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output);
+        ret = cli_send_recv(rpc, output, wd);
     } else {
-        ret = cli_send_recv(rpc, stdout);
+        ret = cli_send_recv(rpc, stdout, wd);
     }
 
     nc_rpc_free(rpc);
@@ -3582,9 +3623,9 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output);
+        ret = cli_send_recv(rpc, output, wd);
     } else {
-        ret = cli_send_recv(rpc, stdout);
+        ret = cli_send_recv(rpc, stdout, wd);
     }
 
     nc_rpc_free(rpc);
@@ -3674,7 +3715,7 @@ cmd_killsession(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
     return ret;
@@ -3761,7 +3802,7 @@ cmd_lock(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
     return ret;
@@ -3848,7 +3889,7 @@ cmd_unlock(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
     return ret;
@@ -3998,7 +4039,7 @@ cmd_validate(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
 
     nc_rpc_free(rpc);
 
@@ -4169,7 +4210,7 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout);
+    ret = cli_send_recv(rpc, stdout, 0);
     nc_rpc_free(rpc);
 
     if (ret) {
@@ -4295,9 +4336,9 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output);
+        ret = cli_send_recv(rpc, output, 0);
     } else {
-        ret = cli_send_recv(rpc, stdout);
+        ret = cli_send_recv(rpc, stdout, 0);
     }
 
     nc_rpc_free(rpc);
@@ -4427,9 +4468,9 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output);
+        ret = cli_send_recv(rpc, output, 0);
     } else {
-        ret = cli_send_recv(rpc, stdout);
+        ret = cli_send_recv(rpc, stdout, 0);
     }
 
     nc_rpc_free(rpc);

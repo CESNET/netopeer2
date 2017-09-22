@@ -1,7 +1,6 @@
 #!/bin/sh
 
 sudo apt-get update -qq
-sudo apt-get install -y libavl-dev libev-dev
 sudo apt-get install -y zlib1g-dev libssl-dev
 sudo apt-get install -y valgrind
 
@@ -25,16 +24,16 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
 make -j2 && sudo make install
 cd ../..
 
-if [ ! -d "libssh-0.7.3/build" ]; then
+if [ ! -d "libssh-0.7.5/build" ]; then
     echo "Building libssh from source."
-    wget https://git.libssh.org/projects/libssh.git/snapshot/libssh-0.7.3.tar.bz2
-    tar -xjf libssh-0.7.3.tar.bz2
-    cd libssh-0.7.3 && mkdir build && cd build
+    wget https://git.libssh.org/projects/libssh.git/snapshot/libssh-0.7.5.tar.gz
+    tar -xzf libssh-0.7.5.tar.gz
+    mkdir libssh-0.7.5/build && cd libssh-0.7.5/build
     cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr .. && make -j2 && sudo make install
     cd ../..
 else
     echo "Using libssh from cache."
-    cd libssh-0.7.3/build
+    cd libssh-0.7.5/build
     sudo make install
     cd ../..
 fi

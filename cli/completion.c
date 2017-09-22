@@ -27,6 +27,10 @@
 
 #include <nc_client.h>
 
+#ifndef HAVE_EACCESS
+#define eaccess access
+#endif
+
 #include "commands.h"
 #include "linenoise/linenoise.h"
 
@@ -116,6 +120,7 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
     char* tmpname = NULL, *input = NULL, *old_content = NULL, *ptr, *ptr2;
 
     /* Create a unique temporary file */
+#ifdef HAVE_MKSTEMPS
     if (asprintf(&tmpname, "/tmp/tmpXXXXXX.xml") == -1) {
         ERROR(__func__, "asprintf() failed (%s).", strerror(errno));
         goto fail;
@@ -125,6 +130,23 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
         ERROR(__func__, "Failed to create a temporary file (%s).", strerror(errno));
         goto fail;
     }
+#else
+    if (asprintf(&tmpname, "/tmp/tmpXXXXXX") == -1) {
+        ERROR(__func__, "asprintf() failed (%s).", strerror(errno));
+        goto fail;
+    }
+    /* cannot fail */
+    mktemp(tmpname);
+    if (asprintf(&tmpname, ".xml") == -1) {
+        ERROR(__func__, "asprintf() failed (%s).", strerror(errno));
+        goto fail;
+    }
+    tmpfd = open(tmpname, O_RDWR | O_CREAT | O_EXCL, 0600);
+    if (tmpfd == -1) {
+        ERROR(__func__, "Failed to create a temporary file (%s).", strerror(errno));
+        goto fail;
+    }
+#endif /* #ifdef HAVE_MKSTEMPS */
 
     /* Read the old content, if any */
     if (old_tmp != NULL) {

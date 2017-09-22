@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 2.6)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../CMakeModules/")
 
 project(netopeer2-cli C)
+include(GNUInstallDirs)
 
 # check the supported platform
 if(NOT UNIX)
@@ -20,7 +21,7 @@ set(CMAKE_C_FLAGS_RELEASE "-O2")
 set(CMAKE_C_FLAGS_DEBUG   "-g -O0")
 
 # set version
-set(NP2CLI_VERSION 2.0.29)
+set(NP2CLI_VERSION 2.0.35)
 configure_file("${PROJECT_SOURCE_DIR}/version.h.in" "${PROJECT_SOURCE_DIR}/version.h" ESCAPE_QUOTES @ONLY)
 
 # source files
@@ -59,16 +60,15 @@ if(LIBNETCONF2_ENABLED_TLS)
     include_directories(${OPENSSL_INCLUDE_DIR})
 endif()
 
-if(NOT BIN_INSTALL_DIR)
-    set(BIN_INSTALL_DIR bin)
-endif()
-
-if(NOT MAN_INSTALL_DIR)
-    set(MAN_INSTALL_DIR share/man)
-endif()
+include(CheckFunctionExists)
+check_function_exists(eaccess HAVE_EACCESS)
+check_function_exists(mkstemps HAVE_MKSTEMPS)
+if(HAVE_MKSTEMPS)
+    set(CMAKE_C_FLAGS         "${CMAKE_C_FLAGS} -DHAVE_MKSTEMPS")
+endif(HAVE_MKSTEMPS)
 
 # install binary
-install(TARGETS netopeer2-cli DESTINATION ${BIN_INSTALL_DIR})
+install(TARGETS netopeer2-cli DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # man -> html
 find_program(ROFF2HTML roff2html)
@@ -80,7 +80,7 @@ else()
 endif()
 
 # install doc (man)
-install(FILES ${PROJECT_SOURCE_DIR}/doc/${PROJECT_NAME}.1 DESTINATION ${MAN_INSTALL_DIR}/man1)
+install(FILES ${PROJECT_SOURCE_DIR}/doc/${PROJECT_NAME}.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
 
 # clean cmake cache
 add_custom_target(cleancache
