@@ -30,6 +30,7 @@ op_kill(struct lyd_node *rpc, struct nc_session *ncs)
     int rc;
     struct nc_server_error *e = NULL;
     uint32_t kill_sid;
+    uint16_t i;
     struct nc_session *kill_sess;
 
     /* get sysrepo connections for this session */
@@ -59,7 +60,11 @@ op_kill(struct lyd_node *rpc, struct nc_session *ncs)
         goto error;
     }
 
-    kill_sess = nc_ps_get_session_by_sid(np2srv.nc_ps, kill_sid);
+    for (i = 0; (kill_sess = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
+        if (nc_session_get_id(kill_sess) == kill_sid) {
+            break;
+        }
+    }
     if (!kill_sess) {
         e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
         nc_err_set_msg(e, "Session with the specified \"session-id\" not found.", "en");
