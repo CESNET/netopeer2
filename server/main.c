@@ -397,8 +397,10 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
         free(data);
 
         if (!mod) {
-            ERR("Unable to parse installed module %s%s%s from sysrepo (%s), schema won't be available.", module_name,
-                revision ? "@" : "", revision ? revision : "", sr_strerror(rc));
+            pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
+            ERR("Unable to parse installed module %s%s%s from sysrepo, schema won't be available.", module_name,
+                revision ? "@" : "", revision ? revision : "");
+            return;
         } else {
             /* get module's features */
             rc = sr_list_schemas(np2srv.sr_sess.srs, &schemas, &count);
