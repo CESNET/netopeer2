@@ -203,7 +203,7 @@ __wrap_sr_check_exec_permission(sr_session_ctx_t *session, const char *xpath, bo
 {
     (void)session;
     (void)xpath;
-    (void)permitted;
+    *permitted = true;
     return SR_ERR_OK;
 }
 

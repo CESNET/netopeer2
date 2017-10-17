@@ -40,6 +40,7 @@ struct np2_sessions {
 /* Netopeer server internal data */
 struct np2srv {
     sr_conn_ctx_t *sr_conn;        /**< sysrepo connection */
+    int disconnected;              /**< flag marking that server is currently not connected to sysrepo */
     struct np2_sessions sr_sess;   /**< Netopeer's sysrepo sessions */
     sr_subscription_ctx_t *sr_subscr; /**< sysrepo subscription context */
 
@@ -51,6 +52,8 @@ struct np2srv {
     pthread_rwlock_t ly_ctx_lock;  /**< libyang's context rwlock */
 };
 extern struct np2srv np2srv;
+
+int np2srv_sr_reconnect(void);
 
 int ietf_netconf_server_init(const struct lys_module *module);
 int ietf_system_init(const struct lys_module *module);

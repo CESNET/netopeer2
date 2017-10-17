@@ -39,18 +39,12 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
     struct nc_server_error *e;
     struct nc_server_reply *ereply = NULL;
     const char *dsname;
-    int rc;
-    bool permitted;
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    /* check NACM */
-    rc = sr_check_exec_permission(sessions->srs, "/ietf-netconf:lock", &permitted);
-    if (rc != SR_ERR_OK) {
-        return op_build_err_sr(NULL, sessions->srs);
-    } else if (!permitted) {
-        return op_build_err_nacm(NULL);
+    if (np2srv_sr_check_exec_permission(sessions, "/ietf-netconf:lock", &ereply)) {
+        goto finish;
     }
 
     /* get know which datastore is being affected */
@@ -75,11 +69,14 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
         EINT;
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_PROT);
         nc_err_set_msg(e, np2log_lasterr(), "en");
-        return nc_server_reply_err(e);
+        ereply = nc_server_reply_err(e);
+        goto finish;
     }
     if (ds != sessions->ds) {
         /* update sysrepo session */
-        sr_session_switch_ds(sessions->srs, ds);
+        if (np2srv_sr_session_switch_ds(sessions, ds, &ereply)) {
+            goto finish;
+        }
         sessions->ds = ds;
     }
 
@@ -92,7 +89,8 @@ lock_held:
             dsname, nc_session_get_id(ncs), nc_session_get_id(*dsl));
         e = nc_err(NC_ERR_LOCK_DENIED, nc_session_get_id(*dsl));
         nc_err_set_msg(e, np2log_lasterr(), "en");
-        return nc_server_reply_err(e);
+        ereply = nc_server_reply_err(e);
+        goto finish;
     }
     pthread_rwlock_unlock(&dslock_rwl);
 
@@ -102,23 +100,15 @@ lock_held:
         goto lock_held;
     }
 
-    rc = sr_lock_datastore(sessions->srs);
-    if (rc != SR_ERR_OK) {
+    if (np2srv_sr_lock_datastore(sessions, &ereply)) {
         /* lock is held outside Netopeer */
         pthread_rwlock_unlock(&dslock_rwl);
-        /* get error messages from sysrepo */
-        ereply = op_build_err_sr(ereply, sessions->srs);
         /* add lock denied error */
-        ERR("Locking datastore %s by session %d failed (%s).", dsname,
-            nc_session_get_id(ncs), sr_strerror(rc));
+        ERR("Locking datastore %s by session %d failed.", dsname, nc_session_get_id(ncs));
         e = nc_err(NC_ERR_LOCK_DENIED, 0);
         nc_err_set_msg(e, np2log_lasterr(), "en");
-        if (ereply) {
-            nc_server_reply_add_err(ereply, e);
-            return ereply;
-        } else {
-            return nc_server_reply_err(e);
-        }
+        nc_server_reply_add_err(ereply, e);
+        goto finish;
     }
 
     /* update local information about locks */
@@ -127,7 +117,10 @@ lock_held:
     pthread_rwlock_unlock(&dslock_rwl);
 
     /* build positive RPC Reply */
-    return nc_server_reply_ok();
+    ereply = nc_server_reply_ok();
+
+finish:
+    return ereply;
 }
 
 struct nc_server_reply *
@@ -141,18 +134,12 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
     const char *dsname;
     struct nc_server_error *e;
     struct nc_server_reply *ereply = NULL;
-    int rc;
-    bool permitted;
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    /* check NACM */
-    rc = sr_check_exec_permission(sessions->srs, "/ietf-netconf:unlock", &permitted);
-    if (rc != SR_ERR_OK) {
-        return op_build_err_sr(NULL, sessions->srs);
-    } else if (!permitted) {
-        return op_build_err_nacm(NULL);
+    if (np2srv_sr_check_exec_permission(sessions, "/ietf-netconf:unlock", &ereply)) {
+        goto finish;
     }
 
     /* get know which datastore is being affected */
@@ -176,11 +163,14 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
         EINT;
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_PROT);
         nc_err_set_msg(e, np2log_lasterr(), "en");
-        return nc_server_reply_err(e);
+        ereply = nc_server_reply_err(e);
+        goto finish;
     }
     if (ds != sessions->ds) {
         /* update sysrepo session */
-        sr_session_switch_ds(sessions->srs, ds);
+        if (np2srv_sr_session_switch_ds(sessions, ds, &ereply)) {
+            goto finish;
+        }
         sessions->ds = ds;
     }
 
@@ -192,7 +182,8 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
             dsname, nc_session_get_id(ncs));
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_PROT);
         nc_err_set_msg(e, np2log_lasterr(), "en");
-        return nc_server_reply_err(e);
+        ereply = nc_server_reply_err(e);
+        goto finish;
     } else {
         /* lock is held, but by who? */
         if ((*dsl) != ncs) {
@@ -202,33 +193,26 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
                 dsname, nc_session_get_id(ncs), nc_session_get_id(*dsl));
             e = nc_err(NC_ERR_LOCK_DENIED, nc_session_get_id(*dsl));
             nc_err_set_msg(e, np2log_lasterr(), "en");
-            return nc_server_reply_err(e);
+            ereply = nc_server_reply_err(e);
+            goto finish;
         }
     }
     pthread_rwlock_unlock(&dslock_rwl);
     pthread_rwlock_wrlock(&dslock_rwl);
 
-    rc = sr_unlock_datastore(sessions->srs);
-    if (rc != SR_ERR_OK) {
+    if (np2srv_sr_unlock_datastore(sessions, &ereply)) {
         /* lock is held outside Netopeer */
         pthread_rwlock_unlock(&dslock_rwl);
-        /* get error messages from sysrepo */
-        ereply = op_build_err_sr(ereply, sessions->srs);
         /* add lock denied error */
-        ERR("Unlocking datastore %s by session %d failed (%s).", dsname,
-            nc_session_get_id(ncs), sr_strerror(rc));
+        ERR("Unlocking datastore %s by session %d failed.", dsname, nc_session_get_id(ncs));
         e = nc_err(NC_ERR_LOCK_DENIED, 0);
         nc_err_set_msg(e, np2log_lasterr(), "en");
-        if (ereply) {
-            nc_server_reply_add_err(ereply, e);
-            return ereply;
-        } else {
-            return nc_server_reply_err(e);
-        }
+        nc_server_reply_add_err(ereply, e);
+        goto finish;
     }
 
     /* according to RFC 6241 8.3.5.2, discard changes */
-    sr_discard_changes(sessions->srs);
+    np2srv_sr_discard_changes(sessions, NULL);
 
     /* update local information about locks */
     *dsl = NULL;
@@ -237,5 +221,8 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
     pthread_rwlock_unlock(&dslock_rwl);
 
     /* build positive RPC Reply */
-    return nc_server_reply_ok();
+    ereply = nc_server_reply_ok();
+
+finish:
+    return ereply;
 }

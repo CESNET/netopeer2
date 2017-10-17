@@ -26,9 +26,8 @@ op_kill(struct lyd_node *rpc, struct nc_session *ncs)
 {
     struct np2_sessions *sessions;
     struct ly_set *set = NULL;
-    bool permitted;
-    int rc;
     struct nc_server_error *e = NULL;
+    struct nc_server_reply *ereply = NULL;
     uint32_t kill_sid;
     uint16_t i;
     struct nc_session *kill_sess;
@@ -36,28 +35,26 @@ op_kill(struct lyd_node *rpc, struct nc_session *ncs)
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    /* check NACM */
-    rc = sr_check_exec_permission(sessions->srs, "/ietf-netconf:kill-session", &permitted);
-    if (rc != SR_ERR_OK) {
-        return op_build_err_sr(NULL, sessions->srs);
-    } else if (!permitted) {
-        return op_build_err_nacm(NULL);
+    if (np2srv_sr_check_exec_permission(sessions, "/ietf-netconf:kill-session", &ereply)) {
+        goto finish;
     }
 
     set = lyd_find_path(rpc, "session-id");
     if (!set || (set->number != 1) || (set->set.d[0]->schema->nodetype != LYS_LEAF)) {
         EINT;
-        ly_set_free(set);
-        goto error;
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, np2log_lasterr(), "en");
+        ereply = nc_server_reply_err(e);
+        goto finish;
     }
 
     kill_sid = ((struct lyd_node_leaf_list *)set->set.d[0])->value.uint32;
-    ly_set_free(set);
 
     if (kill_sid == nc_session_get_id(ncs)) {
         e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
         nc_err_set_msg(e, "It is forbidden to kill own session.", "en");
-        goto error;
+        ereply = nc_server_reply_err(e);
+        goto finish;
     }
 
     for (i = 0; (kill_sess = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
@@ -68,7 +65,8 @@ op_kill(struct lyd_node *rpc, struct nc_session *ncs)
     if (!kill_sess) {
         e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
         nc_err_set_msg(e, "Session with the specified \"session-id\" not found.", "en");
-        goto error;
+        ereply = nc_server_reply_err(e);
+        goto finish;
     }
 
     /* kill the session */
@@ -76,12 +74,9 @@ op_kill(struct lyd_node *rpc, struct nc_session *ncs)
     nc_session_set_term_reason(kill_sess, NC_SESSION_TERM_KILLED);
     nc_session_set_killed_by(kill_sess, nc_session_get_id(ncs));
 
-    return nc_server_reply_ok();
+    ereply = nc_server_reply_ok();
 
-error:
-    if (!e) {
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, np2log_lasterr(), "en");
-    }
-    return nc_server_reply_err(e);
+finish:
+    ly_set_free(set);
+    return ereply;
 }

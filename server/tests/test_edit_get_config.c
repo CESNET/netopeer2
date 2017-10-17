@@ -382,6 +382,14 @@ __wrap_sr_check_exec_permission(sr_session_ctx_t *session, const char *xpath, bo
     return SR_ERR_OK;
 }
 
+int
+__wrap_sr_session_set_options(sr_session_ctx_t *session, const sr_sess_options_t opts)
+{
+    (void)session;
+    (void)opts;
+    return SR_ERR_OK;
+}
+
 /*
  * LIBNETCONF2 WRAPPER FUNCTIONS
  */
