@@ -443,8 +443,9 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
     sr_schema_t *schemas = NULL;
     size_t count, i, j;
 
-    if (!strcmp(module_name, "ietf-yang-library")) {
-        /* this module is completely managed by sysrepo, ignore this */
+    if (!strcmp(module_name, "ietf-yang-library") || (state == SR_MS_IMPORTED)) {
+        /* yang-library module is completely managed by sysrepo, ignore this,
+         * imported module will either be loaded when parsing an imported module or it should not be needed */
         return;
     }
 
@@ -490,8 +491,6 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
             np2srv_send_capab_change_notif(cpb, NULL, NULL);
             free(cpb);
         }
-    } else if (state == SR_MS_IMPORTED) {
-        /* TODO nothing to do, it will either be loaded when parsing an imported module or it should not be needed, right? */
     } else {
         VRB("Removing schema \"%s%s%s\" according to changes in sysrepo.", module_name, revision ? "@" : "",
             revision ? revision : "");
