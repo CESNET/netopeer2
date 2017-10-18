@@ -75,6 +75,7 @@ np2srv_sr_reconnect(void)
     struct np2_sessions *np2_sess;
 
     if (!np2srv.disconnected) {
+        sr_unsubscribe(np2srv.sr_sess.srs, np2srv.sr_subscr);
         /* connection and all the sessions get freed */
         sr_disconnect(np2srv.sr_conn);
 
@@ -760,6 +761,20 @@ np2srv_init_schemas(void)
     /* get the list of schemas from sysrepo */
     if (np2srv_sr_list_schemas(&np2srv.sr_sess, &schemas, &count, NULL)) {
         return -1;
+    }
+
+    /* subscribe for notifications about new modules */
+    rc = sr_module_install_subscribe(np2srv.sr_sess.srs, np2srv_module_install_clb, NULL, 0, &np2srv.sr_subscr);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing to module install failed (%s).", sr_strerror(rc));
+        goto error;
+    }
+
+    /* subscribe for changes of features state */
+    rc = sr_feature_enable_subscribe(np2srv.sr_sess.srs, np2srv_feature_change_clb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing to feature enable failed (%s).", sr_strerror(rc));
+        goto error;
     }
 
     /* init rwlock for libyang context */
