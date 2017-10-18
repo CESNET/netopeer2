@@ -515,9 +515,18 @@ op_ntf_yang_lib_change(const struct lyd_node *ylib_info)
 {
     const char *setid;
     struct lyd_node *ntf;
+    struct ly_set *set;
     int i;
 
-    setid = ((struct lyd_node_leaf_list *)ylib_info->child->prev)->value_str;
+    set = lyd_find_path(ylib_info, "/ietf-yang-library:modules-state/module-set-id");
+    if (!set || (set->number != 1)) {
+        ly_set_free(set);
+        EINT;
+        return;
+    }
+    setid = ((struct lyd_node_leaf_list *)set->set.d[0])->value_str;
+    ly_set_free(set);
+
     ntf = lyd_new_path(NULL, np2srv.ly_ctx, "/ietf-yang-library:yang-library-change/module-set-id", (void *)setid, 0, 0);
     if (lyd_validate(&ntf, LYD_OPT_NOTIF, (void *)ylib_info)) {
         lyd_free(ntf);
