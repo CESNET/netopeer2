@@ -108,8 +108,8 @@ static int
 addargs(struct arglist *args, char *format, ...)
 {
     va_list arguments;
-    char *aux = NULL, *aux1 = NULL;
-    int len;
+    char *aux = NULL, *aux1 = NULL, *prev_aux, quot;
+    int spaces;
 
     if (args == NULL) {
         return EXIT_FAILURE;
@@ -117,18 +117,13 @@ addargs(struct arglist *args, char *format, ...)
 
     /* store arguments to aux string */
     va_start(arguments, format);
-    if ((len = vasprintf(&aux, format, arguments)) == -1) {
+    if (vasprintf(&aux, format, arguments) == -1) {
         va_end(arguments);
         ERROR(__func__, "vasprintf() failed (%s)", strerror(errno));
         return EXIT_FAILURE;
     }
     va_end(arguments);
 
-    /* parse aux string and store it to the arglist */
-    /* find \n and \t characters and replace them by space */
-    while ((aux1 = strpbrk(aux, "\n\t")) != NULL) {
-        *aux1 = ' ';
-    }
     /* remember the begining of the aux string to free it after operations */
     aux1 = aux;
 
@@ -136,9 +131,12 @@ addargs(struct arglist *args, char *format, ...)
      * get word by word from given string and store words separately into
      * the arglist
      */
-    for (aux = strtok(aux, " "); aux; aux = strtok(NULL, " ")) {
-        if (!strcmp(aux, ""))
-        continue;
+    prev_aux = NULL;
+    quot = 0;
+    for (aux = strtok(aux, " \n\t"); aux; prev_aux = aux, aux = strtok(NULL, " \n\t")) {
+        if (!strcmp(aux, "")) {
+            continue;
+        }
 
         if (!args->list) { /* initial memory allocation */
             if ((args->list = (char **)malloc(8 * sizeof(char *))) == NULL) {
@@ -147,7 +145,7 @@ addargs(struct arglist *args, char *format, ...)
             }
             args->size = 8;
             args->count = 0;
-        } else if (args->count + 2 >= args->size) {
+        } else if (!quot && (args->count + 2 >= args->size)) {
             /*
              * list is too short to add next to word so we have to
              * extend it
@@ -155,13 +153,41 @@ addargs(struct arglist *args, char *format, ...)
             args->size += 8;
             args->list = realloc(args->list, args->size * sizeof(char *));
         }
-        /* add word in the end of the list */
-        if ((args->list[args->count] = malloc((strlen(aux) + 1) * sizeof(char))) == NULL) {
-            ERROR(__func__, "Memory allocation failed (%s:%d)", __FILE__, __LINE__);
-            return EXIT_FAILURE;
+
+        if (!quot) {
+            /* add word at the end of the list */
+            if ((args->list[args->count] = malloc((strlen(aux) + 1) * sizeof(char))) == NULL) {
+                ERROR(__func__, "Memory allocation failed (%s:%d)", __FILE__, __LINE__);
+                return EXIT_FAILURE;
+            }
+
+            /* quoted argument */
+            if ((aux[0] == '\'') || (aux[0] == '\"')) {
+                quot = aux[0];
+                ++aux;
+                /* ...but without spaces */
+                if (aux[strlen(aux) - 1] == quot) {
+                    quot = 0;
+                    aux[strlen(aux) - 1] = '\0';
+                }
+            }
+
+            strcpy(args->list[args->count], aux);
+            args->list[++args->count] = NULL; /* last argument */
+        } else {
+            /* append another part of the argument */
+            spaces = aux - (prev_aux + strlen(prev_aux));
+            args->list[args->count - 1] = realloc(args->list[args->count - 1],
+                                                  strlen(args->list[args->count - 1]) + spaces + strlen(aux) + 1);
+
+            /* end of quoted argument */
+            if (aux[strlen(aux) - 1] == quot) {
+                quot = 0;
+                aux[strlen(aux) - 1] = '\0';
+            }
+
+            sprintf(args->list[args->count - 1] + strlen(args->list[args->count - 1]), "%*s%s", spaces, " ", aux);
         }
-        strcpy(args->list[args->count], aux);
-        args->list[++args->count] = NULL; /* last argument */
     }
 
     /* clean up */
