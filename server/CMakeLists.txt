@@ -13,7 +13,7 @@ if(NOT UNIX)
 endif()
 
 # set version
-set(NP2SRV_VERSION 0.4.8)
+set(NP2SRV_VERSION 0.4.9)
 
 # set default build type if not specified by user
 if(NOT CMAKE_BUILD_TYPE)
