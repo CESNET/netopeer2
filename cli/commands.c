@@ -2861,7 +2861,7 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
                 /* open edit configuration data from the file */
                 config_fd = open(optarg, O_RDONLY);
                 if (config_fd == -1) {
-                    ERROR(__func__, "Unable to open the local datastore file (%s).", strerror(errno));
+                    ERROR(__func__, "Unable to open the local datastore file \"%s\" (%s).", optarg, strerror(errno));
                     goto fail;
                 }
 
@@ -3215,7 +3215,7 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
                 /* open edit configuration data from the file */
                 config_fd = open(optarg, O_RDONLY);
                 if (config_fd == -1) {
-                    ERROR(__func__, "Unable to open the local datastore file (%s).", strerror(errno));
+                    ERROR(__func__, "Unable to open the local datastore file \"%s\" (%s).", optarg, strerror(errno));
                     goto fail;
                 }
 
@@ -3360,7 +3360,7 @@ cmd_get(const char *arg, char **tmp_config_file)
                 /* open edit configuration data from the file */
                 config_fd = open(optarg, O_RDONLY);
                 if (config_fd == -1) {
-                    ERROR(__func__, "Unable to open the local datastore file (%s).", strerror(errno));
+                    ERROR(__func__, "Unable to open the local datastore file \"%s\" (%s).", optarg, strerror(errno));
                     goto fail;
                 }
 
@@ -3540,7 +3540,7 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
                 /* open edit configuration data from the file */
                 config_fd = open(optarg, O_RDONLY);
                 if (config_fd == -1) {
-                    ERROR(__func__, "Unable to open the local datastore file (%s).", strerror(errno));
+                    ERROR(__func__, "Unable to open the local datastore file \"%s\" (%s).", optarg, strerror(errno));
                     goto fail;
                 }
 
@@ -3987,7 +3987,7 @@ cmd_validate(const char *arg, char **tmp_config_file)
                 /* open edit configuration data from the file */
                 config_fd = open(optarg, O_RDONLY);
                 if (config_fd == -1) {
-                    ERROR(__func__, "Unable to open the local datastore file (%s).", strerror(errno));
+                    ERROR(__func__, "Unable to open the local datastore file \"%s\" (%s).", optarg, strerror(errno));
                     goto fail;
                 }
 
@@ -4125,7 +4125,7 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
                 /* open edit configuration data from the file */
                 config_fd = open(optarg, O_RDONLY);
                 if (config_fd == -1) {
-                    ERROR(__func__, "Unable to open the local datastore file (%s).", strerror(errno));
+                    ERROR(__func__, "Unable to open the local datastore file \"%s\" (%s).", optarg, strerror(errno));
                     goto fail;
                 }
 
@@ -4417,7 +4417,7 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
             /* open edit configuration data from the file */
             config_fd = open(optarg, O_RDONLY);
             if (config_fd == -1) {
-                ERROR(__func__, "Unable to open the local datastore file (%s).", strerror(errno));
+                ERROR(__func__, "Unable to open the local datastore file \"%s\" (%s).", optarg, strerror(errno));
                 goto fail;
             }
 
