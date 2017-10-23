@@ -741,6 +741,7 @@ int
 op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_count) {
     struct lyd_attr *attr;
     struct lyxml_elem *subtree_filter;
+    int free_filter, ret;
     char *path;
 
     LY_TREE_FOR(filter_node->attr, attr) {
@@ -776,9 +777,11 @@ op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_coun
         case LYD_ANYDATA_CONSTSTRING:
         case LYD_ANYDATA_STRING:
             subtree_filter = lyxml_parse_mem(np2srv.ly_ctx, ((struct lyd_node_anydata *)filter_node)->value.str, LYXML_PARSE_MULTIROOT);
+            free_filter = 1;
             break;
         case LYD_ANYDATA_XML:
             subtree_filter = ((struct lyd_node_anydata *)filter_node)->value.xml;
+            free_filter = 0;
             break;
         default:
             /* filter cannot be parsed as lyd_node tree */
@@ -788,7 +791,11 @@ op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_coun
             return -1;
         }
 
-        if (op_filter_build_xpath_from_subtree(np2srv.ly_ctx, subtree_filter, filters, filter_count)) {
+        ret = op_filter_build_xpath_from_subtree(np2srv.ly_ctx, subtree_filter, filters, filter_count);
+        if (free_filter) {
+            lyxml_free(np2srv.ly_ctx, subtree_filter);
+        }
+        if (ret) {
             return -1;
         }
     } else {
