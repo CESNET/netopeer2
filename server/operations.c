@@ -2560,9 +2560,6 @@ int
 op_sr_val_to_lyd_node(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_node)
 {
     char numstr[22];
-    struct ly_set *set;
-    struct lyd_node *iter;
-    unsigned int u = 0;
     char *str;
 
     str = op_get_srval(np2srv.ly_ctx, sr_val, numstr);
@@ -2573,60 +2570,10 @@ op_sr_val_to_lyd_node(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_
     ly_errno = LY_SUCCESS;
 
     *new_node = lyd_new_path(root, np2srv.ly_ctx, sr_val->xpath, str,
-            (sr_val->type == SR_ANYXML_T || sr_val->type == SR_ANYDATA_T) ? LYD_ANYDATA_SXML : 0, LYD_PATH_OPT_UPDATE);
+            (sr_val->type == SR_ANYXML_T || sr_val->type == SR_ANYDATA_T) ? LYD_ANYDATA_SXML : 0,
+            LYD_PATH_OPT_UPDATE | (sr_val->dflt ? LYD_PATH_OPT_DFLT : 0));
     if (ly_errno) {
         return -1;
-    }
-
-    if (*new_node) {
-        if (!root) {
-            root = *new_node;
-        }
-
-        /* propagate default flag */
-        if (sr_val->dflt) {
-            /* find the actual node supposed to be created */
-            set = lyd_find_path(root, sr_val->xpath);
-            if (!set) {
-                EINT;
-                return -1;
-            } else if (set->number > 1) {
-                /* leaf-list - find the corresponding node for the sr_val according to its value */
-                for (u = 0; u < set->number; u++) {
-                    if (!strcmp(str, ((struct lyd_node_leaf_list *)set->set.d[u])->value_str)) {
-                        break;
-                    }
-                }
-                if (u == set->number) {
-                    EINT;
-                    return -1;
-                }
-            } else {
-                u = 0;
-            }
-
-            if (set->set.d[u] == *new_node) {
-                (*new_node)->dflt = 1;
-            } else {
-                /* go up, back to the top-most created node */
-                for (iter = set->set.d[u]; iter != (*new_node)->parent; iter = iter->parent) {
-                    if (iter->schema->nodetype == LYS_CONTAINER && ((struct lys_node_container *)iter->schema)->presence) {
-                        /* presence container */
-                        break;
-                    } else if (iter->schema->nodetype == LYS_LIST && ((struct lys_node_list *)iter->schema)->keys_size) {
-                        /* list with keys */
-                        break;
-                    }
-                    iter->dflt = 1;
-                }
-            }
-
-            ly_set_free(set);
-        } else { /* non default node, propagate it to the parents */
-            for (iter = (*new_node)->parent; iter && iter->dflt; iter = iter->parent) {
-                iter->dflt = 0;
-            }
-        }
     }
 
     return 0;
