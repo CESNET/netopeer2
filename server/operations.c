@@ -420,7 +420,7 @@ np2srv_sr_get_changes_iter(struct np2_sessions *np_sess, const char *xpath, sr_c
     return 0;
 }
 
-/* returns 1 for not found */
+/* NOT_FOUND returns 1, no error */
 int
 np2srv_sr_get_change_next(struct np2_sessions *np_sess, sr_change_iter_t *iter, sr_change_oper_t *operation,
         sr_val_t **old_value, sr_val_t **new_value, struct nc_server_reply **ereply)
@@ -476,7 +476,7 @@ np2srv_sr_get_change_next(struct np2_sessions *np_sess, sr_change_iter_t *iter, 
     return 0;
 }
 
-/* UNKNOWN_MODEL and NOT_FOUND return 1, no error */
+/* UNKNOWN_MODEL, NOT_FOUND, and UNAUTHORIZED return 1, no error */
 int
 np2srv_sr_get_items_iter(struct np2_sessions *np_sess, const char *xpath, sr_val_iter_t **iter, struct nc_server_reply **ereply)
 {
@@ -487,7 +487,7 @@ np2srv_sr_get_items_iter(struct np2_sessions *np_sess, const char *xpath, sr_val
 
     if (!np2srv.disconnected) {
         rc = sr_get_items_iter(np_sess->srs, xpath, iter);
-        if ((rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_NOT_FOUND)) {
+        if ((rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_NOT_FOUND) || (rc == SR_ERR_UNAUTHORIZED)) {
             pthread_rwlock_unlock(&sr_lock);
             return 1;
         }
@@ -531,7 +531,7 @@ np2srv_sr_get_items_iter(struct np2_sessions *np_sess, const char *xpath, sr_val
     return 0;
 }
 
-/* returns 1 for not found */
+/* NOT_FOUND returns 1, no error */
 int
 np2srv_sr_get_item_next(struct np2_sessions *np_sess, sr_val_iter_t *iter, sr_val_t **value, struct nc_server_reply **ereply)
 {
