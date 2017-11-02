@@ -13,7 +13,7 @@
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
-#define _BSD_SOURCE 1
+#define _DEFAULT_SOURCE 1
 #define _POSIX_C_SOURCE 200809L
 #include <errno.h>
 #ifdef DEBUG
