@@ -228,8 +228,8 @@ signal_handler(int sig)
         depth = backtrace(stack_buf, STACK_DEPTH);
         fprintf(stderr, "Segmentation fault, backtrace:\n");
         backtrace_symbols_fd(stack_buf, depth, STDERR_FILENO);
-        /* fall through */
 #endif
+        /* fall through */
     default:
         exit(EXIT_FAILURE);
     }
