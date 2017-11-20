@@ -35,7 +35,7 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    if (np2srv_sr_check_exec_permission(sessions, "/ietf-netconf:validate", &ereply)) {
+    if (np2srv_sr_check_exec_permission(sessions->srs, "/ietf-netconf:validate", &ereply)) {
         goto finish;
     }
 
@@ -91,20 +91,20 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
 
     if (ds != sessions->ds) {
         /* update sysrepo session */
-        if (np2srv_sr_session_switch_ds(sessions, ds, &ereply)) {
+        if (np2srv_sr_session_switch_ds(sessions->srs, ds, &ereply)) {
             goto finish;
         }
         sessions->ds = ds;
     }
     if (ds != SR_DS_CANDIDATE) {
         /* refresh datastore content */
-        if (np2srv_sr_session_refresh(sessions, &ereply)) {
+        if (np2srv_sr_session_refresh(sessions->srs, &ereply)) {
             goto finish;
         }
     }
 
     /* validate sysrepo's datastore */
-    if (np2srv_sr_validate(sessions, &ereply)) {
+    if (np2srv_sr_validate(sessions->srs, &ereply)) {
         goto finish;
     }
 

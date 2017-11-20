@@ -63,55 +63,55 @@ enum NP2_EDIT_OP {
  *
  * MUST BE CALLED HOLDING sr_lock FOR READING!
  */
-int np2srv_sr_session_switch_ds(struct np2_sessions *np_sess, sr_datastore_t ds, struct nc_server_reply **ereply);
-int np2srv_sr_set_item(struct np2_sessions *np_sess, const char *xpath, const sr_val_t *value, const sr_edit_options_t opts,
+int np2srv_sr_session_switch_ds(sr_session_ctx_t *srs, sr_datastore_t ds, struct nc_server_reply **ereply);
+int np2srv_sr_set_item(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *value, const sr_edit_options_t opts,
         struct nc_server_reply **ereply);
-int np2srv_sr_delete_item(struct np2_sessions *np_sess, const char *xpath, const sr_edit_options_t opts, struct nc_server_reply **ereply);
-int np2srv_sr_get_item(struct np2_sessions *np_sess, const char *xpath, sr_val_t **value, struct nc_server_reply **ereply);
-int np2srv_sr_get_items(struct np2_sessions *np_sess, const char *xpath, sr_val_t **values, size_t *value_cnt, struct nc_server_reply **ereply);
-int np2srv_sr_get_changes_iter(struct np2_sessions *np_sess, const char *xpath, sr_change_iter_t **iter, struct nc_server_reply **ereply);
-int np2srv_sr_get_change_next(struct np2_sessions *np_sess, sr_change_iter_t *iter, sr_change_oper_t *operation,
+int np2srv_sr_delete_item(sr_session_ctx_t *srs, const char *xpath, const sr_edit_options_t opts, struct nc_server_reply **ereply);
+int np2srv_sr_get_item(sr_session_ctx_t *srs, const char *xpath, sr_val_t **value, struct nc_server_reply **ereply);
+int np2srv_sr_get_items(sr_session_ctx_t *srs, const char *xpath, sr_val_t **values, size_t *value_cnt, struct nc_server_reply **ereply);
+int np2srv_sr_get_changes_iter(sr_session_ctx_t *srs, const char *xpath, sr_change_iter_t **iter, struct nc_server_reply **ereply);
+int np2srv_sr_get_change_next(sr_session_ctx_t *srs, sr_change_iter_t *iter, sr_change_oper_t *operation,
         sr_val_t **old_value, sr_val_t **new_value, struct nc_server_reply **ereply);
-int np2srv_sr_get_items_iter(struct np2_sessions *np_sess, const char *xpath, sr_val_iter_t **iter, struct nc_server_reply **ereply);
-int np2srv_sr_get_item_next(struct np2_sessions *np_sess, sr_val_iter_t *iter, sr_val_t **value, struct nc_server_reply **ereply);
-int np2srv_sr_move_item(struct np2_sessions *np_sess, const char *xpath, const sr_move_position_t position,
+int np2srv_sr_get_items_iter(sr_session_ctx_t *srs, const char *xpath, sr_val_iter_t **iter, struct nc_server_reply **ereply);
+int np2srv_sr_get_item_next(sr_session_ctx_t *srs, sr_val_iter_t *iter, sr_val_t **value, struct nc_server_reply **ereply);
+int np2srv_sr_move_item(sr_session_ctx_t *srs, const char *xpath, const sr_move_position_t position,
         const char *relative_item, struct nc_server_reply **ereply);
-int np2srv_sr_rpc_send(struct np2_sessions *np_sess, const char *xpath, const sr_val_t *input,  const size_t input_cnt,
+int np2srv_sr_rpc_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *input,  const size_t input_cnt,
         sr_val_t **output, size_t *output_cnt, struct nc_server_reply **ereply);
-int np2srv_sr_action_send(struct np2_sessions *np_sess, const char *xpath, const sr_val_t *input,  const size_t input_cnt,
+int np2srv_sr_action_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *input,  const size_t input_cnt,
         sr_val_t **output, size_t *output_cnt, struct nc_server_reply **ereply);
-int np2srv_sr_check_exec_permission(struct np2_sessions *np_sess, const char *xpath, struct nc_server_reply **ereply);
-int np2srv_sr_module_change_subscribe(struct np2_sessions *np_sess, const char *module_name, sr_module_change_cb callback,
+int np2srv_sr_check_exec_permission(sr_session_ctx_t *srs, const char *xpath, struct nc_server_reply **ereply);
+int np2srv_sr_module_change_subscribe(sr_session_ctx_t *srs, const char *module_name, sr_module_change_cb callback,
         void *private_ctx, uint32_t priority, sr_subscr_options_t opts, sr_subscription_ctx_t **subscription, struct nc_server_reply **ereply);
-int np2srv_sr_module_install_subscribe(struct np2_sessions *np_sess, sr_module_install_cb callback, void *private_ctx,
+int np2srv_sr_module_install_subscribe(sr_session_ctx_t *srs, sr_module_install_cb callback, void *private_ctx,
         sr_subscr_options_t opts, sr_subscription_ctx_t **subscription, struct nc_server_reply **ereply);
-int np2srv_sr_feature_enable_subscribe(struct np2_sessions *np_sess, sr_feature_enable_cb callback, void *private_ctx,
+int np2srv_sr_feature_enable_subscribe(sr_session_ctx_t *srs, sr_feature_enable_cb callback, void *private_ctx,
         sr_subscr_options_t opts, sr_subscription_ctx_t **subscription, struct nc_server_reply **ereply);
-int np2srv_sr_subtree_change_subscribe(struct np2_sessions *np_sess, const char *xpath, sr_subtree_change_cb callback,
+int np2srv_sr_subtree_change_subscribe(sr_session_ctx_t *srs, const char *xpath, sr_subtree_change_cb callback,
         void *private_ctx, uint32_t priority, sr_subscr_options_t opts, sr_subscription_ctx_t **subscription, struct nc_server_reply **ereply);
-int np2srv_sr_event_notif_subscribe(struct np2_sessions *np_sess, const char *xpath, sr_event_notif_cb callback,
+int np2srv_sr_event_notif_subscribe(sr_session_ctx_t *srs, const char *xpath, sr_event_notif_cb callback,
         void *private_ctx, sr_subscr_options_t opts, sr_subscription_ctx_t **subscription, struct nc_server_reply **ereply);
-int np2srv_sr_event_notif_replay(struct np2_sessions *np_sess, sr_subscription_ctx_t *subscription, time_t start_time,
+int np2srv_sr_event_notif_replay(sr_session_ctx_t *srs, sr_subscription_ctx_t *subscription, time_t start_time,
         time_t stop_time, struct nc_server_reply **ereply);
-int np2srv_sr_event_notif_send(struct np2_sessions *np_sess, const char *xpath, const sr_val_t *values,
+int np2srv_sr_event_notif_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *values,
         const size_t values_cnt, sr_ev_notif_flag_t opts, struct nc_server_reply **ereply);
 int np2srv_sr_session_start_user(const char *user_name, const sr_datastore_t datastore,
         const sr_sess_options_t opts, sr_session_ctx_t **session, struct nc_server_reply **ereply);
-int np2srv_sr_session_stop(struct np2_sessions *np_sess, struct nc_server_reply **ereply);
-int np2srv_sr_session_set_options(struct np2_sessions *np_sess, const sr_sess_options_t opts, struct nc_server_reply **ereply);
-int np2srv_sr_session_refresh(struct np2_sessions *np_sess, struct nc_server_reply **ereply);
-int np2srv_sr_discard_changes(struct np2_sessions *np_sess, struct nc_server_reply **ereply);
-int np2srv_sr_commit(struct np2_sessions *np_sess, struct nc_server_reply **ereply);
-int np2srv_sr_validate(struct np2_sessions *np_sess, struct nc_server_reply **ereply);
-int np2srv_sr_copy_config(struct np2_sessions *np_sess, const char *module_name, sr_datastore_t src_datastore,
+int np2srv_sr_session_stop(sr_session_ctx_t *srs, struct nc_server_reply **ereply);
+int np2srv_sr_session_set_options(sr_session_ctx_t *srs, const sr_sess_options_t opts, struct nc_server_reply **ereply);
+int np2srv_sr_session_refresh(sr_session_ctx_t *srs, struct nc_server_reply **ereply);
+int np2srv_sr_discard_changes(sr_session_ctx_t *srs, struct nc_server_reply **ereply);
+int np2srv_sr_commit(sr_session_ctx_t *srs, struct nc_server_reply **ereply);
+int np2srv_sr_validate(sr_session_ctx_t *srs, struct nc_server_reply **ereply);
+int np2srv_sr_copy_config(sr_session_ctx_t *srs, const char *module_name, sr_datastore_t src_datastore,
         sr_datastore_t dst_datastore, struct nc_server_reply **ereply);
-int np2srv_sr_lock_datastore(struct np2_sessions *np_sess, struct nc_server_reply **ereply);
-int np2srv_sr_unlock_datastore(struct np2_sessions *np_sess, struct nc_server_reply **ereply);
-int np2srv_sr_unsubscribe(struct np2_sessions *np_sess, sr_subscription_ctx_t *subscription, struct nc_server_reply **ereply);
-int np2srv_sr_list_schemas(struct np2_sessions *np_sess, sr_schema_t **schemas, size_t *schema_cnt, struct nc_server_reply **ereply);
-int np2srv_sr_get_submodule_schema(struct np2_sessions *np_sess, const char *submodule_name, const char *submodule_revision,
+int np2srv_sr_lock_datastore(sr_session_ctx_t *srs, struct nc_server_reply **ereply);
+int np2srv_sr_unlock_datastore(sr_session_ctx_t *srs, struct nc_server_reply **ereply);
+int np2srv_sr_unsubscribe(sr_session_ctx_t *srs, sr_subscription_ctx_t *subscription, struct nc_server_reply **ereply);
+int np2srv_sr_list_schemas(sr_session_ctx_t *srs, sr_schema_t **schemas, size_t *schema_cnt, struct nc_server_reply **ereply);
+int np2srv_sr_get_submodule_schema(sr_session_ctx_t *srs, const char *submodule_name, const char *submodule_revision,
         sr_schema_format_t format, char **schema_content, struct nc_server_reply **ereply);
-int np2srv_sr_get_schema(struct np2_sessions *np_sess, const char *module_name, const char *revision,
+int np2srv_sr_get_schema(sr_session_ctx_t *srs, const char *module_name, const char *revision,
          const char *submodule_name, sr_schema_format_t format, char **schema_content, struct nc_server_reply **ereply);
 
 char *op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char *buf);

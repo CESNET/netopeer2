@@ -190,7 +190,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    if (np2srv_sr_check_exec_permission(sessions, "/ietf-netconf:edit-config", &ereply)) {
+    if (np2srv_sr_check_exec_permission(sessions->srs, "/ietf-netconf:edit-config", &ereply)) {
         goto cleanup;
     }
 
@@ -220,7 +220,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* edit-config on startup is not allowed by RFC 6241 */
     if (ds != sessions->ds) {
         /* update sysrepo session */
-        if (np2srv_sr_session_switch_ds(sessions, ds, &ereply)) {
+        if (np2srv_sr_session_switch_ds(sessions->srs, ds, &ereply)) {
             goto cleanup;
         }
         sessions->ds = ds;
@@ -315,7 +315,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
     if (sessions->ds != SR_DS_CANDIDATE) {
         /* update data from sysrepo */
-        if (np2srv_sr_session_refresh(sessions, &ereply)) {
+        if (np2srv_sr_session_refresh(sessions->srs, &ereply)) {
             goto cleanup;
         }
     }
@@ -487,28 +487,28 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         case NP2_EDIT_MERGE:
             /* create the node */
             if (!np_cont) {
-                ret = np2srv_sr_set_item(sessions, path, &value, 0, &ereply);
+                ret = np2srv_sr_set_item(sessions->srs, path, &value, 0, &ereply);
             }
             break;
         case NP2_EDIT_REPLACE_INNER:
         case NP2_EDIT_CREATE:
             /* create the node, but it must not exists */
-            ret = np2srv_sr_set_item(sessions, path, &value, SR_EDIT_STRICT, &ereply);
+            ret = np2srv_sr_set_item(sessions->srs, path, &value, SR_EDIT_STRICT, &ereply);
             break;
         case NP2_EDIT_DELETE:
             /* remove the node, but it must exists */
-            ret = np2srv_sr_delete_item(sessions, path, SR_EDIT_STRICT, &ereply);
+            ret = np2srv_sr_delete_item(sessions->srs, path, SR_EDIT_STRICT, &ereply);
             break;
         case NP2_EDIT_REMOVE:
             /* remove the node */
-            ret = np2srv_sr_delete_item(sessions, path, 0, &ereply);
+            ret = np2srv_sr_delete_item(sessions->srs, path, 0, &ereply);
             break;
         case NP2_EDIT_REPLACE:
             /* remove the node first */
-            ret = np2srv_sr_delete_item(sessions, path, 0, &ereply);
+            ret = np2srv_sr_delete_item(sessions->srs, path, 0, &ereply);
             /* create it again (but we removed all the children, sysrepo forbids creating NP containers as it's redundant) */
             if (!ret && !np_cont) {
-                ret = np2srv_sr_set_item(sessions, path, &value, 0, &ereply);
+                ret = np2srv_sr_set_item(sessions->srs, path, &value, 0, &ereply);
             }
             break;
         default:
@@ -540,7 +540,7 @@ resultcheck:
 
         /* move user-ordered list/leaflist */
         if (pos != SR_MOVE_LAST) {
-            ret = np2srv_sr_move_item(sessions, path, pos, rel, &ereply);
+            ret = np2srv_sr_move_item(sessions->srs, path, pos, rel, &ereply);
             free(rel);
             pos = SR_MOVE_LAST;
             goto resultcheck;
@@ -618,7 +618,7 @@ cleanup:
 
     /* just rollback and return error */
     if ((erropt == NP2_EDIT_ERROPT_ROLLBACK) && ereply) {
-        np2srv_sr_discard_changes(sessions, NULL);
+        np2srv_sr_discard_changes(sessions->srs, NULL);
         return ereply;
     }
 
@@ -628,8 +628,8 @@ cleanup:
         /* fallthrough */
     case NP2_EDIT_TESTOPT_TESTANDSET:
         /* commit changes */
-        if (np2srv_sr_commit(sessions, &ereply)) {
-            np2srv_sr_discard_changes(sessions, NULL); /* rollback the changes */
+        if (np2srv_sr_commit(sessions->srs, &ereply)) {
+            np2srv_sr_discard_changes(sessions->srs, NULL); /* rollback the changes */
         }
         if (sessions->ds == SR_DS_CANDIDATE) {
             /* mark candidate as modified */
@@ -637,7 +637,7 @@ cleanup:
         }
         break;
     case NP2_EDIT_TESTOPT_TEST:
-        np2srv_sr_discard_changes(sessions, NULL);
+        np2srv_sr_discard_changes(sessions->srs, NULL);
         break;
     }
 
@@ -661,7 +661,7 @@ internalerror:
     /* fatal error, so continue-on-error does not apply here,
      * instead we rollback */
     DBG("EDIT_CONFIG: fatal error, rolling back.");
-    np2srv_sr_discard_changes(sessions, NULL);
+    np2srv_sr_discard_changes(sessions->srs, NULL);
 
     free(path);
     free(op);

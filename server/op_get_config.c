@@ -31,7 +31,7 @@
 
 /* add whole subtree */
 static int
-opget_build_subtree_from_sysrepo(struct np2_sessions *np_sess, struct lyd_node **root, const char *subtree_xpath)
+opget_build_subtree_from_sysrepo(sr_session_ctx_t *srs, struct lyd_node **root, const char *subtree_xpath)
 {
     sr_val_t *value;
     sr_val_iter_t *sriter;
@@ -44,7 +44,7 @@ opget_build_subtree_from_sysrepo(struct np2_sessions *np_sess, struct lyd_node *
         return -1;
     }
 
-    rc = np2srv_sr_get_items_iter(np_sess, full_subtree_xpath, &sriter, NULL);
+    rc = np2srv_sr_get_items_iter(srs, full_subtree_xpath, &sriter, NULL);
     free(full_subtree_xpath);
     if (rc == 1) {
         /* it's ok, model without data */
@@ -53,7 +53,7 @@ opget_build_subtree_from_sysrepo(struct np2_sessions *np_sess, struct lyd_node *
         return -1;
     }
 
-    while ((!np2srv_sr_get_item_next(np_sess, sriter, &value, NULL))) {
+    while ((!np2srv_sr_get_item_next(srs, sriter, &value, NULL))) {
         if (op_sr_val_to_lyd_node(*root, value, &node)) {
             sr_free_val(value);
             sr_free_val_iter(sriter);
@@ -92,9 +92,9 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
     if (!strcmp(rpc->schema->name, "get")) {
-        rc = np2srv_sr_check_exec_permission(sessions, "/ietf-netconf:get", &ereply);
+        rc = np2srv_sr_check_exec_permission(sessions->srs, "/ietf-netconf:get", &ereply);
     } else {
-        rc = np2srv_sr_check_exec_permission(sessions, "/ietf-netconf:get-config", &ereply);
+        rc = np2srv_sr_check_exec_permission(sessions->srs, "/ietf-netconf:get-config", &ereply);
     }
     if (rc) {
         goto error;
@@ -123,13 +123,13 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     }
     if (ds != sessions->ds || (sessions->opts & SR_SESS_CONFIG_ONLY) != config_only) {
         /* update sysrepo session datastore */
-        if (np2srv_sr_session_switch_ds(sessions, ds, &ereply)) {
+        if (np2srv_sr_session_switch_ds(sessions->srs, ds, &ereply)) {
            goto error;
         }
         sessions->ds = ds;
 
         /* update sysrepo session config */
-        if (np2srv_sr_session_set_options(sessions, config_only, &ereply)) {
+        if (np2srv_sr_session_set_options(sessions->srs, config_only, &ereply)) {
             goto error;
         }
         sessions->opts = config_only;
@@ -192,12 +192,12 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
     if (sessions->ds != SR_DS_CANDIDATE) {
         /* refresh sysrepo data */
-        if (np2srv_sr_session_refresh(sessions, &ereply)) {
+        if (np2srv_sr_session_refresh(sessions->srs, &ereply)) {
             goto error;
         }
     } else if (!(sessions->flags & NP2S_CAND_CHANGED)) {
         /* update candidate to be the same as running */
-        if (np2srv_sr_session_refresh(sessions, &ereply)) {
+        if (np2srv_sr_session_refresh(sessions->srs, &ereply)) {
             goto error;
         }
     }
@@ -261,7 +261,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         }
 
         /* create this subtree */
-        if (opget_build_subtree_from_sysrepo(sessions, &root, filters[i])) {
+        if (opget_build_subtree_from_sysrepo(sessions->srs, &root, filters[i])) {
             goto error;
         }
     }

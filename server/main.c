@@ -345,9 +345,9 @@ np2srv_ly_import_clb(const char *mod_name, const char *mod_rev, const char *subm
     *free_module_data = free;
     *format = LYS_YIN;
     if (submod_rev || (submod_name && !mod_name)) {
-        np2srv_sr_get_submodule_schema(&np2srv.sr_sess, submod_name, submod_rev, SR_SCHEMA_YIN, &data, NULL);
+        np2srv_sr_get_submodule_schema(np2srv.sr_sess.srs, submod_name, submod_rev, SR_SCHEMA_YIN, &data, NULL);
     } else {
-        np2srv_sr_get_schema(&np2srv.sr_sess, mod_name, mod_rev, submod_name, SR_SCHEMA_YIN, &data, NULL);
+        np2srv_sr_get_schema(np2srv.sr_sess.srs, mod_name, mod_rev, submod_name, SR_SCHEMA_YIN, &data, NULL);
     }
 
     return data;
@@ -385,7 +385,7 @@ np2srv_send_capab_change_notif(const char *added_uri, const char *deleted_uri, c
         data[2].data.string_val = (char *)modified_uri;
     }
 
-    if (!np2srv_sr_event_notif_send(&np2srv.sr_sess, "/ietf-netconf-notifications:netconf-capability-change", data,
+    if (!np2srv_sr_event_notif_send(np2srv.sr_sess.srs, "/ietf-netconf-notifications:netconf-capability-change", data,
                                     3, SR_EV_NOTIF_DEFAULT, NULL)) {
         VRB("Generated new event (netconf-capability-change).");
     }
@@ -451,7 +451,7 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
 
     if (state == SR_MS_IMPLEMENTED) {
         /* adding another module into the current libyang context */
-        if (np2srv_sr_get_schema(&np2srv.sr_sess, module_name, revision, NULL, SR_SCHEMA_YIN, &data, NULL)) {
+        if (np2srv_sr_get_schema(np2srv.sr_sess.srs, module_name, revision, NULL, SR_SCHEMA_YIN, &data, NULL)) {
             return;
         }
 
@@ -469,7 +469,7 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
             return;
         } else {
             /* get module's features */
-            if (np2srv_sr_list_schemas(&np2srv.sr_sess, &schemas, &count, NULL)) {
+            if (np2srv_sr_list_schemas(np2srv.sr_sess.srs, &schemas, &count, NULL)) {
                 pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
                 return;
             }
@@ -580,7 +580,7 @@ connect_ds(struct nc_session *ncs)
 
 error:
     if (s->srs) {
-        np2srv_sr_session_stop(s, NULL);
+        np2srv_sr_session_stop(s->srs, NULL);
     }
     free(s);
     return EXIT_FAILURE;
@@ -652,7 +652,7 @@ np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_s
             event_data[2].type = SR_STRING_T;
             event_data[2].data.string_val = host;
         }
-        if (!np2srv_sr_event_notif_send(&np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-start", event_data,
+        if (!np2srv_sr_event_notif_send(np2srv.sr_sess.srs, "/ietf-netconf-notifications:netconf-session-start", event_data,
                                         host ? 3 : 2, SR_EV_NOTIF_DEFAULT, NULL)) {
             VRB("Generated new event (netconf-session-start).");
         }
@@ -738,7 +738,7 @@ np2srv_del_session_clb(struct nc_session *session)
             event_data[i++].data.enum_val = "other";
             break;
         }
-        if (!np2srv_sr_event_notif_send(&np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-end", event_data, c,
+        if (!np2srv_sr_event_notif_send(np2srv.sr_sess.srs, "/ietf-netconf-notifications:netconf-session-end", event_data, c,
                                         SR_EV_NOTIF_DEFAULT, NULL)) {
             VRB("Generated new event (netconf-session-end).");
         }
@@ -758,7 +758,7 @@ np2srv_init_schemas(void)
     size_t count, i, j;
 
     /* get the list of schemas from sysrepo */
-    if (np2srv_sr_list_schemas(&np2srv.sr_sess, &schemas, &count, NULL)) {
+    if (np2srv_sr_list_schemas(np2srv.sr_sess.srs, &schemas, &count, NULL)) {
         return -1;
     }
 
@@ -820,7 +820,7 @@ np2srv_init_schemas(void)
                     schemas[i].module_name, schemas[i].revision.revision ? "@" : "",
                     schemas[i].revision.revision ? schemas[i].revision.revision : "");
             }
-        } else if (!np2srv_sr_get_schema(&np2srv.sr_sess, schemas[i].module_name,
+        } else if (!np2srv_sr_get_schema(np2srv.sr_sess.srs, schemas[i].module_name,
                 schemas[i].revision.revision, NULL, SR_SCHEMA_YIN, &data, NULL)) {
             mod = lys_parse_mem(np2srv.ly_ctx, data, LYS_IN_YIN);
             free(data);

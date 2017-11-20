@@ -43,7 +43,7 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    if (np2srv_sr_check_exec_permission(sessions, "/ietf-netconf:lock", &ereply)) {
+    if (np2srv_sr_check_exec_permission(sessions->srs, "/ietf-netconf:lock", &ereply)) {
         goto finish;
     }
 
@@ -74,7 +74,7 @@ op_lock(struct lyd_node *rpc, struct nc_session *ncs)
     }
     if (ds != sessions->ds) {
         /* update sysrepo session */
-        if (np2srv_sr_session_switch_ds(sessions, ds, &ereply)) {
+        if (np2srv_sr_session_switch_ds(sessions->srs, ds, &ereply)) {
             goto finish;
         }
         sessions->ds = ds;
@@ -100,7 +100,7 @@ lock_held:
         goto lock_held;
     }
 
-    if (np2srv_sr_lock_datastore(sessions, &ereply)) {
+    if (np2srv_sr_lock_datastore(sessions->srs, &ereply)) {
         /* lock is held outside Netopeer */
         pthread_rwlock_unlock(&dslock_rwl);
         /* add lock denied error */
@@ -138,7 +138,7 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    if (np2srv_sr_check_exec_permission(sessions, "/ietf-netconf:unlock", &ereply)) {
+    if (np2srv_sr_check_exec_permission(sessions->srs, "/ietf-netconf:unlock", &ereply)) {
         goto finish;
     }
 
@@ -168,7 +168,7 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
     }
     if (ds != sessions->ds) {
         /* update sysrepo session */
-        if (np2srv_sr_session_switch_ds(sessions, ds, &ereply)) {
+        if (np2srv_sr_session_switch_ds(sessions->srs, ds, &ereply)) {
             goto finish;
         }
         sessions->ds = ds;
@@ -200,7 +200,7 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
     pthread_rwlock_unlock(&dslock_rwl);
     pthread_rwlock_wrlock(&dslock_rwl);
 
-    if (np2srv_sr_unlock_datastore(sessions, &ereply)) {
+    if (np2srv_sr_unlock_datastore(sessions->srs, &ereply)) {
         /* lock is held outside Netopeer */
         pthread_rwlock_unlock(&dslock_rwl);
         /* add lock denied error */
@@ -212,7 +212,7 @@ op_unlock(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* according to RFC 6241 8.3.5.2, discard changes */
-    np2srv_sr_discard_changes(sessions, NULL);
+    np2srv_sr_discard_changes(sessions->srs, NULL);
 
     /* update local information about locks */
     *dsl = NULL;

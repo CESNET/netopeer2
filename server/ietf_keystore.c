@@ -49,14 +49,14 @@ np_server_cert_clb(const char *name, void *UNUSED(user_data), char **UNUSED(cert
     }
 
     if (np2srv.sr_sess.ds != SR_DS_RUNNING) {
-        if (np2srv_sr_session_switch_ds(&np2srv.sr_sess, SR_DS_RUNNING, NULL)) {
+        if (np2srv_sr_session_switch_ds(np2srv.sr_sess.srs, SR_DS_RUNNING, NULL)) {
             free(path);
             return 1;
         }
         np2srv.sr_sess.ds = SR_DS_RUNNING;
     }
 
-    if (np2srv_sr_get_item(&np2srv.sr_sess, path, &sr_cert, NULL)) {
+    if (np2srv_sr_get_item(np2srv.sr_sess.srs, path, &sr_cert, NULL)) {
         free(path);
         return 1;
     }
@@ -109,14 +109,14 @@ np_trusted_cert_list_clb(const char *name, void *UNUSED(user_data), char ***UNUS
     }
 
     if (np2srv.sr_sess.ds != SR_DS_RUNNING) {
-        if (np2srv_sr_session_switch_ds(&np2srv.sr_sess, SR_DS_RUNNING, NULL)) {
+        if (np2srv_sr_session_switch_ds(np2srv.sr_sess.srs, SR_DS_RUNNING, NULL)) {
             free(path);
             return 1;
         }
         np2srv.sr_sess.ds = SR_DS_RUNNING;
     }
 
-    if (np2srv_sr_get_items(&np2srv.sr_sess, path, &sr_certs, &sr_cert_count, NULL)) {
+    if (np2srv_sr_get_items(np2srv.sr_sess.srs, path, &sr_certs, &sr_cert_count, NULL)) {
         free(path);
         return 1;
     }

@@ -35,7 +35,7 @@ op_kill(struct lyd_node *rpc, struct nc_session *ncs)
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    if (np2srv_sr_check_exec_permission(sessions, "/ietf-netconf:kill-session", &ereply)) {
+    if (np2srv_sr_check_exec_permission(sessions->srs, "/ietf-netconf:kill-session", &ereply)) {
         goto finish;
     }
 

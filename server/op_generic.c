@@ -124,14 +124,14 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    if (np2srv_sr_check_exec_permission(sessions, rpc_xpath, &ereply)) {
+    if (np2srv_sr_check_exec_permission(sessions->srs, rpc_xpath, &ereply)) {
         goto finish;
     }
 
     /* perform operation on running to make notification
      * for the sysrepo's subscriber implementing the RPC */
     if (sessions->ds != SR_DS_RUNNING) {
-        if (np2srv_sr_session_switch_ds(sessions, SR_DS_RUNNING, &ereply)) {
+        if (np2srv_sr_session_switch_ds(sessions->srs, SR_DS_RUNNING, &ereply)) {
             goto finish;
         }
         sessions->ds = SR_DS_RUNNING;
@@ -172,9 +172,9 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     set = NULL;
 
     if (!act) {
-        rc = np2srv_sr_rpc_send(sessions, rpc_xpath, input, in_count, &output, &out_count, &ereply);
+        rc = np2srv_sr_rpc_send(sessions->srs, rpc_xpath, input, in_count, &output, &out_count, &ereply);
     } else {
-        rc = np2srv_sr_action_send(sessions, rpc_xpath, input, in_count, &output, &out_count, &ereply);
+        rc = np2srv_sr_action_send(sessions->srs, rpc_xpath, input, in_count, &output, &out_count, &ereply);
     }
     if (rc) {
         goto finish;

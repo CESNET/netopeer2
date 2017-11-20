@@ -47,7 +47,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    if (np2srv_sr_check_exec_permission(sessions, "/ietf-netconf:copy-config", &ereply)) {
+    if (np2srv_sr_check_exec_permission(sessions->srs, "/ietf-netconf:copy-config", &ereply)) {
         goto finish;
     }
 
@@ -67,12 +67,12 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
     if (sessions->ds != target) {
         /* update sysrepo session */
-        np2srv_sr_session_switch_ds(sessions, target, NULL);
+        np2srv_sr_session_switch_ds(sessions->srs, target, NULL);
         sessions->ds = target;
     }
     if (sessions->ds != SR_DS_CANDIDATE) {
         /* update data from sysrepo */
-        if (np2srv_sr_session_refresh(sessions, &ereply)) {
+        if (np2srv_sr_session_refresh(sessions->srs, &ereply)) {
             goto finish;
         }
     }
@@ -139,7 +139,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
         }
         for (i = 0; i < nodeset->number; i++) {
             snprintf(path, 1024, "/%s:*", ((struct lys_module *)nodeset->set.g[i])->name);
-            np2srv_sr_delete_item(sessions, path, 0, NULL);
+            np2srv_sr_delete_item(sessions->srs, path, 0, NULL);
         }
         ly_set_free(nodeset);
 
@@ -223,7 +223,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
             }
 
             /* create the iter in sysrepo */
-            rc = np2srv_sr_set_item(sessions, path, &value, 0, &ereply);
+            rc = np2srv_sr_set_item(sessions->srs, path, &value, 0, &ereply);
             if (str) {
                 free(str);
                 str = NULL;
@@ -282,9 +282,9 @@ dfs_continue:
         }
 
         /* commit the result */
-        rc = np2srv_sr_commit(sessions, &ereply);
+        rc = np2srv_sr_commit(sessions->srs, &ereply);
     } else {
-        rc = np2srv_sr_copy_config(sessions, NULL, source, target, &ereply);
+        rc = np2srv_sr_copy_config(sessions->srs, NULL, source, target, &ereply);
         /* commit is done implicitely by sr_copy_config() */
     }
     if (rc) {
@@ -292,9 +292,9 @@ dfs_continue:
     }
 
     if (sessions->ds == SR_DS_CANDIDATE) {
-        if (np2srv_sr_validate(sessions, &ereply)) {
+        if (np2srv_sr_validate(sessions->srs, &ereply)) {
             /* content is not valid or error, rollback */
-            np2srv_sr_discard_changes(sessions, NULL);
+            np2srv_sr_discard_changes(sessions->srs, NULL);
             goto finish;
         }
         /* mark candidate as modified */

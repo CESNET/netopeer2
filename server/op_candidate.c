@@ -28,11 +28,11 @@ op_commit(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    if (np2srv_sr_check_exec_permission(sessions, "/ietf-netconf:commit", &ereply)) {
+    if (np2srv_sr_check_exec_permission(sessions->srs, "/ietf-netconf:commit", &ereply)) {
         goto finish;
     }
 
-    if (np2srv_sr_copy_config(sessions, NULL, SR_DS_CANDIDATE, SR_DS_RUNNING, &ereply)) {
+    if (np2srv_sr_copy_config(sessions->srs, NULL, SR_DS_CANDIDATE, SR_DS_RUNNING, &ereply)) {
         goto finish;
     }
 
@@ -54,17 +54,17 @@ op_discardchanges(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    if (np2srv_sr_check_exec_permission(sessions, "/ietf-netconf:discard-changes", &ereply)) {
+    if (np2srv_sr_check_exec_permission(sessions->srs, "/ietf-netconf:discard-changes", &ereply)) {
         goto finish;
     }
 
     if (sessions->ds != SR_DS_CANDIDATE) {
         /* update sysrepo session */
-        np2srv_sr_session_switch_ds(sessions, SR_DS_CANDIDATE, NULL);
+        np2srv_sr_session_switch_ds(sessions->srs, SR_DS_CANDIDATE, NULL);
         sessions->ds = SR_DS_CANDIDATE;
     }
 
-    if (np2srv_sr_discard_changes(sessions, &ereply)) {
+    if (np2srv_sr_discard_changes(sessions->srs, &ereply)) {
         goto finish;
     }
 

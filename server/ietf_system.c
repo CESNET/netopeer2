@@ -24,7 +24,7 @@
 #include "operations.h"
 
 static int
-subtree_change_resolve(struct np2_sessions *np_sess, sr_change_oper_t sr_oper, sr_val_t *sr_old_val,
+subtree_change_resolve(sr_session_ctx_t *srs, sr_change_oper_t sr_oper, sr_val_t *sr_old_val,
                        sr_val_t *sr_new_val, NC_SSH_KEY_TYPE *prev_keytype)
 {
     int rc = -2;
@@ -132,7 +132,7 @@ subtree_change_resolve(struct np2_sessions *np_sess, sr_change_oper_t sr_oper, s
             /* we must remove the key first, then re-add it */
             asprintf(&path, "/ietf-system:system/authentication/user[name='%s']/authorized-key[name='%s']/key-data",
                      list1_key, list2_key);
-            if (np2srv_sr_get_item(np_sess, path, &keydata_val, NULL)) {
+            if (np2srv_sr_get_item(srs, path, &keydata_val, NULL)) {
                 rc = -1;
                 goto cleanup;
             }
@@ -185,24 +185,23 @@ cleanup:
 }
 
 static int
-subtree_change_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(xpath), sr_notif_event_t event, void *private_ctx)
+subtree_change_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), sr_notif_event_t event, void *UNUSED(private_ctx))
 {
     int rc;
     sr_change_iter_t *sr_iter = NULL;
     sr_change_oper_t sr_oper;
     sr_val_t *sr_old_val = NULL, *sr_new_val = NULL;
     NC_SSH_KEY_TYPE prev_keytype = 0;
-    struct np2_sessions *np_sess = (struct np2_sessions *)private_ctx;
 
     if (event != SR_EV_APPLY) {
         EINT;
         return -1;
     }
 
-    if (np2srv_sr_get_changes_iter(np_sess, "/ietf-system:system/authentication/user/authorized-key//*", &sr_iter, NULL)) {
+    if (np2srv_sr_get_changes_iter(session, "/ietf-system:system/authentication/user/authorized-key//*", &sr_iter, NULL)) {
         return -1;
     }
-    while (!(rc = np2srv_sr_get_change_next(np_sess, sr_iter, &sr_oper, &sr_old_val, &sr_new_val, NULL))) {
+    while (!(rc = np2srv_sr_get_change_next(session, sr_iter, &sr_oper, &sr_old_val, &sr_new_val, NULL))) {
         if ((sr_old_val && ((sr_old_val->type == SR_LIST_T) && (sr_oper != SR_OP_MOVED)))
                 || (sr_new_val && ((sr_new_val->type == SR_LIST_T) && (sr_oper != SR_OP_MOVED)))
                 || (sr_old_val && (sr_old_val->type == SR_CONTAINER_T)) || (sr_new_val && (sr_new_val->type == SR_CONTAINER_T))) {
@@ -210,7 +209,7 @@ subtree_change_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(xpath), 
             continue;
         }
 
-        rc = subtree_change_resolve(np_sess, sr_oper, sr_old_val, sr_new_val, &prev_keytype);
+        rc = subtree_change_resolve(session, sr_oper, sr_old_val, sr_new_val, &prev_keytype);
 
         sr_free_val(sr_old_val);
         sr_free_val(sr_new_val);
@@ -228,7 +227,7 @@ subtree_change_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(xpath), 
 }
 
 int
-feature_change_ietf_system(struct np2_sessions *np_sess, const char *feature_name, bool enabled)
+feature_change_ietf_system(sr_session_ctx_t *srs, const char *feature_name, bool enabled)
 {
     int rc;
     sr_val_iter_t *sr_iter;
@@ -242,18 +241,18 @@ feature_change_ietf_system(struct np2_sessions *np_sess, const char *feature_nam
     }
 
     if (enabled) {
-        if (np2srv_sr_get_items_iter(np_sess, "/ietf-system:system/authentication/user/authorized-key//*",
+        if (np2srv_sr_get_items_iter(srs, "/ietf-system:system/authentication/user/authorized-key//*",
                 &sr_iter, NULL)) {
             return -1;
         }
 
-        while (!(rc = np2srv_sr_get_item_next(np_sess, sr_iter, &sr_val, NULL))) {
+        while (!(rc = np2srv_sr_get_item_next(srs, sr_iter, &sr_val, NULL))) {
             if (sr_val->type == SR_LIST_T) {
                 /* no semantic meaning */
                 continue;
             }
 
-            rc = subtree_change_resolve(np_sess, SR_OP_CREATED, NULL, sr_val, &prev_keytype);
+            rc = subtree_change_resolve(srs, SR_OP_CREATED, NULL, sr_val, &prev_keytype);
             sr_free_val(sr_val);
             if (rc) {
                 ERR("Failed to enable nodes depending on the \"%s\" ietf-system feature.", feature_name);
@@ -274,14 +273,14 @@ feature_change_ietf_system(struct np2_sessions *np_sess, const char *feature_nam
 int
 ietf_system_init(const struct lys_module *module)
 {
-    if (np2srv_sr_subtree_change_subscribe(&np2srv.sr_sess, "/ietf-system:system/authentication/user",
-                subtree_change_cb, &np2srv.sr_sess, 0, SR_SUBSCR_APPLY_ONLY | SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr, NULL)) {
+    if (np2srv_sr_subtree_change_subscribe(np2srv.sr_sess.srs, "/ietf-system:system/authentication/user",
+                subtree_change_cb, NULL, 0, SR_SUBSCR_APPLY_ONLY | SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr, NULL)) {
         return -1;
     }
 
     /* applies the whole current configuration */
     if (lys_features_state(module, "local-users") == 1) {
-        if (feature_change_ietf_system(&np2srv.sr_sess, "local-users", 1)) {
+        if (feature_change_ietf_system(np2srv.sr_sess.srs, "local-users", 1)) {
             return -1;
         }
     }

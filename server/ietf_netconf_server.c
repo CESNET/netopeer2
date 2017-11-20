@@ -134,7 +134,7 @@ set_listen_endpoint_port(const char *endpt_name, sr_change_oper_t sr_oper, sr_va
 }
 
 struct thread_arg {
-    struct np2_sessions *np_sess;
+    sr_session_ctx_t *srs;
     int listen_or_ch;
     const char *endpt_client_name;
     const char *key_name;
@@ -149,11 +149,11 @@ get_ssh_host_key_public_key(void *arg)
 
     if (targ->listen_or_ch) {
         asprintf(&path, "/ietf-netconf-server:netconf-server/listen/endpoint[name='%s']/ssh/host-keys/host-key[name='%s']/public-key", targ->endpt_client_name, targ->key_name);
-        np2srv_sr_get_item(targ->np_sess, path, &sr_val, NULL);
+        np2srv_sr_get_item(targ->srs, path, &sr_val, NULL);
         free(path);
     } else {
         asprintf(&path, "/ietf-netconf-server:netconf-server/call-home/netconf-client[name='%s']/ssh/host-keys/host-key[name='%s']/public-key", targ->endpt_client_name, targ->key_name);
-        np2srv_sr_get_item(targ->np_sess, path, &sr_val, NULL);
+        np2srv_sr_get_item(targ->srs, path, &sr_val, NULL);
         free(path);
     }
 
@@ -163,7 +163,7 @@ get_ssh_host_key_public_key(void *arg)
 }
 
 static int
-set_listen_endpoint_ssh_host_key(struct np2_sessions *np_sess, const char *endpt_name, sr_change_oper_t sr_oper,
+set_listen_endpoint_ssh_host_key(sr_session_ctx_t *srs, const char *endpt_name, sr_change_oper_t sr_oper,
                                  sr_val_t *sr_old_val, sr_val_t *sr_new_val)
 {
     int rc = 0;
@@ -185,7 +185,7 @@ set_listen_endpoint_ssh_host_key(struct np2_sessions *np_sess, const char *endpt
     case SR_OP_MOVED:
         /* old and new_val are different in this case (nodes one level up) */
 
-        targ.np_sess = np_sess;
+        targ.srs = srs;
         targ.listen_or_ch = 1;
         targ.endpt_client_name = endpt_name;
 
@@ -424,7 +424,7 @@ set_ch_client_endpoint_port(const char *client_name, const char *endpt_name, sr_
 }
 
 static int
-set_ch_client_ssh_host_key(struct np2_sessions *np_sess, const char *client_name, sr_change_oper_t sr_oper,
+set_ch_client_ssh_host_key(sr_session_ctx_t *srs, const char *client_name, sr_change_oper_t sr_oper,
                            sr_val_t *sr_old_val, sr_val_t *sr_new_val)
 {
     int rc = 0;
@@ -445,7 +445,7 @@ set_ch_client_ssh_host_key(struct np2_sessions *np_sess, const char *client_name
         break;
     case SR_OP_MOVED:
         /* old and new_val are different in this case (nodes one level up) */
-        targ.np_sess = np_sess;
+        targ.srs = srs;
         targ.listen_or_ch = 0;
         targ.endpt_client_name = client_name;
 
@@ -666,7 +666,7 @@ parse_list_key(const char **predicate, const char **key_val, const char *key_nam
 }
 
 static int
-module_change_resolve(struct np2_sessions *np_sess, sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *sr_new_val,
+module_change_resolve(sr_session_ctx_t *srs, sr_change_oper_t sr_oper, sr_val_t *sr_old_val, sr_val_t *sr_new_val,
                       const char **list1_key_del, const char **list2_key_del)
 {
     int rc = -2;
@@ -773,7 +773,7 @@ module_change_resolve(struct np2_sessions *np_sess, sr_change_oper_t sr_oper, sr
 
                         if (!xpath[0]) {
                             /* list moved */
-                            rc = set_listen_endpoint_ssh_host_key(np_sess, list1_key, sr_oper, sr_old_val, sr_new_val);
+                            rc = set_listen_endpoint_ssh_host_key(srs, list1_key, sr_oper, sr_old_val, sr_new_val);
                         } else if (xpath[0] == '/') {
                             ++xpath;
 
@@ -781,7 +781,7 @@ module_change_resolve(struct np2_sessions *np_sess, sr_change_oper_t sr_oper, sr
                                 /* we just don't care  */
                                 rc = 0;
                             } else if (!strcmp(xpath, "public-key")) {
-                                rc = set_listen_endpoint_ssh_host_key(np_sess, list1_key, sr_oper, sr_old_val, sr_new_val);
+                                rc = set_listen_endpoint_ssh_host_key(srs, list1_key, sr_oper, sr_old_val, sr_new_val);
                             }
                         }
                     }
@@ -937,7 +937,7 @@ module_change_resolve(struct np2_sessions *np_sess, sr_change_oper_t sr_oper, sr
 
                         if (!xpath[0]) {
                             /* list moved */
-                            rc = set_ch_client_ssh_host_key(np_sess, list1_key, sr_oper, sr_old_val, sr_new_val);
+                            rc = set_ch_client_ssh_host_key(srs, list1_key, sr_oper, sr_old_val, sr_new_val);
                         } else if (xpath[0] == '/') {
                             ++xpath;
 
@@ -945,7 +945,7 @@ module_change_resolve(struct np2_sessions *np_sess, sr_change_oper_t sr_oper, sr
                                 /* we just don't care  */
                                 rc = EXIT_SUCCESS;
                             } else if (!strcmp(xpath, "public-key")) {
-                                rc = set_ch_client_ssh_host_key(np_sess, list1_key, sr_oper, sr_old_val, sr_new_val);
+                                rc = set_ch_client_ssh_host_key(srs, list1_key, sr_oper, sr_old_val, sr_new_val);
                             }
                         }
                     }
@@ -1103,25 +1103,24 @@ module_change_resolve(struct np2_sessions *np_sess, sr_change_oper_t sr_oper, sr
 }
 
 static int
-module_change_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name), sr_notif_event_t event,
-                 void *private_ctx)
+module_change_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), sr_notif_event_t event,
+                 void *UNUSED(private_ctx))
 {
     int rc;
     sr_change_iter_t *sr_iter = NULL;
     sr_change_oper_t sr_oper;
     sr_val_t *sr_old_val = NULL, *sr_new_val = NULL;
     const char *list1_key_del = NULL, *list2_key_del = NULL;
-    struct np2_sessions *np_sess = (struct np2_sessions *)private_ctx;
 
     if (event != SR_EV_APPLY) {
         ERR("%s: unexpected event.", __func__);
         return -1;
     }
 
-    if (np2srv_sr_get_changes_iter(np_sess, "/ietf-netconf-server:netconf-server//*", &sr_iter, NULL)) {
+    if (np2srv_sr_get_changes_iter(session, "/ietf-netconf-server:netconf-server//*", &sr_iter, NULL)) {
         return -1;
     }
-    while (!(rc = np2srv_sr_get_change_next(np_sess, sr_iter, &sr_oper, &sr_old_val, &sr_new_val, NULL))) {
+    while (!(rc = np2srv_sr_get_change_next(session, sr_iter, &sr_oper, &sr_old_val, &sr_new_val, NULL))) {
         if ((sr_old_val
                 && ((sr_old_val->type == SR_LIST_T) && (sr_oper != SR_OP_MOVED)))
                 || (sr_new_val
@@ -1130,7 +1129,7 @@ module_change_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_na
             continue;
         }
 
-        rc = module_change_resolve(np_sess, sr_oper, sr_old_val, sr_new_val, &list1_key_del, &list2_key_del);
+        rc = module_change_resolve(session, sr_oper, sr_old_val, sr_new_val, &list1_key_del, &list2_key_del);
 
         sr_free_val(sr_old_val);
         sr_free_val(sr_new_val);
@@ -1174,17 +1173,17 @@ feature_change_ietf_netconf_server(const char *feature_name, bool enabled)
             return 0;
         }
 
-        if (np2srv_sr_get_items_iter(&np2srv.sr_sess, path, &sr_iter, NULL)) {
+        if (np2srv_sr_get_items_iter(np2srv.sr_sess.srs, path, &sr_iter, NULL)) {
             return -1;
         }
 
-        while (!(rc = np2srv_sr_get_item_next(&np2srv.sr_sess, sr_iter, &sr_val, NULL))) {
+        while (!(rc = np2srv_sr_get_item_next(np2srv.sr_sess.srs, sr_iter, &sr_val, NULL))) {
             if (sr_val->type == SR_LIST_T) {
                 /* no semantic meaning */
                 continue;
             }
 
-            rc = module_change_resolve(&np2srv.sr_sess, SR_OP_CREATED, NULL, sr_val, NULL, NULL);
+            rc = module_change_resolve(np2srv.sr_sess.srs, SR_OP_CREATED, NULL, sr_val, NULL, NULL);
             sr_free_val(sr_val);
             if (rc) {
                 break;
@@ -1215,7 +1214,7 @@ feature_change_ietf_netconf_server(const char *feature_name, bool enabled)
 int
 ietf_netconf_server_init(const struct lys_module *module)
 {
-    if (np2srv_sr_module_change_subscribe(&np2srv.sr_sess, "ietf-netconf-server", module_change_cb, &np2srv.sr_sess, 0,
+    if (np2srv_sr_module_change_subscribe(np2srv.sr_sess.srs, "ietf-netconf-server", module_change_cb, NULL, 0,
             SR_SUBSCR_APPLY_ONLY | SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr, NULL)) {
         return -1;
     }

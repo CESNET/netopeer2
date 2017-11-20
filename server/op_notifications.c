@@ -237,10 +237,10 @@ ntf_module_sr_subscribe(const struct lys_module *mod, struct np_subscriber *subs
         LY_TREE_DFS_BEGIN(top, next, snode) {
             if (snode->nodetype == LYS_NOTIF) {
                 if (subscr->sr_subscr) {
-                    rc = np2srv_sr_event_notif_subscribe(&np2srv.sr_sess, mod->name, np2srv_ntf_clb, subscr,
+                    rc = np2srv_sr_event_notif_subscribe(np2srv.sr_sess.srs, mod->name, np2srv_ntf_clb, subscr,
                                                 SR_SUBSCR_NOTIF_REPLAY_FIRST | SR_SUBSCR_CTX_REUSE, &subscr->sr_subscr, NULL);
                 } else {
-                    rc = np2srv_sr_event_notif_subscribe(&np2srv.sr_sess, mod->name, np2srv_ntf_clb, subscr,
+                    rc = np2srv_sr_event_notif_subscribe(np2srv.sr_sess.srs, mod->name, np2srv_ntf_clb, subscr,
                                                 SR_SUBSCR_NOTIF_REPLAY_FIRST, &subscr->sr_subscr, NULL);
                 }
                 if (rc) {
@@ -266,7 +266,7 @@ np2srv_subscriber_free(struct np_subscriber *subscriber)
     }
 
     if (subscriber->sr_subscr) {
-        np2srv_sr_unsubscribe(&np2srv.sr_sess, subscriber->sr_subscr, NULL);
+        np2srv_sr_unsubscribe(np2srv.sr_sess.srs, subscriber->sr_subscr, NULL);
     }
     for (i = 0; i < subscriber->filter_count; ++i) {
         free(subscriber->filters[i]);
@@ -297,7 +297,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    if (np2srv_sr_check_exec_permission(sessions, "/notifications:create-subscription", &ereply)) {
+    if (np2srv_sr_check_exec_permission(sessions->srs, "/notifications:create-subscription", &ereply)) {
         goto error;
     }
 
@@ -459,7 +459,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
 
     /* subscribe for replay */
     if (start) {
-        if (np2srv_sr_event_notif_replay(&np2srv.sr_sess, new->sr_subscr, start, stop, &ereply)) {
+        if (np2srv_sr_event_notif_replay(np2srv.sr_sess.srs, new->sr_subscr, start, stop, &ereply)) {
             goto error;
         }
     }

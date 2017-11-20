@@ -37,7 +37,7 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    if (np2srv_sr_check_exec_permission(sessions, "/ietf-netconf:delete-config", &ereply)) {
+    if (np2srv_sr_check_exec_permission(sessions->srs, "/ietf-netconf:delete-config", &ereply)) {
         goto finish;
     }
 
@@ -53,14 +53,14 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
     if (sessions->ds != target) {
         /* update sysrepo session */
-        if (np2srv_sr_session_switch_ds(sessions, target, &ereply)) {
+        if (np2srv_sr_session_switch_ds(sessions->srs, target, &ereply)) {
             goto finish;
         }
         sessions->ds = target;
     }
 
     /* update data from sysrepo */
-    if (np2srv_sr_session_refresh(sessions, &ereply)) {
+    if (np2srv_sr_session_refresh(sessions->srs, &ereply)) {
         goto finish;
     }
 
@@ -77,8 +77,8 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
             }
 
             snprintf(path, 1024, "/%s:*", mod->name);
-            if (np2srv_sr_delete_item(sessions, path, 0, &ereply)) {
-                np2srv_sr_discard_changes(sessions, NULL);
+            if (np2srv_sr_delete_item(sessions->srs, path, 0, &ereply)) {
+                np2srv_sr_discard_changes(sessions->srs, NULL);
                 goto finish;
             }
 
@@ -89,8 +89,8 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* commit the result */
-    if (np2srv_sr_commit(sessions, &ereply)) {
-        np2srv_sr_discard_changes(sessions, NULL);
+    if (np2srv_sr_commit(sessions->srs, &ereply)) {
+        np2srv_sr_discard_changes(sessions->srs, NULL);
         goto finish;
     }
 
