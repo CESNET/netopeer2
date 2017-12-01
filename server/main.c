@@ -14,7 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE 1
-#define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
+
 #include <errno.h>
 #ifdef DEBUG
     #include <execinfo.h>
