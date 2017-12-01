@@ -13,6 +13,7 @@
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
+#define _GNU_SOURCE
 #define _DEFAULT_SOURCE 1
 #define _GNU_SOURCE
 
