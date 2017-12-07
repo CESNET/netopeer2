@@ -31,7 +31,7 @@
 
 /* add whole subtree */
 static int
-opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, const char *subtree_xpath)
+opget_build_subtree_from_sysrepo(sr_session_ctx_t *srs, struct lyd_node **root, const char *subtree_xpath)
 {
     sr_val_t *value;
     sr_val_iter_t *sriter;
@@ -44,19 +44,16 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *ds, struct lyd_node **root, c
         return -1;
     }
 
-    rc = sr_get_items_iter(ds, full_subtree_xpath, &sriter);
-    if ((rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_NOT_FOUND)) {
+    rc = np2srv_sr_get_items_iter(srs, full_subtree_xpath, &sriter, NULL);
+    free(full_subtree_xpath);
+    if (rc == 1) {
         /* it's ok, model without data */
-        free(full_subtree_xpath);
         return 0;
-    } else if (rc != SR_ERR_OK) {
-        ERR("Getting items (%s) from sysrepo failed (%s).", full_subtree_xpath, sr_strerror(rc));
-        free(full_subtree_xpath);
+    } else if (rc) {
         return -1;
     }
-    free(full_subtree_xpath);
 
-    while (sr_get_item_next(ds, sriter, &value) == SR_ERR_OK) {
+    while ((!np2srv_sr_get_item_next(srs, sriter, &value, NULL))) {
         if (op_sr_val_to_lyd_node(*root, value, &node)) {
             sr_free_val(value);
             sr_free_val_iter(sriter);
@@ -90,21 +87,17 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     struct nc_server_error *e;
     struct nc_server_reply *ereply = NULL;
     NC_WD_MODE nc_wd;
-    bool permitted;
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    /* check NACM */
     if (!strcmp(rpc->schema->name, "get")) {
-        rc = sr_check_exec_permission(sessions->srs, "/ietf-netconf:get", &permitted);
+        rc = np2srv_sr_check_exec_permission(sessions->srs, "/ietf-netconf:get", &ereply);
     } else {
-        rc = sr_check_exec_permission(sessions->srs, "/ietf-netconf:get-config", &permitted);
+        rc = np2srv_sr_check_exec_permission(sessions->srs, "/ietf-netconf:get-config", &ereply);
     }
-    if (rc != SR_ERR_OK) {
-        return op_build_err_sr(NULL, sessions->srs);
-    } else if (!permitted) {
-        return op_build_err_nacm(NULL);
+    if (rc) {
+        goto error;
     }
 
     /* get default value for with-defaults */
@@ -130,11 +123,15 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     }
     if (ds != sessions->ds || (sessions->opts & SR_SESS_CONFIG_ONLY) != config_only) {
         /* update sysrepo session datastore */
-        sr_session_switch_ds(sessions->srs, ds);
+        if (np2srv_sr_session_switch_ds(sessions->srs, ds, &ereply)) {
+           goto error;
+        }
         sessions->ds = ds;
 
         /* update sysrepo session config */
-        sr_session_set_options(sessions->srs, config_only);
+        if (np2srv_sr_session_set_options(sessions->srs, config_only, &ereply)) {
+            goto error;
+        }
         sessions->opts = config_only;
     }
 
@@ -195,13 +192,13 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
     if (sessions->ds != SR_DS_CANDIDATE) {
         /* refresh sysrepo data */
-        if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
-            goto srerror;
+        if (np2srv_sr_session_refresh(sessions->srs, &ereply)) {
+            goto error;
         }
     } else if (!(sessions->flags & NP2S_CAND_CHANGED)) {
         /* update candidate to be the same as running */
-        if (sr_session_refresh(sessions->srs)) {
-            goto srerror;
+        if (np2srv_sr_session_refresh(sessions->srs, &ereply)) {
+            goto error;
         }
     }
 
@@ -302,9 +299,6 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
     return nc_server_reply_data(root, nc_wd, NC_PARAMTYPE_FREE);
 
-srerror:
-    ereply = op_build_err_sr(ereply, sessions->srs);
-
 error:
     if (!ereply) {
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
@@ -321,6 +315,5 @@ error:
     lyd_free_withsiblings(ncm_data);
     lyd_free_withsiblings(ntf_data);
     lyd_free_withsiblings(root);
-
     return ereply;
 }

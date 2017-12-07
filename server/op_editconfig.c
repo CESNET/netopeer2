@@ -112,13 +112,13 @@ edit_get_move(struct lyd_node *node, const char *path, sr_move_position_t *pos, 
                 if (asprintf(rel, format, path, attr_iter->value_str) < 0) {
                     ERR("%s: memory allocation failed (%s) - %s:%d",
                         __func__, strerror(errno), __FILE__, __LINE__);
-                    return EXIT_FAILURE;
+                    return -1;
                 }
             }
         }
     }
 
-    return EXIT_SUCCESS;
+    return 0;
 }
 
 static const char *
@@ -186,17 +186,12 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     int op_index, op_size, path_index = 0, missing_keys = 0, lastkey = 0, np_cont;
     int ret, path_len, new_len;
     struct lyd_node_anydata *any;
-    bool permitted;
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    /* check NACM */
-    ret = sr_check_exec_permission(sessions->srs, "/ietf-netconf:edit-config", &permitted);
-    if (ret != SR_ERR_OK) {
-        return op_build_err_sr(NULL, sessions->srs);
-    } else if (!permitted) {
-        return op_build_err_nacm(NULL);
+    if (np2srv_sr_check_exec_permission(sessions->srs, "/ietf-netconf:edit-config", &ereply)) {
+        goto cleanup;
     }
 
     /* init */
@@ -225,7 +220,9 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* edit-config on startup is not allowed by RFC 6241 */
     if (ds != sessions->ds) {
         /* update sysrepo session */
-        sr_session_switch_ds(sessions->srs, ds);
+        if (np2srv_sr_session_switch_ds(sessions->srs, ds, &ereply)) {
+            goto cleanup;
+        }
         sessions->ds = ds;
     }
 
@@ -297,12 +294,12 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         }
         ly_set_free(nodeset);
         if (ly_errno) {
-            free(path);
-            return nc_server_reply_err(nc_err_libyang());
+            ereply = nc_server_reply_err(nc_err_libyang());
+            goto cleanup;
         } else if (!config) {
             /* nothing to do */
-            free(path);
-            return nc_server_reply_ok();
+            ereply = nc_server_reply_ok();
+            goto cleanup;
         }
     } else {
         /* TODO support for :url capability */
@@ -318,10 +315,8 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
     if (sessions->ds != SR_DS_CANDIDATE) {
         /* update data from sysrepo */
-        if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
-            ereply = op_build_err_sr(ereply, sessions->srs);
-            free(path);
-            return ereply;
+        if (np2srv_sr_session_refresh(sessions->srs, &ereply)) {
+            goto cleanup;
         }
     }
 
@@ -492,28 +487,28 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         case NP2_EDIT_MERGE:
             /* create the node */
             if (!np_cont) {
-                ret = sr_set_item(sessions->srs, path, &value, 0);
+                ret = np2srv_sr_set_item(sessions->srs, path, &value, 0, &ereply);
             }
             break;
         case NP2_EDIT_REPLACE_INNER:
         case NP2_EDIT_CREATE:
             /* create the node, but it must not exists */
-            ret = sr_set_item(sessions->srs, path, &value, SR_EDIT_STRICT);
+            ret = np2srv_sr_set_item(sessions->srs, path, &value, SR_EDIT_STRICT, &ereply);
             break;
         case NP2_EDIT_DELETE:
             /* remove the node, but it must exists */
-            ret = sr_delete_item(sessions->srs, path, SR_EDIT_STRICT);
+            ret = np2srv_sr_delete_item(sessions->srs, path, SR_EDIT_STRICT, &ereply);
             break;
         case NP2_EDIT_REMOVE:
             /* remove the node */
-            ret = sr_delete_item(sessions->srs, path, 0);
+            ret = np2srv_sr_delete_item(sessions->srs, path, 0, &ereply);
             break;
         case NP2_EDIT_REPLACE:
             /* remove the node first */
-            ret = sr_delete_item(sessions->srs, path, 0);
+            ret = np2srv_sr_delete_item(sessions->srs, path, 0, &ereply);
             /* create it again (but we removed all the children, sysrepo forbids creating NP containers as it's redundant) */
-            if ((ret == SR_ERR_OK) && !np_cont) {
-                ret = sr_set_item(sessions->srs, path, &value, 0);
+            if (!ret && !np_cont) {
+                ret = np2srv_sr_set_item(sessions->srs, path, &value, 0, &ereply);
             }
             break;
         default:
@@ -527,46 +522,9 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
 resultcheck:
         /* check the result */
-        switch (ret) {
-        case SR_ERR_OK:
+        if (!ret) {
             DBG("EDIT_CONFIG: success (%s).", path);
-            /* no break */
-        case -1:
-            /* do nothing */
-            break;
-        case SR_ERR_UNAUTHORIZED:
-            e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
-            nc_err_set_path(e, path);
-            if (ereply) {
-                nc_server_reply_add_err(ereply, e);
-            } else {
-                ereply = nc_server_reply_err(e);
-            }
-            break;
-        case SR_ERR_DATA_EXISTS:
-            e = nc_err(NC_ERR_DATA_EXISTS, NC_ERR_TYPE_PROT);
-            nc_err_set_path(e, path);
-            if (ereply) {
-                nc_server_reply_add_err(ereply, e);
-            } else {
-                ereply = nc_server_reply_err(e);
-            }
-            break;
-        case SR_ERR_DATA_MISSING:
-            e = nc_err(NC_ERR_DATA_MISSING, NC_ERR_TYPE_PROT);
-            nc_err_set_path(e, path);
-            if (ereply) {
-                nc_server_reply_add_err(ereply, e);
-            } else {
-                ereply = nc_server_reply_err(e);
-            }
-            break;
-        default:
-            /* not covered error */
-            ereply = op_build_err_sr(ereply, sessions->srs);
-            break;
-        }
-        if (ereply) {
+        } else {
             switch (erropt) {
             case NP2_EDIT_ERROPT_CONT:
                 DBG("EDIT_CONFIG: continue-on-error (%s).", nc_err_get_msg(nc_server_reply_get_last_err(ereply)));
@@ -582,7 +540,7 @@ resultcheck:
 
         /* move user-ordered list/leaflist */
         if (pos != SR_MOVE_LAST) {
-            ret = sr_move_item(sessions->srs, path, pos, rel);
+            ret = np2srv_sr_move_item(sessions->srs, path, pos, rel, &ereply);
             free(rel);
             pos = SR_MOVE_LAST;
             goto resultcheck;
@@ -660,7 +618,7 @@ cleanup:
 
     /* just rollback and return error */
     if ((erropt == NP2_EDIT_ERROPT_ROLLBACK) && ereply) {
-        sr_discard_changes(sessions->srs);
+        np2srv_sr_discard_changes(sessions->srs, NULL);
         return ereply;
     }
 
@@ -670,9 +628,8 @@ cleanup:
         /* fallthrough */
     case NP2_EDIT_TESTOPT_TESTANDSET:
         /* commit changes */
-        if (sr_commit(sessions->srs) != SR_ERR_OK) {
-            ereply = op_build_err_sr(ereply, sessions->srs);
-            sr_discard_changes(sessions->srs); /* rollback the changes */
+        if (np2srv_sr_commit(sessions->srs, &ereply)) {
+            np2srv_sr_discard_changes(sessions->srs, NULL); /* rollback the changes */
         }
         if (sessions->ds == SR_DS_CANDIDATE) {
             /* mark candidate as modified */
@@ -680,7 +637,7 @@ cleanup:
         }
         break;
     case NP2_EDIT_TESTOPT_TEST:
-        sr_discard_changes(sessions->srs);
+        np2srv_sr_discard_changes(sessions->srs, NULL);
         break;
     }
 
@@ -704,7 +661,7 @@ internalerror:
     /* fatal error, so continue-on-error does not apply here,
      * instead we rollback */
     DBG("EDIT_CONFIG: fatal error, rolling back.");
-    sr_discard_changes(sessions->srs);
+    np2srv_sr_discard_changes(sessions->srs, NULL);
 
     free(path);
     free(op);

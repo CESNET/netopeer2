@@ -12,14 +12,1792 @@
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
+#define _GNU_SOURCE
+
+#include <stdio.h>
 #include <assert.h>
 #include <inttypes.h>
 #include <string.h>
 #include <ctype.h>
+#include <pthread.h>
+
 #include <sysrepo.h>
 
 #include "common.h"
 #include "operations.h"
+
+/* lock for accessing/reconnecting sysrepo connection and all sysrepo sessions */
+pthread_rwlock_t sr_lock = PTHREAD_RWLOCK_INITIALIZER;
+
+static struct nc_server_reply *
+op_build_err_sr(struct nc_server_reply *ereply, sr_session_ctx_t *session)
+{
+    const sr_error_info_t *err_info;
+    size_t err_count, i;
+    struct nc_server_error *e = NULL;
+
+    /* get all sysrepo errors connected with the last sysrepo operation */
+    sr_get_last_errors(session, &err_info, &err_count);
+    for (i = 0; i < err_count; ++i) {
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, err_info[i].message, "en");
+        if (err_info[i].xpath) {
+            nc_err_set_path(e, err_info[i].xpath);
+        }
+        if (ereply) {
+            nc_server_reply_add_err(ereply, e);
+        } else {
+            ereply = nc_server_reply_err(e);
+        }
+        e = NULL;
+    }
+
+    return ereply;
+}
+
+int
+np2srv_sr_session_switch_ds(sr_session_ctx_t *srs, sr_datastore_t ds, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_session_switch_ds(srs, ds);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        /* elevate lock to write */
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        /* while we released the lock, someone else could have performed a full reconnect */
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_session_switch_ds(srs, ds, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_set_item(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *value, const sr_edit_options_t opts,
+                   struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_set_item(srs, xpath, value, opts);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_set_item(srs, xpath, value, opts, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            switch (rc) {
+            case SR_ERR_UNAUTHORIZED:
+                e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
+                nc_err_set_path(e, xpath);
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+                break;
+            case SR_ERR_DATA_EXISTS:
+                e = nc_err(NC_ERR_DATA_EXISTS, NC_ERR_TYPE_PROT);
+                nc_err_set_path(e, xpath);
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+                break;
+            case SR_ERR_DATA_MISSING:
+                e = nc_err(NC_ERR_DATA_MISSING, NC_ERR_TYPE_PROT);
+                nc_err_set_path(e, xpath);
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+                break;
+            default:
+                *ereply = op_build_err_sr(*ereply, srs);
+                break;
+            }
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_delete_item(sr_session_ctx_t *srs, const char *xpath, const sr_edit_options_t opts, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_delete_item(srs, xpath, opts);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_delete_item(srs, xpath, opts, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            switch (rc) {
+            case SR_ERR_UNAUTHORIZED:
+                e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
+                nc_err_set_path(e, xpath);
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+                break;
+            case SR_ERR_DATA_EXISTS:
+                e = nc_err(NC_ERR_DATA_EXISTS, NC_ERR_TYPE_PROT);
+                nc_err_set_path(e, xpath);
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+                break;
+            case SR_ERR_DATA_MISSING:
+                e = nc_err(NC_ERR_DATA_MISSING, NC_ERR_TYPE_PROT);
+                nc_err_set_path(e, xpath);
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+                break;
+            default:
+                *ereply = op_build_err_sr(*ereply, srs);
+                break;
+            }
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_get_item(sr_session_ctx_t *srs, const char *xpath, sr_val_t **value, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_get_item(srs, xpath, value);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_get_item(srs, xpath, value, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_get_items(sr_session_ctx_t *srs, const char *xpath, sr_val_t **values, size_t *value_cnt, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_get_items(srs, xpath, values, value_cnt);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_get_items(srs, xpath, values, value_cnt, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_get_changes_iter(sr_session_ctx_t *srs, const char *xpath, sr_change_iter_t **iter, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_get_changes_iter(srs, xpath, iter);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_get_changes_iter(srs, xpath, iter, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+/* NOT_FOUND returns 1, no error */
+int
+np2srv_sr_get_change_next(sr_session_ctx_t *srs, sr_change_iter_t *iter, sr_change_oper_t *operation,
+        sr_val_t **old_value, sr_val_t **new_value, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_get_change_next(srs, iter, operation, old_value, new_value);
+        if (rc == SR_ERR_NOT_FOUND) {
+            pthread_rwlock_unlock(&sr_lock);
+            return 1;
+        }
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+       if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_get_change_next(srs, iter, operation, old_value, new_value, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+/* UNKNOWN_MODEL, NOT_FOUND, and UNAUTHORIZED return 1, no error */
+int
+np2srv_sr_get_items_iter(sr_session_ctx_t *srs, const char *xpath, sr_val_iter_t **iter, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_get_items_iter(srs, xpath, iter);
+        if ((rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_NOT_FOUND) || (rc == SR_ERR_UNAUTHORIZED)) {
+            pthread_rwlock_unlock(&sr_lock);
+            return 1;
+        }
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_get_items_iter(srs, xpath, iter, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+/* NOT_FOUND returns 1, no error */
+int
+np2srv_sr_get_item_next(sr_session_ctx_t *srs, sr_val_iter_t *iter, sr_val_t **value, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_get_item_next(srs, iter, value);
+        if (rc == SR_ERR_NOT_FOUND) {
+            /* thats fine */
+            pthread_rwlock_unlock(&sr_lock);
+            return 1;
+        }
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_get_item_next(srs, iter, value, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_move_item(sr_session_ctx_t *srs, const char *xpath, const sr_move_position_t position,
+        const char *relative_item, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_move_item(srs, xpath, position, relative_item);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_move_item(srs, xpath, position, relative_item, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_rpc_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *input, const size_t input_cnt,
+        sr_val_t **output, size_t *output_cnt, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_rpc_send(srs, xpath, input, input_cnt, output, output_cnt);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_rpc_send(srs, xpath, input, input_cnt, output, output_cnt, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            switch (rc) {
+            case SR_ERR_UNKNOWN_MODEL:
+            case SR_ERR_NOT_FOUND:
+                e = nc_err(NC_ERR_OP_NOT_SUPPORTED, NC_ERR_TYPE_PROT);
+                nc_err_set_path(e, xpath);
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+                break;
+            default:
+                *ereply = op_build_err_sr(*ereply, srs);
+                break;
+            }
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_action_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *input, const size_t input_cnt,
+        sr_val_t **output, size_t *output_cnt, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_action_send(srs, xpath, input, input_cnt, output, output_cnt);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_action_send(srs, xpath, input, input_cnt, output, output_cnt, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            switch (rc) {
+            case SR_ERR_UNKNOWN_MODEL:
+            case SR_ERR_NOT_FOUND:
+                e = nc_err(NC_ERR_OP_NOT_SUPPORTED, NC_ERR_TYPE_PROT);
+                nc_err_set_path(e, xpath);
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+                break;
+            default:
+                *ereply = op_build_err_sr(*ereply, srs);
+                break;
+            }
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_check_exec_permission(sr_session_ctx_t *srs, const char *xpath, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+    bool permitted;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_check_exec_permission(srs, xpath, &permitted);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_check_exec_permission(srs, xpath, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    } else if (!permitted) {
+        e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
+        if (ereply) {
+            if (*ereply) {
+                nc_server_reply_add_err(*ereply, e);
+            } else {
+                *ereply = nc_server_reply_err(e);
+            }
+        } else {
+            ERR("%s failed (sysrepo: access denied).", __func__);
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if ((rc != SR_ERR_OK) || !permitted) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_module_change_subscribe(sr_session_ctx_t *srs, const char *module_name, sr_module_change_cb callback,
+        void *private_ctx, uint32_t priority, sr_subscr_options_t opts, sr_subscription_ctx_t **subscription, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_module_change_subscribe(srs, module_name, callback, private_ctx, priority, opts, subscription);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_module_change_subscribe(srs, module_name, callback, private_ctx, priority, opts, subscription, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_subtree_change_subscribe(sr_session_ctx_t *srs, const char *xpath, sr_subtree_change_cb callback,
+        void *private_ctx, uint32_t priority, sr_subscr_options_t opts, sr_subscription_ctx_t **subscription, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_subtree_change_subscribe(srs, xpath, callback, private_ctx, priority, opts, subscription);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_subtree_change_subscribe(srs, xpath, callback, private_ctx, priority, opts, subscription, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_event_notif_subscribe(sr_session_ctx_t *srs, const char *xpath, sr_event_notif_cb callback,
+        void *private_ctx, sr_subscr_options_t opts, sr_subscription_ctx_t **subscription, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_event_notif_subscribe(srs, xpath, callback, private_ctx, opts, subscription);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_event_notif_subscribe(srs, xpath, callback, private_ctx, opts, subscription, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_event_notif_replay(sr_session_ctx_t *srs, sr_subscription_ctx_t *subscription, time_t start_time,
+        time_t stop_time, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_event_notif_replay(srs, subscription, start_time, stop_time);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_event_notif_replay(srs, subscription, start_time, stop_time, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_event_notif_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *values,
+        const size_t values_cnt, sr_ev_notif_flag_t opts, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_event_notif_send(srs, xpath, values, values_cnt, opts);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_event_notif_send(srs, xpath, values, values_cnt, opts, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_session_start_user(const char *user_name, const sr_datastore_t datastore,
+        const sr_sess_options_t opts, sr_session_ctx_t **session, struct nc_server_reply **ereply)
+{
+    char *msg;
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_session_start_user(np2srv.sr_conn, user_name, datastore, opts, session);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(np2srv.sr_sess.srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_session_start_user(user_name, datastore, opts, session, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            asprintf(&msg, "%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, msg, "en");
+            free(msg);
+
+            if (*ereply) {
+                nc_server_reply_add_err(*ereply, e);
+            } else {
+                *ereply = nc_server_reply_err(e);
+            }
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_session_stop(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_session_stop(srs);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_session_stop(srs, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_session_set_options(sr_session_ctx_t *srs, const sr_sess_options_t opts, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_session_set_options(srs, opts);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_session_set_options(srs, opts, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_session_refresh(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_session_refresh(srs);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_session_refresh(srs, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_discard_changes(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_discard_changes(srs);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_discard_changes(srs, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_commit(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_commit(srs);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_commit(srs, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_validate(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_validate(srs);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_validate(srs, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_copy_config(sr_session_ctx_t *srs, const char *module_name, sr_datastore_t src_datastore,
+        sr_datastore_t dst_datastore, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_copy_config(srs, module_name, src_datastore, dst_datastore);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_copy_config(srs, module_name, src_datastore, dst_datastore, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_lock_datastore(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_lock_datastore(srs);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_lock_datastore(srs, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_unlock_datastore(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_unlock_datastore(srs);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_unlock_datastore(srs, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_unsubscribe(sr_session_ctx_t *srs, sr_subscription_ctx_t *subscription, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_unsubscribe(srs, subscription);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_unsubscribe(srs, subscription, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_list_schemas(sr_session_ctx_t *srs, sr_schema_t **schemas, size_t *schema_cnt, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_list_schemas(srs, schemas, schema_cnt);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_list_schemas(srs, schemas, schema_cnt, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_get_submodule_schema(sr_session_ctx_t *srs, const char *submodule_name, const char *submodule_revision,
+        sr_schema_format_t format, char **schema_content, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_get_submodule_schema(srs, submodule_name, submodule_revision, format, schema_content);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_get_submodule_schema(srs, submodule_name, submodule_revision, format, schema_content, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+int
+np2srv_sr_get_schema(sr_session_ctx_t *srs, const char *module_name, const char *revision,
+        const char *submodule_name, sr_schema_format_t format, char **schema_content, struct nc_server_reply **ereply)
+{
+    int rc = SR_ERR_DISCONNECT;
+    struct nc_server_error *e;
+
+    pthread_rwlock_rdlock(&sr_lock);
+
+    if (!np2srv.disconnected) {
+        rc = sr_get_schema(srs, module_name, revision, submodule_name, format, schema_content);
+    }
+
+    if (rc == SR_ERR_DISCONNECT) {
+        pthread_rwlock_unlock(&sr_lock);
+        pthread_rwlock_wrlock(&sr_lock);
+
+        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+            pthread_rwlock_unlock(&sr_lock);
+
+            if (ereply) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                if (*ereply) {
+                    nc_server_reply_add_err(*ereply, e);
+                } else {
+                    *ereply = nc_server_reply_err(e);
+                }
+            }
+            return -1;
+        }
+
+        pthread_rwlock_unlock(&sr_lock);
+        return np2srv_sr_get_schema(srs, module_name, revision, submodule_name, format, schema_content, ereply);
+    }
+
+    if (rc != SR_ERR_OK) {
+        if (ereply) {
+            *ereply = op_build_err_sr(*ereply, srs);
+        } else {
+            ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
+        }
+    }
+
+    pthread_rwlock_unlock(&sr_lock);
+    if (rc != SR_ERR_OK) {
+        return -1;
+    }
+    return 0;
+}
 
 char *
 op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char *buf)
@@ -237,47 +2015,6 @@ settype:
     return 0;
 }
 
-struct nc_server_reply *
-op_build_err_sr(struct nc_server_reply *ereply, sr_session_ctx_t *session)
-{
-    const sr_error_info_t *err_info;
-    size_t err_count, i;
-    struct nc_server_error *e = NULL;
-
-    /* get all sysrepo errors connected with the last sysrepo operation */
-    sr_get_last_errors(session, &err_info, &err_count);
-    for (i = 0; i < err_count; ++i) {
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, err_info[i].message, "en");
-        if (err_info[i].xpath) {
-            nc_err_set_path(e, err_info[i].xpath);
-        }
-        if (ereply) {
-            nc_server_reply_add_err(ereply, e);
-        } else {
-            ereply = nc_server_reply_err(e);
-        }
-        e = NULL;
-    }
-
-    return ereply;
-}
-
-struct nc_server_reply *
-op_build_err_nacm(struct nc_server_reply *ereply)
-{
-    struct nc_server_error *e = NULL;
-
-    e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
-    if (ereply) {
-        nc_server_reply_add_err(ereply, e);
-    } else {
-        ereply = nc_server_reply_err(e);
-    }
-
-    return ereply;
-}
-
 int
 op_filter_get_tree_from_data(struct lyd_node **root, struct lyd_node *data, const char *subtree_path)
 {
@@ -399,7 +2136,7 @@ filter_xpath_buf_add_attrs(struct ly_ctx *ctx, struct lyxml_attr *attr, char **b
         if (next->type == LYXML_ATTR_STD) {
             module = NULL;
             if (next->ns) {
-                module = ly_ctx_get_module_by_ns(ctx, next->ns->value, NULL);
+                module = ly_ctx_get_module_by_ns(ctx, next->ns->value, NULL, 1);
             }
             if (!module) {
                 /* attribute without namespace or with unknown one will not match anything anyway */
@@ -471,7 +2208,7 @@ filter_xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const 
 
     if (!elem_module_name && elem->ns && (elem->ns->value != *last_ns)
             && strcmp(elem->ns->value, "urn:ietf:params:xml:ns:netconf:base:1.0")) {
-        module = ly_ctx_get_module_by_ns(ctx, elem->ns->value, NULL);
+        module = ly_ctx_get_module_by_ns(ctx, elem->ns->value, NULL, 1);
         if (!module) {
             /* not really an error */
             return 0;
@@ -526,7 +2263,7 @@ filter_xpath_buf_add_node(struct ly_ctx *ctx, struct lyxml_elem *elem, const cha
 
     if (!elem_module_name && elem->ns && (elem->ns->value != *last_ns)
             && strcmp(elem->ns->value, "urn:ietf:params:xml:ns:netconf:base:1.0")) {
-        module = ly_ctx_get_module_by_ns(ctx, elem->ns->value, NULL);
+        module = ly_ctx_get_module_by_ns(ctx, elem->ns->value, NULL, 1);
         if (!module) {
             /* not really an error */
             return 0;
@@ -683,7 +2420,7 @@ op_filter_build_xpath_from_subtree(struct ly_ctx *ctx, struct lyxml_elem *elem, 
                 goto error;
             }
             module_count = 1;
-            modules[0] = ly_ctx_get_module_by_ns(ctx, next->ns->value, NULL);
+            modules[0] = ly_ctx_get_module_by_ns(ctx, next->ns->value, NULL, 1);
             if (!modules[0]) {
                 /* not really an error */
                 free(modules);
@@ -738,7 +2475,8 @@ error:
 }
 
 int
-op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_count) {
+op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_count)
+{
     struct lyd_attr *attr;
     struct lyxml_elem *subtree_filter;
     int free_filter, ret;
@@ -822,9 +2560,6 @@ int
 op_sr_val_to_lyd_node(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_node)
 {
     char numstr[22];
-    struct ly_set *set;
-    struct lyd_node *iter;
-    unsigned int u = 0;
     char *str;
 
     str = op_get_srval(np2srv.ly_ctx, sr_val, numstr);
@@ -835,60 +2570,10 @@ op_sr_val_to_lyd_node(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_
     ly_errno = LY_SUCCESS;
 
     *new_node = lyd_new_path(root, np2srv.ly_ctx, sr_val->xpath, str,
-            (sr_val->type == SR_ANYXML_T || sr_val->type == SR_ANYDATA_T) ? LYD_ANYDATA_SXML : 0, LYD_PATH_OPT_UPDATE);
+            (sr_val->type == SR_ANYXML_T || sr_val->type == SR_ANYDATA_T) ? LYD_ANYDATA_SXML : 0,
+            LYD_PATH_OPT_UPDATE | (sr_val->dflt ? LYD_PATH_OPT_DFLT : 0));
     if (ly_errno) {
         return -1;
-    }
-
-    if (*new_node) {
-        if (!root) {
-            root = *new_node;
-        }
-
-        /* propagate default flag */
-        if (sr_val->dflt) {
-            /* find the actual node supposed to be created */
-            set = lyd_find_path(root, sr_val->xpath);
-            if (!set) {
-                EINT;
-                return -1;
-            } else if (set->number > 1) {
-                /* leaf-list - find the corresponding node for the sr_val according to its value */
-                for (u = 0; u < set->number; u++) {
-                    if (!strcmp(str, ((struct lyd_node_leaf_list *)set->set.d[u])->value_str)) {
-                        break;
-                    }
-                }
-                if (u == set->number) {
-                    EINT;
-                    return -1;
-                }
-            } else {
-                u = 0;
-            }
-
-            if (set->set.d[u] == *new_node) {
-                (*new_node)->dflt = 1;
-            } else {
-                /* go up, back to the top-most created node */
-                for (iter = set->set.d[u]; iter != (*new_node)->parent; iter = iter->parent) {
-                    if (iter->schema->nodetype == LYS_CONTAINER && ((struct lys_node_container *)iter->schema)->presence) {
-                        /* presence container */
-                        break;
-                    } else if (iter->schema->nodetype == LYS_LIST && ((struct lys_node_list *)iter->schema)->keys_size) {
-                        /* list with keys */
-                        break;
-                    }
-                    iter->dflt = 1;
-                }
-            }
-
-            ly_set_free(set);
-        } else { /* non default node, propagate it to the parents */
-            for (iter = (*new_node)->parent; iter && iter->dflt; iter = iter->parent) {
-                iter->dflt = 0;
-            }
-        }
     }
 
     return 0;

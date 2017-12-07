@@ -19,15 +19,15 @@
 #include <string.h>
 
 #include <nc_server.h>
-#include <sysrepo.h>
 
 #include "common.h"
+#include "operations.h"
 
 static int
-subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_val_t *sr_old_val,
+subtree_change_resolve(sr_session_ctx_t *srs, sr_change_oper_t sr_oper, sr_val_t *sr_old_val,
                        sr_val_t *sr_new_val, NC_SSH_KEY_TYPE *prev_keytype)
 {
-    int rc = -2, ret;
+    int rc = -2;
     const char *xpath, *key_end, *oper_str = NULL;
     char *path = NULL, quot;
     char *list1_key = NULL, *list2_key = NULL;
@@ -38,7 +38,7 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
 
     if (strncmp(xpath, "/ietf-system:system/authentication/user[name=", 45)) {
         EINT;
-        return SR_ERR_INTERNAL;
+        return -1;
     }
 
     switch (sr_oper) {
@@ -53,7 +53,7 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
         break;
     default:
         EINT;
-        return SR_ERR_INTERNAL;
+        return -1;
     }
     VRB("Path \"%s\" %s.", xpath, oper_str);
 
@@ -65,7 +65,7 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
     key_end = strchr(xpath, quot);
     if (!key_end) {
         EINT;
-        return SR_ERR_INTERNAL;
+        return -1;
     }
     list1_key = strndup(xpath, key_end - xpath);
     xpath = key_end + 1;
@@ -77,7 +77,7 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
     }
     if (strncmp(xpath, "]/authorized-key[name=", 22)) {
         EINT;
-        rc = SR_ERR_INTERNAL;
+        rc = -1;
         goto cleanup;
     }
     xpath += 22;
@@ -88,7 +88,7 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
     key_end = strchr(xpath, quot);
     if (!key_end) {
         EINT;
-        rc = SR_ERR_INTERNAL;
+        rc = -1;
         goto cleanup;
     }
     list2_key = strndup(xpath, key_end - xpath);
@@ -96,7 +96,7 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
 
     if (strncmp(xpath, "]/", 2)) {
         EINT;
-        rc = SR_ERR_INTERNAL;
+        rc = -1;
         goto cleanup;
     }
     xpath += 2;
@@ -114,7 +114,7 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
         if (strcmp(sr_new_val->data.string_val, "ssh-dss") && strcmp(sr_new_val->data.string_val, "ssh-rsa")
                 && strncmp(sr_new_val->data.string_val, "ecdsa-sha2-", 11)) {
             ERR("Unsupported SSH key algorithm \"%s\".", sr_new_val->data.string_val);
-            rc = SR_ERR_INVAL_ARG;
+            rc = -1;
             goto cleanup;
         }
         if (!strcmp(sr_new_val->data.string_val, "ssh-dss")) {
@@ -132,22 +132,20 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
             /* we must remove the key first, then re-add it */
             asprintf(&path, "/ietf-system:system/authentication/user[name='%s']/authorized-key[name='%s']/key-data",
                      list1_key, list2_key);
-            ret = sr_get_item(session, path, &keydata_val);
-            if (ret != SR_ERR_OK) {
-                ERR("Failed to get \"%s\" from sysrepo.", path);
-                rc = ret;
+            if (np2srv_sr_get_item(srs, path, &keydata_val, NULL)) {
+                rc = -1;
                 goto cleanup;
             }
 
             if (nc_server_ssh_del_authkey(NULL, keydata_val->data.binary_val, 0, list1_key)) {
                 EINT;
-                rc = SR_ERR_INTERNAL;
+                rc = -1;
                 goto cleanup;
             }
 
             if (nc_server_ssh_add_authkey(keydata_val->data.binary_val, keytype, list1_key)) {
                 EINT;
-                rc = SR_ERR_INTERNAL;
+                rc = -1;
                 goto cleanup;
             }
         }
@@ -158,7 +156,7 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
             /* key-data should be unique */
             if (nc_server_ssh_del_authkey(NULL, sr_old_val->data.binary_val, 0, list1_key)) {
                 EINT;
-                rc = SR_ERR_INTERNAL;
+                rc = -1;
                 goto cleanup;
             }
         }
@@ -166,7 +164,7 @@ subtree_change_resolve(sr_session_ctx_t *session, sr_change_oper_t sr_oper, sr_v
         if (sr_oper != SR_OP_DELETED) {
             if (!prev_keytype || nc_server_ssh_add_authkey(sr_new_val->data.binary_val, *prev_keytype, list1_key)) {
                 EINT;
-                rc = SR_ERR_INTERNAL;
+                rc = -1;
                 goto cleanup;
             }
         }
@@ -181,7 +179,7 @@ cleanup:
     sr_free_val(keydata_val);
     if (rc == -2) {
         ERR("Unknown value \"%s\" change.", (sr_old_val ? sr_old_val->xpath : sr_new_val->xpath));
-        rc = SR_ERR_INVAL_ARG;
+        rc = -1;
     }
     return rc;
 }
@@ -189,7 +187,7 @@ cleanup:
 static int
 subtree_change_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), sr_notif_event_t event, void *UNUSED(private_ctx))
 {
-    int rc, rc2, sr_rc = SR_ERR_OK;
+    int rc;
     sr_change_iter_t *sr_iter = NULL;
     sr_change_oper_t sr_oper;
     sr_val_t *sr_old_val = NULL, *sr_new_val = NULL;
@@ -197,15 +195,13 @@ subtree_change_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), sr_notif
 
     if (event != SR_EV_APPLY) {
         EINT;
-        return SR_ERR_INVAL_ARG;
+        return -1;
     }
 
-    rc = sr_get_changes_iter(session, "/ietf-system:system/authentication/user/authorized-key//*", &sr_iter);
-    if (rc != SR_ERR_OK) {
-        EINT;
-        return rc;
+    if (np2srv_sr_get_changes_iter(session, "/ietf-system:system/authentication/user/authorized-key//*", &sr_iter, NULL)) {
+        return -1;
     }
-    while ((rc = sr_get_change_next(session, sr_iter, &sr_oper, &sr_old_val, &sr_new_val)) == SR_ERR_OK) {
+    while (!(rc = np2srv_sr_get_change_next(session, sr_iter, &sr_oper, &sr_old_val, &sr_new_val, NULL))) {
         if ((sr_old_val && ((sr_old_val->type == SR_LIST_T) && (sr_oper != SR_OP_MOVED)))
                 || (sr_new_val && ((sr_new_val->type == SR_LIST_T) && (sr_oper != SR_OP_MOVED)))
                 || (sr_old_val && (sr_old_val->type == SR_CONTAINER_T)) || (sr_new_val && (sr_new_val->type == SR_CONTAINER_T))) {
@@ -213,29 +209,27 @@ subtree_change_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), sr_notif
             continue;
         }
 
-        rc2 = subtree_change_resolve(session, sr_oper, sr_old_val, sr_new_val, &prev_keytype);
+        rc = subtree_change_resolve(session, sr_oper, sr_old_val, sr_new_val, &prev_keytype);
 
         sr_free_val(sr_old_val);
         sr_free_val(sr_new_val);
 
-        if (rc2) {
-            sr_rc = SR_ERR_OPERATION_FAILED;
+        if (rc) {
             break;
         }
     }
     sr_free_change_iter(sr_iter);
-    if ((rc != SR_ERR_OK) && (rc != SR_ERR_NOT_FOUND)) {
-        EINT;
-        return rc;
+    if (rc == 1) {
+        return 0;
     }
 
-    return sr_rc;
+    return rc;
 }
 
 int
-feature_change_ietf_system(sr_session_ctx_t *session, const char *feature_name, bool enabled)
+feature_change_ietf_system(sr_session_ctx_t *srs, const char *feature_name, bool enabled)
 {
-    int rc, rc2 = 0;
+    int rc;
     sr_val_iter_t *sr_iter;
     sr_val_t *sr_val;
     NC_SSH_KEY_TYPE prev_keytype = 0;
@@ -243,61 +237,53 @@ feature_change_ietf_system(sr_session_ctx_t *session, const char *feature_name, 
     assert(feature_name);
     if (strcmp(feature_name, "local-users")) {
         VRB("Unknown or unsupported feature \"%s\" %s, ignoring.", feature_name, (enabled ? "enabled" : "disabled"));
-        return EXIT_SUCCESS;
+        return 0;
     }
 
     if (enabled) {
-        rc = sr_get_items_iter(np2srv.sr_sess.srs, "/ietf-system:system/authentication/user/authorized-key//*", &sr_iter);
-        if (rc != SR_ERR_OK) {
-            ERR("Failed to get \"%s\" values iterator from sysrepo (%s).", sr_strerror(rc));
-            return EXIT_FAILURE;
+        if (np2srv_sr_get_items_iter(srs, "/ietf-system:system/authentication/user/authorized-key//*",
+                &sr_iter, NULL)) {
+            return -1;
         }
 
-        while ((rc = sr_get_item_next(np2srv.sr_sess.srs, sr_iter, &sr_val)) == SR_ERR_OK) {
+        while (!(rc = np2srv_sr_get_item_next(srs, sr_iter, &sr_val, NULL))) {
             if (sr_val->type == SR_LIST_T) {
                 /* no semantic meaning */
                 continue;
             }
 
-            rc2 = subtree_change_resolve(session, SR_OP_CREATED, NULL, sr_val, &prev_keytype);
+            rc = subtree_change_resolve(srs, SR_OP_CREATED, NULL, sr_val, &prev_keytype);
             sr_free_val(sr_val);
-            if (rc2) {
+            if (rc) {
                 ERR("Failed to enable nodes depending on the \"%s\" ietf-system feature.", feature_name);
                 break;
             }
         }
         sr_free_val_iter(sr_iter);
-        if (rc2) {
-            return EXIT_FAILURE;
-        } else if ((rc != SR_ERR_OK) && (rc != SR_ERR_NOT_FOUND)) {
-            ERR("Failed to get the next value from sysrepo iterator (%s).", sr_strerror(rc));
-            return EXIT_FAILURE;
+        if (rc == -1) {
+            return -1;
         }
     } else {
         nc_server_ssh_del_authkey(NULL, NULL, 0, NULL);
     }
 
-    return EXIT_SUCCESS;
+    return 0;
 }
 
 int
 ietf_system_init(const struct lys_module *module)
 {
-    int rc;
-
-    rc = sr_subtree_change_subscribe(np2srv.sr_sess.srs, "/ietf-system:system/authentication/user",
-                                     subtree_change_cb, NULL, 0, SR_SUBSCR_APPLY_ONLY | SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr);
-    if (SR_ERR_OK != rc) {
-        ERR("Failed to subscribe to \"ietf-system\" module subtree changes (%s).", sr_strerror(rc));
-        return EXIT_FAILURE;
+    if (np2srv_sr_subtree_change_subscribe(np2srv.sr_sess.srs, "/ietf-system:system/authentication/user",
+                subtree_change_cb, NULL, 0, SR_SUBSCR_APPLY_ONLY | SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr, NULL)) {
+        return -1;
     }
 
     /* applies the whole current configuration */
     if (lys_features_state(module, "local-users") == 1) {
         if (feature_change_ietf_system(np2srv.sr_sess.srs, "local-users", 1)) {
-            return EXIT_FAILURE;
+            return -1;
         }
     }
 
-    return EXIT_SUCCESS;
+    return 0;
 }

@@ -28,23 +28,17 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
     sr_datastore_t target = 0;
     const char *dsname;
     uint32_t index;
-    int rc;
     const struct lys_module *mod;
     struct lys_node *iter;
     char path[1024];
     struct ly_set *nodeset;
     struct nc_server_reply *ereply = NULL;
-    bool permitted;
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    /* check NACM */
-    rc = sr_check_exec_permission(sessions->srs, "/ietf-netconf:delete-config", &permitted);
-    if (rc != SR_ERR_OK) {
-        return op_build_err_sr(NULL, sessions->srs);
-    } else if (!permitted) {
-        return op_build_err_nacm(NULL);
+    if (np2srv_sr_check_exec_permission(sessions->srs, "/ietf-netconf:delete-config", &ereply)) {
+        goto finish;
     }
 
     /* get know which datastore is being affected */
@@ -59,13 +53,15 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
     if (sessions->ds != target) {
         /* update sysrepo session */
-        sr_session_switch_ds(sessions->srs, target);
+        if (np2srv_sr_session_switch_ds(sessions->srs, target, &ereply)) {
+            goto finish;
+        }
         sessions->ds = target;
     }
 
     /* update data from sysrepo */
-    if (sr_session_refresh(sessions->srs) != SR_ERR_OK) {
-        goto error;
+    if (np2srv_sr_session_refresh(sessions->srs, &ereply)) {
+        goto finish;
     }
 
     /* perform operation
@@ -81,10 +77,9 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
             }
 
             snprintf(path, 1024, "/%s:*", mod->name);
-            rc = sr_delete_item(sessions->srs, path, 0);
-            if (rc != SR_ERR_OK &&
-                    rc != SR_ERR_UNKNOWN_MODEL) { /* TODO: hack to skip internal ietf-netconf-acm */
-                goto error;
+            if (np2srv_sr_delete_item(sessions->srs, path, 0, &ereply)) {
+                np2srv_sr_discard_changes(sessions->srs, NULL);
+                goto finish;
             }
 
             /* sysrepo was asked for remove all configuration data
@@ -94,19 +89,13 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* commit the result */
-    rc = sr_commit(sessions->srs);
-    if (rc != SR_ERR_OK) {
-        goto error;
+    if (np2srv_sr_commit(sessions->srs, &ereply)) {
+        np2srv_sr_discard_changes(sessions->srs, NULL);
+        goto finish;
     }
 
-    return nc_server_reply_ok();
+    ereply = nc_server_reply_ok();
 
-error:
-    /* get the error */
-    ereply = op_build_err_sr(ereply, sessions->srs);
-
-    /* rollback changes */
-    sr_discard_changes(sessions->srs);
-
+finish:
     return ereply;
 }

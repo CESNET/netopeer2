@@ -86,7 +86,7 @@ np2srv_ntf_replay_sort_send(struct np_subscriber *subscriber)
     subscriber->replay_notifs = NULL;
 
     /* send replayComplete at the end */
-    mod = ly_ctx_get_module(np2srv.ly_ctx, "nc-notifications", NULL);
+    mod = ly_ctx_get_module(np2srv.ly_ctx, "nc-notifications", NULL, 1);
     event = lyd_new(NULL, mod, "replayComplete");
     notif = nc_server_notif_new(event, nc_time2datetime(time(NULL), NULL, NULL), NC_PARAMTYPE_FREE);
     nc_server_notif_send(subscriber->session, notif, 5000);
@@ -121,7 +121,7 @@ np2srv_ntf_send(struct np_subscriber *subscriber, struct lyd_node *ntf, time_t t
         ++subscriber->notif_complete_count;
         if (subscriber->notif_complete_count == subscriber->subscr_count) {
             /* send notificationComplete */
-            mod = ly_ctx_get_module(np2srv.ly_ctx, "nc-notifications", NULL);
+            mod = ly_ctx_get_module(np2srv.ly_ctx, "nc-notifications", NULL, 1);
             if (mod) {
                 filtered_ntf = lyd_new(NULL, mod, "notificationComplete");
                 ntf_msg = nc_server_notif_new(filtered_ntf, nc_time2datetime(time(NULL), NULL, NULL), NC_PARAMTYPE_FREE);
@@ -228,7 +228,7 @@ error:
 }
 
 static int
-ntf_module_sr_subscribe(const struct lys_module *mod, struct np_subscriber *subscr, char **msg)
+ntf_module_sr_subscribe(const struct lys_module *mod, struct np_subscriber *subscr)
 {
     struct lys_node *next, *snode, *top;
     int rc;
@@ -237,14 +237,13 @@ ntf_module_sr_subscribe(const struct lys_module *mod, struct np_subscriber *subs
         LY_TREE_DFS_BEGIN(top, next, snode) {
             if (snode->nodetype == LYS_NOTIF) {
                 if (subscr->sr_subscr) {
-                    rc = sr_event_notif_subscribe(np2srv.sr_sess.srs, mod->name, np2srv_ntf_clb, subscr,
-                                                SR_SUBSCR_NOTIF_REPLAY_FIRST | SR_SUBSCR_CTX_REUSE, &subscr->sr_subscr);
+                    rc = np2srv_sr_event_notif_subscribe(np2srv.sr_sess.srs, mod->name, np2srv_ntf_clb, subscr,
+                                                SR_SUBSCR_NOTIF_REPLAY_FIRST | SR_SUBSCR_CTX_REUSE, &subscr->sr_subscr, NULL);
                 } else {
-                    rc = sr_event_notif_subscribe(np2srv.sr_sess.srs, mod->name, np2srv_ntf_clb, subscr,
-                                                SR_SUBSCR_NOTIF_REPLAY_FIRST, &subscr->sr_subscr);
+                    rc = np2srv_sr_event_notif_subscribe(np2srv.sr_sess.srs, mod->name, np2srv_ntf_clb, subscr,
+                                                SR_SUBSCR_NOTIF_REPLAY_FIRST, &subscr->sr_subscr, NULL);
                 }
-                if (rc != SR_ERR_OK) {
-                    asprintf(msg, "Failed to subscribe to \"%s\" notifications (%s).", mod->name, sr_strerror(rc));
+                if (rc) {
                     return -1;
                 }
                 return 1;
@@ -267,7 +266,7 @@ np2srv_subscriber_free(struct np_subscriber *subscriber)
     }
 
     if (subscriber->sr_subscr) {
-        sr_unsubscribe(np2srv.sr_sess.srs, subscriber->sr_subscr);
+        np2srv_sr_unsubscribe(np2srv.sr_sess.srs, subscriber->sr_subscr, NULL);
     }
     for (i = 0; i < subscriber->filter_count; ++i) {
         free(subscriber->filters[i]);
@@ -287,23 +286,19 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
     uint32_t idx;
     time_t now = time(NULL), start = 0, stop = 0;
     const char *stream;
-    char **filters, *msg;
+    char **filters;
     struct lyd_node *node;
     struct np_subscriber *new = NULL;
     struct nc_server_error *e = NULL;
+    struct nc_server_reply *ereply = NULL;
     const struct lys_module *mod;
     struct np2_sessions *sessions;
-    bool permitted;
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
 
-    /* check NACM */
-    ret = sr_check_exec_permission(sessions->srs, "/notifications:create-subscription", &permitted);
-    if (ret != SR_ERR_OK) {
-        return op_build_err_sr(NULL, sessions->srs);
-    } else if (!permitted) {
-        return op_build_err_nacm(NULL);
+    if (np2srv_sr_check_exec_permission(sessions->srs, "/notifications:create-subscription", &ereply)) {
+        goto error;
     }
 
     /* stream is always present - as explicit or default node */
@@ -324,6 +319,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
             if (op_filter_create(node, &filters, &filter_count)) {
                 e = nc_err(NC_ERR_BAD_ELEM, NC_ERR_TYPE_PROT, "filter");
                 nc_err_set_msg(e, "Failed to process filter.", "en");
+                ereply = nc_server_reply_err(e);
                 goto error;
             }
         }
@@ -334,16 +330,19 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
         /* it is not valid to specify future start time */
         e = nc_err(NC_ERR_BAD_ELEM, NC_ERR_TYPE_PROT, "startTime");
         nc_err_set_msg(e, "Requested startTime is later than the current time.", "en");
+        ereply = nc_server_reply_err(e);
         goto error;
     } else if (!start && stop) {
         /* stopTime must be used with startTime */
         e = nc_err(NC_ERR_MISSING_ELEM, NC_ERR_TYPE_PROT, "startTime");
         nc_err_set_msg(e, "The stopTime element must be used with the startTime element.", "en");
+        ereply = nc_server_reply_err(e);
         goto error;
     } else if (stop && (start > stop)) {
         /* stopTime must be later than startTime */
         e = nc_err(NC_ERR_BAD_ELEM, NC_ERR_TYPE_PROT, "stopTime");
         nc_err_set_msg(e, "Requested stopTime is earlier than the specified startTime.", "en");
+        ereply = nc_server_reply_err(e);
         goto error;
     }
 
@@ -355,6 +354,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
             /* already subscribed */
             e = nc_err(NC_ERR_IN_USE, NC_ERR_TYPE_PROT);
             nc_err_set_msg(e, "Already subscribed.", "en");
+            ereply = nc_server_reply_err(e);
             goto unlock_error;
         }
     }
@@ -368,6 +368,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
             EMEM;
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
             subscribers.size -= 4;
+            ereply = nc_server_reply_err(e);
             goto unlock_error;
         }
         subscribers.list = new;
@@ -405,11 +406,11 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
                 continue;
             }
 
-            ret = ntf_module_sr_subscribe(mod, new, &msg);
+            ret = ntf_module_sr_subscribe(mod, new);
             if (ret == -1) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, msg, "en");
-                free(msg);
+                nc_err_set_msg(e, np2log_lasterr(), "en");
+                ereply = nc_server_reply_err(e);
                 goto unlock_error;
             }
 
@@ -420,12 +421,13 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
             /* weird */
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
             nc_err_set_msg(e, "No modules with notifications to subscribe to.", "en");
+            ereply = nc_server_reply_err(e);
             goto unlock_error;
         }
     } else {
-        /* stream name is supposed to match the name of a schema in the context having some
+        /* stream name is supposed to match the name of an implemented schema in the context having some
          * notifications defined */
-        mod = ly_ctx_get_module(np2srv.ly_ctx, stream, NULL);
+        mod = ly_ctx_get_module(np2srv.ly_ctx, stream, NULL, 1);
         if (!strcmp(stream, "ietf-yang-library")) {
             /* handled internally */
             new->subscr_ietf_yang_library = 1;
@@ -434,17 +436,19 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
             if (start) {
                 e = nc_err(NC_ERR_BAD_ELEM, NC_ERR_TYPE_PROT, "stream");
                 nc_err_set_msg(e, "Requested stream does not support replay.", "en");
+                ereply = nc_server_reply_err(e);
                 goto unlock_error;
             }
-        } else if (!mod || !(ret = ntf_module_sr_subscribe(mod, new, &msg))) {
+        } else if (!mod || !(ret = ntf_module_sr_subscribe(mod, new))) {
             /* requested stream does not match any schema with a notification */
             e = nc_err(NC_ERR_BAD_ELEM, NC_ERR_TYPE_PROT, "stream");
             nc_err_set_msg(e, "Requested stream name does not match any of the provided streams.", "en");
+            ereply = nc_server_reply_err(e);
             goto unlock_error;
         } else if (ret == -1) {
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, msg, "en");
-            free(msg);
+            nc_err_set_msg(e, np2log_lasterr(), "en");
+            ereply = nc_server_reply_err(e);
             goto unlock_error;
         }
 
@@ -455,10 +459,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
 
     /* subscribe for replay */
     if (start) {
-        ret = sr_event_notif_replay(np2srv.sr_sess.srs, new->sr_subscr, start, stop);
-        if (ret) {
-            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, sr_strerror(ret), "en");
+        if (np2srv_sr_event_notif_replay(np2srv.sr_sess.srs, new->sr_subscr, start, stop, &ereply)) {
             goto error;
         }
     }
@@ -474,7 +475,7 @@ error:
         free(filters[i]);
     }
     free(filters);
-    return nc_server_reply_err(e);
+    return ereply;
 }
 
 void
@@ -514,9 +515,18 @@ op_ntf_yang_lib_change(const struct lyd_node *ylib_info)
 {
     const char *setid;
     struct lyd_node *ntf;
+    struct ly_set *set;
     int i;
 
-    setid = ((struct lyd_node_leaf_list *)ylib_info->child->prev)->value_str;
+    set = lyd_find_path(ylib_info, "/ietf-yang-library:modules-state/module-set-id");
+    if (!set || (set->number != 1)) {
+        ly_set_free(set);
+        EINT;
+        return;
+    }
+    setid = ((struct lyd_node_leaf_list *)set->set.d[0])->value_str;
+    ly_set_free(set);
+
     ntf = lyd_new_path(NULL, np2srv.ly_ctx, "/ietf-yang-library:yang-library-change/module-set-id", (void *)setid, 0, 0);
     if (lyd_validate(&ntf, LYD_OPT_NOTIF, (void *)ylib_info)) {
         lyd_free(ntf);
