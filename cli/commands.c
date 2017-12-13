@@ -1693,14 +1693,22 @@ parse_crl(const char *name, const char *path)
         BIO_printf(bio_out, "\tNone\n");
     }
     while (rev != NULL) {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L // < 1.1.0
+        bs = rev->serialNumber;
+#else
         bs = X509_REVOKED_get0_serialNumber(rev);
+#endif
         BIO_printf(bio_out, "\tSerial no.: ");
         for (i = 0; i < bs->length; i++) {
             BIO_printf(bio_out, "%02x", bs->data[i]);
         }
 
         BIO_printf(bio_out, "  Date: ");
+#if OPENSSL_VERSION_NUMBER < 0x10100000L // < 1.1.0
+        ASN1_TIME_print(bio_out, rev->revocationDate);
+#else
         ASN1_TIME_print(bio_out, X509_REVOKED_get0_revocationDate(rev));
+#endif
         BIO_printf(bio_out, "\n");
 
         X509_REVOKED_free(rev);
