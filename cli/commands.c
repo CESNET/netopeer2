@@ -1599,10 +1599,18 @@ parse_cert(const char *name, const char *path)
                     first_san = 0;
                 }
                 if (san_name->type == GEN_EMAIL) {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L // < 1.1.0
                     BIO_printf(bio_out, "RFC822:%s", (char*) ASN1_STRING_data(san_name->d.rfc822Name));
+#else
+                    BIO_printf(bio_out, "RFC822:%s", (char*) ASN1_STRING_get0_data(san_name->d.rfc822Name));
+#endif
                 }
                 if (san_name->type == GEN_DNS) {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L // < 1.1.0
                     BIO_printf(bio_out, "DNS:%s", (char*) ASN1_STRING_data(san_name->d.dNSName));
+#else
+                    BIO_printf(bio_out, "DNS:%s", (char*) ASN1_STRING_get0_data(san_name->d.dNSName));
+#endif
                 }
                 if (san_name->type == GEN_IPADD) {
                     BIO_printf(bio_out, "IP:");
@@ -1640,7 +1648,7 @@ parse_crl(const char *name, const char *path)
     BIO *bio_out;
     FILE *fp;
     X509_CRL *crl;
-    ASN1_INTEGER* bs;
+    const ASN1_INTEGER* bs;
     X509_REVOKED* rev;
 
     fp = fopen(path, "r");
@@ -1664,11 +1672,19 @@ parse_crl(const char *name, const char *path)
     BIO_printf(bio_out, "\n");
 
     BIO_printf(bio_out, "Last update: ");
+#if OPENSSL_VERSION_NUMBER < 0x10100000L // < 1.1.0
     ASN1_TIME_print(bio_out, X509_CRL_get_lastUpdate(crl));
+#else
+    ASN1_TIME_print(bio_out, X509_CRL_get0_lastUpdate(crl));
+#endif
     BIO_printf(bio_out, "\n");
 
     BIO_printf(bio_out, "Next update: ");
+#if OPENSSL_VERSION_NUMBER < 0x10100000L // < 1.1.0
     ASN1_TIME_print(bio_out, X509_CRL_get_nextUpdate(crl));
+#else
+    ASN1_TIME_print(bio_out, X509_CRL_get0_nextUpdate(crl));
+#endif
     BIO_printf(bio_out, "\n");
 
     BIO_printf(bio_out, "REVOKED:\n");
@@ -1677,14 +1693,14 @@ parse_crl(const char *name, const char *path)
         BIO_printf(bio_out, "\tNone\n");
     }
     while (rev != NULL) {
-        bs = rev->serialNumber;
+        bs = X509_REVOKED_get0_serialNumber(rev);
         BIO_printf(bio_out, "\tSerial no.: ");
         for (i = 0; i < bs->length; i++) {
             BIO_printf(bio_out, "%02x", bs->data[i]);
         }
-        BIO_printf(bio_out, "  Date: ");
 
-        ASN1_TIME_print(bio_out, rev->revocationDate);
+        BIO_printf(bio_out, "  Date: ");
+        ASN1_TIME_print(bio_out, X509_REVOKED_get0_revocationDate(rev));
         BIO_printf(bio_out, "\n");
 
         X509_REVOKED_free(rev);
