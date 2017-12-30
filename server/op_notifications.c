@@ -144,7 +144,6 @@ np2srv_ntf_send(struct np_subscriber *subscriber, struct lyd_node *ntf, time_t t
             for (i = 0; i < subscriber->filter_count; ++i) {
                 if (op_filter_get_tree_from_data(&filtered_ntf, ntf, subscriber->filters[i])) {
                     free(datetime);
-                    lyd_free(ntf);
                     lyd_free(filtered_ntf);
                     return;
                 }
