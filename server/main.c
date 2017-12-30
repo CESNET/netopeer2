@@ -636,7 +636,6 @@ np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_s
             ncm_session_del(new_session);
         }
         nc_session_free(new_session, free_ds);
-        return;
     }
 
     if ((mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL, 1))) {
