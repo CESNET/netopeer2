@@ -1010,7 +1010,9 @@ server_init(void)
     /* set server options */
     mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-server", NULL, 1);
     if (mod && strcmp(NP2SRV_KEYSTORED_DIR, "none")) {
+#ifdef ENABLED_TLS
         nc_server_tls_set_verify_clb(np2srv_verify_clb);
+#endif
         if (ietf_netconf_server_init(mod)) {
             goto error;
         }
