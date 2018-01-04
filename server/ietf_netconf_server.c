@@ -226,7 +226,7 @@ set_listen_endpoint_ssh_host_key(sr_session_ctx_t *srs, const char *endpt_name, 
     return rc;
 }
 
-#ifdef ENABLED_TLS
+#ifdef NC_ENABLED_TLS
 
 static int
 set_tls_cert(const char *config_name, sr_change_oper_t sr_oper, sr_val_t *UNUSED(sr_old_val), sr_val_t *sr_new_val,
@@ -675,7 +675,7 @@ module_change_resolve(sr_session_ctx_t *srs, sr_change_oper_t sr_oper, sr_val_t 
 {
     int rc = -2;
     const char *xpath, *list1_key = NULL, *list2_key = NULL, *oper_str = NULL;
-#ifdef ENABLED_TLS
+#ifdef NC_ENABLED_TLS
     char quot;
 #endif
 
@@ -792,7 +792,7 @@ module_change_resolve(sr_session_ctx_t *srs, sr_change_oper_t sr_oper, sr_val_t 
                         }
                     }
                 }
-#ifdef ENABLED_TLS
+#ifdef NC_ENABLED_TLS
             } else if (!strcmp(xpath, "tls")) {
                 if (sr_oper == SR_OP_CREATED) {
                     rc = nc_server_add_endpt(list1_key, NC_TI_OPENSSL);
@@ -958,7 +958,7 @@ module_change_resolve(sr_session_ctx_t *srs, sr_change_oper_t sr_oper, sr_val_t 
                         }
                     }
                 }
-#ifdef ENABLED_TLS
+#ifdef NC_ENABLED_TLS
             } else if (!strcmp(xpath, "tls")) {
                 if (sr_oper == SR_OP_CREATED) {
                     rc = nc_server_ch_add_client(list1_key, NC_TI_OPENSSL);
@@ -1174,7 +1174,7 @@ feature_change_ietf_netconf_server(const char *feature_name, bool enabled)
             path = "/ietf-netconf-server:netconf-server/listen/endpoint[ssh]//*";
         } else if (!strcmp(feature_name, "ssh-call-home")) {
             path = "/ietf-netconf-server:netconf-server/call-home/netconf-client[ssh]//*";
-#ifdef ENABLED_TLS
+#ifdef NC_ENABLED_TLS
         } else if (!strcmp(feature_name, "tls-listen")) {
             path = "/ietf-netconf-server:netconf-server/listen/endpoint[tls]//*";
         } else if (!strcmp(feature_name, "tls-call-home")) {
@@ -1210,7 +1210,7 @@ feature_change_ietf_netconf_server(const char *feature_name, bool enabled)
             nc_server_del_endpt(NULL, NC_TI_LIBSSH);
         } else if (!strcmp(feature_name, "ssh-call-home")) {
             nc_server_ch_del_client(NULL, NC_TI_LIBSSH);
-#ifdef ENABLED_TLS
+#ifdef NC_ENABLED_TLS
         } else if (!strcmp(feature_name, "tls-listen")) {
             nc_server_del_endpt(NULL, NC_TI_OPENSSL);
         } else if (!strcmp(feature_name, "tls-call-home")) {
@@ -1235,7 +1235,7 @@ ietf_netconf_server_init(const struct lys_module *module)
 
     /* set callbacks */
     nc_server_ssh_set_hostkey_clb(np_hostkey_clb, NULL, NULL);
-#ifdef ENABLED_TLS
+#ifdef NC_ENABLED_TLS
     nc_server_tls_set_server_cert_clb(np_server_cert_clb, NULL, NULL);
     nc_server_tls_set_trusted_cert_list_clb(np_trusted_cert_list_clb, NULL, NULL);
 #endif
@@ -1251,7 +1251,7 @@ ietf_netconf_server_init(const struct lys_module *module)
             return -1;
         }
     }
-#ifdef ENABLED_TLS
+#ifdef NC_ENABLED_TLS
     if (lys_features_state(module, "tls-listen") == 1) {
         if (feature_change_ietf_netconf_server("tls-listen", 1)) {
             return -1;
