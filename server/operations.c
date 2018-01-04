@@ -2297,6 +2297,7 @@ filter_xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *el
     struct lyxml_elem *temp, *child;
     int new_size;
     char *buf_new;
+    int only_content_match_node = 1;
 
     /* containment node, selection node */
     size = filter_xpath_buf_add_node(ctx, elem, elem_module_name, &last_ns, buf, size);
@@ -2319,36 +2320,13 @@ filter_xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *el
             } else if (size < 1) {
                 goto error;
             }
-
-            /* this content match node must be present in the final output, so add it as a selection node as well */
-            /* TODO optimization: needed only if child is not key and we have a sibling containment/selection node */
-            buf_new = malloc(size * sizeof(char));
-            if (!buf_new) {
-                EMEM;
-                goto error;
-            }
-            memcpy(buf_new, *buf, size * sizeof(char));
-            new_size = size;
-
-            new_size = filter_xpath_buf_add_node(ctx, child, elem_module_name, &last_ns, &buf_new, new_size);
-            if (!new_size) {
-                free(*buf);
-                *buf = NULL;
-                free(buf_new);
-                return 0;
-            } else if (new_size < 1) {
-                goto error;
-            }
-            if (op_filter_xpath_add_filter(buf_new, filters, filter_count)) {
-                goto error;
-            }
-
-            lyxml_free(ctx, child);
+        } else {
+            only_content_match_node = 0;
         }
     }
 
     /* that is it, it seems */
-    if (!elem->child) {
+    if (only_content_match_node) {
         if (op_filter_xpath_add_filter(*buf, filters, filter_count)) {
             goto error;
         }
@@ -2375,7 +2353,7 @@ filter_xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *el
         if (child->child) {
             filter_xpath_buf_add(ctx, child, NULL, last_ns, &buf_new, new_size, filters, filter_count);
 
-        /* child selection node */
+        /* child selection node or content match node */
         } else {
             new_size = filter_xpath_buf_add_node(ctx, child, NULL, &last_ns, &buf_new, new_size);
             if (!new_size) {
