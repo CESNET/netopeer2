@@ -163,11 +163,7 @@ print_version(void)
 /**
  * @brief Command line options definition for getopt()
  */
-#ifndef NDEBUG
-#   define OPTSTRING "dhv:Vc:"
-#else
-#   define OPTSTRING "dhv:V"
-#endif
+#define OPTSTRING "dhv:Vc:"
 /**
  * @brief Print command line options description
  * @param[in] progname Name of the process.
@@ -187,6 +183,8 @@ print_usage(char* progname)
 #ifndef NDEBUG
     fprintf(stdout, " -c category[,category]*  verbose debug level, print only these debug message categories\n");
     fprintf(stdout, " categories: DICT, YANG, YIN, XPATH, DIFF, MSG, EDIT_CONFIG, SSH, SYSREPO\n");
+#else
+    fprintf(stdout, " -c category[,category]*  verbose debug level, NOT SUPPORTED in release build type\n");
 #endif
     fprintf(stdout, "\n");
 }
@@ -1207,8 +1205,8 @@ main(int argc, char *argv[])
         case 'V':
             print_version();
             return EXIT_SUCCESS;
-#ifndef NDEBUG
         case 'c':
+#ifndef NDEBUG
             if (verb) {
                 ERR("Do not combine -v and -c parameters.");
                 return EXIT_FAILURE;
@@ -1247,7 +1245,7 @@ main(int argc, char *argv[])
                     return EXIT_FAILURE;
                 }
             } while ((ptr = strtok(NULL, ",")));
-            /* set final verbosity ofr libssh and libyang */
+            /* set final verbosity of libssh and libyang */
             nc_libssh_thread_verbosity(np2_libssh_verbose_level);
             if (verb) {
                 ly_verb(LY_LLDBG);
@@ -1255,6 +1253,9 @@ main(int argc, char *argv[])
             }
 
             verb = 1;
+            break;
+#else
+            WRN("-c parameter not supported in release build type.");
             break;
 #endif
 
