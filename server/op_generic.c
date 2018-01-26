@@ -168,8 +168,6 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
             }
         }
     }
-    ly_set_free(set);
-    set = NULL;
 
     if (!act) {
         rc = np2srv_sr_rpc_send(sessions->srs, rpc_xpath, input, in_count, &output, &out_count, &ereply);
