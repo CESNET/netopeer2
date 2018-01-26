@@ -84,10 +84,10 @@ struct nc_server_reply *
 op_generic(struct lyd_node *rpc, struct nc_session *ncs)
 {
     int rc;
-    uint32_t i;
+    uint32_t i, in_idx;
     char *rpc_xpath = NULL, *str;
     sr_val_t *input = NULL, *output = NULL;
-    size_t in_count = 0, out_count = 0;
+    size_t out_count = 0;
     struct np2_sessions *sessions;
     struct nc_server_error *e;
     struct nc_server_reply *ereply = NULL;
@@ -139,9 +139,8 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
 
     /* process input into sysrepo format */
     set = lyd_find_path(rpc, ".//*");
-    in_count = set->number;
-    if (in_count) {
-        input = calloc(in_count, sizeof *input);
+    if (set->number) {
+        input = calloc(set->number, sizeof *input);
         strs = ly_set_new();
         if (!input || !strs) {
             EMEM;
@@ -150,29 +149,30 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
             ereply = nc_server_reply_err(e);
             goto finish;
         }
-        for (i = 0; i < set->number; ++i) {
+        for (i = 0, in_idx = 0; i < set->number; ++i) {
             if (set->set.d[i]->dflt) {
-                --in_count;
                 continue;
             }
 
-            if (op_set_srval(set->set.d[i], lyd_path(set->set.d[i]), 0, &input[i], &str)) {
+            if (op_set_srval(set->set.d[i], lyd_path(set->set.d[i]), 0, &input[in_idx], &str)) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
                 nc_err_set_msg(e, np2log_lasterr(), "en");
                 ereply = nc_server_reply_err(e);
                 goto finish;
             }
+            ++in_idx;
+
             if (str) {
-                /* keep pointer to additional memory needed for input[i] */
+                /* keep pointer to additional memory needed for input[in_idx] */
                 ly_set_add(strs, str, LY_SET_OPT_USEASLIST);
             }
         }
     }
 
     if (!act) {
-        rc = np2srv_sr_rpc_send(sessions->srs, rpc_xpath, input, in_count, &output, &out_count, &ereply);
+        rc = np2srv_sr_rpc_send(sessions->srs, rpc_xpath, input, in_idx, &output, &out_count, &ereply);
     } else {
-        rc = np2srv_sr_action_send(sessions->srs, rpc_xpath, input, in_count, &output, &out_count, &ereply);
+        rc = np2srv_sr_action_send(sessions->srs, rpc_xpath, input, in_idx, &output, &out_count, &ereply);
     }
     if (rc) {
         goto finish;
@@ -210,7 +210,7 @@ finish:
         }
         ly_set_free(strs);
     }
-    for (i = 0; i < in_count; ++i) {
+    for (i = 0; i < in_idx; ++i) {
         free(input[i].xpath);
     }
     free(input);
