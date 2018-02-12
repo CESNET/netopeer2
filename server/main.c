@@ -1080,8 +1080,8 @@ worker_thread(void *arg)
         /* listen for incoming requests on active NETCONF sessions */
         rc = nc_ps_poll(np2srv.nc_ps, 0, &ncs);
 
-        if (rc & (NC_PSPOLL_NOSESSIONS | NC_PSPOLL_TIMEOUT)) {
-            /* if there is no active session or timeout, rest for a while */
+        if (rc & (NC_PSPOLL_NOSESSIONS | NC_PSPOLL_TIMEOUT | NC_PSPOLL_ERROR)) {
+            /* if there is no active session, timeout, or an error, rest for a while */
             pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
             np_sleep(10);
             continue;
