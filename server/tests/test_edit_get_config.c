@@ -266,7 +266,7 @@ __wrap_sr_set_item(sr_session_ctx_t *session, const char *xpath, const sr_val_t 
     case SR_LEAF_EMPTY_T:
         ly_errno = LY_SUCCESS;
         lyd_new_path(data, np2srv.ly_ctx, xpath, NULL, 0, opt);
-        if ((ly_errno == LY_EVALID) && (ly_vecode == LYVE_PATH_EXISTS)) {
+        if ((ly_errno == LY_EVALID) && (ly_vecode(np2srv.ly_ctx) == LYVE_PATH_EXISTS)) {
             return SR_ERR_DATA_EXISTS;
         }
         assert_int_equal(ly_errno, LY_SUCCESS);
@@ -274,7 +274,7 @@ __wrap_sr_set_item(sr_session_ctx_t *session, const char *xpath, const sr_val_t 
     default:
         ly_errno = LY_SUCCESS;
         lyd_new_path(data, np2srv.ly_ctx, xpath, op_get_srval(np2srv.ly_ctx, (sr_val_t *)value, buf), 0, opt);
-        if ((ly_errno == LY_EVALID) && (ly_vecode == LYVE_PATH_EXISTS)) {
+        if ((ly_errno == LY_EVALID) && (ly_vecode(np2srv.ly_ctx) == LYVE_PATH_EXISTS)) {
             return SR_ERR_DATA_EXISTS;
         }
         assert_int_equal(ly_errno, LY_SUCCESS);

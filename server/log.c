@@ -236,7 +236,7 @@ np2log_printf(NC_VERB_LEVEL level, const char *format, ...)
 }
 
 const char *
-np2log_lasterr(void)
+np2log_lasterr(struct ly_ctx *ctx)
 {
     struct np2err *e;
 
@@ -246,7 +246,7 @@ np2log_lasterr(void)
     }
 
     if (e->source == ERRS_LIBYANG) {
-        return ly_errmsg();
+        return ly_errmsg(ctx);
     } else {
         return e->msg;
     }

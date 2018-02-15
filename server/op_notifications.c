@@ -408,7 +408,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
             ret = ntf_module_sr_subscribe(mod, new);
             if (ret == -1) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 ereply = nc_server_reply_err(e);
                 goto unlock_error;
             }
@@ -446,7 +446,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
             goto unlock_error;
         } else if (ret == -1) {
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, np2log_lasterr(), "en");
+            nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
             ereply = nc_server_reply_err(e);
             goto unlock_error;
         }

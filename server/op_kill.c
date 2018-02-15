@@ -43,7 +43,7 @@ op_kill(struct lyd_node *rpc, struct nc_session *ncs)
     if (!set || (set->number != 1) || (set->set.d[0]->schema->nodetype != LYS_LEAF)) {
         EINT;
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, np2log_lasterr(), "en");
+        nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
         ereply = nc_server_reply_err(e);
         goto finish;
     }

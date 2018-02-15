@@ -78,7 +78,7 @@ np2srv_sr_session_switch_ds(sr_session_ctx_t *srs, sr_datastore_t ds, struct nc_
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -129,7 +129,7 @@ np2srv_sr_set_item(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *val
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -210,7 +210,7 @@ np2srv_sr_delete_item(sr_session_ctx_t *srs, const char *xpath, const sr_edit_op
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -291,7 +291,7 @@ np2srv_sr_get_item(sr_session_ctx_t *srs, const char *xpath, sr_val_t **value, s
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -341,7 +341,7 @@ np2srv_sr_get_items(sr_session_ctx_t *srs, const char *xpath, sr_val_t **values,
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -391,7 +391,7 @@ np2srv_sr_get_changes_iter(sr_session_ctx_t *srs, const char *xpath, sr_change_i
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -447,7 +447,7 @@ np2srv_sr_get_change_next(sr_session_ctx_t *srs, sr_change_iter_t *iter, sr_chan
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -502,7 +502,7 @@ np2srv_sr_get_items_iter(sr_session_ctx_t *srs, const char *xpath, sr_val_iter_t
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -558,7 +558,7 @@ np2srv_sr_get_item_next(sr_session_ctx_t *srs, sr_val_iter_t *iter, sr_val_t **v
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -609,7 +609,7 @@ np2srv_sr_move_item(sr_session_ctx_t *srs, const char *xpath, const sr_move_posi
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -660,7 +660,7 @@ np2srv_sr_rpc_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *inp
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -725,7 +725,7 @@ np2srv_sr_action_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -790,7 +790,7 @@ np2srv_sr_check_exec_permission(sr_session_ctx_t *srs, const char *xpath, struct
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -852,7 +852,7 @@ np2srv_sr_module_change_subscribe(sr_session_ctx_t *srs, const char *module_name
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -903,7 +903,7 @@ np2srv_sr_subtree_change_subscribe(sr_session_ctx_t *srs, const char *xpath, sr_
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -954,7 +954,7 @@ np2srv_sr_event_notif_subscribe(sr_session_ctx_t *srs, const char *xpath, sr_eve
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -1005,7 +1005,7 @@ np2srv_sr_event_notif_replay(sr_session_ctx_t *srs, sr_subscription_ctx_t *subsc
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -1056,7 +1056,7 @@ np2srv_sr_event_notif_send(sr_session_ctx_t *srs, const char *xpath, const sr_va
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -1108,7 +1108,7 @@ np2srv_sr_session_start_user(const char *user_name, const sr_datastore_t datasto
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -1167,7 +1167,7 @@ np2srv_sr_session_stop(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -1217,7 +1217,7 @@ np2srv_sr_session_set_options(sr_session_ctx_t *srs, const sr_sess_options_t opt
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -1267,7 +1267,7 @@ np2srv_sr_session_refresh(sr_session_ctx_t *srs, struct nc_server_reply **ereply
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -1317,7 +1317,7 @@ np2srv_sr_discard_changes(sr_session_ctx_t *srs, struct nc_server_reply **ereply
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -1367,7 +1367,7 @@ np2srv_sr_commit(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -1417,7 +1417,7 @@ np2srv_sr_validate(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -1468,7 +1468,7 @@ np2srv_sr_copy_config(sr_session_ctx_t *srs, const char *module_name, sr_datasto
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -1518,7 +1518,7 @@ np2srv_sr_lock_datastore(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -1568,7 +1568,7 @@ np2srv_sr_unlock_datastore(sr_session_ctx_t *srs, struct nc_server_reply **erepl
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -1618,7 +1618,7 @@ np2srv_sr_unsubscribe(sr_session_ctx_t *srs, sr_subscription_ctx_t *subscription
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -1668,7 +1668,7 @@ np2srv_sr_list_schemas(sr_session_ctx_t *srs, sr_schema_t **schemas, size_t *sch
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -1719,7 +1719,7 @@ np2srv_sr_get_submodule_schema(sr_session_ctx_t *srs, const char *submodule_name
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {
@@ -1770,7 +1770,7 @@ np2srv_sr_get_schema(sr_session_ctx_t *srs, const char *module_name, const char 
 
             if (ereply) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 if (*ereply) {
                     nc_server_reply_add_err(*ereply, e);
                 } else {

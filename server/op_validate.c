@@ -51,6 +51,7 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
     } else if (!strcmp(dsname, "config")) {
         /* get data tree to validate */
         any = (struct lyd_node_anydata *)nodeset->set.d[0];
+        ly_errno = LY_SUCCESS;
         switch (any->value_type) {
         case LYD_ANYDATA_CONSTSTRING:
         case LYD_ANYDATA_STRING:
@@ -70,7 +71,7 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
         case LYD_ANYDATA_SXMLD:
             EINT;
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, np2log_lasterr(), "en");
+            nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
             ereply = nc_server_reply_err(e);
             goto finish;
         }
@@ -79,7 +80,7 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
         lyd_free_withsiblings(config);
 
         if (ly_errno != LY_SUCCESS) {
-            e = nc_err_libyang();
+            e = nc_err_libyang(np2srv.ly_ctx);
             ereply = nc_server_reply_err(e);
             goto finish;
         }
