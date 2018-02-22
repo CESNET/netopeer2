@@ -135,7 +135,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
             if (iter->dflt) {
                 continue;
             }
-            ly_set_add(nodeset, iter->schema->module, 0);
+            ly_set_add(nodeset, lyd_node_module(iter), 0);
         }
         for (i = 0; i < nodeset->number; i++) {
             snprintf(path, 1024, "/%s:*", ((struct lys_module *)nodeset->set.g[i])->name);
