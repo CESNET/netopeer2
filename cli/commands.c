@@ -596,7 +596,7 @@ trim_top_elem(char *data, const char *top_elem, const char *top_elem_ns)
 void
 cmd_searchpath_help(void)
 {
-    printf("searchpath <model-dir-path>\n");
+    printf("searchpath [<model-dir-path>]\n");
 }
 
 void
@@ -2317,18 +2317,20 @@ cmd_searchpath(const char *arg, char **UNUSED(tmp_config_file))
 {
     const char *path;
 
-    if (strchr(arg, ' ') == NULL) {
-        fprintf(stderr, "Missing the search path.\n");
-        return 1;
-    }
-    path = strchr(arg, ' ')+1;
+    for (arg += 10; isspace(arg[0]); ++arg);
 
-    if (!strcmp(path, "-h") || !strcmp(path, "--help")) {
+    if (!arg[0]) {
+        path = nc_client_get_schema_searchpath();
+        fprintf(stdout, "%s\n", path[0] ? path : "<none>");
+        return 0;
+    }
+
+    if (!strcmp(arg, "-h") || !strcmp(arg, "--help")) {
         cmd_searchpath_help();
         return 0;
     }
 
-    nc_client_set_schema_searchpath(path);
+    nc_client_set_schema_searchpath(arg);
     return 0;
 }
 
