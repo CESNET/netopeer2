@@ -45,7 +45,9 @@ struct np_subscriber {
 struct {
     uint16_t size;
     uint16_t num;
-    struct np_subscriber *list;
+    /* we use an array of pointers to the subscribers so that if we pass individual subscribers to np2srv_ntf_clb
+     * and then call realloc() on this array, the pointers will remain the same */
+    struct np_subscriber **list;
     pthread_mutex_t lock;
 } subscribers = {0, 0, NULL, PTHREAD_MUTEX_INITIALIZER};
 
@@ -275,6 +277,7 @@ np2srv_subscriber_free(struct np_subscriber *subscriber)
         nc_server_notif_free(subscriber->replay_notifs[i]);
     }
     free(subscriber->replay_notifs);
+    free(subscriber);
 }
 
 struct nc_server_reply *
@@ -286,6 +289,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
     time_t now = time(NULL), start = 0, stop = 0;
     const char *stream;
     char **filters;
+    void *mem;
     struct lyd_node *node;
     struct np_subscriber *new = NULL;
     struct nc_server_error *e = NULL;
@@ -349,7 +353,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
 
     /* check that the session is not in the current subscribers list */
     for (i = 0; i < subscribers.num; i++) {
-        if (subscribers.list[i].session == ncs) {
+        if (subscribers.list[i]->session == ncs) {
             /* already subscribed */
             e = nc_err(NC_ERR_IN_USE, NC_ERR_TYPE_PROT);
             nc_err_set_msg(e, "Already subscribed.", "en");
@@ -358,21 +362,28 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
         }
     }
 
-    /* new subscriber, add it into the list */
+    /* new subscriber, make place for the pointer */
     if (subscribers.num == subscribers.size) {
         subscribers.size += 4;
-        new = realloc(subscribers.list, subscribers.size * sizeof *subscribers.list);
-        if (!new) {
+        mem = realloc(subscribers.list, subscribers.size * sizeof *subscribers.list);
+        if (!mem) {
             /* realloc failed */
+            subscribers.size -= 4;
             EMEM;
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            subscribers.size -= 4;
             ereply = nc_server_reply_err(e);
             goto unlock_error;
         }
-        subscribers.list = new;
+        subscribers.list = mem;
     }
-    new = &subscribers.list[subscribers.num];
+    /* allocate place for the subscriber structure itself */
+    new = subscribers.list[subscribers.num] = malloc(sizeof *new);
+    if (!new) {
+        EMEM;
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        ereply = nc_server_reply_err(e);
+        goto unlock_error;
+    }
     subscribers.num++;
 
     /* store information about the new subscriber */
@@ -485,18 +496,18 @@ op_ntf_unsubscribe(struct nc_session *session)
     pthread_mutex_lock(&subscribers.lock);
 
     for (i = 0; i < subscribers.num; i++) {
-        if (subscribers.list[i].session == session) {
+        if (subscribers.list[i]->session == session) {
             break;
         }
     }
     assert(i < subscribers.num);
 
-    np2srv_subscriber_free(&subscribers.list[i]);
+    np2srv_subscriber_free(subscribers.list[i]);
 
     subscribers.num--;
     if (i < subscribers.num) {
-        /* move here the subscriber from the end of the list */
-        memcpy(&subscribers.list[i], &subscribers.list[subscribers.num], sizeof *subscribers.list);
+        /* move here the subscriber pointer from the end of the list */
+        subscribers.list[i] = subscribers.list[subscribers.num];
     }
     nc_session_set_notif_status(session, 0);
 
@@ -535,8 +546,8 @@ op_ntf_yang_lib_change(const struct lyd_node *ylib_info)
 
     /* send notifications */
     for (i = 0; i < subscribers.num; ++i) {
-        if (subscribers.list[i].subscr_ietf_yang_library) {
-            np2srv_ntf_send(&subscribers.list[i], ntf, time(NULL), SR_EV_NOTIF_T_REALTIME);
+        if (subscribers.list[i]->subscr_ietf_yang_library) {
+            np2srv_ntf_send(subscribers.list[i], ntf, time(NULL), SR_EV_NOTIF_T_REALTIME);
         }
     }
     lyd_free(ntf);
