@@ -1029,7 +1029,7 @@ server_init(void)
         if (nc_server_add_endpt("main", NC_TI_LIBSSH)) {
             goto error;
         }
-        if (nc_server_endpt_set_address("main", "0.0.0.0")) {
+        if (nc_server_endpt_set_address("main", "::")) {
             goto error;
         }
         if (nc_server_endpt_set_port("main", 830)) {
