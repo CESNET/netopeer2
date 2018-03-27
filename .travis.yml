@@ -1,13 +1,23 @@
-os: linux
-sudo: required
-dist: trusty
+language: c
 
-language:
-  - c
-
-compiler:
-  - gcc
-  - clang
+matrix:
+  include:
+    - os: linux
+      dist: trusty
+      sudo: required
+      compiler: clang
+    - os: linux
+      dist: trusty
+      sudo: required
+      compiler: gcc
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-7
+      env:
+        - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
 
 branches:
   only:
@@ -22,6 +32,7 @@ cache:
     - cmocka-1.0.1
 
 before_install:
+  - eval "${MATRIX_EVAL}"
   - if [ "$TRAVIS_OS_NAME" == "linux" ]; then bash .travis-install-libs.sh; fi
   - if [ "$TRAVIS_OS_NAME" = "linux" -a "$CC" = "gcc" ]; then pip install --user codecov; export CFLAGS="-coverage"; fi
 
