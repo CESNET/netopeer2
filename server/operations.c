@@ -1869,7 +1869,6 @@ op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val, char **v
     uint32_t i;
     struct lyd_node_leaf_list *leaf;
     const char *str;
-    LY_DATA_TYPE type;
 
     if (!dup) {
         assert(val_buf);
@@ -1891,8 +1890,7 @@ op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val, char **v
     case LYS_LEAFLIST:
         leaf = (struct lyd_node_leaf_list *)node;
 settype:
-        type = leaf->value_type;
-        switch (type & LY_DATA_TYPE_MASK) {
+        switch (leaf->value_type) {
         case LY_TYPE_BINARY:
             val->type = SR_BINARY_T;
             str = leaf->value.binary;
