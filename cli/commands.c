@@ -284,13 +284,15 @@ recv_reply:
 
         /* special case */
         if (nc_rpc_get_type(rpc) == NC_RPC_GETSCHEMA) {
-            if (output == stdout) {
-                fprintf(output, "MODULE\n");
-            }
-            if ((data_rpl->data->schema->nodetype != LYS_RPC) || (data_rpl->data->child->schema->nodetype != LYS_ANYXML)) {
+            if ((data_rpl->data->schema->nodetype != LYS_RPC) ||
+                (data_rpl->data->child == NULL) ||
+                (data_rpl->data->child->schema->nodetype != LYS_ANYXML)) {
                 ERROR(__func__, "Unexpected data reply to <get-schema> RPC.");
                 ret = -1;
                 break;
+            }
+            if (output == stdout) {
+                fprintf(output, "MODULE\n");
             }
             any = (struct lyd_node_anydata *)data_rpl->data->child;
             switch (any->value_type) {
