@@ -56,6 +56,15 @@ np_server_cert_clb(const char *name, void *UNUSED(user_data), char **UNUSED(cert
         np2srv.sr_sess.ds = SR_DS_RUNNING;
     }
 
+    /* Refresh the session to prevent sysrepo returning cached data
+     * forthe certificate (if the certificate is changed).
+     */
+    if (np2srv_sr_session_refresh(np2srv.sr_sess.srs, NULL)) {
+	    ERR("%s:%d Failed session refresh", __func__, __LINE__);
+	    free(path);
+	    return 1;
+    }
+
     if (np2srv_sr_get_item(np2srv.sr_sess.srs, path, &sr_cert, NULL)) {
         free(path);
         return 1;
@@ -114,6 +123,13 @@ np_trusted_cert_list_clb(const char *name, void *UNUSED(user_data), char ***UNUS
             return 1;
         }
         np2srv.sr_sess.ds = SR_DS_RUNNING;
+    }
+
+    /* Refresh the session to prevent sysrepo returning cached data */
+    if (np2srv_sr_session_refresh(np2srv.sr_sess.srs, NULL)) {
+	    ERR("%s:%d Failed session refresh", __func__, __LINE__);
+	    free(path);
+	    return 1;
     }
 
     if (np2srv_sr_get_items(np2srv.sr_sess.srs, path, &sr_certs, &sr_cert_count, NULL)) {
