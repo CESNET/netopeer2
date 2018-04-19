@@ -28,6 +28,7 @@
 
 #include "common.h"
 #include "operations.h"
+#include "netconf_monitoring.h"
 
 struct np_subscriber {
     struct nc_session *session;
@@ -81,6 +82,7 @@ np2srv_ntf_replay_sort_send(struct np_subscriber *subscriber)
     for (i = 0; i < subscriber->replay_notif_count; ++i) {
         nc_server_notif_send(subscriber->session, subscriber->replay_notifs[i], 5000);
         nc_server_notif_free(subscriber->replay_notifs[i]);
+        ncm_session_notification(subscriber->session);
     }
     free(subscriber->replay_notifs);
 
@@ -93,6 +95,7 @@ np2srv_ntf_replay_sort_send(struct np_subscriber *subscriber)
     notif = nc_server_notif_new(event, nc_time2datetime(time(NULL), NULL, NULL), NC_PARAMTYPE_FREE);
     nc_server_notif_send(subscriber->session, notif, 5000);
     nc_server_notif_free(notif);
+    ncm_session_notification(subscriber->session);
 }
 
 static void
@@ -129,6 +132,7 @@ np2srv_ntf_send(struct np_subscriber *subscriber, struct lyd_node *ntf, time_t t
                 ntf_msg = nc_server_notif_new(filtered_ntf, nc_time2datetime(time(NULL), NULL, NULL), NC_PARAMTYPE_FREE);
                 nc_server_notif_send(subscriber->session, ntf_msg, 5000);
                 nc_server_notif_free(ntf_msg);
+                ncm_session_notification(subscriber->session);
             } else {
                 EINT;
             }
@@ -167,6 +171,7 @@ np2srv_ntf_send(struct np_subscriber *subscriber, struct lyd_node *ntf, time_t t
         if (notif_type == SR_EV_NOTIF_T_REALTIME) {
             nc_server_notif_send(subscriber->session, ntf_msg, 5000);
             nc_server_notif_free(ntf_msg);
+            ncm_session_notification(subscriber->session);
         } else {
             ++subscriber->replay_notif_count;
             subscriber->replay_notifs = realloc(subscriber->replay_notifs,
