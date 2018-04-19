@@ -220,6 +220,7 @@ __wrap_sr_event_notif_subscribe(sr_session_ctx_t *session, const char *xpath, sr
     printf("test: New subscription to %s\n", xpath);
     notif_clb = callback;
     notif_clb_data = private_ctx;
+    ncm_session_add((struct nc_session *)notif_clb_data);
     return SR_ERR_OK;
 }
 
