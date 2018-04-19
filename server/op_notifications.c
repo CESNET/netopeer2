@@ -288,12 +288,12 @@ np2srv_subscriber_free(struct np_subscriber *subscriber)
 struct nc_server_reply *
 op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
 {
-    int ret, filter_count;
+    int ret, filter_count = 0;
     uint16_t i;
     uint32_t idx;
     time_t now = time(NULL), start = 0, stop = 0;
     const char *stream;
-    char **filters;
+    char **filters = NULL;
     void *mem;
     struct lyd_node *node;
     struct np_subscriber *new = NULL;
@@ -313,8 +313,6 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
     stream = ((struct lyd_node_leaf_list *)rpc->child)->value_str;
 
     /* get optional parameters */
-    filters = NULL;
-    filter_count = 0;
     LY_TREE_FOR(rpc->child->next, node) {
         if (strcmp(node->schema->module->ns, "urn:ietf:params:xml:ns:netconf:notification:1.0")) {
             /* ignore */

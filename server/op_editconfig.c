@@ -178,7 +178,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* default value for error-option is "stop-on-error" */
     enum NP2_EDIT_ERROPT erropt = NP2_EDIT_ERROPT_STOP;
     struct lyd_node *config = NULL, *next, *iter;
-    char *str, *path, *rel, *valbuf, quot;
+    char *str, *path = NULL, *rel, *valbuf, quot;
     const char *cstr;
     enum NP2_EDIT_OP *op = NULL, *op_new;
     uint16_t *path_levels = NULL, *path_levels_new;
