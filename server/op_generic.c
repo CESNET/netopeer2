@@ -84,7 +84,7 @@ struct nc_server_reply *
 op_generic(struct lyd_node *rpc, struct nc_session *ncs)
 {
     int rc;
-    uint32_t i, in_idx;
+    uint32_t i, in_idx = 0;
     char *rpc_xpath = NULL, *str;
     sr_val_t *input = NULL, *output = NULL;
     size_t out_count = 0;
