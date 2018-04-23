@@ -129,6 +129,8 @@ subtree_change_resolve(sr_session_ctx_t *srs, sr_change_oper_t sr_oper, sr_val_t
             /* just store it */
             *prev_keytype = keytype;
         } else {
+            np2srv_sr_session_refresh(srs, NULL);
+
             /* we must remove the key first, then re-add it */
             asprintf(&path, "/ietf-system:system/authentication/user[name='%s']/authorized-key[name='%s']/key-data",
                      list1_key, list2_key);
@@ -241,6 +243,8 @@ feature_change_ietf_system(sr_session_ctx_t *srs, const char *feature_name, bool
     }
 
     if (enabled) {
+        np2srv_sr_session_refresh(srs, NULL);
+
         if (np2srv_sr_get_items_iter(srs, "/ietf-system:system/authentication/user/authorized-key//*",
                 &sr_iter, NULL)) {
             return -1;

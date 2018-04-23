@@ -147,6 +147,8 @@ get_ssh_host_key_public_key(void *arg)
     char *path, *value;
     sr_val_t *sr_val = NULL;
 
+    np2srv_sr_session_refresh(targ->srs, NULL);
+
     if (targ->listen_or_ch) {
         asprintf(&path, "/ietf-netconf-server:netconf-server/listen/endpoint[name='%s']/ssh/host-keys/host-key[name='%s']/public-key", targ->endpt_client_name, targ->key_name);
         np2srv_sr_get_item(targ->srs, path, &sr_val, NULL);
@@ -1184,6 +1186,8 @@ feature_change_ietf_netconf_server(const char *feature_name, bool enabled)
             VRB("Unknown or unsupported feature \"%s\" enabled, ignoring.", feature_name);
             return 0;
         }
+
+        np2srv_sr_session_refresh(np2srv.sr_sess.srs, NULL);
 
         if (np2srv_sr_get_items_iter(np2srv.sr_sess.srs, path, &sr_iter, NULL)) {
             return -1;

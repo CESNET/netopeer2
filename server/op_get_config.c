@@ -44,6 +44,8 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *srs, struct lyd_node **root, 
         return -1;
     }
 
+    np2srv_sr_session_refresh(srs, NULL);
+
     rc = np2srv_sr_get_items_iter(srs, full_subtree_xpath, &sriter, NULL);
     free(full_subtree_xpath);
     if (rc == 1) {
