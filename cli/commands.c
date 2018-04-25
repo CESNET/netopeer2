@@ -68,6 +68,7 @@ char *config_editor;
 struct nc_session *session;
 volatile pthread_t ntf_tid;
 volatile int interleave;
+int timed;
 
 int cmd_disconnect(const char *arg, char **tmp_config_file);
 
@@ -229,10 +230,53 @@ cli_ntf_clb(struct nc_session *session, const struct nc_notif *notif)
 }
 
 static int
+cli_gettimespec(struct timespec *ts, int *mono)
+{
+    errno = 0;
+
+#ifdef CLOCK_MONOTONIC_RAW
+    *mono = 1;
+    return clock_gettime(CLOCK_MONOTONIC_RAW, ts);
+#elif defined(CLOCK_MONOTONIC)
+    *mono = 1;
+    return clock_gettime(CLOCK_MONOTONIC, ts);
+#elif defined(CLOCK_REALTIME)
+    /* no monotonic clock available, return realtime */
+    *mono = 0;
+    return clock_gettime(CLOCK_REALTIME, ts);
+#else
+    *mono = 0;
+
+    int rc;
+    struct timeval tv;
+
+    rc = gettimeofday(&tv, NULL);
+    if (!rc) {
+        ts->tv_sec = (time_t)tv.tv_sec;
+        ts->tv_nsec = 1000L * (long)tv.tv_usec;
+    }
+    return rc;
+#endif
+}
+
+/* returns milliseconds */
+static int32_t
+cli_difftimespec(const struct timespec *ts1, const struct timespec *ts2)
+{
+    int64_t nsec_diff = 0;
+
+    nsec_diff += (((int64_t)ts2->tv_sec) - ((int64_t)ts1->tv_sec)) * 1000000000L;
+    nsec_diff += ((int64_t)ts2->tv_nsec) - ((int64_t)ts1->tv_nsec);
+
+    return (nsec_diff ? nsec_diff / 1000000L : 0);
+}
+
+static int
 cli_send_recv(struct nc_rpc *rpc, FILE *output, NC_WD_MODE wd_mode)
 {
     char *str, *model_data;
-    int ret = 0, ly_wd;
+    int ret = 0, ly_wd, mono;
+    int32_t msec;
     uint16_t i, j;
     uint64_t msgid;
     struct lyd_node_anydata *any;
@@ -240,6 +284,15 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output, NC_WD_MODE wd_mode)
     struct nc_reply *reply;
     struct nc_reply_data *data_rpl;
     struct nc_reply_error *error;
+    struct timespec ts_start, ts_stop;
+
+    if (timed) {
+        ret = cli_gettimespec(&ts_start, &mono);
+        if (ret) {
+            ERROR(__func__, "Getting current time failed (%s).", strerror(errno));
+            return ret;
+        }
+    }
 
     msgtype = nc_send_rpc(session, rpc, 1000, &msgid);
     if (msgtype == NC_MSG_ERROR) {
@@ -273,6 +326,15 @@ recv_reply:
         ERROR(__func__, "Unexpected reply received - ignoring and waiting for the correct reply.");
         nc_reply_free(reply);
         goto recv_reply;
+    }
+
+    if (timed) {
+        ret = cli_gettimespec(&ts_stop, &mono);
+        if (ret) {
+            ERROR(__func__, "Getting current time failed (%s).", strerror(errno));
+            nc_reply_free(reply);
+            return ret;
+        }
     }
 
     switch (reply->type) {
@@ -428,6 +490,11 @@ recv_reply:
     if (msgtype == NC_MSG_REPLY_ERR_MSGID) {
         ERROR(__func__, "Trying to receive another message...\n");
         goto recv_reply;
+    }
+
+    if (timed) {
+        msec = cli_difftimespec(&ts_start, &ts_stop);
+        fprintf(output, "%s %2dm%d,%03ds\n", mono ? "mono" : "real", msec / 60000, (msec % 60000) / 1000, msec % 1000);
     }
 
     return ret;
@@ -1010,6 +1077,12 @@ void
 cmd_userrpc_help(void)
 {
     printf("user-rpc [--help] [--content <file>] [--out <file>]\n");
+}
+
+void
+cmd_timed_help(void)
+{
+    printf("timed [--help] [on | off]\n");
 }
 
 #ifdef NC_ENABLED_SSH
@@ -4538,6 +4611,29 @@ fail:
     return ret;
 }
 
+int
+cmd_timed(const char *arg, char **UNUSED(tmp_config_file))
+{
+    char *args = strdupa(arg);
+    char *cmd = NULL;
+
+    strtok(args, " ");
+    if ((cmd = strtok(NULL, " ")) == NULL) {
+        fprintf(stdout, "All commands will %sbe timed.\n", timed ? "" : "not ");
+    } else {
+        if (!strcmp(cmd, "on")) {
+            timed = 1;
+        } else if (!strcmp(cmd, "off")) {
+            timed = 0;
+        } else {
+            ERROR(__func__, "Unknown option %s.", cmd);
+            cmd_timed_help();
+        }
+    }
+
+    return 0;
+}
+
 COMMAND commands[] = {
 #ifdef NC_ENABLED_SSH
         {"auth", cmd_auth, cmd_auth_help, "Manage SSH authentication options"},
@@ -4573,6 +4669,7 @@ COMMAND commands[] = {
         {"subscribe", cmd_subscribe, cmd_subscribe_help, "notifications <create-subscription> operation"},
         {"get-schema", cmd_getschema, cmd_getschema_help, "ietf-netconf-monitoring <get-schema> operation"},
         {"user-rpc", cmd_userrpc, cmd_userrpc_help, "Send your own content in an RPC envelope (for DEBUG purposes)"},
+        {"timed", cmd_timed, cmd_timed_help, "Time all the commands (that communicate with a server) from issuing a RPC to getting a reply"},
         /* synonyms for previous commands */
         {"?", cmd_help, NULL, "Display commands description"},
         {"exit", cmd_quit, NULL, "Quit the program"},
