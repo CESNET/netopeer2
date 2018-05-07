@@ -207,61 +207,91 @@ __wrap_sr_set_item(sr_session_ctx_t *session, const char *xpath, const sr_val_t 
 
     switch (count) {
     case 0:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1/1']");
         break;
     case 1:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/description");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1/1']/description");
         break;
     case 2:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/type");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1/1']/type");
         break;
     case 3:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/enabled");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1/1']/enabled");
         break;
     case 4:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/link-up-down-trap-enable");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1/1']/link-up-down-trap-enable");
         break;
     case 5:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/ietf-ip:ipv4");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1/1']/ietf-ip:ipv4");
         break;
     case 6:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/ietf-ip:ipv4/enabled");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1/1']/ietf-ip:ipv4/enabled");
         break;
     case 7:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/ietf-ip:ipv4/forwarding");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1/1']/ietf-ip:ipv4/forwarding");
         break;
     case 8:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/ietf-ip:ipv4/mtu");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1/1']/ietf-ip:ipv4/mtu");
         break;
     case 9:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/ietf-ip:ipv4/neighbor[ip='10.0.0.2']");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1/1']/ietf-ip:ipv4/neighbor[ip='10.0.0.2']");
         break;
     case 10:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/ietf-ip:ipv4/neighbor[ip='10.0.0.2']/link-layer-address");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1/1']/ietf-ip:ipv4/neighbor[ip='10.0.0.2']/link-layer-address");
         break;
     case 11:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/ietf-ip:ipv6");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1/1']/ietf-ip:ipv6");
         break;
     case 12:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/ietf-ip:ipv6/enabled");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1/1']/ietf-ip:ipv6/enabled");
         break;
     case 13:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/ietf-ip:ipv6/forwarding");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1/1']/ietf-ip:ipv6/forwarding");
         break;
     case 14:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/ietf-ip:ipv6/dup-addr-detect-transmits");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name=\"'iface1/2'\"]");
         break;
     case 15:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/ietf-ip:ipv6/autoconf/create-global-addresses");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name=\"'iface1/2'\"]/description");
         break;
     case 16:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/ietf-ip:ipv6/autoconf/create-temporary-addresses");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name=\"'iface1/2'\"]/type");
         break;
     case 17:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/ietf-ip:ipv6/autoconf/temporary-valid-lifetime");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name=\"'iface1/2'\"]/enabled");
         break;
     case 18:
-        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1']/ietf-ip:ipv6/autoconf/temporary-preferred-lifetime");
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name=\"'iface1/2'\"]/link-up-down-trap-enable");
+        break;
+    case 19:
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name=\"'iface1/2'\"]/ietf-ip:ipv4");
+        break;
+    case 20:
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name=\"'iface1/2'\"]/ietf-ip:ipv4/enabled");
+        break;
+    case 21:
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name=\"'iface1/2'\"]/ietf-ip:ipv4/forwarding");
+        break;
+    case 22:
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name=\"'iface1/2'\"]/ietf-ip:ipv4/mtu");
+        break;
+    case 23:
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name=\"'iface1/2'\"]/ietf-ip:ipv4/neighbor[ip='10.0.0.2']");
+        break;
+    case 24:
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name=\"'iface1/2'\"]/ietf-ip:ipv4/neighbor[ip='10.0.0.2']/link-layer-address");
+        break;
+    case 25:
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name=\"'iface1/2'\"]/ietf-ip:ipv6");
+        break;
+    case 26:
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name=\"'iface1/2'\"]/ietf-ip:ipv6/enabled");
+        break;
+    case 27:
+        assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name=\"'iface1/2'\"]/ietf-ip:ipv6/forwarding");
+        break;
+    default:
+        assert_string_equal(xpath, "too many nodes");
         break;
     }
     ++count;
@@ -514,7 +544,7 @@ np_stop(void **state)
 }
 
 static void
-test_edit_config(void **state)
+test_copy_config(void **state)
 {
     (void)state; /* unused */
     const char *copy_rpc =
@@ -527,8 +557,28 @@ test_edit_config(void **state)
                 "<config>"
 "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
   "<interface>"
-    "<name>iface1</name>"
-    "<description>iface1 dsc</description>"
+    "<name>iface1/1</name>"
+    "<description>iface1/1 dsc</description>"
+    "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:ethernetCsmacd</type>"
+    "<enabled>true</enabled>"
+    "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+    "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+      "<enabled>true</enabled>"
+      "<forwarding>true</forwarding>"
+      "<mtu>68</mtu>"
+      "<neighbor>"
+        "<ip>10.0.0.2</ip>"
+        "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
+      "</neighbor>"
+    "</ipv4>"
+    "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+      "<enabled>true</enabled>"
+      "<forwarding>false</forwarding>"
+    "</ipv6>"
+  "</interface>"
+  "<interface>"
+    "<name>'iface1/2'</name>"
+    "<description>iface1/2 dsc</description>"
     "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:ethernetCsmacd</type>"
     "<enabled>true</enabled>"
     "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
@@ -573,7 +623,7 @@ main(void)
 {
     const struct CMUnitTest tests[] = {
                     cmocka_unit_test_setup(test_startstop, np_start),
-                    cmocka_unit_test(test_edit_config),
+                    cmocka_unit_test(test_copy_config),
                     cmocka_unit_test_teardown(test_startstop, np_stop),
     };
 
