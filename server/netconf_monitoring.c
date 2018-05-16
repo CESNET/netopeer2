@@ -203,7 +203,7 @@ ncm_get_data(void)
     /* capabilities */
     cont = lyd_new(root, NULL, "capabilities");
 
-    cpblts = nc_server_get_cpblts(np2srv.ly_ctx);
+    cpblts = nc_server_get_cpblts_version(np2srv.ly_ctx, LYS_VERSION_1);
     if (!cpblts) {
         goto error;
     }
