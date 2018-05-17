@@ -29,7 +29,7 @@ cache:
     - libssh-0.7.5
     - protobuf
     - protobuf-c
-    - cmocka-1.0.1
+    - cmocka-1.1.1
 
 before_install:
   - eval "${MATRIX_EVAL}"
