@@ -29,6 +29,66 @@
 #include "operations.h"
 #include "netconf_monitoring.h"
 
+static int
+opget_build_subtree_from_sysrepo_is_key(const char *xpath)
+{
+    const char *last_node, *ptr;
+    char quote;
+    int key_len;
+
+    ptr = xpath + strlen(xpath);
+
+    do {
+        if ((--ptr == xpath) || (ptr[0] == ']')) {
+            return 0;
+        }
+    } while (ptr[0] != '/');
+    /* last node name found */
+    last_node = ptr + 1;
+
+    /* go through all predicates and compare keys with the last node */
+    while ((--ptr != xpath) && (ptr[0] == ']')) {
+        /* value end */
+        if ((--ptr == xpath) || ((ptr[0] != '\'') && (ptr[0] != '"'))) {
+            return 0;
+        }
+        quote = ptr[0];
+
+        /* skip the value */
+        do {
+            if (--ptr == xpath) {
+                return 0;
+            }
+        } while (ptr[0] != quote);
+
+        /* equals */
+        if ((--ptr == xpath) || (ptr[0] != '=')) {
+            return 0;
+        }
+
+        /* key length must be at least one */
+        if ((--ptr == xpath) || (ptr[0] == '[')) {
+            return 0;
+        }
+
+        /* predicate start */
+        key_len = 0;
+        do {
+            if (--ptr == xpath) {
+                return 0;
+            }
+            ++key_len;
+        } while (ptr[0] != '[');
+
+        /* compare key name with the last node */
+        if (!strncmp(last_node, ptr + 1, key_len) && !last_node[key_len]) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 /* add whole subtree */
 static int
 opget_build_subtree_from_sysrepo(sr_session_ctx_t *srs, struct lyd_node **root, const char *subtree_xpath)
@@ -56,6 +116,10 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *srs, struct lyd_node **root, 
     }
 
     while ((!np2srv_sr_get_item_next(srs, sriter, &value, NULL))) {
+        if (opget_build_subtree_from_sysrepo_is_key(value->xpath)) {
+            continue;
+        }
+
         if (op_sr_val_to_lyd_node(*root, value, &node)) {
             sr_free_val(value);
             sr_free_val_iter(sriter);
