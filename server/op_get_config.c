@@ -116,18 +116,17 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *srs, struct lyd_node **root, 
     }
 
     while ((!np2srv_sr_get_item_next(srs, sriter, &value, NULL))) {
-        if (opget_build_subtree_from_sysrepo_is_key(value->xpath)) {
-            continue;
-        }
+        /* skip list keys, they were created during list instance creation */
+        if (!opget_build_subtree_from_sysrepo_is_key(value->xpath)) {
+            if (op_sr_val_to_lyd_node(*root, value, &node)) {
+                sr_free_val(value);
+                sr_free_val_iter(sriter);
+                return -1;
+            }
 
-        if (op_sr_val_to_lyd_node(*root, value, &node)) {
-            sr_free_val(value);
-            sr_free_val_iter(sriter);
-            return -1;
-        }
-
-        if (!(*root)) {
-            *root = node;
+            if (!(*root)) {
+                *root = node;
+            }
         }
         sr_free_val(value);
     }
