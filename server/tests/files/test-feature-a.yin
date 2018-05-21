@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<module name="test-feature"
+<module name="test-feature-a"
         xmlns="urn:ietf:params:xml:ns:yang:yin:1"
-        xmlns:tf="urn:ietf:params:xml:ns:yang:test-feature">
-  <namespace uri="urn:ietf:params:xml:ns:yang:test-feature"/>
-  <prefix value="tf"/>
+        xmlns:tfa="urn:ietf:params:xml:ns:yang:test-feature-a">
+  <namespace uri="urn:ietf:params:xml:ns:yang:test-feature-a"/>
+  <prefix value="tfa"/>
   <revision date="2018-05-18">
     <description>
       <text>Initial revision.</text>
@@ -12,9 +12,9 @@
       <text>None.</text>
     </reference>
   </revision>
-  <feature name="controlling-feature">
+  <feature name="test-feature-a">
     <description>
-      <text>A controlling feature</text>
+      <text>Test feature A</text>
     </description>
   </feature>
 </module>
