@@ -11,11 +11,13 @@
  *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
+#define _DEFAULT_SOURCE
 
 #include <errno.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <string.h>
+#include <stdio.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <syslog.h>
@@ -25,20 +27,10 @@
 #include <nc_server.h>
 #include <sysrepo.h>
 
-/**
- * @brief libnetconf verbose level variable
- */
 volatile uint8_t np2_verbose_level;
-
-/**
- * @brief libssh verbose level variable
- */
-volatile uint8_t np2_libssh_verbose_level;
-
-/**
- * @brief libsysrepo verbose level variable
- */
-volatile uint8_t np2_sr_verbose_level;
+uint8_t np2_libssh_verbose_level;
+uint8_t np2_sr_verbose_level;
+uint8_t np2_stderr_log;
 
 enum ERR_SOURCE {
     ERRS_NETOPEER,
@@ -107,6 +99,49 @@ np2_err_location(void)
     return e;
 }
 
+static void
+np2log(int priority, const char *fmt, ...)
+{
+    char *format;
+    va_list ap;
+
+    va_start(ap, fmt);
+    vsyslog(priority, fmt, ap);
+    va_end(ap);
+
+    if (np2_stderr_log) {
+        format = malloc(9 + strlen(fmt) + 2);
+        if (!format) {
+            fprintf(stderr, "ERROR: Memory allocation failed (%s:%d)", __FILE__, __LINE__);
+            return;
+        }
+
+        switch (priority) {
+        case LOG_ERR:
+            sprintf(format, "ERROR: %s\n", fmt);
+            break;
+        case LOG_WARNING:
+            sprintf(format, "WARNING: %s\n", fmt);
+            break;
+        case LOG_INFO:
+            sprintf(format, "VERBOSE: %s\n", fmt);
+            break;
+        case LOG_DEBUG:
+            sprintf(format, "DEBUG: %s\n", fmt);
+            break;
+        default:
+            sprintf(format, "UNKNOWN: %s\n", fmt);
+            break;
+        }
+
+        va_start(ap, fmt);
+        vfprintf(stderr, format, ap);
+        va_end(ap);
+
+        free(format);
+    }
+}
+
 /**
  * @brief printer callback for libnetconf2
  */
@@ -114,6 +149,7 @@ void
 np2log_clb_nc2(NC_VERB_LEVEL level, const char *msg)
 {
     struct np2err *e;
+    int priority;
 
     if (level == NC_VERB_ERROR) {
         e = np2_err_location();
@@ -125,18 +161,20 @@ np2log_clb_nc2(NC_VERB_LEVEL level, const char *msg)
 
     switch (level) {
     case NC_VERB_ERROR:
-        syslog(LOG_ERR, "%s", msg);
+        priority = LOG_ERR;;
         break;
     case NC_VERB_WARNING:
-        syslog(LOG_WARNING, "%s", msg);
+        priority = LOG_WARNING;
         break;
     case NC_VERB_VERBOSE:
-        syslog(LOG_INFO, "%s", msg);
+        priority = LOG_INFO;
         break;
     case NC_VERB_DEBUG:
-        syslog(LOG_DEBUG, "%s", msg);
+        priority = LOG_DEBUG;
         break;
     }
+
+    np2log(priority, msg);
 }
 
 /**
@@ -145,21 +183,21 @@ np2log_clb_nc2(NC_VERB_LEVEL level, const char *msg)
 void
 np2log_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
 {
-    int facility;
+    int priority;
     struct np2err *e;
 
     switch (level) {
     case LY_LLERR:
-        facility = LOG_ERR;
+        priority = LOG_ERR;
         break;
     case LY_LLWRN:
-        facility = LOG_WARNING;
+        priority = LOG_WARNING;
         break;
     case LY_LLVRB:
-        facility = LOG_INFO;
+        priority = LOG_INFO;
         break;
     case LY_LLDBG:
-        facility = LOG_DEBUG;
+        priority = LOG_DEBUG;
         break;
     default:
         /* silent, just to cover enum, shouldn't be here in real world */
@@ -174,9 +212,9 @@ np2log_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
     }
 
     if (path) {
-        syslog(facility, "%s (%s)", msg, path);
+        np2log(priority, "%s (%s)", msg, path);
     } else {
-        syslog(facility, "%s", msg);
+        np2log(priority, msg);
     }
 }
 

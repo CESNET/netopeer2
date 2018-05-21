@@ -1163,7 +1163,8 @@ main(int argc, char *argv[])
     pthread_attr_t thread_attr;
 
     /* until daemonized, write messages to both syslog and stderr */
-    openlog("netopeer2-server", LOG_PID | LOG_PERROR, LOG_DAEMON);
+    openlog("netopeer2-server", LOG_PID, LOG_DAEMON);
+    np2_stderr_log = 1;
 
     /* process command line options */
     while ((c = getopt(argc, argv, OPTSTRING)) != -1) {
@@ -1273,7 +1274,7 @@ main(int argc, char *argv[])
         }
 
         /* from now print only to syslog, not stderr */
-        openlog("netopeer2-server", LOG_PID, LOG_DAEMON);
+        np2_stderr_log = 0;
     }
 
     /* make sure we are the only instance - lock the PID file and write the PID */

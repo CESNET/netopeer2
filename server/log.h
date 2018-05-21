@@ -27,12 +27,17 @@ extern volatile uint8_t np2_verbose_level;
 /**
  * @brief libssh verbose level variable
  */
-extern volatile uint8_t np2_libssh_verbose_level;
+extern uint8_t np2_libssh_verbose_level;
 
 /**
  * @brief libsysrepo verbose level variable
  */
-extern volatile uint8_t np2_sr_verbose_level;
+extern uint8_t np2_sr_verbose_level;
+
+/**
+ * @brief netopeer2 flag whether to print messages to stderr (only if not daemon).
+ */
+uint8_t np2_stderr_log;
 
 /**
  * @brief internal printing function, follows the levels from libnetconf2
