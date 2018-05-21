@@ -755,6 +755,7 @@ np2srv_init_schemas(void)
     const struct lys_module *mod;
     sr_schema_t *schemas = NULL;
     size_t schema_count, i, j;
+    int ly_lo;
 
     size_t module_feature_count = 0;
     struct mod_feat {
@@ -813,10 +814,18 @@ np2srv_init_schemas(void)
     }
     ly_ctx_set_module_imp_clb(np2srv.ly_ctx, np2srv_ly_import_clb, NULL);
 
+    /* determine the count of module/features present */
+    module_feature_count = 0;
+    for (i = 0; i < schema_count; i++) {
+        module_feature_count += schemas[i].enabled_feature_cnt;
+    }
+    /* prepare data storage to keep module/feature enable status */
+    mod_feat_array = calloc(module_feature_count, sizeof *mod_feat_array);
+    mod_feat_array_index = 0;
+
     /* 1) use modules from sysrepo */
     for (i = 0; i < schema_count; i++) {
         data = NULL;
-        mod = NULL;
         VRB("Loading schema \"%s%s%s\" from sysrepo.", schemas[i].module_name, schemas[i].revision.revision ? "@" : "",
             schemas[i].revision.revision ? schemas[i].revision.revision : "");
         if ((mod = ly_ctx_get_module(np2srv.ly_ctx, schemas[i].module_name, schemas[i].revision.revision, 0))) {
@@ -833,30 +842,25 @@ np2srv_init_schemas(void)
             mod = lys_parse_mem(np2srv.ly_ctx, data, LYS_IN_YIN);
             free(data);
         }
-    }
 
-    /* determine the count of module/features present */
-    module_feature_count = 0;
-    for (i=0; i < schema_count; i++) {
-        module_feature_count += schemas[i].enabled_feature_cnt;
-    }
-    /* prepare data storage to keep module/feature enable status */
-    mod_feat_array = calloc(module_feature_count, sizeof (struct mod_feat));
-    mod_feat_array_index = 0;
+        if (mod) {
+            /* set RPC and Notifications callbacks */
+            np2srv_module_assign_clbs(mod);
 
-    /* loop back through the modules now that they should be loaded and enable features */
-    for (i = 0; i < schema_count; i++) {
-        if ((mod = ly_ctx_get_module(np2srv.ly_ctx, schemas[i].module_name, schemas[i].revision.revision, 0))) {
-            /* set features according to sysrepo */
+            /* set features according to sysrepo (silent errors, there can be some other dependent features not enabled yet) */
+            ly_lo = ly_log_options(0);
             for (j = 0; j < schemas[i].enabled_feature_cnt; ++j) {
-                /* if lys_features_enable fail, record the mod_feat for retry otherwise store a null */
-                if (lys_features_enable(mod, schemas[i].enabled_features[j]) == EXIT_FAILURE) {
+                /* if lys_features_enable fail (silently), record the mod_feat for retry otherwise store NULL */
+
+                if (lys_features_enable(mod, schemas[i].enabled_features[j])) {
                     /* store away info related to feature that did not enable on first pass */
                     mod_feat_array[mod_feat_array_index].mod = mod;
                     mod_feat_array[mod_feat_array_index].enabled_feature = schemas[i].enabled_features[j];
                 }
                 mod_feat_array_index++;
             }
+            /* restore libyang logging */
+            ly_log_options(ly_lo);
         } else {
             WRN("Getting %s%s%s schema from sysrepo failed, data from this module won't be available.",
                 schemas[i].module_name, schemas[i].revision.revision ? "@" : "",
@@ -867,15 +871,14 @@ np2srv_init_schemas(void)
     /* we may be able to get features enabled now that others are enabled so we will
        run through our stored module_features and retry the ones on our list
        we will continue until a pass through the array doesn't indicate progress */
-    making_progress = true;
-    while(making_progress) {
+    ly_lo = ly_log_options(0);
+    making_progress = false;
+    while (making_progress) {
         making_progress = false;
         for (i = 0; i < module_feature_count; i++) {
-            if (mod_feat_array[i].mod != NULL) {
-                if ((lys_features_enable(mod_feat_array[i].mod, mod_feat_array[i].enabled_feature)) == EXIT_SUCCESS) {
+            if (mod_feat_array[i].mod) {
+                if (!lys_features_enable(mod_feat_array[i].mod, mod_feat_array[i].enabled_feature)) {
                     /* feature enabled, remove from list and set making_progress TRUE */
-                    VRB("Retry feature enable successful for \"%s\" in \"%s\".",
-                        mod_feat_array[i].enabled_feature, mod_feat_array[i].mod->name);
                     making_progress = true;
                     mod_feat_array[i].mod = NULL;
                     mod_feat_array[i].enabled_feature = NULL;
@@ -883,25 +886,17 @@ np2srv_init_schemas(void)
             }
         }
     }
+    ly_log_options(ly_lo);
 
-    /* now pass through the mod_feat_array and report ERR on any remaining entries
+    /* now pass through the mod_feat_array and report errors on any remaining entries
        as they are not enabled */
     for (i = 0; i < module_feature_count; i++) {
-        if (mod_feat_array[i].mod != NULL) {
-            /* this module feature never enabled */
-            ERR("Retry feature enable failed for \"%s\" in \"%s\".",
-                mod_feat_array[i].enabled_feature, mod_feat_array[i].mod->name);
+        if (mod_feat_array[i].mod) {
+            lys_features_enable(mod_feat_array[i].mod, mod_feat_array[i].enabled_feature);
         }
     }
 
     free(mod_feat_array);
-
-    for (i = 0; i < schema_count; i++) {
-        if ((mod = ly_ctx_get_module(np2srv.ly_ctx, schemas[i].module_name, schemas[i].revision.revision, 0))) {
-            /* setRPC and Notifications callbacks */
-            np2srv_module_assign_clbs(mod);
-        }
-    }
 
     ly_ctx_set_module_imp_clb(np2srv.ly_ctx, np2srv_ly_import_clb, NULL);
     sr_free_schemas(schemas, schema_count);
