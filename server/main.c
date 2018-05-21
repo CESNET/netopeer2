@@ -872,8 +872,7 @@ np2srv_init_schemas(void)
        run through our stored module_features and retry the ones on our list
        we will continue until a pass through the array doesn't indicate progress */
     ly_lo = ly_log_options(0);
-    making_progress = true;
-    while (making_progress) {
+    do {
         making_progress = false;
         for (i = 0; i < module_feature_count; i++) {
             if (mod_feat_array[i].mod) {
@@ -885,7 +884,7 @@ np2srv_init_schemas(void)
                 }
             }
         }
-    }
+    } while (making_progress);
     ly_log_options(ly_lo);
 
     /* now pass through the mod_feat_array and report errors on any remaining entries
