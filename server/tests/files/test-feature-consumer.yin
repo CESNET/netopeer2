@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module name="test-feature-consumer"
+        xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+        xmlns:tfc="urn:ietf:params:xml:ns:yang:test-feature-consumer"
+        xmlns:tf="urn:ietf:params:xml:ns:yang:test-feature">
+  <namespace uri="urn:ietf:params:xml:ns:yang:test-feature-consumer"/>
+  <prefix value="tfc"/>
+  <import module="test-feature">
+    <prefix value="tf"/>
+  </import>
+  <revision date="2018-05-18">
+    <description>
+      <text>Initial revision.</text>
+    </description>
+    <reference>
+      <text>None.</text>
+    </reference>
+  </revision>
+  <feature name="dependent-feature">
+    <if-feature name="tf:controlling-feature"/>
+  </feature>
+  <container name="test-container">
+    <if-feature name="dependent-feature"/>
+    <leaf name="test-leaf">
+      <type name="string"/>
+    </leaf>
+  </container>
+</module>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module name="test-feature"
+        xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+        xmlns:tf="urn:ietf:params:xml:ns:yang:test-feature">
+  <namespace uri="urn:ietf:params:xml:ns:yang:test-feature"/>
+  <prefix value="tf"/>
+  <revision date="2018-05-18">
+    <description>
+      <text>Initial revision.</text>
+    </description>
+    <reference>
+      <text>None.</text>
+    </reference>
+  </revision>
+  <feature name="controlling-feature">
+    <description>
+      <text>A controlling feature</text>
+    </description>
+  </feature>
+</module>
