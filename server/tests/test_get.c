@@ -24,10 +24,10 @@
 #include <signal.h>
 #include <unistd.h>
 
-#include "config.h"
+#include "tests/config.h"
 
 #define main server_main
-#include "../config.h"
+#include "config.h"
 #undef NP2SRV_PIDFILE
 #define NP2SRV_PIDFILE "/tmp/test_np2srv.pid"
 
