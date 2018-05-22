@@ -72,9 +72,9 @@ __wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t 
 {
     (void)session;
 
-    *schema_cnt = 6;
+    *schema_cnt = 7;
 
-    *schemas = calloc(6, sizeof **schemas);
+    *schemas = calloc(*schema_cnt, sizeof **schemas);
 
     (*schemas)[0].module_name = strdup("ietf-netconf-server");
     (*schemas)[0].installed = 1;
@@ -107,25 +107,35 @@ __wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t 
     (*schemas)[3].revision.file_path_yin = strdup(TESTS_DIR"/files/iana-if-type.yin");
     (*schemas)[3].installed = 1;
 
-    (*schemas)[4].module_name = strdup("test-feature-consumer");
-    (*schemas)[4].ns = strdup("urn:ietf:params:xml:ns:yang:test-feature-consumer");
+    (*schemas)[4].module_name = strdup("test-feature-c");
+    (*schemas)[4].ns = strdup("urn:ietf:params:xml:ns:yang:test-feature-c");
     (*schemas)[4].prefix = strdup("tfc");
     (*schemas)[4].revision.revision = strdup("2018-05-18");
-    (*schemas)[4].revision.file_path_yin = strdup(TESTS_DIR"/files/test-feature-consumer.yin");
+    (*schemas)[4].revision.file_path_yin = strdup(TESTS_DIR"/files/test-feature-c.yin");
     (*schemas)[4].enabled_features = malloc(sizeof(char *));
-    (*schemas)[4].enabled_features[0] = strdup("dependent-feature");
+    (*schemas)[4].enabled_features[0] = strdup("test-feature-c");
     (*schemas)[4].enabled_feature_cnt = 1;
     (*schemas)[4].installed = 1;
 
-    (*schemas)[5].module_name = strdup("test-feature");
-    (*schemas)[5].ns = strdup("urn:ietf:params:xml:ns:yang:test-feature");
-    (*schemas)[5].prefix = strdup("tf");
+    (*schemas)[5].module_name = strdup("test-feature-b");
+    (*schemas)[5].ns = strdup("urn:ietf:params:xml:ns:yang:test-feature-b");
+    (*schemas)[5].prefix = strdup("tfb");
     (*schemas)[5].revision.revision = strdup("2018-05-18");
-    (*schemas)[5].revision.file_path_yin = strdup(TESTS_DIR"/files/test-feature.yin");
+    (*schemas)[5].revision.file_path_yin = strdup(TESTS_DIR"/files/test-feature-b.yin");
     (*schemas)[5].enabled_features = malloc(sizeof(char *));
-    (*schemas)[5].enabled_features[0] = strdup("controlling-feature");
+    (*schemas)[5].enabled_features[0] = strdup("test-feature-b");
     (*schemas)[5].enabled_feature_cnt = 1;
     (*schemas)[5].installed = 1;
+
+    (*schemas)[6].module_name = strdup("test-feature-a");
+    (*schemas)[6].ns = strdup("urn:ietf:params:xml:ns:yang:test-feature-a");
+    (*schemas)[6].prefix = strdup("tfa");
+    (*schemas)[6].revision.revision = strdup("2018-05-18");
+    (*schemas)[6].revision.file_path_yin = strdup(TESTS_DIR"/files/test-feature-a.yin");
+    (*schemas)[6].enabled_features = malloc(sizeof(char *));
+    (*schemas)[6].enabled_features[0] = strdup("test-feature-a");
+    (*schemas)[6].enabled_feature_cnt = 1;
+    (*schemas)[6].installed = 1;
 
     return SR_ERR_OK;
 }
@@ -228,7 +238,7 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
     char *path;
     (void)session;
 
-    if (!strcmp(xpath, "/ietf-interfaces:*//.") || !strcmp(xpath, "/test-feature-consumer:*//.")) {
+    if (!strcmp(xpath, "/ietf-interfaces:*//.") || !strcmp(xpath, "/test-feature-c:*//.")) {
         if (!ietf_if_set) {
             ietf_if_set = lyd_find_path(data, xpath);
         }
@@ -1435,7 +1445,7 @@ test_edit_merge2(void **state)
     "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
   "</interface>"
 "</interfaces>"
-"<test-container xmlns=\"urn:ietf:params:xml:ns:yang:test-feature-consumer\">"
+"<test-container xmlns=\"urn:ietf:params:xml:ns:yang:test-feature-c\">"
   "<test-leaf>green</test-leaf>"
 "</test-container>"
         "</data>"
@@ -1447,7 +1457,7 @@ test_edit_merge2(void **state)
                 "<running/>"
             "</target>"
             "<config>"
-"<test-container xmlns=\"urn:ietf:params:xml:ns:yang:test-feature-consumer\">"
+"<test-container xmlns=\"urn:ietf:params:xml:ns:yang:test-feature-c\">"
   "<test-leaf>green</test-leaf>"
 "</test-container>"
             "</config>"

@@ -124,10 +124,12 @@ __wrap_sr_get_schema(sr_session_ctx_t *session, const char *module_name, const c
         fd = open(TESTS_DIR "/files/nc-notifications.yin", O_RDONLY);
     } else if (!strcmp(module_name, "test-notif")) {
         fd = open(TESTS_DIR "/files/test-notif.yin", O_RDONLY);
-    } else if (!strcmp(module_name, "test-feature")) {
-        fd = open(TESTS_DIR "/files/test-feature.yin", O_RDONLY);
-    } else if (!strcmp(module_name, "test-feature-consumer")) {
-        fd = open(TESTS_DIR "/files/test-feature-consumer.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "test-feature-a")) {
+        fd = open(TESTS_DIR "/files/test-feature-a.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "test-feature-b")) {
+        fd = open(TESTS_DIR "/files/test-feature-b.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "test-feature-c")) {
+        fd = open(TESTS_DIR "/files/test-feature-c.yin", O_RDONLY);
     } else {
         return SR_ERR_NOT_FOUND;
     }
