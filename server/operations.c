@@ -13,10 +13,12 @@
  */
 
 #define _GNU_SOURCE
+#define _DEFAULT_SOURCE
 
 #include <stdio.h>
 #include <assert.h>
 #include <inttypes.h>
+#include <unistd.h>
 #include <string.h>
 #include <ctype.h>
 #include <pthread.h>
@@ -834,13 +836,19 @@ int
 np2srv_sr_module_change_subscribe(sr_session_ctx_t *srs, const char *module_name, sr_module_change_cb callback,
         void *private_ctx, uint32_t priority, sr_subscr_options_t opts, sr_subscription_ctx_t **subscription, struct nc_server_reply **ereply)
 {
-    int rc = SR_ERR_DISCONNECT;
+    int rc = SR_ERR_DISCONNECT, retries;
     struct nc_server_error *e;
 
     pthread_rwlock_rdlock(&sr_lock);
 
     if (!np2srv.disconnected) {
-        rc = sr_module_change_subscribe(srs, module_name, callback, private_ctx, priority, opts, subscription);
+        for (retries = 0; retries <= NP2SRV_SR_LOCKED_RETRIES; ++retries) {
+            rc = sr_module_change_subscribe(srs, module_name, callback, private_ctx, priority, opts, subscription);
+            if (rc != SR_ERR_LOCKED) {
+                break;
+            }
+            usleep(NP2SRV_SR_LOCKED_TIMEOUT * 1000);
+        }
     }
 
     if (rc == SR_ERR_DISCONNECT) {
@@ -885,13 +893,19 @@ int
 np2srv_sr_subtree_change_subscribe(sr_session_ctx_t *srs, const char *xpath, sr_subtree_change_cb callback,
         void *private_ctx, uint32_t priority, sr_subscr_options_t opts, sr_subscription_ctx_t **subscription, struct nc_server_reply **ereply)
 {
-    int rc = SR_ERR_DISCONNECT;
+    int rc = SR_ERR_DISCONNECT, retries;
     struct nc_server_error *e;
 
     pthread_rwlock_rdlock(&sr_lock);
 
     if (!np2srv.disconnected) {
-        rc = sr_subtree_change_subscribe(srs, xpath, callback, private_ctx, priority, opts, subscription);
+        for (retries = 0; retries <= NP2SRV_SR_LOCKED_RETRIES; ++retries) {
+            rc = sr_subtree_change_subscribe(srs, xpath, callback, private_ctx, priority, opts, subscription);
+            if (rc != SR_ERR_LOCKED) {
+                break;
+            }
+            usleep(NP2SRV_SR_LOCKED_TIMEOUT * 1000);
+        }
     }
 
     if (rc == SR_ERR_DISCONNECT) {
@@ -936,13 +950,19 @@ int
 np2srv_sr_event_notif_subscribe(sr_session_ctx_t *srs, const char *xpath, sr_event_notif_cb callback,
         void *private_ctx, sr_subscr_options_t opts, sr_subscription_ctx_t **subscription, struct nc_server_reply **ereply)
 {
-    int rc = SR_ERR_DISCONNECT;
+    int rc = SR_ERR_DISCONNECT, retries;
     struct nc_server_error *e;
 
     pthread_rwlock_rdlock(&sr_lock);
 
     if (!np2srv.disconnected) {
-        rc = sr_event_notif_subscribe(srs, xpath, callback, private_ctx, opts, subscription);
+        for (retries = 0; retries <= NP2SRV_SR_LOCKED_RETRIES; ++retries) {
+            rc = sr_event_notif_subscribe(srs, xpath, callback, private_ctx, opts, subscription);
+            if (rc != SR_ERR_LOCKED) {
+                break;
+            }
+            usleep(NP2SRV_SR_LOCKED_TIMEOUT * 1000);
+        }
     }
 
     if (rc == SR_ERR_DISCONNECT) {
@@ -1349,13 +1369,19 @@ np2srv_sr_discard_changes(sr_session_ctx_t *srs, struct nc_server_reply **ereply
 int
 np2srv_sr_commit(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
 {
-    int rc = SR_ERR_DISCONNECT;
+    int rc = SR_ERR_DISCONNECT, retries;
     struct nc_server_error *e;
 
     pthread_rwlock_rdlock(&sr_lock);
 
     if (!np2srv.disconnected) {
-        rc = sr_commit(srs);
+        for (retries = 0; retries <= NP2SRV_SR_LOCKED_RETRIES; ++retries) {
+            rc = sr_commit(srs);
+            if (rc != SR_ERR_LOCKED) {
+                break;
+            }
+            usleep(NP2SRV_SR_LOCKED_TIMEOUT * 1000);
+        }
     }
 
     if (rc == SR_ERR_DISCONNECT) {
