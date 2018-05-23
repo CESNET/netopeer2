@@ -37,8 +37,8 @@ subtree_change_resolve(sr_session_ctx_t *srs, sr_change_oper_t sr_oper, sr_val_t
     xpath = (sr_old_val ? sr_old_val->xpath : sr_new_val->xpath);
 
     if (strncmp(xpath, "/ietf-system:system/authentication/user[name=", 45)) {
-        EINT;
-        return -1;
+        /* we only care about changes on users */
+        return 0;
     }
 
     switch (sr_oper) {
@@ -70,14 +70,9 @@ subtree_change_resolve(sr_session_ctx_t *srs, sr_change_oper_t sr_oper, sr_val_t
     list1_key = strndup(xpath, key_end - xpath);
     xpath = key_end + 1;
 
-    if (!strcmp(xpath, "]/name")) {
-        /* don't care */
-        rc = 0;
-        goto cleanup;
-    }
     if (strncmp(xpath, "]/authorized-key[name=", 22)) {
-        EINT;
-        rc = -1;
+        /* other field than authorized-key, don't care */
+        rc = 0;
         goto cleanup;
     }
     xpath += 22;
