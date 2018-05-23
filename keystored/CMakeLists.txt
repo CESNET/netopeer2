@@ -102,6 +102,12 @@ if (NOT CHMOD_EXECUTABLE)
     message(FATAL_ERROR "Unable to find chmod, set CHMOD_EXECUTABLE manually.")
 endif()
 
+# Command line options to be passed to `sysrepoctl` when working with modules
+# which should only be accessible by an administrator
+if (NOT SYSREPOCTL_ROOT_PERMS)
+    set(SYSREPOCTL_ROOT_PERMS "-o root:root -p 600")
+endif()
+
 # create the keys directory with correct permissions
 install(DIRECTORY DESTINATION ${KEYSTORED_KEYS_DIR}
         DIRECTORY_PERMISSIONS OWNER_WRITE OWNER_READ OWNER_EXECUTE)
@@ -118,7 +124,7 @@ install(CODE "
     if (NOT INSTALLED_MODULE_LINE)
         message(STATUS \"Importing module ietf-x509-cert-to-name into sysrepo...\")
 
-        execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/ietf-x509-cert-to-name.yang -o root:root -p 600 RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
+        execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/ietf-x509-cert-to-name.yang ${SYSREPOCTL_ROOT_PERMS} RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
         if (RET)
             string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
             message(FATAL_ERROR \"  Command sysrepoctl install failed:\\n  \${OUT}\")
@@ -132,7 +138,7 @@ install(CODE "
     if (NOT INSTALLED_MODULE_LINE)
         message(STATUS \"Importing module ietf-keystore into sysrepo...\")
 
-        execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/ietf-keystore.yang -o root:root -p 600 RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
+        execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/ietf-keystore.yang ${SYSREPOCTL_ROOT_PERMS} RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
         if (RET)
             string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
             message(FATAL_ERROR \"  Command sysrepoctl install failed:\\n  \${OUT}\")
