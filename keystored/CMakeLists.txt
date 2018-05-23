@@ -34,7 +34,8 @@ if (NOT OPENSSL_EXECUTABLE)
     endif()
 endif()
 
-configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_SOURCE_DIR}/config.h" ESCAPE_QUOTES @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_BINARY_DIR}/config.h" ESCAPE_QUOTES @ONLY)
+include_directories(${PROJECT_BINARY_DIR})
 
 # keystored plugin
 add_library(keystored SHARED keystored.c)
