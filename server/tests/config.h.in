@@ -133,7 +133,10 @@ __wrap_sr_get_schema(sr_session_ctx_t *session, const char *module_name, const c
     } else {
         return SR_ERR_NOT_FOUND;
     }
-    assert_int_not_equal(fd, -1);
+
+    if (fd < 0) {
+        return SR_ERR_INTERNAL;
+    }
 
     assert_int_equal(fstat(fd, &st), 0);
 
