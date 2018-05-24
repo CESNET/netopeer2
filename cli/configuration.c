@@ -350,6 +350,7 @@ load_config(void)
                                                 }
                                             }
                                             if (key_pub && key_priv) {
+                                                nc_client_ssh_ch_add_keypair(key_pub, key_priv);
                                                 nc_client_ssh_add_keypair(key_pub, key_priv);
                                             }
                                         }
