@@ -58,7 +58,9 @@ if (ENABLE_CONFIGURATION)
         message(STATUS "keystored keys directory is \"${KEYSTORED_KEYS_DIR}\".")
     endif()
 else()
-    set(KEYSTORED_KEYS_DIR "none")
+    if (NOT KEYSTORED_KEYS_DIR)
+        set(KEYSTORED_KEYS_DIR "none")
+    endif()
 endif()
 
 # set default SSH key
