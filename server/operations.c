@@ -847,7 +847,9 @@ np2srv_sr_module_change_subscribe(sr_session_ctx_t *srs, const char *module_name
             if (rc != SR_ERR_LOCKED) {
                 break;
             }
+            pthread_rwlock_unlock(&sr_lock);
             usleep(NP2SRV_SR_LOCKED_TIMEOUT * 1000);
+            pthread_rwlock_rdlock(&sr_lock);
         }
     }
 
@@ -904,7 +906,9 @@ np2srv_sr_subtree_change_subscribe(sr_session_ctx_t *srs, const char *xpath, sr_
             if (rc != SR_ERR_LOCKED) {
                 break;
             }
+            pthread_rwlock_unlock(&sr_lock);
             usleep(NP2SRV_SR_LOCKED_TIMEOUT * 1000);
+            pthread_rwlock_rdlock(&sr_lock);
         }
     }
 
@@ -950,19 +954,13 @@ int
 np2srv_sr_event_notif_subscribe(sr_session_ctx_t *srs, const char *xpath, sr_event_notif_cb callback,
         void *private_ctx, sr_subscr_options_t opts, sr_subscription_ctx_t **subscription, struct nc_server_reply **ereply)
 {
-    int rc = SR_ERR_DISCONNECT, retries;
+    int rc = SR_ERR_DISCONNECT;
     struct nc_server_error *e;
 
     pthread_rwlock_rdlock(&sr_lock);
 
     if (!np2srv.disconnected) {
-        for (retries = 0; retries <= NP2SRV_SR_LOCKED_RETRIES; ++retries) {
-            rc = sr_event_notif_subscribe(srs, xpath, callback, private_ctx, opts, subscription);
-            if (rc != SR_ERR_LOCKED) {
-                break;
-            }
-            usleep(NP2SRV_SR_LOCKED_TIMEOUT * 1000);
-        }
+        rc = sr_event_notif_subscribe(srs, xpath, callback, private_ctx, opts, subscription);
     }
 
     if (rc == SR_ERR_DISCONNECT) {
@@ -1380,7 +1378,9 @@ np2srv_sr_commit(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
             if (rc != SR_ERR_LOCKED) {
                 break;
             }
+            pthread_rwlock_unlock(&sr_lock);
             usleep(NP2SRV_SR_LOCKED_TIMEOUT * 1000);
+            pthread_rwlock_rdlock(&sr_lock);
         }
     }
 
