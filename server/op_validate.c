@@ -61,7 +61,12 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
         case LYD_ANYDATA_DATATREE:
             config = any->value.tree;
             any->value.tree = NULL; /* "unlink" data tree from anydata to have full control */
-            lyd_validate(&config, LYD_OPT_CONFIG, np2srv.ly_ctx);
+            if (lyd_validate(&config, LYD_OPT_CONFIG, np2srv.ly_ctx)) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+                ereply = nc_server_reply_err(e);
+                goto finish;
+            }
             break;
         case LYD_ANYDATA_XML:
             config = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT | LYD_OPT_STRICT);
