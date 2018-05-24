@@ -842,14 +842,18 @@ np2srv_sr_module_change_subscribe(sr_session_ctx_t *srs, const char *module_name
     pthread_rwlock_rdlock(&sr_lock);
 
     if (!np2srv.disconnected) {
-        for (retries = 0; retries <= NP2SRV_SR_LOCKED_RETRIES; ++retries) {
+        retries = 0;
+        goto exec_func;
+        while (retries <= NP2SRV_SR_LOCKED_RETRIES) {
+            pthread_rwlock_unlock(&sr_lock);
+            usleep(NP2SRV_SR_LOCKED_TIMEOUT * 1000);
+            pthread_rwlock_rdlock(&sr_lock);
+exec_func:
             rc = sr_module_change_subscribe(srs, module_name, callback, private_ctx, priority, opts, subscription);
             if (rc != SR_ERR_LOCKED) {
                 break;
             }
-            pthread_rwlock_unlock(&sr_lock);
-            usleep(NP2SRV_SR_LOCKED_TIMEOUT * 1000);
-            pthread_rwlock_rdlock(&sr_lock);
+            ++retries;
         }
     }
 
@@ -901,14 +905,18 @@ np2srv_sr_subtree_change_subscribe(sr_session_ctx_t *srs, const char *xpath, sr_
     pthread_rwlock_rdlock(&sr_lock);
 
     if (!np2srv.disconnected) {
-        for (retries = 0; retries <= NP2SRV_SR_LOCKED_RETRIES; ++retries) {
+        retries = 0;
+        goto exec_func;
+        while (retries <= NP2SRV_SR_LOCKED_RETRIES) {
+            pthread_rwlock_unlock(&sr_lock);
+            usleep(NP2SRV_SR_LOCKED_TIMEOUT * 1000);
+            pthread_rwlock_rdlock(&sr_lock);
+exec_func:
             rc = sr_subtree_change_subscribe(srs, xpath, callback, private_ctx, priority, opts, subscription);
             if (rc != SR_ERR_LOCKED) {
                 break;
             }
-            pthread_rwlock_unlock(&sr_lock);
-            usleep(NP2SRV_SR_LOCKED_TIMEOUT * 1000);
-            pthread_rwlock_rdlock(&sr_lock);
+            ++retries;
         }
     }
 
@@ -1373,14 +1381,18 @@ np2srv_sr_commit(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
     pthread_rwlock_rdlock(&sr_lock);
 
     if (!np2srv.disconnected) {
-        for (retries = 0; retries <= NP2SRV_SR_LOCKED_RETRIES; ++retries) {
+        retries = 0;
+        goto exec_func;
+        while (retries <= NP2SRV_SR_LOCKED_RETRIES) {
+            pthread_rwlock_unlock(&sr_lock);
+            usleep(NP2SRV_SR_LOCKED_TIMEOUT * 1000);
+            pthread_rwlock_rdlock(&sr_lock);
+exec_func:
             rc = sr_commit(srs);
             if (rc != SR_ERR_LOCKED) {
                 break;
             }
-            pthread_rwlock_unlock(&sr_lock);
-            usleep(NP2SRV_SR_LOCKED_TIMEOUT * 1000);
-            pthread_rwlock_rdlock(&sr_lock);
+            ++retries;
         }
     }
 
