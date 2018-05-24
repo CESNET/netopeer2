@@ -67,21 +67,13 @@ get_netconf_dir(void)
         return NULL;
     }
 
-    ret = eaccess(netconf_dir, R_OK | X_OK);
-    if (ret == -1) {
-        if (errno == ENOENT) {
-            /* directory does not exist */
-            ERROR("get_netconf_dir", "Configuration directory \"%s\" does not exist, creating it.", netconf_dir);
-            if (mkdir(netconf_dir, 00700)) {
-                ERROR("get_netconf_dir", "Configuration directory \"%s\" cannot be created: %s", netconf_dir, strerror(errno));
-                free(netconf_dir);
-                return NULL;
-            }
-        } else {
-            ERROR("get_netconf_dir", "Configuration directory \"%s\" exists but something else failed: %s", netconf_dir, strerror(errno));
-            free(netconf_dir);
-            return NULL;
-        }
+    ret = mkdir(netconf_dir, 00700);
+    if (!ret) {
+        ERROR("get_netconf_dir", "Configuration directory \"%s\" did not exist, created.", netconf_dir);
+    } else if (errno != EEXIST) {
+        ERROR("get_netconf_dir", "Configuration directory \"%s\" cannot be created: %s", netconf_dir, strerror(errno));
+        free(netconf_dir);
+        return NULL;
     }
 
     return netconf_dir;
@@ -310,15 +302,13 @@ load_config(void)
                         } else if (!strcmp(child->name, "searchpath")) {
                             /* doc -> <netconf-client> -> <searchpath> */
                             errno = 0;
-                            if (eaccess(child->content, R_OK | W_OK | X_OK) && (errno == ENOENT)) {
-                                ERROR(__func__, "Search path \"%s\" does not exist, creating it.", child->content);
-                                if (mkdir(child->content, 00700)) {
-                                    ERROR(__func__, "Search path \"%s\" cannot be created: %s", child->content, strerror(errno));
-                                } else {
-                                    nc_client_set_schema_searchpath(child->content);
+                            if (!mkdir(child->content, 00700) || (errno == EEXIST)) {
+                                if (errno == 0) {
+                                    ERROR(__func__, "Search path \"%s\" did not exist, created.", child->content);
                                 }
-                            } else {
                                 nc_client_set_schema_searchpath(child->content);
+                            } else {
+                                ERROR(__func__, "Search path \"%s\" cannot be created: %s", child->content, strerror(errno));
                             }
                         } else if (!strcmp(child->name, "output-format")) {
                             /* doc -> <netconf-client> -> <output-format> */
