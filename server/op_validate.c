@@ -26,7 +26,7 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
     struct np2_sessions *sessions;
     struct ly_set *nodeset = NULL;
     struct nc_server_error *e = NULL;
-    struct nc_server_reply *ereply;
+    struct nc_server_reply *ereply = NULL;
     struct lyd_node *config = NULL;
     struct lyd_node_anydata *any;
     const char *dsname;
