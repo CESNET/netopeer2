@@ -1207,7 +1207,9 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
                 ERROR("auth keys add", "Missing the public key path");
                 return EXIT_FAILURE;
             }
-            if (nc_client_ssh_add_keypair(str, cmd) != EXIT_SUCCESS) {
+
+            if (nc_client_ssh_ch_add_keypair(str, cmd) != EXIT_SUCCESS ||
+                nc_client_ssh_add_keypair(str, cmd) != EXIT_SUCCESS) {
                 ERROR("auth keys add", "Failed to add keys");
                 return EXIT_FAILURE;
             }
@@ -1227,7 +1229,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
             }
 
             i = strtol(cmd, &ptr, 10);
-            if (ptr[0] || nc_client_ssh_del_keypair(i)) {
+            if (ptr[0] || nc_client_ssh_ch_del_keypair(i) || nc_client_ssh_del_keypair(i)) {
                 ERROR("auth keys remove", "Wrong index");
                 return EXIT_FAILURE;
             }
