@@ -162,6 +162,12 @@ if (ENABLE_CONFIGURATION)
         message(FATAL_ERROR "Unable to find sysrepocfg, set SYSREPOCFG_EXECUTABLE manually.")
     endif()
 
+    # Command line options to be passed to `sysrepoctl` when working with modules
+    # which should only be accessible by an administrator
+    if (NOT SYSREPOCTL_ROOT_PERMS)
+        set(SYSREPOCTL_ROOT_PERMS "-o root:root -p 600")
+    endif()
+
     # install server configuration module and enable features
     install(CODE "
         execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -l RESULT_VARIABLE RET OUTPUT_VARIABLE INSTALLED_MODULES ERROR_VARIABLE OUT)
@@ -179,7 +185,7 @@ if (ENABLE_CONFIGURATION)
                 string(REGEX MATCH \"\${MODULE_NAME} [^\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
                 if (NOT INSTALLED_MODULE_LINE)
                     message(STATUS \"Importing module \${MODULE_NAME} into sysrepo...\")
-                    execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/\${MODULE_NAME}.yang -o root:root -p 600 RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
+                    execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/\${MODULE_NAME}.yang ${SYSREPOCTL_ROOT_PERMS} RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
                     if (RET)
                         string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
                         message(FATAL_ERROR \"  Command sysrepoctl install failed:\\n  \${OUT}\")

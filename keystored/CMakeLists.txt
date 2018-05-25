@@ -102,6 +102,21 @@ if (NOT CHMOD_EXECUTABLE)
     message(FATAL_ERROR "Unable to find chmod, set CHMOD_EXECUTABLE manually.")
 endif()
 
+# Command line options to be passed to `sysrepoctl` when working with modules
+# which should only be accessible by an administrator
+if (NOT SYSREPOCTL_ROOT_PERMS)
+    set(SYSREPOCTL_ROOT_PERMS "-o root:root -p 600")
+endif()
+
+# Use KEYSTORED_DEFER_SSH_KEY=ON to skip automatic key conversion.
+# Some external build/deploy script is then responsible for providing an SSH
+# host key in a PEM format at runtime.
+if (NOT KEYSTORED_DEFER_SSH_KEY)
+    set(KEYSTORED_CHECK_SSH_KEY 1)
+else()
+    set(KEYSTORED_CHECK_SSH_KEY 0)
+endif()
+
 # create the keys directory with correct permissions
 install(DIRECTORY DESTINATION ${KEYSTORED_KEYS_DIR}
         DIRECTORY_PERMISSIONS OWNER_WRITE OWNER_READ OWNER_EXECUTE)
@@ -118,7 +133,7 @@ install(CODE "
     if (NOT INSTALLED_MODULE_LINE)
         message(STATUS \"Importing module ietf-x509-cert-to-name into sysrepo...\")
 
-        execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/ietf-x509-cert-to-name.yang -o root:root -p 600 RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
+        execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/ietf-x509-cert-to-name.yang ${SYSREPOCTL_ROOT_PERMS} RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
         if (RET)
             string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
             message(FATAL_ERROR \"  Command sysrepoctl install failed:\\n  \${OUT}\")
@@ -132,7 +147,7 @@ install(CODE "
     if (NOT INSTALLED_MODULE_LINE)
         message(STATUS \"Importing module ietf-keystore into sysrepo...\")
 
-        execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/ietf-keystore.yang -o root:root -p 600 RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
+        execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/ietf-keystore.yang ${SYSREPOCTL_ROOT_PERMS} RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
         if (RET)
             string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
             message(FATAL_ERROR \"  Command sysrepoctl install failed:\\n  \${OUT}\")
@@ -152,17 +167,21 @@ install(CODE "
 
     if (OUT)
         message(STATUS \"Some ietf-keystore configuration set, no keys will be imported.\")
-    elseif(NOT EXISTS \"/etc/ssh/ssh_host_rsa_key\")
+    elseif(NOT EXISTS \"/etc/ssh/ssh_host_rsa_key\" AND ${KEYSTORED_CHECK_SSH_KEY})
         message(WARNING \"Default OpenSSH RSA host key \\\"/etc/ssh/ssh_host_rsa_key\\\" not found so a key will have to be imported or generated manually for netopeer2-server to use.\")
     else()
-        message(STATUS \"Importing stock OpenSSH RSA key.\")
-        file(READ /etc/ssh/ssh_host_rsa_key RSA_KEY)
-        file(WRITE ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem \${RSA_KEY})
-        execute_process(COMMAND ${CHMOD_EXECUTABLE} go-rw ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem)
-        execute_process(COMMAND ${OPENSSL_EXECUTABLE} rsa -pubout -in ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem -out ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pub.pem RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
-        if (RET)
-            string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
-            message(FATAL_ERROR \"  Command openssl generate public key failed:\\n  \${OUT}\")
+        if (${KEYSTORED_CHECK_SSH_KEY})
+            message(STATUS \"Importing stock OpenSSH RSA key.\")
+            file(READ /etc/ssh/ssh_host_rsa_key RSA_KEY)
+            file(WRITE ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem \${RSA_KEY})
+            execute_process(COMMAND ${CHMOD_EXECUTABLE} go-rw ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem)
+            execute_process(COMMAND ${OPENSSL_EXECUTABLE} rsa -pubout -in ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem -out ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pub.pem RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
+            if (RET)
+                string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
+                message(FATAL_ERROR \"  Command openssl generate public key failed:\\n  \${OUT}\")
+            endif()
+        else()
+            message(STATUS \"Assuming that an external script will provide the SSH key in a PEM format at \\\"${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem\\\".\")
         endif()
         execute_process(COMMAND ${SYSREPOCFG_EXECUTABLE} -d startup -i ${CMAKE_SOURCE_DIR}/stock_key_config.xml ietf-keystore RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
         if (RET)
