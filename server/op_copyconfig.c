@@ -28,6 +28,32 @@
 #include "common.h"
 #include "operations.h"
 
+
+static char *
+find_last_slash(char *string)
+{
+    char in_quote = '\0';
+    char *char_ptr;
+    char curr_char;
+
+    for (char_ptr = string + strlen(string); char_ptr != string; --char_ptr) {
+        curr_char = *char_ptr;
+        if (curr_char == '\'' || curr_char == '"') {
+            if (in_quote == '\0')
+                in_quote = curr_char;
+            else if (in_quote == curr_char)
+                in_quote = '\0';
+        }
+        else if (curr_char == '/') {
+            if (in_quote == '\0')
+                return char_ptr;
+        }
+    }
+
+    return NULL;
+}
+
+
 struct nc_server_reply *
 op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 {
@@ -43,6 +69,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     struct nc_server_reply *ereply = NULL;
     int rc = SR_ERR_OK, path_index = 0, missing_keys = 0, lastkey = 0;
     unsigned int i;
+    char quote;
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
@@ -182,8 +209,13 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
                     /* still processing list keys */
                     missing_keys--;
                     /* add key predicate into the list's path */
-                    path_index += sprintf(&path[path_index], "[%s=\'%s\']", iter->schema->name,
-                                          ((struct lyd_node_leaf_list *)iter)->value_str);
+                    if (strchr(((struct lyd_node_leaf_list *)iter)->value_str, '\'')) {
+                        quote = '"';
+                    } else {
+                        quote = '\'';
+                    }
+                    path_index += sprintf(&path[path_index], "[%s=%c%s%c]", iter->schema->name,
+                                          quote, ((struct lyd_node_leaf_list *)iter)->value_str, quote);
                     if (!missing_keys) {
                         /* the last key, create the list instance */
                         lastkey = 1;
@@ -247,7 +279,7 @@ dfs_continue:
 
                 /* maintain "stack" variables */
                 if (!missing_keys && !lastkey) {
-                    str = strrchr(path, '/');
+                    str = find_last_slash(path);
                     if (str) {
                         *str = '\0';
                         path_index = str - path;
@@ -269,7 +301,7 @@ dfs_continue:
 
                 /* maintain "stack" variables */
                 if (!missing_keys) {
-                    str = strrchr(path, '/');
+                    str = find_last_slash(path);
                     if (str) {
                         *str = '\0';
                         path_index = str - path;
