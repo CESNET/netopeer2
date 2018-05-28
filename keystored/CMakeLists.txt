@@ -140,5 +140,10 @@ if (SSH_KEY_INSTALL)
         execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/ssh-key-import.sh)")
 endif()
 
+add_custom_target(install-scripts-ide
+    scripts/model-install.sh
+    scripts/ssh-key-import.sh
+)
+
 # plugins should be installed into sysrepo plugins dir
 install(TARGETS keystored DESTINATION ${SR_PLUGINS_DIR})
