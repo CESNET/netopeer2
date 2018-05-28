@@ -108,87 +108,27 @@ if (NOT SYSREPOCTL_ROOT_PERMS)
     set(SYSREPOCTL_ROOT_PERMS "-o root:root -p 600")
 endif()
 
-# Use KEYSTORED_DEFER_SSH_KEY=ON to skip automatic key conversion.
-# Some external build/deploy script is then responsible for providing an SSH
-# host key in a PEM format at runtime.
-if (NOT KEYSTORED_DEFER_SSH_KEY)
-    set(KEYSTORED_CHECK_SSH_KEY 1)
-else()
-    set(KEYSTORED_CHECK_SSH_KEY 0)
-endif()
-
 # create the keys directory with correct permissions
 install(DIRECTORY DESTINATION ${KEYSTORED_KEYS_DIR}
         DIRECTORY_PERMISSIONS OWNER_WRITE OWNER_READ OWNER_EXECUTE)
 
-# install all the required modules and enable features
-install(CODE "
-    execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -l RESULT_VARIABLE RET OUTPUT_VARIABLE INSTALLED_MODULES ERROR_VARIABLE OUT)
-    if (RET)
-        string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
-        message(FATAL_ERROR \"  Command sysrepoctl list failed:\n  \${OUT}\")
-    endif()
+option(MODEL_INSTALL "Enable yang model installation" ON)
+if (MODEL_INSTALL)
+    install(CODE "
+        set(ENV{SYSREPOCTL} ${SYSREPOCTL_EXECUTABLE})
+        set(ENV{SYSREPOCTL_ROOT_PERMS} SYSREPOCTL_ROOT_PERMS)
+        execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/model-install.sh)")
+endif()
 
-    string(REGEX MATCH \"ietf-x509-cert-to-name[^|]*[|][^|]*[|] Installed[^\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
-    if (NOT INSTALLED_MODULE_LINE)
-        message(STATUS \"Importing module ietf-x509-cert-to-name into sysrepo...\")
-
-        execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/ietf-x509-cert-to-name.yang ${SYSREPOCTL_ROOT_PERMS} RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
-        if (RET)
-            string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
-            message(FATAL_ERROR \"  Command sysrepoctl install failed:\\n  \${OUT}\")
-        endif()
-
-    else()
-        message(STATUS \"Module ietf-x509-cert-to-name already in sysrepo.\")
-    endif()
-
-    string(REGEX MATCH \"ietf-keystore [^\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
-    if (NOT INSTALLED_MODULE_LINE)
-        message(STATUS \"Importing module ietf-keystore into sysrepo...\")
-
-        execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/ietf-keystore.yang ${SYSREPOCTL_ROOT_PERMS} RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
-        if (RET)
-            string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
-            message(FATAL_ERROR \"  Command sysrepoctl install failed:\\n  \${OUT}\")
-        endif()
-
-    else()
-        message(STATUS \"Module ietf-keystore already in sysrepo.\")
-    endif()")
-
-# import stock OpenSSH RSA key
-install(CODE "
-    execute_process(COMMAND ${SYSREPOCFG_EXECUTABLE} -d startup --export ietf-keystore RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
-    if (RET)
-        string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
-        message(FATAL_ERROR \"  Command sysrepocfg export failed:\\n  \${OUT}\")
-    endif()
-
-    if (OUT)
-        message(STATUS \"Some ietf-keystore configuration set, no keys will be imported.\")
-    elseif(NOT EXISTS \"/etc/ssh/ssh_host_rsa_key\" AND ${KEYSTORED_CHECK_SSH_KEY})
-        message(WARNING \"Default OpenSSH RSA host key \\\"/etc/ssh/ssh_host_rsa_key\\\" not found so a key will have to be imported or generated manually for netopeer2-server to use.\")
-    else()
-        if (${KEYSTORED_CHECK_SSH_KEY})
-            message(STATUS \"Importing stock OpenSSH RSA key.\")
-            file(READ /etc/ssh/ssh_host_rsa_key RSA_KEY)
-            file(WRITE ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem \${RSA_KEY})
-            execute_process(COMMAND ${CHMOD_EXECUTABLE} go-rw ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem)
-            execute_process(COMMAND ${OPENSSL_EXECUTABLE} rsa -pubout -in ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem -out ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pub.pem RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
-            if (RET)
-                string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
-                message(FATAL_ERROR \"  Command openssl generate public key failed:\\n  \${OUT}\")
-            endif()
-        else()
-            message(STATUS \"Assuming that an external script will provide the SSH key in a PEM format at \\\"${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem\\\".\")
-        endif()
-        execute_process(COMMAND ${SYSREPOCFG_EXECUTABLE} -d startup -i ${CMAKE_SOURCE_DIR}/stock_key_config.xml ietf-keystore RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
-        if (RET)
-            string(REPLACE \"\\n\" \"\\n  \" OUT \"\${OUT}\")
-            message(FATAL_ERROR \"  Command sysrepocfg import failed:\\n  \${OUT}\")
-        endif()
-    endif()")
+option(SSH_KEY_INSTALL "Enable ssh key import" ON)
+if (SSH_KEY_INSTALL)
+    install(CODE "
+        set(ENV{SYSREPOCFG} ${SYSREPOCFG_EXECUTABLE})
+        set(ENV{CHMOD} ${CHMOD_EXECUTABLE})
+        set(ENV{OPENSSL} ${OPENSSL_EXECUTABLE})
+        set(ENV{KEYSTORED_KEYS_DIR} ${KEYSTORED_KEYS_DIR})
+        execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/ssh-key-import.sh)")
+endif()
 
 # plugins should be installed into sysrepo plugins dir
 install(TARGETS keystored DESTINATION ${SR_PLUGINS_DIR})
