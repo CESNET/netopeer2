@@ -33,9 +33,8 @@ else()
     option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" OFF)
 endif()
 option(ENABLE_CONFIGURATION "Enable server configuration" ON)
-set(THREAD_COUNT 5 CACHE INTEGER "Number of threads accepting new sessions and handling requests")
+set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
 set(DEFAULT_HOST_KEY "/etc/ssh/ssh_host_rsa_key" CACHE STRING "Default server host key (used only if configuration is disabled)")
-set(NOTIF_TIMEOUT 5 CACHE INTEGER "Maximum number of seconds that the server will wait for session lock when sending a notification")
 
 # set prefix for the PID file
 if (NOT PIDFILE_PREFIX)

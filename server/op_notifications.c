@@ -80,7 +80,7 @@ np2srv_ntf_replay_sort_send(struct np_subscriber *subscriber)
 
     /* send all the replay notifications */
     for (i = 0; i < subscriber->replay_notif_count; ++i) {
-        nc_server_notif_send(subscriber->session, subscriber->replay_notifs[i], NP2SRV_NOTIF_TIMEOUT * 1000);
+        nc_server_notif_send(subscriber->session, subscriber->replay_notifs[i], 5000);
         nc_server_notif_free(subscriber->replay_notifs[i]);
         ncm_session_notification(subscriber->session);
     }
@@ -93,7 +93,7 @@ np2srv_ntf_replay_sort_send(struct np_subscriber *subscriber)
     mod = ly_ctx_get_module(np2srv.ly_ctx, "nc-notifications", NULL, 1);
     event = lyd_new(NULL, mod, "replayComplete");
     notif = nc_server_notif_new(event, nc_time2datetime(time(NULL), NULL, NULL), NC_PARAMTYPE_FREE);
-    nc_server_notif_send(subscriber->session, notif, NP2SRV_NOTIF_TIMEOUT * 1000);
+    nc_server_notif_send(subscriber->session, notif, 5000);
     nc_server_notif_free(notif);
     ncm_session_notification(subscriber->session);
 }
@@ -130,7 +130,7 @@ np2srv_ntf_send(struct np_subscriber *subscriber, struct lyd_node *ntf, time_t t
             if (mod) {
                 filtered_ntf = lyd_new(NULL, mod, "notificationComplete");
                 ntf_msg = nc_server_notif_new(filtered_ntf, nc_time2datetime(time(NULL), NULL, NULL), NC_PARAMTYPE_FREE);
-                nc_server_notif_send(subscriber->session, ntf_msg, NP2SRV_NOTIF_TIMEOUT * 1000);
+                nc_server_notif_send(subscriber->session, ntf_msg, 5000);
                 nc_server_notif_free(ntf_msg);
                 ncm_session_notification(subscriber->session);
             } else {
@@ -169,7 +169,7 @@ np2srv_ntf_send(struct np_subscriber *subscriber, struct lyd_node *ntf, time_t t
         }
 
         if (notif_type == SR_EV_NOTIF_T_REALTIME) {
-            nc_server_notif_send(subscriber->session, ntf_msg, NP2SRV_NOTIF_TIMEOUT * 1000);
+            nc_server_notif_send(subscriber->session, ntf_msg, 5000);
             nc_server_notif_free(ntf_msg);
             ncm_session_notification(subscriber->session);
         } else {
