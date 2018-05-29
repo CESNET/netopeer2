@@ -120,6 +120,15 @@ if (MODEL_INSTALL)
         execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/model-install.sh)")
 endif()
 
+# Use KEYSTORED_DEFER_SSH_KEY=ON to skip automatic key conversion.
+# Some external build/deploy script is then responsible for providing an SSH
+# host key in a PEM format at runtime.
+if (NOT KEYSTORED_DEFER_SSH_KEY)
+    set(KEYSTORED_CHECK_SSH_KEY 1)
+else()
+    set(KEYSTORED_CHECK_SSH_KEY 0)
+endif()
+
 option(SSH_KEY_INSTALL "Enable ssh key import" ON)
 if (SSH_KEY_INSTALL)
     install(CODE "
@@ -127,8 +136,14 @@ if (SSH_KEY_INSTALL)
         set(ENV{CHMOD} ${CHMOD_EXECUTABLE})
         set(ENV{OPENSSL} ${OPENSSL_EXECUTABLE})
         set(ENV{KEYSTORED_KEYS_DIR} ${KEYSTORED_KEYS_DIR})
+        set(ENV{KEYSTORED_CHECK_SSH_KEY} ${KEYSTORED_CHECK_SSH_KEY})
         execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/ssh-key-import.sh)")
 endif()
+
+add_custom_target(install-scripts-ide
+    scripts/model-install.sh
+    scripts/ssh-key-import.sh
+)
 
 # plugins should be installed into sysrepo plugins dir
 install(TARGETS keystored DESTINATION ${SR_PLUGINS_DIR})

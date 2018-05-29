@@ -177,6 +177,10 @@ if (ENABLE_CONFIGURATION)
         execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/model-install.sh)")
 endif()
 
+add_custom_target(install-scripts-ide
+    scripts/model-install.sh
+)
+
 configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_BINARY_DIR}/config.h" ESCAPE_QUOTES @ONLY)
 include_directories(${PROJECT_BINARY_DIR})
 
