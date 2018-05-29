@@ -19,10 +19,12 @@ fi
 if [ $KEYSTORED_CHECK_SSH_KEY -eq 0 ]; then
     echo "Warning: Assuming that an external script will provide the SSH key in a PEM format at \"${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem\"."
     $SYSREPOCFG -d startup -i ${STOCK_KEY_CONFIG} ietf-keystore
-elif [ -f /etc/ssh/ssh_host_rsa_key ]; then
+elif [ -r /etc/ssh/ssh_host_rsa_key ]; then
     cp /etc/ssh/ssh_host_rsa_key ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem
     $CHMOD go-rw ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem
     $OPENSSL rsa -pubout -in ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem \
         -out ${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pub.pem
     $SYSREPOCFG -d startup -i ${STOCK_KEY_CONFIG} ietf-keystore
+else
+    echo "Warning: Cannot read the SSH hostkey at /etc/ssh/ssh_host_rsa_key, skipping"
 fi
