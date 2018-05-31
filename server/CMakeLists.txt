@@ -35,6 +35,7 @@ endif()
 option(ENABLE_CONFIGURATION "Enable server configuration" ON)
 set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
 set(DEFAULT_HOST_KEY "/etc/ssh/ssh_host_rsa_key" CACHE STRING "Default server host key (used only if configuration is disabled)")
+set(DISABLE_RESTART_SIGNALS 0 CACHE STRING "Set this to 1 to treat SIGHUP and SIGUSR1 as termination signals instead of restart signals")
 
 # set prefix for the PID file
 if (NOT PIDFILE_PREFIX)
