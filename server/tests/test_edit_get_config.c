@@ -236,9 +236,11 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
     static struct ly_set *ietf_if_set = NULL;
     const char *xpath = (const char *)iter;
     char *path;
+    const char *ietf_interfaces_xpath = "/ietf-interfaces:";
+    size_t ietf_interfaces_xpath_len = strlen(ietf_interfaces_xpath);
     (void)session;
 
-    if (!strcmp(xpath, "/ietf-interfaces:*//.") || !strcmp(xpath, "/test-feature-c:*//.")) {
+    if (!strncmp(xpath, ietf_interfaces_xpath, ietf_interfaces_xpath_len) || !strcmp(xpath, "/test-feature-c:*//.")) {
         if (!ietf_if_set) {
             ietf_if_set = lyd_find_path(data, xpath);
         }
@@ -1480,6 +1482,43 @@ test_edit_merge2(void **state)
 }
 
 static void
+test_get_filter(void **state)
+{
+    (void)state; /* unused */
+    const char *get_config_rpc =
+    "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<get-config>"
+            "<source>"
+                "<running/>"
+            "</source>"
+            "<filter type=\"subtree\">"
+                "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+                    "<interface>"
+                        "<name/>"
+                    "</interface>"
+                "</interfaces>"
+            "</filter>"
+        "</get-config>"
+    "</rpc>";
+    const char *get_config_rpl =
+    "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<data xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+            "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+                "<interface>"
+                    "<name>iface2</name>"
+                "</interface>"
+                "<interface>"
+                    "<name>iface1</name>"
+                "</interface>"
+            "</interfaces>"
+        "</data>"
+    "</rpc-reply>";
+
+    test_write(p_out, get_config_rpc, __LINE__);
+    test_read(p_in, get_config_rpl, __LINE__);
+}
+
+static void
 test_startstop(void **state)
 {
     (void)state; /* unused */
@@ -1500,6 +1539,7 @@ main(void)
                     cmocka_unit_test(test_edit_create3),
                     cmocka_unit_test(test_edit_merge1),
                     cmocka_unit_test(test_edit_merge2),
+                    cmocka_unit_test(test_get_filter),
                     cmocka_unit_test_teardown(test_startstop, np_stop),
     };
 
