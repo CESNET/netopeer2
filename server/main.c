@@ -1439,6 +1439,7 @@ cleanup:
 
     /* are we requested to stop or just to restart? */
     if (control == LOOP_RESTART) {
+        control = LOOP_CONTINUE;
         goto restart;
     }
 
