@@ -57,8 +57,7 @@ pthread_rwlock_t dslock_rwl = PTHREAD_RWLOCK_INITIALIZER;
  */
 enum LOOPCTRL {
     LOOP_CONTINUE = 0, /**< Continue processing */
-    LOOP_RESTART = 1,  /**< restart the process */
-    LOOP_STOP = 2      /**< stop the process */
+    LOOP_STOP = 1      /**< stop the process */
 };
 /** @brief flag for main loop */
 volatile enum LOOPCTRL control = LOOP_CONTINUE;
@@ -207,6 +206,7 @@ signal_handler(int sig)
     case SIGTERM:
     case SIGQUIT:
     case SIGABRT:
+    case SIGHUP:
         /* stop the process */
         if (quit == 0) {
             /* first attempt */
@@ -216,11 +216,6 @@ signal_handler(int sig)
             exit(EXIT_FAILURE);
         }
         control = LOOP_STOP;
-        break;
-    case SIGHUP:
-    case SIGUSR1:
-        /* restart the process */
-        control = LOOP_RESTART;
         break;
 #ifdef DEBUG
     case SIGSEGV:
@@ -1369,7 +1364,6 @@ main(int argc, char *argv[])
     sigaction(SIGABRT, &action, NULL);
     sigaction(SIGTERM, &action, NULL);
     sigaction(SIGHUP, &action, NULL);
-    sigaction(SIGUSR1, &action, NULL);
 #ifdef DEBUG
     sigaction(SIGSEGV, &action, NULL);
 #endif
@@ -1382,7 +1376,6 @@ main(int argc, char *argv[])
     ly_set_log_clb(np2log_clb_ly, 1); /* libyang */
     sr_log_set_cb(np2log_clb_sr); /* sysrepo, log level is checked by callback */
 
-restart:
     /* initiate NETCONF server */
     if (server_init()) {
         ret = EXIT_FAILURE;
@@ -1436,12 +1429,6 @@ cleanup:
 
     /* libyang cleanup */
     ly_ctx_destroy(np2srv.ly_ctx, NULL);
-
-    /* are we requested to stop or just to restart? */
-    if (control == LOOP_RESTART) {
-        control = LOOP_CONTINUE;
-        goto restart;
-    }
 
     return ret;
 }
