@@ -202,6 +202,13 @@ signal_handler(int sig)
     static int quit = 0;
 
     switch (sig) {
+    case SIGHUP:
+    case SIGUSR1:
+#if NP2SRV_DISABLE_RESTART_SIGNALS == 0
+        /* restart the process */
+        control = LOOP_RESTART;
+        break;
+#endif
     case SIGINT:
     case SIGTERM:
     case SIGQUIT:

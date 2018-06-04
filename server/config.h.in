@@ -40,6 +40,13 @@
 #   define NP2SRV_THREAD_COUNT @THREAD_COUNT@
 #endif
 
+/** @brief If set to 0, SIGHUP and SIGUSR1 will attempt to restart the server's main thread.
+  *        If set to 1, SIGHUP and SIGUSR1 are treated as termination signals (like SIGTERM)
+  */
+#ifndef NP2SRV_DISABLE_RESTART_SIGNALS
+#   define NP2SRV_DISABLE_RESTART_SIGNALS @DISABLE_RESTART_SIGNALS@
+#endif
+
 /** @brief availability of pthread_rwlockattr_setkind_np()
  */
 #cmakedefine HAVE_PTHREAD_RWLOCKATTR_SETKIND_NP 1
