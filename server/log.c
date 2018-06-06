@@ -149,7 +149,7 @@ void
 np2log_clb_nc2(NC_VERB_LEVEL level, const char *msg)
 {
     struct np2err *e;
-    int priority;
+    int priority = LOG_ERR;
 
     if (level == NC_VERB_ERROR) {
         e = np2_err_location();

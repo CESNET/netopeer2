@@ -201,7 +201,7 @@ static void
 cli_ntf_clb(struct nc_session *session, const struct nc_notif *notif)
 {
     FILE *output = nc_session_get_data(session);
-    int was_rawmode;
+    int was_rawmode = 0;
 
     if (output == stdout) {
         if (ls.rawmode) {
@@ -504,7 +504,7 @@ static char *
 trim_top_elem(char *data, const char *top_elem, const char *top_elem_ns)
 {
     char *ptr, *prefix = NULL, *buf;
-    int pref_len, state = 0, quote;
+    int pref_len = 0, state = 0, quote;
 
     /* state: -2 - syntax error,
      *        -1 - top_elem not found,
