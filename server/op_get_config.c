@@ -44,6 +44,8 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *srs, struct lyd_node **root, 
         return -1;
     }
 
+    np2srv_sr_session_refresh(srs, NULL);
+
     rc = np2srv_sr_get_items_iter(srs, full_subtree_xpath, &sriter, NULL);
     free(full_subtree_xpath);
     if (rc == 1) {
@@ -302,7 +304,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 error:
     if (!ereply) {
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, np2log_lasterr(), "en");
+        nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
         ereply = nc_server_reply_err(e);
     }
 

@@ -26,7 +26,7 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
     struct np2_sessions *sessions;
     struct ly_set *nodeset = NULL;
     struct nc_server_error *e = NULL;
-    struct nc_server_reply *ereply;
+    struct nc_server_reply *ereply = NULL;
     struct lyd_node *config = NULL;
     struct lyd_node_anydata *any;
     const char *dsname;
@@ -51,6 +51,7 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
     } else if (!strcmp(dsname, "config")) {
         /* get data tree to validate */
         any = (struct lyd_node_anydata *)nodeset->set.d[0];
+        ly_errno = LY_SUCCESS;
         switch (any->value_type) {
         case LYD_ANYDATA_CONSTSTRING:
         case LYD_ANYDATA_STRING:
@@ -60,7 +61,12 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
         case LYD_ANYDATA_DATATREE:
             config = any->value.tree;
             any->value.tree = NULL; /* "unlink" data tree from anydata to have full control */
-            lyd_validate(&config, LYD_OPT_CONFIG, np2srv.ly_ctx);
+            if (lyd_validate(&config, LYD_OPT_CONFIG, np2srv.ly_ctx)) {
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+                ereply = nc_server_reply_err(e);
+                goto finish;
+            }
             break;
         case LYD_ANYDATA_XML:
             config = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT | LYD_OPT_STRICT);
@@ -70,7 +76,7 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
         case LYD_ANYDATA_SXMLD:
             EINT;
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, np2log_lasterr(), "en");
+            nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
             ereply = nc_server_reply_err(e);
             goto finish;
         }
@@ -79,7 +85,7 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
         lyd_free_withsiblings(config);
 
         if (ly_errno != LY_SUCCESS) {
-            e = nc_err_libyang();
+            e = nc_err_libyang(np2srv.ly_ctx);
             ereply = nc_server_reply_err(e);
             goto finish;
         }

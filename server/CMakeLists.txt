@@ -13,7 +13,7 @@ if(NOT UNIX)
 endif()
 
 # set version
-set(NP2SRV_VERSION 0.4.21)
+set(NP2SRV_VERSION 0.5.22)
 
 # set default build type if not specified by user
 if(NOT CMAKE_BUILD_TYPE)
@@ -57,19 +57,14 @@ if (ENABLE_CONFIGURATION)
         message(STATUS "keystored keys directory is \"${KEYSTORED_KEYS_DIR}\".")
     endif()
 else()
-    set(KEYSTORED_KEYS_DIR "none")
+    if (NOT KEYSTORED_KEYS_DIR)
+        set(KEYSTORED_KEYS_DIR "none")
+    endif()
 endif()
 
 # set default SSH key
 if (KEYSTORED_KEYS_DIR STREQUAL "none")
-    message(STATUS "Server configuration off, default SSH host key will be used.")
-    # if (EXISTS) succeeds only if the file is readable, we do not care about that
-    execute_process(COMMAND ls "${DEFAULT_HOST_KEY}" RESULT_VARIABLE RET OUTPUT_QUIET ERROR_QUIET)
-    if (NOT RET)
-        message(STATUS "Default host key set to \"${DEFAULT_HOST_KEY}\".")
-    else()
-        message(FATAL_ERROR "Host key \"${DEFAULT_HOST_KEY}\" not found, rerun cmake and set DEFAULT_HOST_KEY manually to point to an RSA SSH key.")
-    endif()
+    message(STATUS "Server configuration off, default SSH host key will be used: \"${DEFAULT_HOST_KEY}\".")
 endif()
 
 # check that lnc2 supports np2srv thread count
@@ -168,82 +163,25 @@ if (ENABLE_CONFIGURATION)
         message(FATAL_ERROR "Unable to find sysrepocfg, set SYSREPOCFG_EXECUTABLE manually.")
     endif()
 
-    # install server configuration module and enable features
+    # Command line options to be passed to `sysrepoctl` when working with modules
+    # which should only be accessible by an administrator
+    if (NOT SYSREPOCTL_ROOT_PERMS)
+        set(SYSREPOCTL_ROOT_PERMS "-o root:root -p 600")
+    endif()
+
     install(CODE "
-        execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -l RESULT_VARIABLE RET OUTPUT_VARIABLE INSTALLED_MODULES ERROR_VARIABLE OUT)
-        if (RET)
-            string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
-            message(FATAL_ERROR \"  Command sysrepoctl list failed:\\n  \${OUT}\")
-        endif()
-
-        string(REGEX MATCH \"ietf-keystore [^\\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
-        if (NOT INSTALLED_MODULE_LINE)
-            message(STATUS \"Server configuration is disabled because sysrepo does not support ietf-keystore (keystored plugin not installed).\")
-        else()
-            set(MODULE_NAMES ietf-netconf-server ietf-system)
-            foreach(MODULE_NAME IN LISTS MODULE_NAMES)
-                string(REGEX MATCH \"\${MODULE_NAME} [^\n]*\" INSTALLED_MODULE_LINE \"\${INSTALLED_MODULES}\")
-                if (NOT INSTALLED_MODULE_LINE)
-                    message(STATUS \"Importing module \${MODULE_NAME} into sysrepo...\")
-                    execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -i -g ${CMAKE_SOURCE_DIR}/../modules/\${MODULE_NAME}.yang -o root:root -p 600 RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
-                    if (RET)
-                        string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
-                        message(FATAL_ERROR \"  Command sysrepoctl install failed:\\n  \${OUT}\")
-                    endif()
-
-                    if (\${MODULE_NAME} STREQUAL ietf-netconf-server)
-                        set(FEATURES listen ssh-listen tls-listen call-home ssh-call-home tls-call-home)
-                    else()
-                        set(FEATURES authentication local-users)
-                    endif()
-                    foreach(FEATURE IN LISTS FEATURES)
-                        execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -m \${MODULE_NAME} -e \${FEATURE} RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
-                        if (RET)
-                            string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
-                            message(FATAL_ERROR \"  Command sysrepoctl enable feature failed:\\n  \${OUT}\")
-                        endif()
-                    endforeach()
-
-                else()
-                    message(STATUS \"Module \${MODULE_NAME} already in sysrepo.\")
-                    if (\${MODULE_NAME} STREQUAL ietf-netconf-server)
-                        set(FEATURES listen ssh-listen tls-listen call-home ssh-call-home tls-call-home)
-                    else()
-                        set(FEATURES authentication local-users)
-                    endif()
-                    foreach(FEATURE IN LISTS FEATURES)
-                        if (NOT \"\${INSTALLED_MODULE_LINE}\" MATCHES \"\${FEATURE}\")
-                            execute_process(COMMAND ${SYSREPOCTL_EXECUTABLE} -m \${MODULE_NAME} -e \${FEATURE} RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
-                            if (RET)
-                                string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
-                                message(FATAL_ERROR \"  Command sysrepoctl enable feature failed:\\n  \${OUT}\")
-                            endif()
-                        endif()
-                    endforeach()
-                endif()
-            endforeach()
-
-            execute_process(COMMAND ${SYSREPOCFG_EXECUTABLE} -d startup --export ietf-netconf-server RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
-            if (RET)
-                string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
-                message(FATAL_ERROR \"  Command sysrepocfg export failed:\\n  \${OUT}\")
-            endif()
-
-            if (OUT)
-                message(STATUS \"Some NETCONF server configuration set, it will not be changed.\")
-            else()
-                execute_process(COMMAND ${SYSREPOCFG_EXECUTABLE} -d startup -i ${CMAKE_SOURCE_DIR}/stock_config.xml ietf-netconf-server RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE OUT)
-                if (RET)
-                    string(REPLACE \"\\n\" \"\\n  \" OUT \${OUT})
-                    message(FATAL_ERROR \"  Command sysrepocfg import failed:\\n  \${OUT}\")
-                endif()
-                message(STATUS \"Default NETCONF server configuration imported (SSH listen on 0.0.0.0:830).\")
-            endif()
-
-        endif()")
+        set(ENV{SYSREPOCTL} ${SYSREPOCTL_EXECUTABLE})
+        set(ENV{SYSREPOCFG} ${SYSREPOCFG_EXECUTABLE})
+        set(ENV{SYSREPOCTL_ROOT_PERMS} SYSREPOCTL_ROOT_PERMS)
+        execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/model-install.sh)")
 endif()
 
-configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_SOURCE_DIR}/config.h" ESCAPE_QUOTES @ONLY)
+add_custom_target(install-scripts-ide
+    scripts/model-install.sh
+)
+
+configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_BINARY_DIR}/config.h" ESCAPE_QUOTES @ONLY)
+include_directories(${PROJECT_BINARY_DIR})
 
 # clean cmake cache
 add_custom_target(cleancache

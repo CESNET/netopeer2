@@ -8,7 +8,7 @@
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
@@ -115,9 +115,11 @@ complete_cmd(const char *buf, const char *hint, linenoiseCompletions *lc)
 char *
 readinput(const char *instruction, const char *old_tmp, char **new_tmp)
 {
-    int tmpfd = -1, ret, size, oldfd;
+    volatile int tmpfd = -1;
+    int ret, size, oldfd;
     pid_t pid, wait_pid;
-    char* tmpname = NULL, *input = NULL, *old_content = NULL, *ptr, *ptr2;
+    char* volatile input = NULL, * volatile old_content = NULL;
+    char *tmpname = NULL, *ptr, *ptr2;
 
     /* Create a unique temporary file */
 #ifdef HAVE_MKSTEMPS
@@ -226,7 +228,7 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
     lseek(tmpfd, 0, SEEK_SET);
 
     /* Read the input */
-    input = malloc(size+1);
+    input = malloc(size + 1);
     ret = read(tmpfd, input, size);
     if (ret < size) {
         ERROR(__func__, "Failed to read from the temporary file (%s).", strerror(errno));
@@ -244,7 +246,7 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
         /* The user could have deleted or modified the comment, ignore it then */
         if (ptr2) {
             ptr2 += 5;
-            memmove(ptr, ptr2, strlen(ptr2)+1);
+            memmove(ptr, ptr2, strlen(ptr2) + 1);
 
             /* Save the modified content */
             if (ftruncate(tmpfd, 0) == -1) {

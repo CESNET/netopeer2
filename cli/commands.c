@@ -201,7 +201,7 @@ static void
 cli_ntf_clb(struct nc_session *session, const struct nc_notif *notif)
 {
     FILE *output = nc_session_get_data(session);
-    int was_rawmode;
+    int was_rawmode = 0;
 
     if (output == stdout) {
         if (ls.rawmode) {
@@ -504,7 +504,7 @@ static char *
 trim_top_elem(char *data, const char *top_elem, const char *top_elem_ns)
 {
     char *ptr, *prefix = NULL, *buf;
-    int pref_len, state = 0, quote;
+    int pref_len = 0, state = 0, quote;
 
     /* state: -2 - syntax error,
      *        -1 - top_elem not found,
@@ -1207,7 +1207,9 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
                 ERROR("auth keys add", "Missing the public key path");
                 return EXIT_FAILURE;
             }
-            if (nc_client_ssh_add_keypair(str, cmd) != EXIT_SUCCESS) {
+
+            if (nc_client_ssh_ch_add_keypair(str, cmd) != EXIT_SUCCESS ||
+                nc_client_ssh_add_keypair(str, cmd) != EXIT_SUCCESS) {
                 ERROR("auth keys add", "Failed to add keys");
                 return EXIT_FAILURE;
             }
@@ -1227,7 +1229,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
             }
 
             i = strtol(cmd, &ptr, 10);
-            if (ptr[0] || nc_client_ssh_del_keypair(i)) {
+            if (ptr[0] || nc_client_ssh_ch_del_keypair(i) || nc_client_ssh_del_keypair(i)) {
                 ERROR("auth keys remove", "Wrong index");
                 return EXIT_FAILURE;
             }

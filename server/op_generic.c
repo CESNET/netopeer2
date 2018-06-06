@@ -40,7 +40,7 @@ build_rpc_act_from_output(struct lyd_node *rpc_act, sr_val_t *output, size_t out
         node = lyd_new_path(rpc_act, np2srv.ly_ctx, output[i].xpath, op_get_srval(np2srv.ly_ctx, &output[i], buf),
                 (output->type == SR_ANYXML_T || output->type == SR_ANYDATA_T) ? LYD_ANYDATA_SXML : 0,
                 LYD_PATH_OPT_UPDATE | LYD_PATH_OPT_OUTPUT);
-        if (ly_errno) {
+        if (ly_errno != LY_SUCCESS) {
             return -1;
         }
 
@@ -84,7 +84,7 @@ struct nc_server_reply *
 op_generic(struct lyd_node *rpc, struct nc_session *ncs)
 {
     int rc;
-    uint32_t i, in_idx;
+    uint32_t i, in_idx = 0;
     char *rpc_xpath = NULL, *str;
     sr_val_t *input = NULL, *output = NULL;
     size_t out_count = 0;
@@ -100,7 +100,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
         act = lyd_dup(rpc, 1);
         if (!act) {
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, np2log_lasterr(), "en");
+            nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
             ereply = nc_server_reply_err(e);
             goto finish;
         }
@@ -114,7 +114,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
         if (!rpc) {
             EINT;
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, np2log_lasterr(), "en");
+            nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
             ereply = nc_server_reply_err(e);
             goto finish;
         }
@@ -145,7 +145,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
         if (!input || !strs) {
             EMEM;
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, np2log_lasterr(), "en");
+            nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
             ereply = nc_server_reply_err(e);
             goto finish;
         }
@@ -156,7 +156,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
 
             if (op_set_srval(set->set.d[i], lyd_path(set->set.d[i]), 0, &input[in_idx], &str)) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 ereply = nc_server_reply_err(e);
                 goto finish;
             }
@@ -190,7 +190,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
 
         if (rc) {
             lyd_free(reply_data);
-            e = nc_err_libyang();
+            e = nc_err_libyang(np2srv.ly_ctx);
             ereply = nc_server_reply_err(e);
             goto finish;
         }

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module name="test-feature-b"
+        xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+        xmlns:tfb="urn:ietf:params:xml:ns:yang:test-feature-b"
+        xmlns:tfa="urn:ietf:params:xml:ns:yang:test-feature-a">
+  <namespace uri="urn:ietf:params:xml:ns:yang:test-feature-b"/>
+  <prefix value="tfb"/>
+  <import module="test-feature-a">
+    <prefix value="tfa"/>
+  </import>
+  <revision date="2018-05-18">
+    <description>
+      <text>Initial revision.</text>
+    </description>
+    <reference>
+      <text>None.</text>
+    </reference>
+  </revision>
+  <feature name="test-feature-b">
+    <if-feature name="tfa:test-feature-a"/>
+  </feature>
+</module>

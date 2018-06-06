@@ -178,7 +178,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* default value for error-option is "stop-on-error" */
     enum NP2_EDIT_ERROPT erropt = NP2_EDIT_ERROPT_STOP;
     struct lyd_node *config = NULL, *next, *iter;
-    char *str, *path, *rel, *valbuf, quot;
+    char *str, *path = NULL, *rel, *valbuf, quot;
     const char *cstr;
     enum NP2_EDIT_OP *op = NULL, *op_new;
     uint16_t *path_levels = NULL, *path_levels_new;
@@ -273,6 +273,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     nodeset = lyd_find_path(rpc, "/ietf-netconf:edit-config/config");
     if (nodeset->number) {
         any = (struct lyd_node_anydata *)nodeset->set.d[0];
+        ly_errno = LY_SUCCESS;
         switch (any->value_type) {
         case LYD_ANYDATA_CONSTSTRING:
         case LYD_ANYDATA_STRING:
@@ -293,8 +294,8 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             break;
         }
         ly_set_free(nodeset);
-        if (ly_errno) {
-            ereply = nc_server_reply_err(nc_err_libyang());
+        if (ly_errno != LY_SUCCESS) {
+            ereply = nc_server_reply_err(nc_err_libyang(np2srv.ly_ctx));
             goto cleanup;
         } else if (!config) {
             /* nothing to do */
@@ -651,7 +652,7 @@ cleanup:
 
 internalerror:
     e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-    nc_err_set_msg(e, np2log_lasterr(), "en");
+    nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
     if (ereply) {
         nc_server_reply_add_err(ereply, e);
     } else {

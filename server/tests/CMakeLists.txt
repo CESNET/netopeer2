@@ -74,7 +74,7 @@ foreach(test_name IN LISTS tests)
     add_test(NAME ${test_name} COMMAND $<TARGET_FILE:${test_name}>)
 endforeach(test_name)
 
-configure_file("${PROJECT_SOURCE_DIR}/tests/config.h.in" "${PROJECT_SOURCE_DIR}/tests/config.h" ESCAPE_QUOTES @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/tests/config.h.in" "${PROJECT_BINARY_DIR}/tests/config.h" ESCAPE_QUOTES @ONLY)
 
 if(ENABLE_VALGRIND_TESTS)
     find_program(valgrind_FOUND valgrind)

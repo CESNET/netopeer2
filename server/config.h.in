@@ -44,4 +44,12 @@
  */
 #cmakedefine HAVE_PTHREAD_RWLOCKATTR_SETKIND_NP 1
 
+/** @brief timeout in ms for retrying certain sysrepo operations (subscriptions and commit) in case 2 same operations collide
+ */
+#define NP2SRV_SR_LOCKED_TIMEOUT 10
+
+/** @brief number of retries for certain sysrepo operations in case 2 same operations collide
+ */
+#define NP2SRV_SR_LOCKED_RETRIES 3
+
 #endif /* NP2SRV_CONFIG_H_ */

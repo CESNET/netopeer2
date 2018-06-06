@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module name="test-feature-c"
+        xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+        xmlns:tfc="urn:ietf:params:xml:ns:yang:test-feature-c"
+        xmlns:tfb="urn:ietf:params:xml:ns:yang:test-feature-b">
+  <namespace uri="urn:ietf:params:xml:ns:yang:test-feature-c"/>
+  <prefix value="tfc"/>
+  <import module="test-feature-b">
+    <prefix value="tfb"/>
+  </import>
+  <revision date="2018-05-18">
+    <description>
+      <text>Initial revision.</text>
+    </description>
+    <reference>
+      <text>None.</text>
+    </reference>
+  </revision>
+  <feature name="test-feature-c">
+    <if-feature name="tfb:test-feature-b"/>
+  </feature>
+  <container name="test-container">
+    <if-feature name="test-feature-c"/>
+    <leaf name="test-leaf">
+      <type name="string"/>
+    </leaf>
+  </container>
+</module>

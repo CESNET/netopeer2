@@ -57,8 +57,7 @@ pthread_rwlock_t dslock_rwl = PTHREAD_RWLOCK_INITIALIZER;
  */
 enum LOOPCTRL {
     LOOP_CONTINUE = 0, /**< Continue processing */
-    LOOP_RESTART = 1,  /**< restart the process */
-    LOOP_STOP = 2      /**< stop the process */
+    LOOP_STOP = 1      /**< stop the process */
 };
 /** @brief flag for main loop */
 volatile enum LOOPCTRL control = LOOP_CONTINUE;
@@ -207,6 +206,7 @@ signal_handler(int sig)
     case SIGTERM:
     case SIGQUIT:
     case SIGABRT:
+    case SIGHUP:
         /* stop the process */
         if (quit == 0) {
             /* first attempt */
@@ -216,11 +216,6 @@ signal_handler(int sig)
             exit(EXIT_FAILURE);
         }
         control = LOOP_STOP;
-        break;
-    case SIGHUP:
-    case SIGUSR1:
-        /* restart the process */
-        control = LOOP_RESTART;
         break;
 #ifdef DEBUG
     case SIGSEGV:
@@ -754,10 +749,20 @@ np2srv_init_schemas(void)
     char *data = NULL;
     const struct lys_module *mod;
     sr_schema_t *schemas = NULL;
-    size_t count, i, j;
+    size_t schema_count, i, j;
+    int ly_lo;
+
+    size_t module_feature_count = 0;
+    struct mod_feat {
+        const struct lys_module *mod;
+        const char *enabled_feature;
+    };
+    struct mod_feat *mod_feat_array;
+    size_t mod_feat_array_index;
+    bool making_progress;
 
     /* get the list of schemas from sysrepo */
-    if (np2srv_sr_list_schemas(np2srv.sr_sess.srs, &schemas, &count, NULL)) {
+    if (np2srv_sr_list_schemas(np2srv.sr_sess.srs, &schemas, &schema_count, NULL)) {
         return -1;
     }
 
@@ -804,10 +809,18 @@ np2srv_init_schemas(void)
     }
     ly_ctx_set_module_imp_clb(np2srv.ly_ctx, np2srv_ly_import_clb, NULL);
 
+    /* determine the count of module/features present */
+    module_feature_count = 0;
+    for (i = 0; i < schema_count; i++) {
+        module_feature_count += schemas[i].enabled_feature_cnt;
+    }
+    /* prepare data storage to keep module/feature enable status */
+    mod_feat_array = calloc(module_feature_count, sizeof *mod_feat_array);
+    mod_feat_array_index = 0;
+
     /* 1) use modules from sysrepo */
-    for (i = 0; i < count; i++) {
+    for (i = 0; i < schema_count; i++) {
         data = NULL;
-        mod = NULL;
         VRB("Loading schema \"%s%s%s\" from sysrepo.", schemas[i].module_name, schemas[i].revision.revision ? "@" : "",
             schemas[i].revision.revision ? schemas[i].revision.revision : "");
         if ((mod = ly_ctx_get_module(np2srv.ly_ctx, schemas[i].module_name, schemas[i].revision.revision, 0))) {
@@ -825,22 +838,62 @@ np2srv_init_schemas(void)
             free(data);
         }
 
-        if (!mod) {
+        if (mod) {
+            /* set RPC and Notifications callbacks */
+            np2srv_module_assign_clbs(mod);
+
+            /* set features according to sysrepo (silent errors, there can be some other dependent features not enabled yet) */
+            ly_lo = ly_log_options(0);
+            for (j = 0; j < schemas[i].enabled_feature_cnt; ++j) {
+                /* if lys_features_enable fail (silently), record the mod_feat for retry otherwise store NULL */
+
+                if (lys_features_enable(mod, schemas[i].enabled_features[j])) {
+                    /* store away info related to feature that did not enable on first pass */
+                    mod_feat_array[mod_feat_array_index].mod = mod;
+                    mod_feat_array[mod_feat_array_index].enabled_feature = schemas[i].enabled_features[j];
+                }
+                mod_feat_array_index++;
+            }
+            /* restore libyang logging */
+            ly_log_options(ly_lo);
+        } else {
             WRN("Getting %s%s%s schema from sysrepo failed, data from this module won't be available.",
                 schemas[i].module_name, schemas[i].revision.revision ? "@" : "",
                 schemas[i].revision.revision ? schemas[i].revision.revision : "");
-        } else {
-            /* set features according to sysrepo */
-            for (j = 0; j < schemas[i].enabled_feature_cnt; ++j) {
-                lys_features_enable(mod, schemas[i].enabled_features[j]);
-            }
-
-            /* set RPC and Notifications callbacks */
-            np2srv_module_assign_clbs(mod);
         }
     }
+
+    /* we may be able to get features enabled now that others are enabled so we will
+       run through our stored module_features and retry the ones on our list
+       we will continue until a pass through the array doesn't indicate progress */
+    ly_lo = ly_log_options(0);
+    do {
+        making_progress = false;
+        for (i = 0; i < module_feature_count; i++) {
+            if (mod_feat_array[i].mod) {
+                if (!lys_features_enable(mod_feat_array[i].mod, mod_feat_array[i].enabled_feature)) {
+                    /* feature enabled, remove from list and set making_progress TRUE */
+                    making_progress = true;
+                    mod_feat_array[i].mod = NULL;
+                    mod_feat_array[i].enabled_feature = NULL;
+                }
+            }
+        }
+    } while (making_progress);
+    ly_log_options(ly_lo);
+
+    /* now pass through the mod_feat_array and report errors on any remaining entries
+       as they are not enabled */
+    for (i = 0; i < module_feature_count; i++) {
+        if (mod_feat_array[i].mod) {
+            lys_features_enable(mod_feat_array[i].mod, mod_feat_array[i].enabled_feature);
+        }
+    }
+
+    free(mod_feat_array);
+
     ly_ctx_set_module_imp_clb(np2srv.ly_ctx, np2srv_ly_import_clb, NULL);
-    sr_free_schemas(schemas, count);
+    sr_free_schemas(schemas, schema_count);
     schemas = NULL;
 
     /* 2) add internally used schemas: ietf-netconf, ... */
@@ -893,7 +946,7 @@ np2srv_init_schemas(void)
 
 error:
     if (schemas) {
-        sr_free_schemas(schemas, count);
+        sr_free_schemas(schemas, schema_count);
     }
     ly_ctx_destroy(np2srv.ly_ctx, NULL);
     return -1;
@@ -1163,7 +1216,8 @@ main(int argc, char *argv[])
     pthread_attr_t thread_attr;
 
     /* until daemonized, write messages to both syslog and stderr */
-    openlog("netopeer2-server", LOG_PID | LOG_PERROR, LOG_DAEMON);
+    openlog("netopeer2-server", LOG_PID, LOG_DAEMON);
+    np2_stderr_log = 1;
 
     /* process command line options */
     while ((c = getopt(argc, argv, OPTSTRING)) != -1) {
@@ -1273,7 +1327,7 @@ main(int argc, char *argv[])
         }
 
         /* from now print only to syslog, not stderr */
-        openlog("netopeer2-server", LOG_PID, LOG_DAEMON);
+        np2_stderr_log = 0;
     }
 
     /* make sure we are the only instance - lock the PID file and write the PID */
@@ -1310,7 +1364,6 @@ main(int argc, char *argv[])
     sigaction(SIGABRT, &action, NULL);
     sigaction(SIGTERM, &action, NULL);
     sigaction(SIGHUP, &action, NULL);
-    sigaction(SIGUSR1, &action, NULL);
 #ifdef DEBUG
     sigaction(SIGSEGV, &action, NULL);
 #endif
@@ -1323,7 +1376,6 @@ main(int argc, char *argv[])
     ly_set_log_clb(np2log_clb_ly, 1); /* libyang */
     sr_log_set_cb(np2log_clb_sr); /* sysrepo, log level is checked by callback */
 
-restart:
     /* initiate NETCONF server */
     if (server_init()) {
         ret = EXIT_FAILURE;
@@ -1377,11 +1429,6 @@ cleanup:
 
     /* libyang cleanup */
     ly_ctx_destroy(np2srv.ly_ctx, NULL);
-
-    /* are we requested to stop or just to restart? */
-    if (control == LOOP_RESTART) {
-        goto restart;
-    }
 
     return ret;
 }

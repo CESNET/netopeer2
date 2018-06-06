@@ -27,12 +27,17 @@ extern volatile uint8_t np2_verbose_level;
 /**
  * @brief libssh verbose level variable
  */
-extern volatile uint8_t np2_libssh_verbose_level;
+extern uint8_t np2_libssh_verbose_level;
 
 /**
  * @brief libsysrepo verbose level variable
  */
-extern volatile uint8_t np2_sr_verbose_level;
+extern uint8_t np2_sr_verbose_level;
+
+/**
+ * @brief netopeer2 flag whether to print messages to stderr (only if not daemon).
+ */
+uint8_t np2_stderr_log;
 
 /**
  * @brief internal printing function, follows the levels from libnetconf2
@@ -70,6 +75,6 @@ void np2log_clb_sr(sr_log_level_t level, const char *msg);
 /**
  * @brief Get last error message (covers libyang, libnetconf2, sysrepo and netopeer2 in the current thread)
  */
-const char *np2log_lasterr(void);
+const char *np2log_lasterr(struct ly_ctx *ctx);
 
 #endif /* NP2SRV_LOG_H_ */

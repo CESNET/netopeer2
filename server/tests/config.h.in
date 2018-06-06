@@ -24,62 +24,78 @@
 #include <stdlib.h>
 
 /* taken from libnetconf2 session_p.h private header */
+
 struct nc_session {
-    NC_STATUS status;
-    NC_SESSION_TERM_REASON term_reason;
-    uint32_t killed_by;
-    int side;
+    int status;            /**< status of the session */
+    NC_SESSION_TERM_REASON term_reason; /**< reason of termination, if status is NC_STATUS_INVALID */
+    uint32_t killed_by;          /**< session responsible for termination, if term_reason is NC_SESSION_TERM_KILLED */
+    int side;                /**< side of the session: client or server */
 
-    uint32_t id;
-    int version;
+    /* NETCONF data */
+    uint32_t id;                 /**< NETCONF session ID (session-id-type) */
+    int version;          /**< NETCONF protocol version */
 
-    NC_TRANSPORT_IMPL ti_type;
-    pthread_mutex_t *ti_lock;
-    pthread_cond_t *ti_cond;
-    volatile int *ti_inuse;
+    /* Transport implementation */
+    NC_TRANSPORT_IMPL ti_type;   /**< transport implementation type to select items from ti union */
+    pthread_mutex_t *io_lock;    /**< input/output lock, note that in case of libssh TI, it will be shared
+                                      with other NETCONF sessions on the same SSH session (but different SSH channel) */
+
     union {
         struct {
-            int in;
-            int out;
-        } fd;
+            int in;              /**< input file descriptor */
+            int out;             /**< output file descriptor */
+        } fd;                    /**< NC_TI_FD transport implementation structure */
 #ifdef NC_ENABLED_SSH
         struct {
             void *channel;
             void *session;
-            struct nc_session *next;
+            struct nc_session *next; /**< pointer to the next NETCONF session on the same
+                                          SSH session, but different SSH channel. If no such session exists, it is NULL.
+                                          otherwise there is a ring list of the NETCONF sessions */
         } libssh;
 #endif
 #ifdef NC_ENABLED_TLS
-        void *tls;
+        SSL *tls;
 #endif
-    } ti;
+    } ti;                          /**< transport implementation data */
     const char *username;
     const char *host;
     uint16_t port;
 
-    struct ly_ctx *ctx;
-    void *data;
-    uint8_t flags;
+    /* other */
+    struct ly_ctx *ctx;            /**< libyang context of the session */
+    void *data;                    /**< arbitrary user data */
+    uint8_t flags;                 /**< various flags of the session - TODO combine with status and/or side */
 
     union {
         struct {
+            /* client side only data */
             uint64_t msgid;
-            const char **cpblts;
-            struct nc_msg_cont *replies;
-            struct nc_msg_cont *notifs;
-            volatile pthread_t *ntf_tid;
+            char **cpblts;                 /**< list of server's capabilities on client side */
+            struct nc_msg_cont *replies;   /**< queue for RPC replies received instead of notifications */
+            struct nc_msg_cont *notifs;    /**< queue for notifications received instead of RPC reply */
+            volatile pthread_t *ntf_tid;   /**< running notifications receiving thread */
         } client;
         struct {
-            time_t session_start;
-            time_t last_rpc;
-            int ntf_status;
-            pthread_mutex_t *ch_lock;
-            pthread_cond_t *ch_cond;
+            /* server side only data */
+            time_t session_start;          /**< real time the session was created */
+            time_t last_rpc;               /**< monotonic time (seconds) the last RPC was received on this session */
+            int ntf_status;                /**< flag whether the session is subscribed to any stream */
+
+            pthread_mutex_t *rpc_lock;   /**< lock indicating RPC processing, this lock is always locked before io_lock!! */
+            pthread_cond_t *rpc_cond;    /**< RPC condition (tied with rpc_lock and rpc_inuse) */
+            volatile int *rpc_inuse;     /**< variable indicating whether there is RPC being processed or not (tied with
+                                              rpc_cond and rpc_lock) */
+
+            pthread_mutex_t *ch_lock;      /**< Call Home thread lock */
+            pthread_cond_t *ch_cond;       /**< Call Home thread condition */
+
+            /* server flags */
 #ifdef NC_ENABLED_SSH
-            uint16_t ssh_auth_attempts;
+            uint16_t ssh_auth_attempts;    /**< number of failed SSH authentication attempts */
 #endif
 #ifdef NC_ENABLED_TLS
-            void *client_cert;
+            X509 *client_cert;                /**< TLS client certificate if used for authentication */
 #endif
         } server;
     } opts;
@@ -124,10 +140,19 @@ __wrap_sr_get_schema(sr_session_ctx_t *session, const char *module_name, const c
         fd = open(TESTS_DIR "/files/nc-notifications.yin", O_RDONLY);
     } else if (!strcmp(module_name, "test-notif")) {
         fd = open(TESTS_DIR "/files/test-notif.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "test-feature-a")) {
+        fd = open(TESTS_DIR "/files/test-feature-a.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "test-feature-b")) {
+        fd = open(TESTS_DIR "/files/test-feature-b.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "test-feature-c")) {
+        fd = open(TESTS_DIR "/files/test-feature-c.yin", O_RDONLY);
     } else {
         return SR_ERR_NOT_FOUND;
     }
-    assert_int_not_equal(fd, -1);
+
+    if (fd < 0) {
+        return SR_ERR_INTERNAL;
+    }
 
     assert_int_equal(fstat(fd, &st), 0);
 

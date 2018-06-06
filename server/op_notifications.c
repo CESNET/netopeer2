@@ -28,6 +28,7 @@
 
 #include "common.h"
 #include "operations.h"
+#include "netconf_monitoring.h"
 
 struct np_subscriber {
     struct nc_session *session;
@@ -81,6 +82,7 @@ np2srv_ntf_replay_sort_send(struct np_subscriber *subscriber)
     for (i = 0; i < subscriber->replay_notif_count; ++i) {
         nc_server_notif_send(subscriber->session, subscriber->replay_notifs[i], 5000);
         nc_server_notif_free(subscriber->replay_notifs[i]);
+        ncm_session_notification(subscriber->session);
     }
     free(subscriber->replay_notifs);
 
@@ -93,6 +95,7 @@ np2srv_ntf_replay_sort_send(struct np_subscriber *subscriber)
     notif = nc_server_notif_new(event, nc_time2datetime(time(NULL), NULL, NULL), NC_PARAMTYPE_FREE);
     nc_server_notif_send(subscriber->session, notif, 5000);
     nc_server_notif_free(notif);
+    ncm_session_notification(subscriber->session);
 }
 
 static void
@@ -129,6 +132,7 @@ np2srv_ntf_send(struct np_subscriber *subscriber, struct lyd_node *ntf, time_t t
                 ntf_msg = nc_server_notif_new(filtered_ntf, nc_time2datetime(time(NULL), NULL, NULL), NC_PARAMTYPE_FREE);
                 nc_server_notif_send(subscriber->session, ntf_msg, 5000);
                 nc_server_notif_free(ntf_msg);
+                ncm_session_notification(subscriber->session);
             } else {
                 EINT;
             }
@@ -167,6 +171,7 @@ np2srv_ntf_send(struct np_subscriber *subscriber, struct lyd_node *ntf, time_t t
         if (notif_type == SR_EV_NOTIF_T_REALTIME) {
             nc_server_notif_send(subscriber->session, ntf_msg, 5000);
             nc_server_notif_free(ntf_msg);
+            ncm_session_notification(subscriber->session);
         } else {
             ++subscriber->replay_notif_count;
             subscriber->replay_notifs = realloc(subscriber->replay_notifs,
@@ -283,12 +288,12 @@ np2srv_subscriber_free(struct np_subscriber *subscriber)
 struct nc_server_reply *
 op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
 {
-    int ret, filter_count;
+    int ret, filter_count = 0;
     uint16_t i;
     uint32_t idx;
     time_t now = time(NULL), start = 0, stop = 0;
     const char *stream;
-    char **filters;
+    char **filters = NULL;
     void *mem;
     struct lyd_node *node;
     struct np_subscriber *new = NULL;
@@ -308,8 +313,6 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
     stream = ((struct lyd_node_leaf_list *)rpc->child)->value_str;
 
     /* get optional parameters */
-    filters = NULL;
-    filter_count = 0;
     LY_TREE_FOR(rpc->child->next, node) {
         if (strcmp(node->schema->module->ns, "urn:ietf:params:xml:ns:netconf:notification:1.0")) {
             /* ignore */
@@ -419,7 +422,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
             ret = ntf_module_sr_subscribe(mod, new);
             if (ret == -1) {
                 e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(), "en");
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
                 ereply = nc_server_reply_err(e);
                 goto unlock_error;
             }
@@ -457,7 +460,7 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
             goto unlock_error;
         } else if (ret == -1) {
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, np2log_lasterr(), "en");
+            nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
             ereply = nc_server_reply_err(e);
             goto unlock_error;
         }

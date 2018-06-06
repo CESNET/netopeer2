@@ -24,10 +24,10 @@
 #include <signal.h>
 #include <unistd.h>
 
-#include "config.h"
+#include "tests/config.h"
 
 #define main server_main
-#include "../config.h"
+#include "config.h"
 #undef NP2SRV_PIDFILE
 #define NP2SRV_PIDFILE "/tmp/test_np2srv.pid"
 
@@ -231,12 +231,14 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
         (*session)->status = NC_STATUS_RUNNING;
         (*session)->side = 1;
         (*session)->id = 1;
-        (*session)->ti_lock = malloc(sizeof *(*session)->ti_lock);
-        pthread_mutex_init((*session)->ti_lock, NULL);
-        (*session)->ti_cond = malloc(sizeof *(*session)->ti_cond);
-        pthread_cond_init((*session)->ti_cond, NULL);
-        (*session)->ti_inuse = malloc(sizeof *(*session)->ti_inuse);
-        *(*session)->ti_inuse = 0;
+        (*session)->io_lock = malloc(sizeof *(*session)->io_lock);
+        pthread_mutex_init((*session)->io_lock, NULL);
+        (*session)->opts.server.rpc_lock = malloc(sizeof *(*session)->opts.server.rpc_lock);
+        pthread_mutex_init((*session)->opts.server.rpc_lock, NULL);
+        (*session)->opts.server.rpc_cond = malloc(sizeof *(*session)->opts.server.rpc_cond);
+        pthread_cond_init((*session)->opts.server.rpc_cond, NULL);
+        (*session)->opts.server.rpc_inuse = malloc(sizeof *(*session)->opts.server.rpc_inuse);
+        *(*session)->opts.server.rpc_inuse = 0;
         (*session)->ti_type = NC_TI_FD;
         (*session)->ti.fd.in = pipes[1][0];
         (*session)->ti.fd.out = pipes[0][1];
@@ -262,11 +264,13 @@ __wrap_nc_session_free(struct nc_session *session, void (*data_free)(void *))
     if (data_free) {
         data_free(session->data);
     }
-    pthread_mutex_destroy(session->ti_lock);
-    free(session->ti_lock);
-    pthread_cond_destroy(session->ti_cond);
-    free(session->ti_cond);
-    free((int *)session->ti_inuse);
+    pthread_mutex_destroy(session->io_lock);
+    free(session->io_lock);
+    pthread_mutex_destroy(session->opts.server.rpc_lock);
+    free(session->opts.server.rpc_lock);
+    pthread_cond_destroy(session->opts.server.rpc_cond);
+    free(session->opts.server.rpc_cond);
+    free((int *)session->opts.server.rpc_inuse);
     free(session);
 }
 
