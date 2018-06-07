@@ -123,18 +123,19 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
         ly_set_free(nodeset);
     }
-    if (ds != sessions->ds || (sessions->opts & SR_SESS_CONFIG_ONLY) != config_only) {
+    if (ds != sessions->ds) {
         /* update sysrepo session datastore */
         if (np2srv_sr_session_switch_ds(sessions->srs, ds, &ereply)) {
            goto error;
         }
         sessions->ds = ds;
-
+    }
+    if ((sessions->opts & SR_SESS_CONFIG_ONLY) != config_only) {
         /* update sysrepo session config */
-        if (np2srv_sr_session_set_options(sessions->srs, config_only, &ereply)) {
+        if (np2srv_sr_session_set_options(sessions->srs, sessions->opts ^ config_only, &ereply)) {
             goto error;
         }
-        sessions->opts = config_only;
+        sessions->opts ^= config_only;
     }
 
     /* create filters */
