@@ -132,10 +132,10 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     }
     if ((sessions->opts & SR_SESS_CONFIG_ONLY) != config_only) {
         /* update sysrepo session config */
-        if (np2srv_sr_session_set_options(sessions->srs, sessions->opts ^ config_only, &ereply)) {
+        if (np2srv_sr_session_set_options(sessions->srs, sessions->opts ^ SR_SESS_CONFIG_ONLY, &ereply)) {
             goto error;
         }
-        sessions->opts ^= config_only;
+        sessions->opts ^= SR_SESS_CONFIG_ONLY;
     }
 
     /* create filters */
