@@ -470,6 +470,8 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
 
     pthread_mutex_unlock(&subscribers.lock);
 
+    nc_session_set_notif_status(ncs, 1);
+
     /* subscribe for replay */
     if (start) {
         if (np2srv_sr_event_notif_replay(np2srv.sr_sess.srs, new->sr_subscr, start, stop, &ereply)) {
@@ -477,7 +479,6 @@ op_ntf_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
         }
     }
 
-    nc_session_set_notif_status(ncs, 1);
     return nc_server_reply_ok();
 
 unlock_error:
