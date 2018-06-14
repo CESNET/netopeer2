@@ -146,6 +146,8 @@ __wrap_sr_get_schema(sr_session_ctx_t *session, const char *module_name, const c
         fd = open(TESTS_DIR "/files/test-feature-b.yin", O_RDONLY);
     } else if (!strcmp(module_name, "test-feature-c")) {
         fd = open(TESTS_DIR "/files/test-feature-c.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "simplified-melt")) {
+        fd = open(TESTS_DIR "/files/simplified-melt.yin", O_RDONLY);
     } else {
         return SR_ERR_NOT_FOUND;
     }

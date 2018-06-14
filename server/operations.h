@@ -114,7 +114,27 @@ int np2srv_sr_get_submodule_schema(sr_session_ctx_t *srs, const char *submodule_
 int np2srv_sr_get_schema(sr_session_ctx_t *srs, const char *module_name, const char *revision,
          const char *submodule_name, sr_schema_format_t format, char **schema_content, struct nc_server_reply **ereply);
 
-char *op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char *buf);
+/**
+ * @brief Get sr_val_t from communication with sysrepo
+ *
+ * @param[in] ctx Context from which the value is retrieved
+ * @param[in] value The \p val structure
+ *                 path in sr_val_t for specific use.
+ * @param[out] val_buf Store the pointer to the value. If it the responsibility of the caller to deallocate
+ *                the memory. This should be done via op_get_srval_dealloc
+ * @param[out] alloced 1 if memory was allocated, 0 otherwise
+ * @see op_get_srval_dealloc
+ */
+int op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char **val_buf, int *alloced);
+
+/**
+ * @brief Deallocate memory allocated by op_get_srval
+ *
+ * @param[in] val_buf The pointer to the value
+ * @param[in] alloced 1 if memory was allocated, 0 otherwise
+ * @see op_get_srval
+ */
+void op_get_srval_free(char *val_buf, int alloced);
 
 /**
  * @brief Fill sr_val_t for communication with sysrepo
