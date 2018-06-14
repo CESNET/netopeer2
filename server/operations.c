@@ -1837,13 +1837,22 @@ np2srv_sr_get_schema(sr_session_ctx_t *srs, const char *module_name, const char 
     return 0;
 }
 
-char *
-op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char *buf)
+int
+op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char **val_buf, int *alloced)
 {
     struct lys_node_leaf *sleaf;
+    struct lys_module *module;
+    char *buf = NULL;
+    int ret;
+
+    assert(val_buf);
+    assert(alloced);
+
+    *val_buf = NULL;
+    *alloced = 0;
 
     if (!value) {
-        return NULL;
+        return 0;
     }
 
     switch (value->type) {
@@ -1851,54 +1860,90 @@ op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char *buf)
     case SR_BINARY_T:
     case SR_BITS_T:
     case SR_ENUM_T:
-    case SR_IDENTITYREF_T:
     case SR_INSTANCEID_T:
     case SR_ANYDATA_T:
     case SR_ANYXML_T:
-        return (value->data.string_val);
+        *val_buf = value->data.string_val;
+        return 0;
+    case SR_IDENTITYREF_T:
+        *val_buf = value->data.identityref_val;
+        if (strchr(value->data.identityref_val, ':')) {
+            return 0;
+        }
+        if (!value->xpath) {
+            return 0;
+        }
+        sleaf = (struct lys_node_leaf *)ly_ctx_get_node(ctx, NULL, value->xpath, 0);
+        if (!sleaf) {
+            return 0;
+        }
+        module = lys_node_module((struct lys_node *)sleaf);
+        if (!module) {
+            return 0;
+        }
+        ret = asprintf(val_buf, "%s:%s", module->name, value->data.identityref_val);
+        break;
     case SR_LEAF_EMPTY_T:
-        return NULL;
+        return 0;
     case SR_BOOL_T:
-        return value->data.bool_val ? "true" : "false";
+        *val_buf = value->data.bool_val ? "true" : "false";
+        return 0;
     case SR_DECIMAL64_T:
         /* get fraction-digits */
         sleaf = (struct lys_node_leaf *)ly_ctx_get_node(ctx, NULL, value->xpath, 0);
         if (!sleaf) {
-            return NULL;
+            return 0;
         }
         while (sleaf->type.base == LY_TYPE_LEAFREF) {
             sleaf = sleaf->type.info.lref.target;
         }
-        sprintf(buf, "%.*f", sleaf->type.info.dec64.dig, value->data.decimal64_val);
-        return buf;
+        ret = asprintf(val_buf, "%.*f", sleaf->type.info.dec64.dig, value->data.decimal64_val);
+        break;
     case SR_UINT8_T:
-        sprintf(buf, "%u", value->data.uint8_val);
-        return buf;
+        ret = asprintf(val_buf, "%u", value->data.uint8_val);
+        break;
     case SR_UINT16_T:
-        sprintf(buf, "%u", value->data.uint16_val);
-        return buf;
+        ret = asprintf(val_buf, "%u", value->data.uint16_val);
+        break;
     case SR_UINT32_T:
-        sprintf(buf, "%u", value->data.uint32_val);
-        return buf;
+        ret = asprintf(val_buf, "%u", value->data.uint32_val);
+        break;
     case SR_UINT64_T:
-        sprintf(buf, "%"PRIu64, value->data.uint64_val);
-        return buf;
+        ret = asprintf(val_buf, "%"PRIu64, value->data.uint64_val);
+        break;
     case SR_INT8_T:
-        sprintf(buf, "%d", value->data.int8_val);
-        return buf;
+        ret = asprintf(val_buf, "%d", value->data.int8_val);
+        break;
     case SR_INT16_T:
-        sprintf(buf, "%d", value->data.int16_val);
-        return buf;
+        ret = asprintf(val_buf, "%d", value->data.int16_val);
+        break;
     case SR_INT32_T:
-        sprintf(buf, "%d", value->data.int32_val);
-        return buf;
+        ret = asprintf(val_buf, "%d", value->data.int32_val);
+        break;
     case SR_INT64_T:
-        sprintf(buf, "%"PRId64, value->data.int64_val);
-        return buf;
+        ret = asprintf(val_buf, "%"PRId64, value->data.int64_val);
+        break;
     default:
-        return NULL;
+        return 0;
     }
 
+    *alloced = 1;
+    if (ret == -1)
+    {
+        *val_buf = NULL;
+        EMEM;
+        return -1;
+    }
+
+    return 0;
+}
+
+void
+op_get_srval_free(char *val_buf, int alloced)
+{
+    if (val_buf && alloced) {
+        free(val_buf);
+    }
 }
 
 int
@@ -2597,10 +2642,12 @@ op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_coun
 int
 op_sr_val_to_lyd_node(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_node)
 {
-    char numstr[22];
+    int alloced;
     char *str;
 
-    str = op_get_srval(np2srv.ly_ctx, sr_val, numstr);
+    if (op_get_srval(np2srv.ly_ctx, sr_val, &str, &alloced)) {
+        return -1;
+    }
     if (!str) {
         str = "";
     }
@@ -2610,6 +2657,7 @@ op_sr_val_to_lyd_node(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_
     *new_node = lyd_new_path(root, np2srv.ly_ctx, sr_val->xpath, str,
             (sr_val->type == SR_ANYXML_T || sr_val->type == SR_ANYDATA_T) ? LYD_ANYDATA_SXML : 0,
             LYD_PATH_OPT_UPDATE | (sr_val->dflt ? LYD_PATH_OPT_DFLT : 0));
+    op_get_srval_free(str, alloced);
     if (ly_errno) {
         return -1;
     }
