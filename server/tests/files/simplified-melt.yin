@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module name="simplified-melt"
+        xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+        xmlns:smelt="urn:ietf:params:xml:ns:yang:simplified-melt">
+  <namespace uri="urn:ietf:params:xml:ns:yang:simplified-melt"/>
+  <prefix value="smelt"/>
+  <identity name="measurement-class"/>
+  <identity name="melt-cdcr">
+    <base name="measurement-class"/>
+  </identity>
+  <container name="melt">
+    <list name="pmd-profile">
+      <key value="name"/>
+      <leaf name="name">
+        <type name="string"/>
+      </leaf>
+      <leaf-list name="measurement-class">
+        <type name="identityref">
+          <base name="measurement-class"/>
+        </type>
+        <ordered-by value="user"/>
+      </leaf-list>
+    </list>
+  </container>
+</module>
