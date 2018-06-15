@@ -515,6 +515,10 @@ trim_top_elem(char *data, const char *top_elem, const char *top_elem_ns)
      *        4 - top_elem and top_elem_ns found (success)
      */
 
+    if (!data) {
+        return NULL;
+    }
+
     while (isspace(data[0])) {
         ++data;
     }
@@ -4155,10 +4159,14 @@ cmd_validate(const char *arg, char **tmp_config_file)
     }
 
     /* trim top-level element if needed */
-    src_start = trim_top_elem(src, "config", "urn:ietf:params:xml:ns:netconf:base:1.0");
-    if (!src_start) {
-        ERROR(__func__, "Provided configuration content is invalid.");
-        goto fail;
+    if (src) {
+        src_start = trim_top_elem(src, "config", "urn:ietf:params:xml:ns:netconf:base:1.0");
+        if (!src_start) {
+            ERROR(__func__, "Provided configuration content is invalid.");
+            goto fail;
+        }
+    } else {
+        src_start = NULL;
     }
 
     /* create requests */
