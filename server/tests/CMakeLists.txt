@@ -62,7 +62,7 @@ foreach(src IN LISTS srcs)
     list(APPEND test_srcs "../${src}")
 endforeach()
 
-set(CMAKE_C_FLAGS         "${CMAKE_C_FLAGS} -DNP2SRV_THREAD_COUNT=1 -DNP2SRV_KEYSTORED_DIR=\\\"${CMAKE_SOURCE_DIR}/tests/files\\\"")
+set(CMAKE_C_FLAGS         "${CMAKE_C_FLAGS} -Wno-stringop-truncation -DNP2SRV_THREAD_COUNT=1 -DNP2SRV_KEYSTORED_DIR=\\\"${CMAKE_SOURCE_DIR}/tests/files\\\"")
 
 # object library to build source codes only once for all the tests
 add_library(testobj OBJECT ${test_srcs})
