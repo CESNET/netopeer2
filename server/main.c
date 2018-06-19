@@ -41,13 +41,6 @@
 #include "operations.h"
 #include "netconf_monitoring.h"
 
-#include "../modules/ietf-netconf@2011-06-01.h"
-#include "../modules/ietf-netconf-monitoring.h"
-#include "../modules/ietf-netconf-with-defaults@2011-06-01.h"
-#include "../modules/nc-notifications@2008-07-14.h"
-#include "../modules/notifications@2008-07-14.h"
-#include "../modules/ietf-netconf-notifications@2012-02-06.h"
-
 struct np2srv np2srv;
 struct np2srv_dslock dslock;
 pthread_rwlock_t dslock_rwl = PTHREAD_RWLOCK_INITIALIZER;
@@ -747,6 +740,7 @@ np2srv_init_schemas(void)
 {
     int rc;
     char *data = NULL;
+    const char *mod_name;
     const struct lys_module *mod;
     sr_schema_t *schemas = NULL;
     size_t schema_count, i, j;
@@ -896,43 +890,74 @@ np2srv_init_schemas(void)
     sr_free_schemas(schemas, schema_count);
     schemas = NULL;
 
-    /* 2) add internally used schemas: ietf-netconf, ... */
-    mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf", "2011-06-01", 1);
-    if (!mod && !(mod = lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_2011_06_01_yin, LYS_IN_YIN))) {
+    /* 2) check that internally used schemas are implemented and with required features: ietf-netconf, ... */
+    mod_name = "ietf-netconf";
+    mod = ly_ctx_get_module(np2srv.ly_ctx, mod_name, NULL, 1);
+    if (!mod || !mod->implemented) {
+        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
         goto error;
     }
-    lys_features_enable(mod, "writable-running");
-    lys_features_enable(mod, "candidate");
-    /* TODO lys_features_enable(mod, "confirmed-commit"); */
-    lys_features_enable(mod, "rollback-on-error");
-    lys_features_enable(mod, "validate");
-    lys_features_enable(mod, "startup");
-    /* TODO lys_features_enable(mod, "url"); */
-    lys_features_enable(mod, "xpath");
+
+    if (lys_features_state(mod, "writable-running") != 1) {
+        ERR("Module \"%s\" feature \"writable-running\" not enabled in sysrepo.", mod_name);
+        goto error;
+    }
+    if (lys_features_state(mod, "candidate") != 1) {
+        ERR("Module \"%s\" feature \"candidate\" not enabled in sysrepo.", mod_name);
+        goto error;
+    }
+    /* TODO lys_features_state(mod, "confirmed-commit"); */
+    if (lys_features_state(mod, "rollback-on-error") != 1) {
+        ERR("Module \"%s\" feature \"rollback-on-error\" not enabled in sysrepo.", mod_name);
+        goto error;
+    }
+    if (lys_features_state(mod, "validate") != 1) {
+        ERR("Module \"%s\" feature \"validate\" not enabled in sysrepo.", mod_name);
+        goto error;
+    }
+    if (lys_features_state(mod, "startup") != 1) {
+        ERR("Module \"%s\" feature \"startup\" not enabled in sysrepo.", mod_name);
+        goto error;
+    }
+    /* TODO lys_features_state(mod, "url"); */
+    if (lys_features_state(mod, "xpath") != 1) {
+        ERR("Module \"%s\" feature \"xpath\" not enabled in sysrepo.", mod_name);
+        goto error;
+    }
 
     /* ... ietf-netconf-monitoring (leave get-schema RPC empty, libnetconf2 will use its callback), */
-    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-monitoring", "2010-10-04", 1) &&
-            !lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_monitoring_yin, LYS_IN_YIN)) {
+    mod_name = "ietf-netconf-monitoring";
+    mod = ly_ctx_get_module(np2srv.ly_ctx, mod_name, NULL, 1);
+    if (!mod || !mod->implemented) {
+        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
         goto error;
     }
 
     /* ... ietf-netconf-with-defaults */
-    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-with-defaults", "2011-06-01", 1) &&
-            !lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_with_defaults_2011_06_01_yin, LYS_IN_YIN)) {
+    mod_name = "ietf-netconf-with-defaults";
+    mod = ly_ctx_get_module(np2srv.ly_ctx, mod_name, NULL, 1);
+    if (!mod || !mod->implemented) {
+        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
         goto error;
     }
 
-    /* ... notifications, nc-notifications, and ietf-netconf-notifications */
-    if (!ly_ctx_get_module(np2srv.ly_ctx, "notifications", "2008-07-14", 1) &&
-            !lys_parse_mem(np2srv.ly_ctx, (const char *)notifications_2008_07_14_yin, LYS_IN_YIN)) {
+    /* ... notifications, nc-notifications, and ietf-netconf-notifications (must be implemented in sysrepo) */
+    mod_name = "notifications";
+    mod = ly_ctx_get_module(np2srv.ly_ctx, mod_name, NULL, 1);
+    if (!mod || !mod->implemented) {
+        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
         goto error;
     }
-    if (!ly_ctx_get_module(np2srv.ly_ctx, "nc-notifications", "2008-07-14", 1) &&
-            !lys_parse_mem(np2srv.ly_ctx, (const char *)nc_notifications_2008_07_14_yin, LYS_IN_YIN)) {
+    mod_name = "nc-notifications";
+    mod = ly_ctx_get_module(np2srv.ly_ctx, mod_name, NULL, 1);
+    if (!mod || !mod->implemented) {
+        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
         goto error;
     }
-    if (!ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", "2012-02-06", 1) &&
-            !lys_parse_mem(np2srv.ly_ctx, (const char *)ietf_netconf_notifications_2012_02_06_yin, LYS_IN_YIN)) {
+    mod_name = "ietf-netconf-notifications";
+    mod = ly_ctx_get_module(np2srv.ly_ctx, mod_name, NULL, 1);
+    if (!mod || !mod->implemented) {
+        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
         goto error;
     }
 
@@ -949,6 +974,7 @@ error:
         sr_free_schemas(schemas, schema_count);
     }
     ly_ctx_destroy(np2srv.ly_ctx, NULL);
+    np2srv.ly_ctx = NULL;
     return -1;
 }
 
@@ -1412,15 +1438,16 @@ cleanup:
     if (np2srv.sr_subscr) {
         sr_unsubscribe(np2srv.sr_sess.srs, np2srv.sr_subscr);
     }
+    if (np2srv.sr_sess.srs) {
+        sr_session_stop(np2srv.sr_sess.srs);
+    }
+    sr_disconnect(np2srv.sr_conn);
 
     /* libnetconf2 cleanup */
     if (np2srv.nc_ps) {
         nc_ps_clear(np2srv.nc_ps, 1, free_ds);
     }
     nc_ps_free(np2srv.nc_ps);
-
-    /* clears all the sessions also */
-    sr_disconnect(np2srv.sr_conn);
 
     nc_server_destroy();
 
