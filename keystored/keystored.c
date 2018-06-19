@@ -298,6 +298,7 @@ ks_privkey_gen_cb(const char *UNUSED(xpath), const sr_node_t *input, const size_
     pid_t pid;
     int ret = SR_ERR_OK, status;
     char *priv_path = NULL, *pub_path = NULL, len_arg[27];
+    char *algorithm;
 
     if ((input_cnt < 2) || (input[0].type != SR_STRING_T) || (input[1].type != SR_IDENTITYREF_T)
             || ((input_cnt == 3) && (input[2].type != SR_UINT32_T))) {
@@ -306,7 +307,15 @@ ks_privkey_gen_cb(const char *UNUSED(xpath), const sr_node_t *input, const size_
         goto cleanup;
     }
 
-    if (strcmp(input[1].data.string_val, "rsa")) {
+    /* Get algorithm, skipping module name (if present) */
+    algorithm = strchr(input[1].data.string_val, ':');
+    if (!algorithm) {
+        algorithm = input[1].data.string_val;
+    } else {
+        algorithm++;
+    }
+
+    if (strcmp(algorithm, "rsa")) {
         SRP_LOG_ERR_MSG("Generating EC private keys not supported yet.");
         ret = SR_ERR_UNSUPPORTED;
         goto cleanup;
