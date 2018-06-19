@@ -67,49 +67,6 @@ __wrap_sr_session_start(sr_conn_ctx_t *conn_ctx, const sr_datastore_t datastore,
 }
 
 int
-__wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t *schema_cnt)
-{
-    (void)session;
-
-    *schema_cnt = 4;
-
-    *schemas = calloc(4, sizeof **schemas);
-
-    (*schemas)[0].module_name = strdup("ietf-netconf-server");
-    (*schemas)[0].installed = 1;
-
-    (*schemas)[1].module_name = strdup("ietf-interfaces");
-    (*schemas)[1].ns = strdup("urn:ietf:params:xml:ns:yang:ietf-interfaces");
-    (*schemas)[1].prefix = strdup("if");
-    (*schemas)[1].revision.revision = strdup("2014-05-08");
-    (*schemas)[1].revision.file_path_yin = strdup(TESTS_DIR"/files/ietf-interfaces.yin");
-    (*schemas)[1].enabled_features = malloc(sizeof(char *));
-    (*schemas)[1].enabled_features[0] = strdup("if-mib");
-    (*schemas)[1].enabled_feature_cnt = 1;
-    (*schemas)[1].installed = 1;
-
-    (*schemas)[2].module_name = strdup("ietf-ip");
-    (*schemas)[2].ns = strdup("urn:ietf:params:xml:ns:yang:ietf-ip");
-    (*schemas)[2].prefix = strdup("ip");
-    (*schemas)[2].revision.revision = strdup("2014-06-16");
-    (*schemas)[2].revision.file_path_yin = strdup(TESTS_DIR"/files/ietf-ip.yin");
-    (*schemas)[2].enabled_features = malloc(2 * sizeof(char *));
-    (*schemas)[2].enabled_features[0] = strdup("ipv4-non-contiguous-netmasks");
-    (*schemas)[2].enabled_features[1] = strdup("ipv6-privacy-autoconf");
-    (*schemas)[2].enabled_feature_cnt = 2;
-    (*schemas)[2].installed = 1;
-
-    (*schemas)[3].module_name = strdup("iana-if-type");
-    (*schemas)[3].ns = strdup("urn:ietf:params:xml:ns:yang:iana-if-type");
-    (*schemas)[3].prefix = strdup("if");
-    (*schemas)[3].revision.revision = strdup("2014-05-08");
-    (*schemas)[3].revision.file_path_yin = strdup(TESTS_DIR"/files/iana-if-type.yin");
-    (*schemas)[3].installed = 1;
-
-    return SR_ERR_OK;
-}
-
-int
 __wrap_sr_session_start_user(sr_conn_ctx_t *conn_ctx, const char *user_name, const sr_datastore_t datastore,
                              const sr_sess_options_t opts, sr_session_ctx_t **session)
 {

@@ -101,7 +101,139 @@ struct nc_session {
     } opts;
 };
 
-/* one wrapper for all the tests */
+/* wrappers for all the tests */
+int
+__wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t *schema_cnt)
+{
+    (void)session;
+
+    *schemas = calloc(16, sizeof **schemas);
+    *schema_cnt = 16;
+
+    (*schemas)[0].module_name = strdup("ietf-netconf-server");
+    (*schemas)[0].installed = 1;
+
+    (*schemas)[1].module_name = strdup("ietf-netconf");
+    (*schemas)[1].ns = strdup("urn:ietf:params:xml:ns:netconf:base:1.0");
+    (*schemas)[1].prefix = strdup("nc");
+    (*schemas)[1].revision.revision = strdup("2011-06-01");
+    (*schemas)[1].revision.file_path_yin = strdup(TESTS_DIR"/files/ietf-netconf.yin");
+    (*schemas)[1].installed = 1;
+
+    (*schemas)[1].enabled_feature_cnt = 6;
+    (*schemas)[1].enabled_features = calloc(6, sizeof *(*schemas)[1].enabled_features);
+    (*schemas)[1].enabled_features[0] = strdup("writable-running");
+    (*schemas)[1].enabled_features[1] = strdup("candidate");
+    (*schemas)[1].enabled_features[2] = strdup("rollback-on-error");
+    (*schemas)[1].enabled_features[3] = strdup("validate");
+    (*schemas)[1].enabled_features[4] = strdup("startup");
+    (*schemas)[1].enabled_features[5] = strdup("xpath");
+
+    (*schemas)[2].module_name = strdup("ietf-netconf-notifications");
+    (*schemas)[2].ns = strdup("urn:ietf:params:xml:ns:yang:ietf-netconf-notifications");
+    (*schemas)[2].prefix = strdup("ncn");
+    (*schemas)[2].revision.revision = strdup("2012-02-06");
+    (*schemas)[2].revision.file_path_yin = strdup(TESTS_DIR"/files/ietf-netconf-notifications.yin");
+    (*schemas)[2].installed = 1;
+
+    (*schemas)[3].module_name = strdup("notifications");
+    (*schemas)[3].ns = strdup("urn:ietf:params:xml:ns:netconf:notification:1.0");
+    (*schemas)[3].prefix = strdup("ncEvent");
+    (*schemas)[3].revision.revision = strdup("2008-07-14");
+    (*schemas)[3].revision.file_path_yin = strdup(TESTS_DIR"/files/notifications.yin");
+    (*schemas)[3].installed = 1;
+
+    (*schemas)[4].module_name = strdup("nc-notifications");
+    (*schemas)[4].ns = strdup("urn:ietf:params:xml:ns:netmod:notification");
+    (*schemas)[4].prefix = strdup("manageEvent");
+    (*schemas)[4].revision.revision = strdup("2008-07-14");
+    (*schemas)[4].revision.file_path_yin = strdup(TESTS_DIR"/files/nc-notifications.yin");
+    (*schemas)[4].installed = 1;
+
+    (*schemas)[5].module_name = strdup("test-notif");
+    (*schemas)[5].ns = strdup("urn:libyang:test:notif");
+    (*schemas)[5].prefix = strdup("tn");
+    (*schemas)[5].revision.revision = strdup("2017-03-22");
+    (*schemas)[5].revision.file_path_yin = strdup(TESTS_DIR"/files/test-notif.yin");
+    (*schemas)[5].installed = 1;
+
+    (*schemas)[6].module_name = strdup("ietf-interfaces");
+    (*schemas)[6].ns = strdup("urn:ietf:params:xml:ns:yang:ietf-interfaces");
+    (*schemas)[6].prefix = strdup("if");
+    (*schemas)[6].revision.revision = strdup("2014-05-08");
+    (*schemas)[6].revision.file_path_yin = strdup(TESTS_DIR"/files/ietf-interfaces.yin");
+    (*schemas)[6].enabled_features = malloc(sizeof(char *));
+    (*schemas)[6].enabled_features[0] = strdup("if-mib");
+    (*schemas)[6].enabled_feature_cnt = 1;
+    (*schemas)[6].installed = 1;
+
+    (*schemas)[7].module_name = strdup("ietf-ip");
+    (*schemas)[7].ns = strdup("urn:ietf:params:xml:ns:yang:ietf-ip");
+    (*schemas)[7].prefix = strdup("ip");
+    (*schemas)[7].revision.revision = strdup("2014-06-16");
+    (*schemas)[7].revision.file_path_yin = strdup(TESTS_DIR"/files/ietf-ip.yin");
+    (*schemas)[7].enabled_features = malloc(2 * sizeof(char *));
+    (*schemas)[7].enabled_features[0] = strdup("ipv4-non-contiguous-netmasks");
+    (*schemas)[7].enabled_features[1] = strdup("ipv6-privacy-autoconf");
+    (*schemas)[7].enabled_feature_cnt = 2;
+    (*schemas)[7].installed = 1;
+
+    (*schemas)[8].module_name = strdup("iana-if-type");
+    (*schemas)[8].ns = strdup("urn:ietf:params:xml:ns:yang:iana-if-type");
+    (*schemas)[8].prefix = strdup("if");
+    (*schemas)[8].revision.revision = strdup("2014-05-08");
+    (*schemas)[8].revision.file_path_yin = strdup(TESTS_DIR"/files/iana-if-type.yin");
+    (*schemas)[8].installed = 1;
+
+    (*schemas)[9].module_name = strdup("test-feature-c");
+    (*schemas)[9].ns = strdup("urn:ietf:params:xml:ns:yang:test-feature-c");
+    (*schemas)[9].prefix = strdup("tfc");
+    (*schemas)[9].revision.revision = strdup("2018-05-18");
+    (*schemas)[9].revision.file_path_yin = strdup(TESTS_DIR"/files/test-feature-c.yin");
+    (*schemas)[9].enabled_features = malloc(sizeof(char *));
+    (*schemas)[9].enabled_features[0] = strdup("test-feature-c");
+    (*schemas)[9].enabled_feature_cnt = 1;
+    (*schemas)[9].installed = 1;
+
+    (*schemas)[10].module_name = strdup("test-feature-b");
+    (*schemas)[10].ns = strdup("urn:ietf:params:xml:ns:yang:test-feature-b");
+    (*schemas)[10].prefix = strdup("tfb");
+    (*schemas)[10].revision.revision = strdup("2018-05-18");
+    (*schemas)[10].revision.file_path_yin = strdup(TESTS_DIR"/files/test-feature-b.yin");
+    (*schemas)[10].enabled_features = malloc(sizeof(char *));
+    (*schemas)[10].enabled_features[0] = strdup("test-feature-b");
+    (*schemas)[10].enabled_feature_cnt = 1;
+    (*schemas)[10].installed = 1;
+
+    (*schemas)[11].module_name = strdup("test-feature-a");
+    (*schemas)[11].ns = strdup("urn:ietf:params:xml:ns:yang:test-feature-a");
+    (*schemas)[11].prefix = strdup("tfa");
+    (*schemas)[11].revision.revision = strdup("2018-05-18");
+    (*schemas)[11].revision.file_path_yin = strdup(TESTS_DIR"/files/test-feature-a.yin");
+    (*schemas)[11].enabled_features = malloc(sizeof(char *));
+    (*schemas)[11].enabled_features[0] = strdup("test-feature-a");
+    (*schemas)[11].enabled_feature_cnt = 1;
+    (*schemas)[11].installed = 1;
+
+    (*schemas)[12].module_name = strdup("simplified-melt");
+    (*schemas)[12].ns = strdup("urn:ietf:params:xml:ns:simplified-melt");
+    (*schemas)[12].prefix = strdup("smelt");
+    (*schemas)[12].revision.revision = strdup("2018-06-13");
+    (*schemas)[12].revision.file_path_yin = strdup(TESTS_DIR"/files/simplified-melt.yin");
+    (*schemas)[12].installed = 1;
+
+    (*schemas)[13].module_name = strdup("ietf-netconf-monitoring");
+    (*schemas)[13].installed = 1;
+
+    (*schemas)[14].module_name = strdup("ietf-netconf-with-defaults");
+    (*schemas)[14].installed = 1;
+
+    (*schemas)[15].module_name = strdup("custom-op");
+    (*schemas)[15].installed = 1;
+
+    return SR_ERR_OK;
+}
+
 int
 __wrap_sr_get_schema(sr_session_ctx_t *session, const char *module_name, const char *revision,
                      const char *submodule_name, sr_schema_format_t format, char **schema_content)
@@ -130,6 +262,10 @@ __wrap_sr_get_schema(sr_session_ctx_t *session, const char *module_name, const c
         fd = open(TESTS_DIR "/files/custom-op.yin", O_RDONLY);
     } else if (!strcmp(module_name, "ietf-netconf")) {
         fd = open(TESTS_DIR "/files/ietf-netconf.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "ietf-netconf-with-defaults")) {
+        fd = open(TESTS_DIR "/files/ietf-netconf-with-defaults.yin", O_RDONLY);
+    } else if (!strcmp(module_name, "ietf-netconf-monitoring")) {
+        fd = open(TESTS_DIR "/files/ietf-netconf-monitoring.yin", O_RDONLY);
     } else if (!strcmp(module_name, "ietf-netconf-acm")) {
         fd = open(TESTS_DIR "/files/ietf-netconf-acm.yin", O_RDONLY);
     } else if (!strcmp(module_name, "ietf-netconf-notifications")) {

@@ -68,55 +68,6 @@ __wrap_sr_session_start(sr_conn_ctx_t *conn_ctx, const sr_datastore_t datastore,
 }
 
 int
-__wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t *schema_cnt)
-{
-    (void)session;
-
-    *schema_cnt = 6;
-    *schemas = calloc(6, sizeof **schemas);
-
-    (*schemas)[0].module_name = strdup("ietf-netconf-server");
-    (*schemas)[0].installed = 1;
-
-    (*schemas)[1].module_name = strdup("ietf-netconf");
-    (*schemas)[1].ns = strdup("urn:ietf:params:xml:ns:netconf:base:1.0");
-    (*schemas)[1].prefix = strdup("nc");
-    (*schemas)[1].revision.revision = strdup("2011-06-01");
-    (*schemas)[1].revision.file_path_yin = strdup(TESTS_DIR"/files/ietf-netconf.yin");
-    (*schemas)[1].installed = 1;
-
-    (*schemas)[2].module_name = strdup("ietf-netconf-notifications");
-    (*schemas)[2].ns = strdup("urn:ietf:params:xml:ns:yang:ietf-netconf-notifications");
-    (*schemas)[2].prefix = strdup("ncn");
-    (*schemas)[2].revision.revision = strdup("2012-02-06");
-    (*schemas)[2].revision.file_path_yin = strdup(TESTS_DIR"/files/ietf-netconf-notifications.yin");
-    (*schemas)[2].installed = 1;
-
-    (*schemas)[3].module_name = strdup("notifications");
-    (*schemas)[3].ns = strdup("urn:ietf:params:xml:ns:netconf:notification:1.0");
-    (*schemas)[3].prefix = strdup("ncEvent");
-    (*schemas)[3].revision.revision = strdup("2008-07-14");
-    (*schemas)[3].revision.file_path_yin = strdup(TESTS_DIR"/files/notifications.yin");
-    (*schemas)[3].installed = 1;
-
-    (*schemas)[4].module_name = strdup("nc-notifications");
-    (*schemas)[4].ns = strdup("urn:ietf:params:xml:ns:netmod:notification");
-    (*schemas)[4].prefix = strdup("manageEvent");
-    (*schemas)[4].revision.revision = strdup("2008-07-14");
-    (*schemas)[4].revision.file_path_yin = strdup(TESTS_DIR"/files/nc-notifications.yin");
-    (*schemas)[4].installed = 1;
-
-    (*schemas)[5].module_name = strdup("test-notif");
-    (*schemas)[5].ns = strdup("urn:libyang:test:notif");
-    (*schemas)[5].prefix = strdup("tn");
-    (*schemas)[5].revision.revision = strdup("2017-03-22");
-    (*schemas)[5].revision.file_path_yin = strdup(TESTS_DIR"/files/test-notif.yin");
-    (*schemas)[5].installed = 1;
-
-    return SR_ERR_OK;
-}
-
-int
 __wrap_sr_session_start_user(sr_conn_ctx_t *conn_ctx, const char *user_name, const sr_datastore_t datastore,
                              const sr_sess_options_t opts, sr_session_ctx_t **session)
 {

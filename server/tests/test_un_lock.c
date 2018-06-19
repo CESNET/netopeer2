@@ -62,19 +62,6 @@ __wrap_sr_session_start(sr_conn_ctx_t *conn_ctx, const sr_datastore_t datastore,
 }
 
 int
-__wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t *schema_cnt)
-{
-    (void)session;
-
-    *schemas = calloc(1, sizeof **schemas);
-    *schema_cnt = 1;
-    (*schemas)[0].module_name = strdup("ietf-netconf-server");
-    (*schemas)[0].installed = 1;
-
-    return SR_ERR_OK;
-}
-
-int
 __wrap_sr_session_start_user(sr_conn_ctx_t *conn_ctx, const char *user_name, const sr_datastore_t datastore,
                              const sr_sess_options_t opts, sr_session_ctx_t **session)
 {

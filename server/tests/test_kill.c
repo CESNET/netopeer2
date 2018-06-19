@@ -61,26 +61,6 @@ __wrap_sr_session_start(sr_conn_ctx_t *conn_ctx, const sr_datastore_t datastore,
 }
 
 int
-__wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t *schema_cnt)
-{
-    (void)session;
-
-    *schemas = calloc(2, sizeof **schemas);
-    *schema_cnt = 2;
-
-    (*schemas)[0].module_name = strdup("ietf-netconf-server");
-    (*schemas)[0].installed = 1;
-
-    (*schemas)[1].module_name = strdup("ietf-netconf");
-    (*schemas)[1].ns = strdup("urn:ietf:params:xml:ns:netconf:base:1.0");
-    (*schemas)[1].prefix = strdup("nc");
-    (*schemas)[1].revision.revision = strdup("2011-06-01");
-    (*schemas)[1].revision.file_path_yin = strdup(TESTS_DIR"/files/ietf-netconf.yin");
-    (*schemas)[1].installed = 1;
-    return SR_ERR_OK;
-}
-
-int
 __wrap_sr_session_start_user(sr_conn_ctx_t *conn_ctx, const char *user_name, const sr_datastore_t datastore,
                              const sr_sess_options_t opts, sr_session_ctx_t **session)
 {

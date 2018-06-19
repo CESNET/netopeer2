@@ -68,86 +68,6 @@ __wrap_sr_session_start(sr_conn_ctx_t *conn_ctx, const sr_datastore_t datastore,
 }
 
 int
-__wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t *schema_cnt)
-{
-    (void)session;
-
-    *schema_cnt = 8;
-
-    *schemas = calloc(*schema_cnt, sizeof **schemas);
-
-    (*schemas)[0].module_name = strdup("ietf-netconf-server");
-    (*schemas)[0].installed = 1;
-
-    (*schemas)[1].module_name = strdup("ietf-interfaces");
-    (*schemas)[1].ns = strdup("urn:ietf:params:xml:ns:yang:ietf-interfaces");
-    (*schemas)[1].prefix = strdup("if");
-    (*schemas)[1].revision.revision = strdup("2014-05-08");
-    (*schemas)[1].revision.file_path_yin = strdup(TESTS_DIR"/files/ietf-interfaces.yin");
-    (*schemas)[1].enabled_features = malloc(sizeof(char *));
-    (*schemas)[1].enabled_features[0] = strdup("if-mib");
-    (*schemas)[1].enabled_feature_cnt = 1;
-    (*schemas)[1].installed = 1;
-
-    (*schemas)[2].module_name = strdup("ietf-ip");
-    (*schemas)[2].ns = strdup("urn:ietf:params:xml:ns:yang:ietf-ip");
-    (*schemas)[2].prefix = strdup("ip");
-    (*schemas)[2].revision.revision = strdup("2014-06-16");
-    (*schemas)[2].revision.file_path_yin = strdup(TESTS_DIR"/files/ietf-ip.yin");
-    (*schemas)[2].enabled_features = malloc(2 * sizeof(char *));
-    (*schemas)[2].enabled_features[0] = strdup("ipv4-non-contiguous-netmasks");
-    (*schemas)[2].enabled_features[1] = strdup("ipv6-privacy-autoconf");
-    (*schemas)[2].enabled_feature_cnt = 2;
-    (*schemas)[2].installed = 1;
-
-    (*schemas)[3].module_name = strdup("iana-if-type");
-    (*schemas)[3].ns = strdup("urn:ietf:params:xml:ns:yang:iana-if-type");
-    (*schemas)[3].prefix = strdup("if");
-    (*schemas)[3].revision.revision = strdup("2014-05-08");
-    (*schemas)[3].revision.file_path_yin = strdup(TESTS_DIR"/files/iana-if-type.yin");
-    (*schemas)[3].installed = 1;
-
-    (*schemas)[4].module_name = strdup("test-feature-c");
-    (*schemas)[4].ns = strdup("urn:ietf:params:xml:ns:yang:test-feature-c");
-    (*schemas)[4].prefix = strdup("tfc");
-    (*schemas)[4].revision.revision = strdup("2018-05-18");
-    (*schemas)[4].revision.file_path_yin = strdup(TESTS_DIR"/files/test-feature-c.yin");
-    (*schemas)[4].enabled_features = malloc(sizeof(char *));
-    (*schemas)[4].enabled_features[0] = strdup("test-feature-c");
-    (*schemas)[4].enabled_feature_cnt = 1;
-    (*schemas)[4].installed = 1;
-
-    (*schemas)[5].module_name = strdup("test-feature-b");
-    (*schemas)[5].ns = strdup("urn:ietf:params:xml:ns:yang:test-feature-b");
-    (*schemas)[5].prefix = strdup("tfb");
-    (*schemas)[5].revision.revision = strdup("2018-05-18");
-    (*schemas)[5].revision.file_path_yin = strdup(TESTS_DIR"/files/test-feature-b.yin");
-    (*schemas)[5].enabled_features = malloc(sizeof(char *));
-    (*schemas)[5].enabled_features[0] = strdup("test-feature-b");
-    (*schemas)[5].enabled_feature_cnt = 1;
-    (*schemas)[5].installed = 1;
-
-    (*schemas)[6].module_name = strdup("test-feature-a");
-    (*schemas)[6].ns = strdup("urn:ietf:params:xml:ns:yang:test-feature-a");
-    (*schemas)[6].prefix = strdup("tfa");
-    (*schemas)[6].revision.revision = strdup("2018-05-18");
-    (*schemas)[6].revision.file_path_yin = strdup(TESTS_DIR"/files/test-feature-a.yin");
-    (*schemas)[6].enabled_features = malloc(sizeof(char *));
-    (*schemas)[6].enabled_features[0] = strdup("test-feature-a");
-    (*schemas)[6].enabled_feature_cnt = 1;
-    (*schemas)[6].installed = 1;
-
-    (*schemas)[7].module_name = strdup("simplified-melt");
-    (*schemas)[7].ns = strdup("urn:ietf:params:xml:ns:simplified-melt");
-    (*schemas)[7].prefix = strdup("smelt");
-    (*schemas)[7].revision.revision = strdup("2018-06-13");
-    (*schemas)[7].revision.file_path_yin = strdup(TESTS_DIR"/files/simplified-melt.yin");
-    (*schemas)[7].installed = 1;
-
-    return SR_ERR_OK;
-}
-
-int
 __wrap_sr_session_start_user(sr_conn_ctx_t *conn_ctx, const char *user_name, const sr_datastore_t datastore,
                              const sr_sess_options_t opts, sr_session_ctx_t **session)
 {
@@ -261,7 +181,7 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
         path = lyd_path(ietf_if_set->set.d[0]);
 
         /* Copied from sysrepo rp_dt_create_xpath_for_node() */
-        
+
         /* remove leaf-list predicate */
         if (LYS_LEAFLIST & ietf_if_set->set.d[0]->schema->nodetype) {
            char *leaf_list_name = strstr(path, "[.='");
@@ -272,7 +192,7 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
            }
         }
         /* End copy */
-        
+
         *value = calloc(1, sizeof **value);
         op_set_srval(ietf_if_set->set.d[0], path, 1, *value, NULL);
         (*value)->dflt = ietf_if_set->set.d[0]->dflt;
@@ -1611,7 +1531,7 @@ test_edit_merge3(void **state)
   "</pmd-profile>"
 "</melt>"
         "</data>"
-    "</rpc-reply>";   
+    "</rpc-reply>";
     const char *edit_rpc =
     "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
         "<edit-config>"
