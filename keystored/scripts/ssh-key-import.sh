@@ -12,7 +12,7 @@ local_path=$(dirname $0)
 : ${STOCK_KEY_CONFIG:=$local_path/../stock_key_config.xml}
 : ${KEYSTORED_KEYS_DIR:=/etc/keystored/keys}
 
-if [ -n "$($SYSREPOCFG -d startup --export ietf-keystore)" ]; then
+if [ -n "$($SYSREPOCFG -d startup -f xml --export ietf-keystore)" ]; then
     exit 0
 fi
 

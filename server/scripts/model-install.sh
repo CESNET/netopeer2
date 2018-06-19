@@ -34,7 +34,7 @@ for f in authentication local-users; do
     $SYSREPOCTL -m ietf-system -e $f
 done
 
-if [ -n "$($SYSREPOCFG -d startup --export ietf-netconf-server)" ]; then
+if [ -n "$($SYSREPOCFG -d startup -f xml --export ietf-netconf-server)" ]; then
     exit 0
 fi
 
