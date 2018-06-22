@@ -131,6 +131,8 @@ char *op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char *buf);
  */
 int op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val, char **val_buf);
 
+int op_add_srval(sr_val_t **values, size_t *values_cnt, struct lyd_node *node);
+
 /**
  * @brief Build error reply because of NACM access denied
  */

@@ -78,7 +78,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     const struct lys_module *module;
     const struct lys_node *snode;
     struct lyd_node_leaf_list *leaf;
-    struct lyd_node *root = NULL, *node, *yang_lib_data = NULL, *ncm_data = NULL, *ntf_data = NULL;
+    struct lyd_node *root = NULL, *node;
     char **filters = NULL, *path;
     int filter_count = 0, rc;
     unsigned int config_only;
@@ -209,71 +209,11 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
      * create the data tree for the data reply
      */
     for (i = 0; (signed)i < filter_count; i++) {
-        /* special case, we have this data locally */
-        if (!strncmp(filters[i], "/ietf-yang-library:", 19)) {
-            if (config_only) {
-                /* these are all state data */
-                continue;
-            }
-
-            if (!yang_lib_data) {
-                yang_lib_data = ly_ctx_info(np2srv.ly_ctx);
-                if (!yang_lib_data) {
-                    goto error;
-                }
-            }
-
-            if (op_filter_get_tree_from_data(&root, yang_lib_data, filters[i])) {
-                goto error;
-            }
-            continue;
-        } else if (!strncmp(filters[i], "/ietf-netconf-monitoring:", 25)) {
-            if (config_only) {
-                /* these are all state data */
-                continue;
-            }
-
-            if (!ncm_data) {
-                ncm_data = ncm_get_data();
-                if (!ncm_data) {
-                    goto error;
-                }
-            }
-
-            if (op_filter_get_tree_from_data(&root, ncm_data, filters[i])) {
-                goto error;
-            }
-            continue;
-        } else if (!strncmp(filters[i], "/nc-notifications:", 18)) {
-            if (config_only) {
-                /* these are all state data */
-                continue;
-            }
-
-            if (!ntf_data) {
-                ntf_data = ntf_get_data();
-                if (!ntf_data) {
-                    goto error;
-                }
-            }
-
-            if (op_filter_get_tree_from_data(&root, ntf_data, filters[i])) {
-                goto error;
-            }
-            continue;
-        }
-
-        /* create this subtree */
+        /* create the subtree */
         if (opget_build_subtree_from_sysrepo(sessions->srs, &root, filters[i])) {
             goto error;
         }
     }
-    lyd_free_withsiblings(yang_lib_data);
-    yang_lib_data = NULL;
-    lyd_free_withsiblings(ncm_data);
-    ncm_data = NULL;
-    lyd_free_withsiblings(ntf_data);
-    ntf_data = NULL;
 
     for (i = 0; (signed)i < filter_count; ++i) {
         free(filters[i]);
@@ -314,9 +254,6 @@ error:
     }
     free(filters);
 
-    lyd_free_withsiblings(yang_lib_data);
-    lyd_free_withsiblings(ncm_data);
-    lyd_free_withsiblings(ntf_data);
     lyd_free_withsiblings(root);
     return ereply;
 }

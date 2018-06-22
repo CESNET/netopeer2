@@ -539,6 +539,95 @@ np2srv_feature_change_clb(const char *module_name, const char *feature_name, boo
 }
 
 static int
+np2srv_state_data_clb(const char *xpath, sr_val_t **values, size_t *values_cnt, void *UNUSED(private_ctx))
+{
+    struct lyd_node *data = NULL, *node, *iter;
+    struct ly_set *set = NULL;
+    uint32_t i, j;
+    int ret = SR_ERR_OK;
+
+    if (!strncmp(xpath, "/ietf-netconf-monitoring:", 25)) {
+        data = ncm_get_data();
+    } else if (!strncmp(xpath, "/nc-notifications:", 18)) {
+        data = ntf_get_data();
+    } else if (!strncmp(xpath, "/ietf-yang-library:", 19)) {
+        data = ly_ctx_info(np2srv.ly_ctx);
+    } else {
+        ret = SR_ERR_OPERATION_FAILED;
+        goto cleanup;
+    }
+
+    set = lyd_find_path(data, xpath);
+    if (!set || !set->number) {
+        if (!set) {
+            ret = SR_ERR_OPERATION_FAILED;
+        }
+        goto cleanup;
+    }
+    node = set->set.d[0];
+
+    switch (node->schema->nodetype) {
+    case LYS_CONTAINER:
+        LY_TREE_FOR(node->child, iter) {
+            if (iter->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST)) {
+                if (op_add_srval(values, values_cnt, iter)) {
+                    ret = SR_ERR_OPERATION_FAILED;
+                    goto cleanup;
+                }
+            }
+        }
+        break;
+    case LYS_LIST:
+        for (i = 0; i < set->number; ++i) {
+            node = set->set.d[i];
+            j = ((struct lys_node_list *)node->schema)->keys_size;
+
+            LY_TREE_FOR(node->child, iter) {
+                if (j) {
+                    /* skip keys */
+                    --j;
+                    continue;
+                }
+                if (iter->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST)) {
+                    if (op_add_srval(values, values_cnt, iter)) {
+                        ret = SR_ERR_OPERATION_FAILED;
+                        goto cleanup;
+                    }
+                }
+            }
+        }
+        break;
+    case LYS_LEAFLIST:
+        for (i = 0; i < set->number; ++i) {
+            if (op_add_srval(values, values_cnt, set->set.d[i])) {
+                ret = SR_ERR_OPERATION_FAILED;
+                goto cleanup;
+            }
+        }
+        break;
+    case LYS_LEAF:
+        if (op_add_srval(values, values_cnt, node)) {
+            ret = SR_ERR_OPERATION_FAILED;
+            goto cleanup;
+        }
+        break;
+    default:
+        ret = SR_ERR_OPERATION_FAILED;
+        break;
+    }
+
+cleanup:
+    ly_set_free(set);
+    lyd_free_withsiblings(data);
+    if (ret != SR_ERR_OK) {
+        sr_free_values(*values, *values_cnt);
+        *values_cnt = 0;
+        *values = NULL;
+    }
+    return ret;
+}
+
+static int
 connect_ds(struct nc_session *ncs)
 {
     struct np2_sessions *s;
@@ -932,6 +1021,13 @@ np2srv_init_schemas(void)
         ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
         goto error;
     }
+    /* subscribe for providing state data */
+    rc = sr_dp_get_items_subscribe(np2srv.sr_sess.srs, "/ietf-netconf-monitoring:netconf-state", np2srv_state_data_clb, NULL,
+                                   SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
 
     /* ... ietf-netconf-with-defaults */
     mod_name = "ietf-netconf-with-defaults";
@@ -954,10 +1050,37 @@ np2srv_init_schemas(void)
         ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
         goto error;
     }
+    /* subscribe for providing state data */
+    rc = sr_dp_get_items_subscribe(np2srv.sr_sess.srs, "/nc-notifications:netconf", np2srv_state_data_clb, NULL,
+                                   SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
     mod_name = "ietf-netconf-notifications";
     mod = ly_ctx_get_module(np2srv.ly_ctx, mod_name, NULL, 1);
     if (!mod || !mod->implemented) {
         ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
+        goto error;
+    }
+    mod_name = "ietf-yang-library";
+    mod = ly_ctx_get_module(np2srv.ly_ctx, mod_name, NULL, 1);
+    if (!mod || !mod->implemented) {
+        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
+        goto error;
+    }
+    /* subscribe for providing state data */
+    rc = sr_dp_get_items_subscribe(np2srv.sr_sess.srs, "/ietf-yang-library:yang-library", np2srv_state_data_clb, NULL,
+                                   SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for providing \"%s\" state data failed (%s).", sr_strerror(rc));
+        goto error;
+    }
+    rc = sr_dp_get_items_subscribe(np2srv.sr_sess.srs, "/ietf-yang-library:modules-state", np2srv_state_data_clb, NULL,
+                                   SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for providing \"%s\" state data failed (%s).", sr_strerror(rc));
         goto error;
     }
 

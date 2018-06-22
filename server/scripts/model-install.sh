@@ -51,6 +51,7 @@ install_yang_module ietf-netconf-monitoring
 install_yang_module notifications
 install_yang_module nc-notifications
 install_yang_module ietf-netconf-notifications
+install_yang_module ietf-yang-library
 
 if ! is_yang_module_installed ietf-keystore; then
     echo "- Module ietf-keystore not installed, skipping configuration models installation."

@@ -24,6 +24,7 @@
 #include <pthread.h>
 
 #include <sysrepo.h>
+#include <sysrepo/values.h>
 
 #include "common.h"
 #include "operations.h"
@@ -1913,7 +1914,11 @@ op_set_srval(struct lyd_node *node, char *path, int dup, sr_val_t *val, char **v
         (*val_buf) = NULL;
     }
 
-    val->xpath = (dup && path) ? strdup(path) : path;
+    if (!dup) {
+        val->xpath = path;
+    } else {
+        sr_val_set_xpath(val, path);
+    }
     val->dflt = 0;
     val->data.int64_val = 0;
 
@@ -1932,7 +1937,11 @@ settype:
         case LY_TYPE_BINARY:
             val->type = SR_BINARY_T;
             str = leaf->value.binary;
-            val->data.binary_val = (dup && str) ? strdup(str) : (char *)str;
+            if (dup) {
+                sr_val_set_str_data(val, val->type, str);
+            } else {
+                val->data.string_val = (char *)str;
+            }
             if (NULL == val->data.binary_val) {
                 EMEM;
                 return -1;
@@ -1941,7 +1950,11 @@ settype:
         case LY_TYPE_BITS:
             val->type = SR_BITS_T;
             str = leaf->value_str;
-            val->data.bits_val = (dup && str) ? strdup(str) : (char *)str;
+            if (dup) {
+                sr_val_set_str_data(val, val->type, str);
+            } else {
+                val->data.string_val = (char *)str;
+            }
             break;
         case LY_TYPE_BOOL:
             val->type = SR_BOOL_T;
@@ -1961,7 +1974,11 @@ settype:
         case LY_TYPE_ENUM:
             val->type = SR_ENUM_T;
             str = leaf->value.enm->name;
-            val->data.enum_val = (dup && str) ? strdup(str) : (char*)str;
+            if (dup) {
+                sr_val_set_str_data(val, val->type, str);
+            } else {
+                val->data.string_val = (char *)str;
+            }
             if (NULL == val->data.enum_val) {
                 EMEM;
                 return -1;
@@ -1983,12 +2000,20 @@ settype:
             break;
         case LY_TYPE_INST:
             val->type = SR_INSTANCEID_T;
-            val->data.instanceid_val = dup ? strdup(leaf->value_str) : (char*)leaf->value_str;
+            if (dup) {
+                sr_val_set_str_data(val, val->type, leaf->value_str);
+            } else {
+                val->data.string_val = (char *)leaf->value_str;
+            }
             break;
         case LY_TYPE_STRING:
             val->type = SR_STRING_T;
             str = leaf->value.string;
-            val->data.string_val = (dup && str) ? strdup(str) : (char*)str;
+            if (dup) {
+                sr_val_set_str_data(val, val->type, str);
+            } else {
+                val->data.string_val = (char *)str;
+            }
             if (NULL == val->data.string_val) {
                 EMEM;
                 return -1;
@@ -2041,6 +2066,25 @@ settype:
     }
 
     return 0;
+}
+
+int
+op_add_srval(sr_val_t **values, size_t *values_cnt, struct lyd_node *node)
+{
+    char *path, *buf = NULL;
+    int ret;
+
+    if (sr_realloc_values(*values_cnt, *values_cnt + 1, values) != SR_ERR_OK) {
+        return -1;
+    }
+    ++(*values_cnt);
+
+    path = lyd_path(node);
+    ret = op_set_srval(node, path, 1, &(*values)[*values_cnt - 1], &buf);
+    free(path);
+    free(buf);
+
+    return ret;
 }
 
 int
