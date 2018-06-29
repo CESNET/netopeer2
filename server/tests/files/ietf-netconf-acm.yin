@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<module xmlns="urn:ietf:params:xml:ns:yang:yin:1" xmlns:nacm="urn:ietf:params:xml:ns:yang:ietf-netconf-acm" xmlns:yang="urn:ietf:params:xml:ns:yang:ietf-yang-types" name="ietf-netconf-acm">
+<module name="ietf-netconf-acm"
+        xmlns="urn:ietf:params:xml:ns:yang:yin:1"
+        xmlns:nacm="urn:ietf:params:xml:ns:yang:ietf-netconf-acm"
+        xmlns:yang="urn:ietf:params:xml:ns:yang:ietf-yang-types">
   <namespace uri="urn:ietf:params:xml:ns:yang:ietf-netconf-acm"/>
   <prefix value="nacm"/>
   <import module="ietf-yang-types">
@@ -9,40 +12,44 @@
     <text>IETF NETCONF (Network Configuration) Working Group</text>
   </organization>
   <contact>
-    <text>WG Web:   &lt;http://tools.ietf.org/wg/netconf/&gt;
+    <text>WG Web:   &lt;https://datatracker.ietf.org/wg/netconf/&gt;
 WG List:  &lt;mailto:netconf@ietf.org&gt;
 
-WG Chair: Mehmet Ersue
-          &lt;mailto:mehmet.ersue@nsn.com&gt;
-
-WG Chair: Bert Wijnen
-          &lt;mailto:bertietf@bwijnen.net&gt;
-
-Editor:   Andy Bierman
+Author:   Andy Bierman
           &lt;mailto:andy@yumaworks.com&gt;
 
-Editor:   Martin Bjorklund
+Author:   Martin Bjorklund
           &lt;mailto:mbj@tail-f.com&gt;</text>
   </contact>
   <description>
-    <text>NETCONF Access Control Model.
+    <text>Network Configuration Access Control Model.
 
-Copyright (c) 2012 IETF Trust and the persons identified as
-authors of the code.  All rights reserved.
+Copyright (c) 2012 - 2018 IETF Trust and the persons
+identified as authors of the code.  All rights reserved.
 
 Redistribution and use in source and binary forms, with or
 without modification, is permitted pursuant to, and subject
 to the license terms contained in, the Simplified BSD
 License set forth in Section 4.c of the IETF Trust's
 Legal Provisions Relating to IETF Documents
-(http://trustee.ietf.org/license-info).
+(https://trustee.ietf.org/license-info).
 
-This version of this YANG module is part of RFC 6536; see
+This version of this YANG module is part of RFC 8341; see
 the RFC itself for full legal notices.</text>
   </description>
+  <revision date="2018-02-14">
+    <description>
+      <text>Added support for YANG 1.1 actions and notifications tied to
+data nodes.  Clarified how NACM extensions can be used by
+other data models.</text>
+    </description>
+    <reference>
+      <text>RFC 8341: Network Configuration Access Control Model</text>
+    </reference>
+  </revision>
   <revision date="2012-02-22">
     <description>
-      <text>Initial version</text>
+      <text>Initial version.</text>
     </description>
     <reference>
       <text>RFC 6536: Network Configuration Protocol (NETCONF)
@@ -54,11 +61,13 @@ the RFC itself for full legal notices.</text>
       <text>Used to indicate that the data model node
 represents a sensitive security system parameter.
 
-If present, and the NACM module is enabled (i.e.,
-/nacm/enable-nacm object equals 'true'), the NETCONF server
-will only allow the designated 'recovery session' to have
-write access to the node.  An explicit access control rule is
-required for all other users.
+If present, the NETCONF server will only allow the designated
+'recovery session' to have write access to the node.  An
+explicit access control rule is required for all other users.
+
+If the NACM module is used, then it must be enabled (i.e.,
+/nacm/enable-nacm object equals 'true'), or this extension
+is ignored.
 
 The 'default-deny-write' extension MAY appear within a data
 definition statement.  It is ignored otherwise.</text>
@@ -69,11 +78,14 @@ definition statement.  It is ignored otherwise.</text>
       <text>Used to indicate that the data model node
 controls a very sensitive security system parameter.
 
-If present, and the NACM module is enabled (i.e.,
-/nacm/enable-nacm object equals 'true'), the NETCONF server
-will only allow the designated 'recovery session' to have
-read, write, or execute access to the node.  An explicit
-access control rule is required for all other users.
+If present, the NETCONF server will only allow the designated
+'recovery session' to have read, write, or execute access to
+the node.  An explicit access control rule is required for all
+other users.
+
+If the NACM module is used, then it must be enabled (i.e.,
+/nacm/enable-nacm object equals 'true'), or this extension
+is ignored.
 
 The 'default-deny-all' extension MAY appear within a data
 definition statement, 'rpc' statement, or 'notification'
@@ -85,7 +97,7 @@ statement.  It is ignored otherwise.</text>
       <length value="1..max"/>
     </type>
     <description>
-      <text>General Purpose Username string.</text>
+      <text>General-purpose username string.</text>
     </description>
   </typedef>
   <typedef name="matchall-string-type">
@@ -130,7 +142,7 @@ data node.</text>
       </bit>
     </type>
     <description>
-      <text>NETCONF Access Operation.</text>
+      <text>Access operation.</text>
     </description>
   </typedef>
   <typedef name="group-name-type">
@@ -165,35 +177,40 @@ rule matches.</text>
     <type name="yang:xpath1.0"/>
     <description>
       <text>Path expression used to represent a special
-data node instance identifier string.
+data node, action, or notification instance-identifier
+string.
 
 A node-instance-identifier value is an
 unrestricted YANG instance-identifier expression.
-All the same rules as an instance-identifier apply
-except predicates for keys are optional.  If a key
+All the same rules as an instance-identifier apply,
+except that predicates for keys are optional.  If a key
 predicate is missing, then the node-instance-identifier
 represents all possible server instances for that key.
 
-This XPath expression is evaluated in the following context:
+This XML Path Language (XPath) expression is evaluated in the
+following context:
 
- o  The set of namespace declarations are those in scope on
-    the leaf element where this type is used.
+   o  The set of namespace declarations are those in scope on
+      the leaf element where this type is used.
 
- o  The set of variable bindings contains one variable,
-    'USER', which contains the name of the user of the current
-     session.
+   o  The set of variable bindings contains one variable,
+      'USER', which contains the name of the user of the
+      current session.
 
- o  The function library is the core function library, but
-    note that due to the syntax restrictions of an
-    instance-identifier, no functions are allowed.
+   o  The function library is the core function library, but
+      note that due to the syntax restrictions of an
+      instance-identifier, no functions are allowed.
 
- o  The context node is the root node in the data tree.</text>
+   o  The context node is the root node in the data tree.
+
+The accessible tree includes actions and notifications tied
+to data nodes.</text>
     </description>
   </typedef>
   <container name="nacm">
     <nacm:default-deny-all/>
     <description>
-      <text>Parameters for NETCONF Access Control Model.</text>
+      <text>Parameters for NETCONF access control model.</text>
     </description>
     <leaf name="enable-nacm">
       <type name="boolean"/>
@@ -273,12 +290,12 @@ access to the event type was denied.</text>
     </leaf>
     <container name="groups">
       <description>
-        <text>NETCONF Access Control Groups.</text>
+        <text>NETCONF access control groups.</text>
       </description>
       <list name="group">
         <key value="name"/>
         <description>
-          <text>One NACM Group Entry.  This list will only contain
+          <text>One NACM group entry.  This list will only contain
 configured entries, not any entries learned from
 any transport protocols.</text>
         </description>
@@ -335,8 +352,8 @@ entry.</text>
 Rules are processed in user-defined order until a match is
 found.  A rule matches if 'module-name', 'rule-type', and
 'access-operations' match the request.  If a rule
-matches, the 'action' leaf determines if access is granted
-or not.</text>
+matches, the 'action' leaf determines whether or not
+access is granted.</text>
         </description>
         <leaf name="name">
           <type name="string">
@@ -396,13 +413,14 @@ value equals the requested notification name.</text>
               <type name="node-instance-identifier"/>
               <mandatory value="true"/>
               <description>
-                <text>Data Node Instance Identifier associated with the
-data node controlled by this rule.
+                <text>Data node instance-identifier associated with the
+data node, action, or notification controlled by
+this rule.
 
-Configuration data or state data instance
-identifiers start with a top-level data node.  A
-complete instance identifier is required for this
-type of path value.
+Configuration data or state data
+instance-identifiers start with a top-level
+data node.  A complete instance-identifier is
+required for this type of path value.
 
 The special value '/' refers to all possible
 datastore contents.</text>
@@ -428,7 +446,7 @@ bit corresponding to the requested operation is set.</text>
           <mandatory value="true"/>
           <description>
             <text>The access control action associated with the
-rule.  If a rule is determined to match a
+rule.  If a rule has been determined to match a
 particular request, then this object is used
 to determine whether to permit or deny the
 request.</text>
