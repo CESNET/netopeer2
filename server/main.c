@@ -487,6 +487,12 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
 
         /* remove the specified module from the context */
         mod = ly_ctx_get_module(np2srv.ly_ctx, module_name, revision, 0);
+ 	if (!mod) {
+            pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
+            WRN("Unable to get module %s%s%s from sysrepo, schema won't be available.", module_name,
+                revision ? "@" : "", revision ? revision : "");
+            return;
+        }
         cpb = np2srv_create_capab(mod);
         /* the function can fail in case the module was already removed
          * because of dependency in some of the previous calls */
