@@ -485,8 +485,13 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
         /* lock for modifying libyang context */
         pthread_rwlock_wrlock(&np2srv.ly_ctx_lock);
 
-        /* remove the specified module from the context */
+        /* remove the specified module from the context, but it will not be there if it was only an import */
         mod = ly_ctx_get_module(np2srv.ly_ctx, module_name, revision, 0);
+        if (!mod) {
+            pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
+            return;
+        }
+
         cpb = np2srv_create_capab(mod);
         /* the function can fail in case the module was already removed
          * because of dependency in some of the previous calls */
