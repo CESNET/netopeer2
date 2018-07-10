@@ -13,7 +13,7 @@ local_path=$(dirname $0)
 is_yang_module_installed() {
     module=$1
 
-    $SYSREPOCTL -l | grep --count "$module [^|]*|[^|]*| Installed .*$" > /dev/null
+    $SYSREPOCTL -l | grep --count "^$module [^|]*|[^|]*| Installed .*$" > /dev/null
 }
 
 install_yang_module() {
