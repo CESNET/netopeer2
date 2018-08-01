@@ -544,7 +544,7 @@ np2srv_feature_change_clb(const char *module_name, const char *feature_name, boo
 }
 
 static int
-np2srv_state_data_clb(const char *xpath, sr_val_t **values, size_t *values_cnt, void *UNUSED(private_ctx))
+np2srv_state_data_clb(const char *xpath, sr_val_t **values, size_t *values_cnt, uint64_t UNUSED(request_id), void *UNUSED(private_ctx))
 {
     struct lyd_node *data = NULL, *node, *iter;
     struct ly_set *set = NULL;
