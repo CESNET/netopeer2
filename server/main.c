@@ -1566,16 +1566,15 @@ cleanup:
     if (np2srv.sr_subscr) {
         sr_unsubscribe(np2srv.sr_sess.srs, np2srv.sr_subscr);
     }
-    if (np2srv.sr_sess.srs) {
-        sr_session_stop(np2srv.sr_sess.srs);
-    }
-    sr_disconnect(np2srv.sr_conn);
 
     /* libnetconf2 cleanup */
     if (np2srv.nc_ps) {
         nc_ps_clear(np2srv.nc_ps, 1, free_ds);
     }
     nc_ps_free(np2srv.nc_ps);
+
+    /* clears all the sessions also */
+    sr_disconnect(np2srv.sr_conn);
 
     nc_server_destroy();
 
