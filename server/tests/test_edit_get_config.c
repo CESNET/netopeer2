@@ -596,6 +596,7 @@ np_start(void **state)
     "<enabled>false</enabled>"
     "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
     "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+      "<mtu>2000</mtu>"
       "<address>"
         "<ip>10.0.0.5</ip>"
         "<netmask>255.0.0.0</netmask>"
@@ -710,6 +711,7 @@ test_edit_delete1(void **state)
     "<enabled>false</enabled>"
     "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
     "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+      "<mtu>2000</mtu>"
       "<address>"
         "<ip>10.0.0.5</ip>"
         "<netmask>255.0.0.0</netmask>"
@@ -782,6 +784,7 @@ test_edit_delete2(void **state)
     "<enabled>false</enabled>"
     "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
     "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+      "<mtu>2000</mtu>"
       "<address>"
         "<ip>10.0.0.5</ip>"
         "<netmask>255.0.0.0</netmask>"
@@ -858,6 +861,76 @@ test_edit_delete3(void **state)
 
     test_write(p_out, edit_rpc, __LINE__);
     test_read(p_in, edit_rpl, __LINE__);
+}
+
+static void
+test_edit_delete4(void **state)
+{
+    (void)state; /* unused */
+    const char *get_config_rpc =
+    "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<get-config>"
+            "<source>"
+                "<running/>"
+            "</source>"
+        "</get-config>"
+    "</rpc>";
+    const char *get_config_rpl =
+    "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<data xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+"<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+  "<interface>"
+    "<name>iface2</name>"
+    "<description>iface2 dsc</description>"
+    "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:softwareLoopback</type>"
+    "<enabled>false</enabled>"
+    "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+    "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+      "<address>"
+        "<ip>10.0.0.5</ip>"
+        "<netmask>255.0.0.0</netmask>"
+      "</address>"
+      "<address>"
+        "<ip>172.0.0.5</ip>"
+        "<prefix-length>16</prefix-length>"
+      "</address>"
+      "<neighbor>"
+        "<ip>10.0.0.1</ip>"
+        "<link-layer-address>01:34:56:78:9a:bc:de:fa</link-layer-address>"
+      "</neighbor>"
+    "</ipv4>"
+  "</interface>"
+"</interfaces>"
+        "</data>"
+    "</rpc-reply>";
+    const char *edit_rpc =
+    "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<edit-config>"
+            "<target>"
+                "<running/>"
+            "</target>"
+            "<config xmlns:op=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+                "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+                    "<interface>"
+                        "<name>iface2</name>"
+                        "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+                            "<mtu op:operation=\"delete\"/>"
+                        "</ipv4>"
+                    "</interface>"
+                "</interfaces>"
+            "</config>"
+        "</edit-config>"
+    "</rpc>";
+    const char *edit_rpl =
+    "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<ok/>"
+    "</rpc-reply>";
+
+    test_write(p_out, edit_rpc, __LINE__);
+    test_read(p_in, edit_rpl, __LINE__);
+
+    test_write(p_out, get_config_rpc, __LINE__);
+    test_read(p_in, get_config_rpl, __LINE__);
 }
 
 static void
@@ -1613,6 +1686,7 @@ main(void)
                     cmocka_unit_test(test_edit_delete1),
                     cmocka_unit_test(test_edit_delete2),
                     cmocka_unit_test(test_edit_delete3),
+                    cmocka_unit_test(test_edit_delete4),
                     cmocka_unit_test(test_edit_create1),
                     cmocka_unit_test(test_edit_create2),
                     cmocka_unit_test(test_edit_create3),
