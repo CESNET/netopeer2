@@ -267,7 +267,7 @@ np2srv_module_assign_clbs(const struct lys_module *mod)
         return EXIT_SUCCESS;
     }
     np2srv_node_assign_clbs(mod->data);
-    for(uint8_t i = 0; i < mod->augment_size; ++i) {
+    for (uint8_t i = 0; i < mod->augment_size; ++i) {
         struct lys_node *target = mod->augment[i].target;
         if (!strcmp(target->module->name, "ietf-netconf-monitoring") || !strcmp(target->module->name, "ietf-netconf")) {
             continue;
