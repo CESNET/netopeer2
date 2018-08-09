@@ -222,18 +222,13 @@ signal_handler(int sig)
     }
 }
 
-static int
-np2srv_module_assign_clbs(const struct lys_module *mod)
+static void
+np2srv_node_assign_clbs(struct lys_node *start)
 {
     struct lys_node *snode, *next;
 
-    if (!strcmp(mod->name, "ietf-netconf-monitoring") || !strcmp(mod->name, "ietf-netconf")) {
-        /* skip it, use internal implementations from libnetconf2 */
-        return EXIT_SUCCESS;
-    }
-
     /* set RPC and Notifications callbacks */
-    LY_TREE_DFS_BEGIN(mod->data, next, snode) {
+    LY_TREE_DFS_BEGIN(start, next, snode) {
         if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
             nc_set_rpc_callback(snode, op_generic);
             goto dfs_nextsibling;
@@ -260,6 +255,24 @@ dfs_nextsibling:
             }
             next = snode->next;
         }
+    }
+
+}
+
+static int
+np2srv_module_assign_clbs(const struct lys_module *mod)
+{
+    if (!strcmp(mod->name, "ietf-netconf-monitoring") || !strcmp(mod->name, "ietf-netconf")) {
+        /* skip it, use internal implementations from libnetconf2 */
+        return EXIT_SUCCESS;
+    }
+    np2srv_node_assign_clbs(mod->data);
+    for (uint8_t i = 0; i < mod->augment_size; ++i) {
+        struct lys_node *target = mod->augment[i].target;
+        if (!strcmp(target->module->name, "ietf-netconf-monitoring") || !strcmp(target->module->name, "ietf-netconf")) {
+            continue;
+        }
+        np2srv_node_assign_clbs(target);
     }
 
     return EXIT_SUCCESS;
