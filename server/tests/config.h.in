@@ -382,6 +382,12 @@ test_read(int fd, const char *template, int line)
             memcpy(ptr - 19, "0000-00-00T00:00:00", 19);
         }
     }
+    for (ptr = strchr(buf, '-'); ptr; ptr = strchr(ptr + 1, '-')) {
+        if ((ptr[3] == '-') && (ptr[6] == 'T') && (ptr[9] == ':') && (ptr[12] == ':')) {
+            memcpy(ptr - 4, "0000-00-00T00:00:00", 19);
+        }
+    }
+
 
     for (red = 0; buf[red]; ++red) {
         if (buf[red] != template[red]) {
