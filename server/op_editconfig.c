@@ -514,6 +514,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             break;
         default:
             /* do nothing */
+            ret = 0;
             break;
         }
         if (valbuf) {
