@@ -49,6 +49,7 @@ struct np2srv {
     pthread_t workers[NP2SRV_THREAD_COUNT]; /**< worker threads handling sessions */
 
     struct ly_ctx *ly_ctx;         /**< libyang's context */
+    struct lyd_node *ly_ctx_info_cache; /** < a cache of calling ly_ctx_info on the ly_ctx */
     pthread_rwlock_t ly_ctx_lock;  /**< libyang's context rwlock */
 };
 extern struct np2srv np2srv;

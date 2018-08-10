@@ -435,6 +435,15 @@ np2srv_create_capab(const struct lys_module *mod)
 }
 
 static void
+np2srv_update_ly_ctx_info_cache()
+{
+    if (np2srv.ly_ctx_info_cache) {
+        lyd_free_withsiblings(np2srv.ly_ctx_info_cache);
+    }
+    np2srv.ly_ctx_info_cache = ly_ctx_info(np2srv.ly_ctx);
+}
+
+static void
 np2srv_module_install_clb(const char *module_name, const char *revision, sr_module_state_t state, void *UNUSED(private_ctx))
 {
     char *data = NULL, *cpb;
@@ -516,6 +525,7 @@ np2srv_module_install_clb(const char *module_name, const char *revision, sr_modu
         free(cpb);
     }
 
+    np2srv_update_ly_ctx_info_cache();
     /* unlock libyang context */
     pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
 
@@ -550,6 +560,7 @@ np2srv_feature_change_clb(const char *module_name, const char *feature_name, boo
         lys_features_disable(mod, feature_name);
     }
     cpb = np2srv_create_capab(mod);
+    np2srv_update_ly_ctx_info_cache();
     pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
 
     np2srv_send_capab_change_notif(NULL, NULL, cpb);
@@ -562,6 +573,7 @@ np2srv_state_data_clb(const char *xpath, sr_val_t **values, size_t *values_cnt, 
     struct lyd_node *data = NULL, *node, *iter;
     struct ly_set *set = NULL;
     uint32_t i, j;
+    bool should_free_data = true;
     int ret = SR_ERR_OK;
 
     if (!strncmp(xpath, "/ietf-netconf-monitoring:", 25)) {
@@ -569,7 +581,8 @@ np2srv_state_data_clb(const char *xpath, sr_val_t **values, size_t *values_cnt, 
     } else if (!strncmp(xpath, "/nc-notifications:", 18)) {
         data = ntf_get_data();
     } else if (!strncmp(xpath, "/ietf-yang-library:", 19)) {
-        data = ly_ctx_info(np2srv.ly_ctx);
+        data = np2srv.ly_ctx_info_cache;
+        should_free_data = false;
     } else {
         ret = SR_ERR_OPERATION_FAILED;
         goto cleanup;
@@ -636,7 +649,9 @@ np2srv_state_data_clb(const char *xpath, sr_val_t **values, size_t *values_cnt, 
 
 cleanup:
     ly_set_free(set);
-    lyd_free_withsiblings(data);
+    if (should_free_data) {
+        lyd_free_withsiblings(data);
+    }
     if (ret != SR_ERR_OK) {
         sr_free_values(*values, *values_cnt);
         *values_cnt = 0;
@@ -1101,6 +1116,8 @@ np2srv_init_schemas(void)
         ERR("Subscribing for providing \"%s\" state data failed (%s).", sr_strerror(rc));
         goto error;
     }
+
+    np2srv_update_ly_ctx_info_cache();
 
     /* debug - list schemas
     struct lyd_node *ylib = ly_ctx_info(np2srv.ly_ctx);
