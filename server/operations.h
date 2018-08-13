@@ -141,7 +141,20 @@ struct nc_server_reply *op_build_err_nacm(struct nc_server_reply *ereply);
 int op_filter_get_tree_from_data(struct lyd_node **root, struct lyd_node *data, const char *subtree_path);
 int op_filter_xpath_add_filter(char *new_filter, char ***filters, int *filter_count);
 int op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_count);
-int op_sr_val_to_lyd_node(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_node);
+
+struct sr2ly_cache {
+    struct {
+        struct lyd_node *node;
+        char *name;
+        char *mod;
+        char *pred;
+    } *items;
+    size_t used;
+    size_t size;
+};
+
+void op_sr2ly_free_cache(struct sr2ly_cache *cache);
+int op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_node, struct sr2ly_cache *cache);
 
 struct nc_server_reply *op_get(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_lock(struct lyd_node *rpc, struct nc_session *ncs);
@@ -159,6 +172,5 @@ struct nc_server_reply *op_ntf_subscribe(struct lyd_node *rpc, struct nc_session
 void op_ntf_unsubscribe(struct nc_session *session);
 void op_ntf_yang_lib_change(const struct lyd_node *ylib_info);
 struct lyd_node *ntf_get_data(void);
-
 
 #endif /* NP2SRV_OPERATIONS_H_ */

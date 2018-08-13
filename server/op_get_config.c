@@ -36,6 +36,7 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *srs, struct lyd_node **root, 
     sr_val_t *value;
     sr_val_iter_t *sriter;
     struct lyd_node *node;
+    struct sr2ly_cache cache;
     char *full_subtree_xpath = NULL;
     int rc;
 
@@ -44,6 +45,7 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *srs, struct lyd_node **root, 
         return -1;
     }
 
+    memset(&cache, 0, sizeof cache);
     np2srv_sr_session_refresh(srs, NULL);
 
     rc = np2srv_sr_get_items_iter(srs, full_subtree_xpath, &sriter, NULL);
@@ -56,7 +58,7 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *srs, struct lyd_node **root, 
     }
 
     while ((!np2srv_sr_get_item_next(srs, sriter, &value, NULL))) {
-        if (op_sr_val_to_lyd_node(*root, value, &node)) {
+        if (op_sr2ly(*root, value, &node, &cache)) {
             sr_free_val(value);
             sr_free_val_iter(sriter);
             return -1;
@@ -69,6 +71,7 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *srs, struct lyd_node **root, 
     }
     sr_free_val_iter(sriter);
 
+    op_sr2ly_free_cache(&cache);
     return 0;
 }
 
