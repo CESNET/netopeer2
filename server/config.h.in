@@ -52,4 +52,8 @@
  */
 #define NP2SRV_SR_LOCKED_RETRIES 3
 
+/** @brief Enable caching the ly_ctx_info() result
+ */
+#cmakedefine NP2SRV_ENABLED_LY_CTX_INFO_CACHE
+
 #endif /* NP2SRV_CONFIG_H_ */

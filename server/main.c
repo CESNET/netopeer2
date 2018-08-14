@@ -434,6 +434,18 @@ np2srv_create_capab(const struct lys_module *mod)
     return cpb;
 }
 
+#ifdef NP2SRV_ENABLED_LY_CTX_INFO_CACHE
+static void
+np2srv_update_ly_ctx_info_cache(uint16_t module_set_id)
+{
+    if (np2srv.ly_ctx_info_cache) {
+        lyd_free_withsiblings(np2srv.ly_ctx_info_cache);
+    }
+    np2srv.cached_ly_ctx_module_set_id = module_set_id;
+    np2srv.ly_ctx_info_cache = ly_ctx_info(np2srv.ly_ctx);
+}
+#endif
+
 static void
 np2srv_module_install_clb(const char *module_name, const char *revision, sr_module_state_t state, void *UNUSED(private_ctx))
 {
@@ -562,6 +574,7 @@ np2srv_state_data_clb(const char *xpath, sr_val_t **values, size_t *values_cnt, 
     struct lyd_node *data = NULL, *node, *iter;
     struct ly_set *set = NULL;
     uint32_t i, j;
+    bool should_free_data = true;
     int ret = SR_ERR_OK;
 
     if (!strncmp(xpath, "/ietf-netconf-monitoring:", 25)) {
@@ -569,7 +582,17 @@ np2srv_state_data_clb(const char *xpath, sr_val_t **values, size_t *values_cnt, 
     } else if (!strncmp(xpath, "/nc-notifications:", 18)) {
         data = ntf_get_data();
     } else if (!strncmp(xpath, "/ietf-yang-library:", 19)) {
+#ifdef NP2SRV_ENABLED_LY_CTX_INFO_CACHE
+        uint16_t module_set_id = ly_ctx_get_module_set_id(np2srv.ly_ctx);
+        if (module_set_id != np2srv.cached_ly_ctx_module_set_id) {
+            np2srv_update_ly_ctx_info_cache(module_set_id);
+        }
+
+        data = np2srv.ly_ctx_info_cache;
+        should_free_data = false;
+#else
         data = ly_ctx_info(np2srv.ly_ctx);
+#endif
     } else {
         ret = SR_ERR_OPERATION_FAILED;
         goto cleanup;
@@ -636,7 +659,9 @@ np2srv_state_data_clb(const char *xpath, sr_val_t **values, size_t *values_cnt, 
 
 cleanup:
     ly_set_free(set);
-    lyd_free_withsiblings(data);
+    if (should_free_data) {
+        lyd_free_withsiblings(data);
+    }
     if (ret != SR_ERR_OK) {
         sr_free_values(*values, *values_cnt);
         *values_cnt = 0;
