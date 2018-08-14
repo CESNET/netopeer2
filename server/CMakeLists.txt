@@ -36,6 +36,11 @@ option(ENABLE_CONFIGURATION "Enable server configuration" ON)
 set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
 set(DEFAULT_HOST_KEY "/etc/ssh/ssh_host_rsa_key" CACHE STRING "Default server host key (used only if configuration is disabled)")
 
+option(ENABLE_LY_CTX_INFO_CACHE "Enable caching the ly_ctx_info() result; reduces processing at the cost of increased memory usage." ON)
+if(ENABLE_LY_CTX_INFO_CACHE)
+    set(NP2SRV_ENABLED_LY_CTX_INFO_CACHE 1)
+endif()
+
 # set prefix for the PID file
 if (NOT PIDFILE_PREFIX)
     set(PIDFILE_PREFIX "/var/run")
