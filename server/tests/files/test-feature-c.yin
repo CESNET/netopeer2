@@ -23,6 +23,7 @@
     <if-feature name="test-feature-c"/>
     <leaf name="test-leaf">
       <type name="string"/>
+      <default value="foo"/>
     </leaf>
   </container>
 </module>
