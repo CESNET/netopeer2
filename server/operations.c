@@ -2822,7 +2822,7 @@ op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_no
 {
     char numstr[22];
     char *val_str;
-    int new_node_i = -1;
+    int new_node_i = -1, parent_dflt;
     struct lyd_node *parent = NULL, *node;
     const struct lys_module *mod = NULL;
 
@@ -2842,6 +2842,8 @@ op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_no
     /* get parent */
     if (cache->used > 1) {
         parent = cache->items[cache->used - 2].node;
+        /* it will get erased when a child is inserted, set it back */
+        parent_dflt = parent->dflt;
     }
 
     /* create the new node */
@@ -2885,6 +2887,10 @@ op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_no
 
     /* inherit dflt flag */
     node->dflt = sr_val->dflt;
+    /* restore parent dflt flag */
+    if (parent) {
+        parent->dflt = parent_dflt;
+    }
 
     /* insert into data tree if required */
     if (!parent && root) {
