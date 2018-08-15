@@ -1611,6 +1611,10 @@ cleanup:
     }
     nc_ps_free(np2srv.nc_ps);
 
+#ifdef NP2SRV_ENABLED_LY_CTX_INFO_CACHE
+    lyd_free_withsiblings(np2srv.ly_ctx_info_cache);
+#endif
+
     /* clears all the sessions also */
     sr_disconnect(np2srv.sr_conn);
 
