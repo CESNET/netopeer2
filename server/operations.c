@@ -2822,8 +2822,8 @@ op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_no
 {
     char numstr[22];
     char *val_str;
-    int new_node_i = -1, parent_dflt;
-    struct lyd_node *parent = NULL, *node;
+    int new_node_i = -1, parent_dflt_depth = 0;
+    struct lyd_node *parent = NULL, *node, *iter;
     const struct lys_module *mod = NULL;
 
     /* last used index in cache is ours, we can learn everything based on that */
@@ -2842,8 +2842,12 @@ op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_no
     /* get parent */
     if (cache->used > 1) {
         parent = cache->items[cache->used - 2].node;
-        /* it will get erased when a child is inserted, set it back */
-        parent_dflt = parent->dflt;
+        /* When children are inserted, the default flags will be cleared on all
+           parents, so determine how many parents' default flags we'll have
+           to reset. */
+        for (iter = parent; iter && iter->dflt; iter = iter->parent) {
+            ++parent_dflt_depth;
+        }
     }
 
     /* create the new node */
@@ -2887,9 +2891,10 @@ op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_no
 
     /* inherit dflt flag */
     node->dflt = sr_val->dflt;
-    /* restore parent dflt flag */
-    if (parent) {
-        parent->dflt = parent_dflt;
+
+    /* Restore the parent(s)' default flags as well */
+    for (iter = parent; iter && parent_dflt_depth; iter = iter->parent, --parent_dflt_depth) {
+        iter->dflt = 1;
     }
 
     /* insert into data tree if required */
