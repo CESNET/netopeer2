@@ -149,10 +149,18 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
     char *path;
     (void)session;
 
+    /* Accept any queries in the ietf-yang-library namespace. */
     if (!strncmp(xpath, "/ietf-yang-library:", 19)) {
         if (!set) {
             root = ly_ctx_info(np2srv.ly_ctx);
-            set = lyd_find_path(root, "//.");
+            /* Our test data only has information from the yang-library container,
+               so we can only service requests inside that container. But if the caller
+               has specified a more restrictive path inside yang-library, as in the case
+               of the filter tests, then use it. */
+            if (strncmp(xpath, "/ietf-yang-library:yang-library", 31)) {
+                xpath = "/ietf-yang-library:yang-library//.";
+            }
+            set = lyd_find_path(root, xpath);
         }
 
         if (!set->number) {
@@ -514,7 +522,7 @@ test_get(void **state)
 }
 
 static void
-test_get_filter(void **state)
+test_get_filter1(void **state)
 {
     (void)state; /* unused */
     const char *get_rpc =
@@ -533,12 +541,61 @@ test_get_filter(void **state)
     test_read(p_in, get_rpl, __LINE__);
 }
 
+static void
+test_get_filter2(void **state)
+{
+    (void)state; /* unused */
+    const char *get_rpc =
+    "<rpc msgid=\"2\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<get>"
+            "<filter type=\"subtree\">"
+                "<yang-library xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-library\">"
+                    "<module-set>"
+                        "<name>complete</name>"
+                        "<module>"
+                            "<name>ietf-yang-library</name>"
+                            "<revision/>"
+                        "</module>"
+                    "</module-set>"
+                "</yang-library>"
+            "</filter>"
+        "</get>"
+    "</rpc>";
+    const char *get_rpl =
+    "<rpc-reply msgid=\"2\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<data xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+            "<yang-library xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-library\">"
+                "<module-set>"
+                    "<name>complete</name>"
+                    "<module>"
+                        "<name>ietf-yang-library</name>"
+                        "<revision>2018-01-17</revision>"
+                    "</module>"
+                "</module-set>"
+            "</yang-library>"
+        "</data>"
+    "</rpc-reply>";
+
+    test_write(p_out, get_rpc, __LINE__);
+    test_read(p_in, get_rpl, __LINE__);
+}
+
+static void
+test_startstop(void **state)
+{
+    (void)state; /* unused */
+    return;
+}
+
 int
 main(void)
 {
     const struct CMUnitTest tests[] = {
-                    cmocka_unit_test_setup(test_get, np_start),
-                    cmocka_unit_test_teardown(test_get_filter, np_stop),
+                    cmocka_unit_test_setup(test_startstop, np_start),
+                    cmocka_unit_test(test_get),
+                    cmocka_unit_test(test_get_filter1),
+                    cmocka_unit_test(test_get_filter2),
+                    cmocka_unit_test_teardown(test_startstop, np_stop),
     };
 
     if (setenv("CMOCKA_TEST_ABORT", "1", 1)) {
