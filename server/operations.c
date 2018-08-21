@@ -2809,6 +2809,9 @@ op_sr2ly_get_cache_parent(const char *xpath, struct sr2ly_cache *cache, struct l
         }
         ly_set_free(set);
 
+        /* keep track of the current cache parent (mainly so that we can distinguish relative/absolute paths) */
+        ++i;
+
         /* parse next node */
         xpath = op_sr2ly_parse_node(xpath, &mod, &mod_len, &name, &name_len, &pred, &pred_len);
     }
