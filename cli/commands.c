@@ -2402,7 +2402,7 @@ cmd_searchpath(const char *arg, char **UNUSED(tmp_config_file))
 
     if (!arg[0]) {
         path = nc_client_get_schema_searchpath();
-        fprintf(stdout, "%s\n", path[0] ? path : "<none>");
+        fprintf(stdout, "%s\n", path && path[0] ? path : "<none>");
         return 0;
     }
 
