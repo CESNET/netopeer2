@@ -479,7 +479,7 @@ np2srv_sr_get_change_next(sr_session_ctx_t *srs, sr_change_iter_t *iter, sr_chan
     return 0;
 }
 
-/* UNKNOWN_MODEL, NOT_FOUND, and UNAUTHORIZED return 1, no error */
+/* UNKNOWN_MODEL, NOT_FOUND, UNKNOWN_MODEL, BAD_ELEMENT and UNAUTHORIZED return 1, no error */
 int
 np2srv_sr_get_items_iter(sr_session_ctx_t *srs, const char *xpath, sr_val_iter_t **iter, struct nc_server_reply **ereply)
 {
@@ -490,7 +490,8 @@ np2srv_sr_get_items_iter(sr_session_ctx_t *srs, const char *xpath, sr_val_iter_t
 
     if (!np2srv.disconnected) {
         rc = sr_get_items_iter(srs, xpath, iter);
-        if ((rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_NOT_FOUND) || (rc == SR_ERR_UNAUTHORIZED)) {
+        if ((rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_NOT_FOUND) ||
+                (rc == SR_ERR_BAD_ELEMENT) || (rc == SR_ERR_UNKNOWN_MODEL) || (rc == SR_ERR_UNAUTHORIZED)) {
             pthread_rwlock_unlock(&sr_lock);
             return 1;
         }

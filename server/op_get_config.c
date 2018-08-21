@@ -51,7 +51,7 @@ opget_build_subtree_from_sysrepo(sr_session_ctx_t *srs, struct lyd_node **root, 
     rc = np2srv_sr_get_items_iter(srs, full_subtree_xpath, &sriter, NULL);
     free(full_subtree_xpath);
     if (rc == 1) {
-        /* it's ok, model without data */
+        /* it's ok, model without data or just non-existing path */
         return 0;
     } else if (rc) {
         return -1;
