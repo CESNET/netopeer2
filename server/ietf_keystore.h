@@ -20,6 +20,9 @@ int np_hostkey_clb(const char *name, void *user_data, char **privkey_path, char 
 int np_server_cert_clb(const char *name, void *user_data, char **cert_path, char **cert_data, char **privkey_path,
                        char **privkey_data, int *privkey_data_rsa);
 
+int np_server_cert_chain_clb(const char *name, void *user_data, char ***cert_paths, int *cert_path_count,
+                             char ***cert_data, int *cert_data_count);
+
 int np_trusted_cert_list_clb(const char *name, void *user_data, char ***cert_paths, int *cert_path_count,
                              char ***cert_data, int *cert_data_count);
 

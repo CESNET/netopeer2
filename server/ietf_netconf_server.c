@@ -1241,6 +1241,7 @@ ietf_netconf_server_init(const struct lys_module *module)
     nc_server_ssh_set_hostkey_clb(np_hostkey_clb, NULL, NULL);
 #ifdef NC_ENABLED_TLS
     nc_server_tls_set_server_cert_clb(np_server_cert_clb, NULL, NULL);
+    nc_server_tls_set_server_cert_chain_clb(np_server_cert_chain_clb, NULL, NULL);
     nc_server_tls_set_trusted_cert_list_clb(np_trusted_cert_list_clb, NULL, NULL);
 #endif
 
