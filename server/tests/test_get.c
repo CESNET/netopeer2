@@ -581,6 +581,33 @@ test_get_filter2(void **state)
 }
 
 static void
+test_get_filter3(void **state)
+{
+    (void)state; /* unused */
+    const char *get_rpc =
+    "<rpc msgid=\"3\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<get>"
+            "<filter xmlns:ylib=\"urn:ietf:params:xml:ns:yang:ietf-yang-library\" "
+                "type=\"xpath\" select=\"/ylib:yang-library/module-set[name='complete']/checksum\"/>"
+        "</get>"
+    "</rpc>";
+    const char *get_rpl =
+    "<rpc-reply msgid=\"3\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<data xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+            "<yang-library xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-library\">"
+                "<module-set>"
+                    "<name>complete</name>"
+                    "<checksum>23</checksum>"
+                "</module-set>"
+            "</yang-library>"
+        "</data>"
+    "</rpc-reply>";
+
+    test_write(p_out, get_rpc, __LINE__);
+    test_read(p_in, get_rpl, __LINE__);
+}
+
+static void
 test_startstop(void **state)
 {
     (void)state; /* unused */
@@ -595,6 +622,7 @@ main(void)
                     cmocka_unit_test(test_get),
                     cmocka_unit_test(test_get_filter1),
                     cmocka_unit_test(test_get_filter2),
+                    cmocka_unit_test(test_get_filter3),
                     cmocka_unit_test_teardown(test_startstop, np_stop),
     };
 

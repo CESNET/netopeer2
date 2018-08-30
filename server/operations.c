@@ -2631,6 +2631,85 @@ op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_coun
     return 0;
 }
 
+static int
+op_sr2ly_parse_pred(const char **pred, char **name, char **value)
+{
+    int len;
+    char quote;
+
+    *name = NULL;
+    *value = NULL;
+
+    if ((*pred)[0] != '[') {
+        goto error;
+    }
+    ++(*pred);
+
+    for (len = 0; (*pred)[len] != '='; ++len);
+
+    /* copy node name */
+    *name = strndup(*pred, len);
+
+    *pred += len;
+
+    ++(*pred);
+
+    if (((*pred)[0] != '\'') && ((*pred)[0] != '\"')) {
+        goto error;
+    }
+
+    quote = (*pred)[0];
+    ++(*pred);
+
+    for (len = 0; (*pred)[len] != quote; ++len);
+
+    /* copy value */
+    *value = strndup(*pred, len);
+
+    *pred += len;
+
+    ++(*pred);
+
+    if ((*pred)[0] != ']') {
+        goto error;
+    }
+    ++(*pred);
+
+    if ((*pred)[0] != '[') {
+        /* no more predicates */
+        *pred = NULL;
+    }
+
+    return 0;
+
+error:
+    free(*name);
+    free(*value);
+    return -1;
+}
+
+static int
+op_sr2ly_create_keys(const char *pred, struct lyd_node *parent, const struct lys_module *module)
+{
+    char *name, *value;
+    struct lyd_node *node;
+
+    while (pred) {
+        if (op_sr2ly_parse_pred(&pred, &name, &value)) {
+            return -1;
+        }
+
+        node = lyd_new_leaf(parent, module, name, value);
+        free(name);
+        free(value);
+        if (!node) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
 static const char *
 op_sr2ly_parse_node(const char *xpath, const char **mod, int *mod_len, const char **name, int *name_len,
                     const char **pred, int *pred_len)
@@ -2803,6 +2882,12 @@ op_sr2ly_get_cache_parent(const char *xpath, struct sr2ly_cache *cache, struct l
                 /* first created node */
                 *new_node_i = cache->used - 1;
             }
+
+            /* create list keys if possible */
+            if (op_sr2ly_create_keys(pred, cache->items[cache->used - 1].node, module)) {
+                ly_set_free(set);
+                return -1;
+            }
         } else {
             /* the parent exists, cache it */
             cache->items[cache->used - 1].node = set->set.d[0];
@@ -2816,7 +2901,7 @@ op_sr2ly_get_cache_parent(const char *xpath, struct sr2ly_cache *cache, struct l
         xpath = op_sr2ly_parse_node(xpath, &mod, &mod_len, &name, &name_len, &pred, &pred_len);
     }
 
-    /* create item for the newly created node and return its index */
+    /* create item for the newly created node */
     op_sr2ly_add_cache(cache, mod, mod_len, name, name_len, pred, pred_len);
     return 0;
 }
@@ -2826,13 +2911,38 @@ op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_no
 {
     char numstr[22];
     char *val_str;
+    uint16_t i;
     int new_node_i = -1, parent_dflt_depth = 0;
     struct lyd_node *parent = NULL, *node, *iter;
     const struct lys_module *mod = NULL;
+    struct lys_node_list *list;
 
     /* last used index in cache is ours, we can learn everything based on that */
     if (op_sr2ly_get_cache_parent(sr_val->xpath, cache, root, &new_node_i)) {
         return -1;
+    }
+
+    /* if we wanted to create a list key, it exists already */
+    if (!cache->items[cache->used - 1].mod && cache->items[cache->used - 2].pred) {
+        assert(cache->items[cache->used - 2].node->schema->nodetype == LYS_LIST);
+
+        list = (struct lys_node_list *)cache->items[cache->used - 2].node->schema;
+        for (i = 0; i < list->keys_size; ++i) {
+            if (!strcmp(list->keys[i]->name, cache->items[cache->used - 1].name)) {
+                break;
+            }
+        }
+
+        if (i < list->keys_size) {
+            if (new_node_i == -1) {
+                /* this is not the first created node, we can return whatever */
+                *new_node = NULL;
+            } else {
+                /* return the list (or its parent) as we correctly should */
+                *new_node = cache->items[new_node_i].node;
+            }
+            goto key_created;
+        }
     }
 
     /* get module */
@@ -2896,6 +3006,13 @@ op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_no
     /* inherit dflt flag */
     node->dflt = sr_val->dflt;
 
+    if (sr_val->type == SR_LIST_T) {
+        /* create also all the keys of a list */
+        if (op_sr2ly_create_keys(cache->items[cache->used - 1].pred, node, mod)) {
+            return -1;
+        }
+    }
+
     /* Restore the parent(s)' default flags as well */
     for (iter = parent; iter && parent_dflt_depth; iter = iter->parent, --parent_dflt_depth) {
         iter->dflt = 1;
@@ -2920,6 +3037,7 @@ op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_no
         /* store in cache */
         cache->items[cache->used - 1].node = node;
     } else {
+key_created:
         /* useless to store ending nodes in cache */
         free(cache->items[cache->used - 1].mod);
         free(cache->items[cache->used - 1].name);
