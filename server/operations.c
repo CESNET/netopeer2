@@ -2873,6 +2873,14 @@ op_sr2ly_get_cache_parent(const char *xpath, struct sr2ly_cache *cache, struct l
             } else {
                 /* top-level node */
                 cache->items[cache->used - 1].node = lyd_new(NULL, module, cache->items[cache->used - 1].name);
+
+                /* If root already contains a data tree, insert this new top-level node */
+                if (root && cache->items[cache->used - 1].node) {
+                    if (lyd_insert_after(root->prev, cache->items[cache->used - 1].node)) {
+                        ly_set_free(set);
+                        return -1;
+                    }
+                }
             }
             if (!cache->items[cache->used - 1].node) {
                 ly_set_free(set);
