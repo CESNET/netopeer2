@@ -371,6 +371,81 @@ test_basic(void **state)
 }
 
 static void
+test_config_change(void **state)
+{
+    (void)state; /* unused */
+    sr_val_t *vals;
+    size_t val_cnt;
+    const char *subsc_rpc =
+    "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<create-subscription xmlns=\"urn:ietf:params:xml:ns:netconf:notification:1.0\">"
+            "<stream>NETCONF</stream>"
+        "</create-subscription>"
+    "</rpc>";
+    const char *subsc_rpl =
+    "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<ok/>"
+    "</rpc-reply>";
+    const char *notif_data =
+    "<notification xmlns=\"urn:ietf:params:xml:ns:netconf:notification:1.0\">"
+        "<eventTime>0000-00-00T00:00:00Z</eventTime>"
+        "<netconf-config-change xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-notifications\">"
+          "<changed-by>"
+            "<session-id>42</session-id>"
+            "<username>test</username>"
+          "</changed-by>"
+          "<datastore>running</datastore>"
+          "<edit>"
+            "<operation>create</operation>"
+          "</edit>"
+        "</netconf-config-change>"
+    "</notification>";
+
+    initialized = 0;
+    while (!initialized) {
+        usleep(100000);
+    }
+
+    test_write(p_out, subsc_rpc, __LINE__);
+    test_read(p_in, subsc_rpl, __LINE__);
+
+    /* send notif */
+    val_cnt = 6;
+    vals = calloc(val_cnt, sizeof *vals);
+
+    vals[0].xpath = strdup("/ietf-netconf-notifications:netconf-config-change/changed-by");
+    vals[0].type = SR_CONTAINER_T;
+
+    vals[1].xpath = strdup("/ietf-netconf-notifications:netconf-config-change/changed-by/session-id");
+    vals[1].type = SR_UINT32_T;
+    vals[1].data.uint32_val = 42;
+
+    vals[2].xpath = strdup("/ietf-netconf-notifications:netconf-config-change/changed-by/username");
+    vals[2].type = SR_STRING_T;
+    vals[2].data.string_val = strdup("test");
+
+    vals[3].xpath = strdup("/ietf-netconf-notifications:netconf-config-change/datastore");
+    vals[3].type = SR_ENUM_T;
+    vals[3].data.enum_val = strdup("running");
+
+    vals[4].xpath = strdup("/ietf-netconf-notifications:netconf-config-change/edit[1]");
+    vals[4].type = SR_LIST_T;
+
+    /* A real config-change notification will have an instance-id here, which is omitted for ease of testing. */
+
+    vals[5].xpath = strdup("/ietf-netconf-notifications:netconf-config-change/edit[1]/operation");
+    vals[5].type = SR_ENUM_T;
+    vals[5].data.enum_val = strdup("create");
+
+    notif_clb(SR_EV_NOTIF_T_REALTIME, "/ietf-netconf-notifications:netconf-config-change", vals, val_cnt, time(NULL), notif_clb_data);
+
+    sr_free_values(vals, val_cnt);
+
+    /* read notif */
+    test_read(p_in, notif_data, __LINE__);
+}
+
+static void
 test_filter_xpath(void **state)
 {
     (void)state; /* unused */
@@ -630,6 +705,7 @@ main(void)
 {
     const struct CMUnitTest tests[] = {
                     cmocka_unit_test_setup(test_basic, np_start),
+                    cmocka_unit_test(test_config_change),
                     cmocka_unit_test(test_filter_xpath),
                     cmocka_unit_test(test_filter_subtree),
                     cmocka_unit_test_teardown(test_replay, np_stop),

@@ -2631,11 +2631,18 @@ op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_coun
     return 0;
 }
 
+enum {
+    OP_SR2LY_PARSE_PRED_SUCCESS = 0,
+    OP_SR2LY_PARSE_PRED_NO_KEY,
+    OP_SR2LY_PARSE_PRED_PARSE_ERROR
+};
+
 static int
 op_sr2ly_parse_pred(const char **pred, char **name, char **value)
 {
     int len;
     char quote;
+    int ret = OP_SR2LY_PARSE_PRED_PARSE_ERROR;
 
     *name = NULL;
     *value = NULL;
@@ -2645,7 +2652,12 @@ op_sr2ly_parse_pred(const char **pred, char **name, char **value)
     }
     ++(*pred);
 
-    for (len = 0; (*pred)[len] != '='; ++len);
+    for (len = 0; (*pred)[len] && (*pred)[len] != '='; ++len);
+
+    if ((*pred)[len] != '=') {
+        ret = OP_SR2LY_PARSE_PRED_NO_KEY;
+        goto error;
+    }
 
     /* copy node name */
     *name = strndup(*pred, len);
@@ -2680,12 +2692,12 @@ op_sr2ly_parse_pred(const char **pred, char **name, char **value)
         *pred = NULL;
     }
 
-    return 0;
+    return OP_SR2LY_PARSE_PRED_SUCCESS;
 
 error:
     free(*name);
     free(*value);
-    return -1;
+    return ret;
 }
 
 static int
@@ -2693,10 +2705,14 @@ op_sr2ly_create_keys(const char *pred, struct lyd_node *parent, const struct lys
 {
     char *name, *value;
     struct lyd_node *node;
+    int result;
 
     while (pred) {
-        if (op_sr2ly_parse_pred(&pred, &name, &value)) {
-            return -1;
+        result = op_sr2ly_parse_pred(&pred, &name, &value);
+        if (result != OP_SR2LY_PARSE_PRED_SUCCESS) {
+            /* It is legal for non-config lists to contain no keys,
+               so do not return a failure if no keys are found */
+            return result == OP_SR2LY_PARSE_PRED_NO_KEY ? 0 : -1;
         }
 
         node = lyd_new_leaf(parent, module, name, value);
