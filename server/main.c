@@ -336,13 +336,19 @@ np2srv_verify_clb(const struct nc_session *session)
     return 1;
 }
 
+static void free_with_user_data(void *data, void *user_data)
+{
+    free(data);
+    (void)user_data;
+}
+
 static char *
 np2srv_ly_import_clb(const char *mod_name, const char *mod_rev, const char *submod_name, const char *submod_rev,
-                     void *UNUSED(user_data), LYS_INFORMAT *format, void (**free_module_data)(void *model_data))
+                     void *UNUSED(user_data), LYS_INFORMAT *format, void (**free_module_data)(void *model_data, void *user_data))
 {
     char *data = NULL;
 
-    *free_module_data = free;
+    *free_module_data = free_with_user_data;
     *format = LYS_YIN;
     if (submod_rev || (submod_name && !mod_name)) {
         np2srv_sr_get_submodule_schema(np2srv.sr_sess.srs, submod_name, submod_rev, SR_SCHEMA_YIN, &data, NULL);
