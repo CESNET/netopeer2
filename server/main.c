@@ -342,7 +342,7 @@ static void free_with_user_data(void *data, void *user_data)
     (void)user_data;
 }
 
-static char *
+static const char *
 np2srv_ly_import_clb(const char *mod_name, const char *mod_rev, const char *submod_name, const char *submod_rev,
                      void *UNUSED(user_data), LYS_INFORMAT *format, void (**free_module_data)(void *model_data, void *user_data))
 {
