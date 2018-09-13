@@ -137,7 +137,7 @@ ks_privkey_get_cb(const char *xpath, sr_val_t **values, size_t *values_cnt, uint
     }
     name += 18;
 
-    if (asprintf(&path, "%s/%.*s.pub.pem", KEYSTORED_KEYS_DIR, (int)(strchr(name, '\'') - name), name) == -1) {
+    if (asprintf(&path, "%s/%.*s.pem.pub", KEYSTORED_KEYS_DIR, (int)(strchr(name, '\'') - name), name) == -1) {
         SRP_LOG_ERR("Memory allocation failed (%s:%d).", __FILE__, __LINE__);
         return SR_ERR_NOMEM;
     }
@@ -337,7 +337,7 @@ ks_privkey_gen_cb(const char *UNUSED(xpath), const sr_node_t *input, const size_
         goto cleanup;
     }
     sprintf(priv_path, "%s/%s.pem", KEYSTORED_KEYS_DIR, input[0].data.string_val);
-    sprintf(pub_path, "%s/%s.pub.pem", KEYSTORED_KEYS_DIR, input[0].data.string_val);
+    sprintf(pub_path, "%s/%s.pem.pub", KEYSTORED_KEYS_DIR, input[0].data.string_val);
 
     if (!(pid = fork())) {
         /* child */
@@ -451,7 +451,7 @@ ks_privkey_load_cb(const char *UNUSED(xpath), const sr_node_t *input, const size
         goto cleanup;
     }
     sprintf(priv_path, "%s/%s.pem", KEYSTORED_KEYS_DIR, input[0].data.string_val);
-    sprintf(pub_path, "%s/%s.pub.pem", KEYSTORED_KEYS_DIR, input[0].data.string_val);
+    sprintf(pub_path, "%s/%s.pem.pub", KEYSTORED_KEYS_DIR, input[0].data.string_val);
 
     fd = open(priv_path, O_CREAT | O_TRUNC | O_WRONLY, 00600);
     if (fd == -1) {
