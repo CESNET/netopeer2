@@ -21,7 +21,7 @@ set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
 set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -DDEBUG")
 
 # set version
-set(KEYSTORED_VERSION 0.1.1)
+set(KEYSTORED_VERSION 0.1.2)
 
 # config variables
 if (NOT KEYSTORED_KEYS_DIR)
