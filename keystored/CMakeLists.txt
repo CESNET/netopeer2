@@ -21,7 +21,7 @@ set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
 set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -DDEBUG")
 
 # set version
-set(KEYSTORED_VERSION 0.1.1)
+set(KEYSTORED_VERSION 0.1.2)
 
 # config variables
 if (NOT KEYSTORED_KEYS_DIR)
@@ -131,10 +131,17 @@ endif()
 
 option(SSH_KEY_INSTALL "Enable ssh key import" ON)
 if (SSH_KEY_INSTALL)
+    if (NOT SSH_KEYGEN_EXECUTABLE)
+        find_program(SSH_KEYGEN_EXECUTABLE ssh-keygen)
+    endif()
+    if (NOT SSH_KEYGEN_EXECUTABLE)
+        message(FATAL_ERROR "Unable to find ssh-keygen, set SSH_KEYGEN_EXECUTABLE manually.")
+    endif()
     install(CODE "
         set(ENV{SYSREPOCFG} ${SYSREPOCFG_EXECUTABLE})
         set(ENV{CHMOD} ${CHMOD_EXECUTABLE})
         set(ENV{OPENSSL} ${OPENSSL_EXECUTABLE})
+        set(ENV{SSH_KEYGEN} ${SSH_KEYGEN_EXECUTABLE})
         set(ENV{KEYSTORED_KEYS_DIR} ${KEYSTORED_KEYS_DIR})
         set(ENV{KEYSTORED_CHECK_SSH_KEY} ${KEYSTORED_CHECK_SSH_KEY})
         execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/ssh-key-import.sh)")

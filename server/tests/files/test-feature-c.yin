@@ -23,6 +23,21 @@
     <if-feature name="test-feature-c"/>
     <leaf name="test-leaf">
       <type name="string"/>
+      <default value="foo"/>
     </leaf>
+    <container name="nested-container">
+      <container name="inner-container-1">
+        <leaf name="inner-leaf">
+          <type name="string"/>
+          <default value="foo"/>
+        </leaf>
+      </container>
+      <container name="inner-container-2">
+        <leaf name="inner-leaf">
+          <type name="string"/>
+          <default value="foo"/>
+        </leaf>
+      </container>
+    </container>
   </container>
 </module>

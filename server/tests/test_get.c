@@ -149,10 +149,18 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
     char *path;
     (void)session;
 
+    /* Accept any queries in the ietf-yang-library namespace. */
     if (!strncmp(xpath, "/ietf-yang-library:", 19)) {
         if (!set) {
             root = ly_ctx_info(np2srv.ly_ctx);
-            set = lyd_find_path(root, "//.");
+            /* Our test data only has information from the yang-library container,
+               so we can only service requests inside that container. But if the caller
+               has specified a more restrictive path inside yang-library, as in the case
+               of the filter tests, then use it. */
+            if (strncmp(xpath, "/ietf-yang-library:yang-library", 31)) {
+                xpath = "/ietf-yang-library:yang-library//.";
+            }
+            set = lyd_find_path(root, xpath);
         }
 
         if (!set->number) {
@@ -322,94 +330,6 @@ server_thread(void *arg)
 /*
  * TEST
  */
-static void
-test_write(int fd, const char *data, int line)
-{
-    int ret, written, to_write;
-
-    written = 0;
-    to_write = strlen(data);
-    do {
-        ret = write(fd, data + written, to_write - written);
-        if (ret == -1) {
-            if (errno != EAGAIN) {
-                fprintf(stderr, "write fail (%s, line %d)\n", strerror(errno), line);
-                fail();
-            }
-            usleep(100000);
-            ret = 0;
-        }
-        written += ret;
-    } while (written < to_write);
-
-    while (((ret = write(fd, "]]>]]>", 6)) == -1) && (errno == EAGAIN));
-    if (ret == -1) {
-        fprintf(stderr, "write fail (%s, line %d)\n", strerror(errno), line);
-        fail();
-    } else if (ret < 6) {
-        fprintf(stderr, "write fail (end tag, written only %d bytes, line %d)\n", ret, line);
-        fail();
-    }
-}
-
-static void
-test_read(int fd, const char *template, int line)
-{
-    char *buf, *ptr;
-    int ret, red, to_read;
-
-    red = 0;
-    to_read = strlen(template);
-    buf = malloc(to_read + 1);
-    do {
-        ret = read(fd, buf + red, to_read - red);
-        if (ret == -1) {
-            if (errno != EAGAIN) {
-                fprintf(stderr, "read fail (%s, line %d)\n", strerror(errno), line);
-                fail();
-            }
-            usleep(100000);
-            ret = 0;
-        }
-        red += ret;
-
-        /* premature ending tag check */
-        if ((red > 5) && !strncmp((buf + red) - 6, "]]>]]>", 6)) {
-            break;
-        }
-    } while (red < to_read);
-    buf[red] = '\0';
-
-    /* unify all datetimes */
-    for (ptr = strchr(buf, '+'); ptr; ptr = strchr(ptr + 1, '+')) {
-        if ((ptr[-3] == ':') && (ptr[-6] == ':') && (ptr[-9] == 'T') && (ptr[-12] == '-') && (ptr[-15] == '-')) {
-            strncpy(ptr - 19, "0000-00-00T00:00:00+00:00", 25);
-        }
-    }
-
-    for (red = 0; buf[red]; ++red) {
-        if (buf[red] != template[red]) {
-            fprintf(stderr, "read fail (non-matching template, line %d)\n\"%s\"(%d)\nvs. template\n\"%s\"\n",
-                    line, buf + red, red, template + red);
-            fail();
-        }
-    }
-
-    /* read ending tag */
-    while (((ret = read(fd, buf, 6)) == -1) && (errno == EAGAIN));
-    if (ret == -1) {
-        fprintf(stderr, "read fail (%s, line %d)\n", strerror(errno), line);
-        fail();
-    }
-    buf[ret] = '\0';
-    if ((ret < 6) || strcmp(buf, "]]>]]>")) {
-        fprintf(stderr, "read fail (end tag \"%s\", line %d)\n", buf, line);
-        fail();
-    }
-
-    free(buf);
-}
-
 static int
 np_start(void **state)
 {
@@ -602,7 +522,7 @@ test_get(void **state)
 }
 
 static void
-test_get_filter(void **state)
+test_get_filter1(void **state)
 {
     (void)state; /* unused */
     const char *get_rpc =
@@ -621,12 +541,89 @@ test_get_filter(void **state)
     test_read(p_in, get_rpl, __LINE__);
 }
 
+static void
+test_get_filter2(void **state)
+{
+    (void)state; /* unused */
+    const char *get_rpc =
+    "<rpc msgid=\"2\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<get>"
+            "<filter type=\"subtree\">"
+                "<yang-library xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-library\">"
+                    "<module-set>"
+                        "<name>complete</name>"
+                        "<module>"
+                            "<name>ietf-yang-library</name>"
+                            "<revision/>"
+                        "</module>"
+                    "</module-set>"
+                "</yang-library>"
+            "</filter>"
+        "</get>"
+    "</rpc>";
+    const char *get_rpl =
+    "<rpc-reply msgid=\"2\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<data xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+            "<yang-library xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-library\">"
+                "<module-set>"
+                    "<name>complete</name>"
+                    "<module>"
+                        "<name>ietf-yang-library</name>"
+                        "<revision>2018-01-17</revision>"
+                    "</module>"
+                "</module-set>"
+            "</yang-library>"
+        "</data>"
+    "</rpc-reply>";
+
+    test_write(p_out, get_rpc, __LINE__);
+    test_read(p_in, get_rpl, __LINE__);
+}
+
+static void
+test_get_filter3(void **state)
+{
+    (void)state; /* unused */
+    const char *get_rpc =
+    "<rpc msgid=\"3\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<get>"
+            "<filter xmlns:ylib=\"urn:ietf:params:xml:ns:yang:ietf-yang-library\" "
+                "type=\"xpath\" select=\"/ylib:yang-library/module-set[name='complete']/checksum\"/>"
+        "</get>"
+    "</rpc>";
+    const char *get_rpl =
+    "<rpc-reply msgid=\"3\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<data xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+            "<yang-library xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-library\">"
+                "<module-set>"
+                    "<name>complete</name>"
+                    "<checksum>23</checksum>"
+                "</module-set>"
+            "</yang-library>"
+        "</data>"
+    "</rpc-reply>";
+
+    test_write(p_out, get_rpc, __LINE__);
+    test_read(p_in, get_rpl, __LINE__);
+}
+
+static void
+test_startstop(void **state)
+{
+    (void)state; /* unused */
+    return;
+}
+
 int
 main(void)
 {
     const struct CMUnitTest tests[] = {
-                    cmocka_unit_test_setup(test_get, np_start),
-                    cmocka_unit_test_teardown(test_get_filter, np_stop),
+                    cmocka_unit_test_setup(test_startstop, np_start),
+                    cmocka_unit_test(test_get),
+                    cmocka_unit_test(test_get_filter1),
+                    cmocka_unit_test(test_get_filter2),
+                    cmocka_unit_test(test_get_filter3),
+                    cmocka_unit_test_teardown(test_startstop, np_stop),
     };
 
     if (setenv("CMOCKA_TEST_ABORT", "1", 1)) {

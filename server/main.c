@@ -222,18 +222,13 @@ signal_handler(int sig)
     }
 }
 
-static int
-np2srv_module_assign_clbs(const struct lys_module *mod)
+static void
+np2srv_node_assign_clbs(struct lys_node *start)
 {
     struct lys_node *snode, *next;
 
-    if (!strcmp(mod->name, "ietf-netconf-monitoring") || !strcmp(mod->name, "ietf-netconf")) {
-        /* skip it, use internal implementations from libnetconf2 */
-        return EXIT_SUCCESS;
-    }
-
     /* set RPC and Notifications callbacks */
-    LY_TREE_DFS_BEGIN(mod->data, next, snode) {
+    LY_TREE_DFS_BEGIN(start, next, snode) {
         if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
             nc_set_rpc_callback(snode, op_generic);
             goto dfs_nextsibling;
@@ -260,6 +255,24 @@ dfs_nextsibling:
             }
             next = snode->next;
         }
+    }
+
+}
+
+static int
+np2srv_module_assign_clbs(const struct lys_module *mod)
+{
+    if (!strcmp(mod->name, "ietf-netconf-monitoring") || !strcmp(mod->name, "ietf-netconf")) {
+        /* skip it, use internal implementations from libnetconf2 */
+        return EXIT_SUCCESS;
+    }
+    np2srv_node_assign_clbs(mod->data);
+    for (uint8_t i = 0; i < mod->augment_size; ++i) {
+        struct lys_node *target = mod->augment[i].target;
+        if (!strcmp(target->module->name, "ietf-netconf-monitoring") || !strcmp(target->module->name, "ietf-netconf")) {
+            continue;
+        }
+        np2srv_node_assign_clbs(target);
     }
 
     return EXIT_SUCCESS;
@@ -323,13 +336,19 @@ np2srv_verify_clb(const struct nc_session *session)
     return 1;
 }
 
-static char *
+static void free_with_user_data(void *data, void *user_data)
+{
+    free(data);
+    (void)user_data;
+}
+
+static const char *
 np2srv_ly_import_clb(const char *mod_name, const char *mod_rev, const char *submod_name, const char *submod_rev,
-                     void *UNUSED(user_data), LYS_INFORMAT *format, void (**free_module_data)(void *model_data))
+                     void *UNUSED(user_data), LYS_INFORMAT *format, void (**free_module_data)(void *model_data, void *user_data))
 {
     char *data = NULL;
 
-    *free_module_data = free;
+    *free_module_data = free_with_user_data;
     *format = LYS_YIN;
     if (submod_rev || (submod_name && !mod_name)) {
         np2srv_sr_get_submodule_schema(np2srv.sr_sess.srs, submod_name, submod_rev, SR_SCHEMA_YIN, &data, NULL);
@@ -420,6 +439,18 @@ np2srv_create_capab(const struct lys_module *mod)
 
     return cpb;
 }
+
+#ifdef NP2SRV_ENABLED_LY_CTX_INFO_CACHE
+static void
+np2srv_update_ly_ctx_info_cache(uint16_t module_set_id)
+{
+    if (np2srv.ly_ctx_info_cache) {
+        lyd_free_withsiblings(np2srv.ly_ctx_info_cache);
+    }
+    np2srv.cached_ly_ctx_module_set_id = module_set_id;
+    np2srv.ly_ctx_info_cache = ly_ctx_info(np2srv.ly_ctx);
+}
+#endif
 
 static void
 np2srv_module_install_clb(const char *module_name, const char *revision, sr_module_state_t state, void *UNUSED(private_ctx))
@@ -544,11 +575,12 @@ np2srv_feature_change_clb(const char *module_name, const char *feature_name, boo
 }
 
 static int
-np2srv_state_data_clb(const char *xpath, sr_val_t **values, size_t *values_cnt, void *UNUSED(private_ctx))
+np2srv_state_data_clb(const char *xpath, sr_val_t **values, size_t *values_cnt, uint64_t UNUSED(request_id), void *UNUSED(private_ctx))
 {
     struct lyd_node *data = NULL, *node, *iter;
     struct ly_set *set = NULL;
     uint32_t i, j;
+    bool should_free_data = true;
     int ret = SR_ERR_OK;
 
     if (!strncmp(xpath, "/ietf-netconf-monitoring:", 25)) {
@@ -556,7 +588,17 @@ np2srv_state_data_clb(const char *xpath, sr_val_t **values, size_t *values_cnt, 
     } else if (!strncmp(xpath, "/nc-notifications:", 18)) {
         data = ntf_get_data();
     } else if (!strncmp(xpath, "/ietf-yang-library:", 19)) {
+#ifdef NP2SRV_ENABLED_LY_CTX_INFO_CACHE
+        uint16_t module_set_id = ly_ctx_get_module_set_id(np2srv.ly_ctx);
+        if (module_set_id != np2srv.cached_ly_ctx_module_set_id) {
+            np2srv_update_ly_ctx_info_cache(module_set_id);
+        }
+
+        data = np2srv.ly_ctx_info_cache;
+        should_free_data = false;
+#else
         data = ly_ctx_info(np2srv.ly_ctx);
+#endif
     } else {
         ret = SR_ERR_OPERATION_FAILED;
         goto cleanup;
@@ -623,7 +665,9 @@ np2srv_state_data_clb(const char *xpath, sr_val_t **values, size_t *values_cnt, 
 
 cleanup:
     ly_set_free(set);
-    lyd_free_withsiblings(data);
+    if (should_free_data) {
+        lyd_free_withsiblings(data);
+    }
     if (ret != SR_ERR_OK) {
         sr_free_values(*values, *values_cnt);
         *values_cnt = 0;
@@ -1572,6 +1616,10 @@ cleanup:
         nc_ps_clear(np2srv.nc_ps, 1, free_ds);
     }
     nc_ps_free(np2srv.nc_ps);
+
+#ifdef NP2SRV_ENABLED_LY_CTX_INFO_CACHE
+    lyd_free_withsiblings(np2srv.ly_ctx_info_cache);
+#endif
 
     /* clears all the sessions also */
     sr_disconnect(np2srv.sr_conn);

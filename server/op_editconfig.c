@@ -287,9 +287,13 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         case LYD_ANYDATA_XML:
             config = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, LYD_OPT_EDIT | LYD_OPT_STRICT);
             break;
+        case LYD_ANYDATA_LYB:
+            config = lyd_parse_mem(np2srv.ly_ctx, any->value.mem, LYD_LYB, LYD_OPT_EDIT | LYD_OPT_STRICT);
+            break;
         case LYD_ANYDATA_JSON:
         case LYD_ANYDATA_JSOND:
         case LYD_ANYDATA_SXMLD:
+        case LYD_ANYDATA_LYBD:
             EINT;
             break;
         }

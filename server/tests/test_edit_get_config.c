@@ -165,9 +165,15 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
     char *path;
     const char *ietf_interfaces_xpath = "/ietf-interfaces:";
     size_t ietf_interfaces_xpath_len = strlen(ietf_interfaces_xpath);
+    const char *test_feature_c_xpath = "/test-feature-c:";
+    size_t test_feature_c_xpath_len = strlen(test_feature_c_xpath);
+    const char *simplified_melt_xpath = "/simplified-melt:";
+    size_t simplified_melt_xpath_len = strlen(simplified_melt_xpath);
     (void)session;
 
-    if (!strncmp(xpath, ietf_interfaces_xpath, ietf_interfaces_xpath_len) || !strcmp(xpath, "/test-feature-c:*//.") || !strcmp(xpath, "/simplified-melt:*//.")) {
+    if (!strncmp(xpath, ietf_interfaces_xpath, ietf_interfaces_xpath_len) ||
+        !strncmp(xpath, test_feature_c_xpath, test_feature_c_xpath_len) ||
+        !strncmp(xpath, simplified_melt_xpath, simplified_melt_xpath_len)) {
         if (!ietf_if_set) {
             ietf_if_set = lyd_find_path(data, xpath);
         }
@@ -452,94 +458,6 @@ server_thread(void *arg)
 /*
  * TEST
  */
-static void
-test_write(int fd, const char *data, int line)
-{
-    int ret, written, to_write;
-
-    written = 0;
-    to_write = strlen(data);
-    do {
-        ret = write(fd, data + written, to_write - written);
-        if (ret == -1) {
-            if (errno != EAGAIN) {
-                fprintf(stderr, "write fail (%s, line %d)\n", strerror(errno), line);
-                fail();
-            }
-            usleep(100000);
-            ret = 0;
-        }
-        written += ret;
-    } while (written < to_write);
-
-    while (((ret = write(fd, "]]>]]>", 6)) == -1) && (errno == EAGAIN));
-    if (ret == -1) {
-        fprintf(stderr, "write fail (%s, line %d)\n", strerror(errno), line);
-        fail();
-    } else if (ret < 6) {
-        fprintf(stderr, "write fail (end tag, written only %d bytes, line %d)\n", ret, line);
-        fail();
-    }
-}
-
-static void
-test_read(int fd, const char *template, int line)
-{
-    char *buf, *ptr;
-    int ret, red, to_read;
-
-    red = 0;
-    to_read = strlen(template);
-    buf = malloc(to_read + 1);
-    do {
-        ret = read(fd, buf + red, to_read - red);
-        if (ret == -1) {
-            if (errno != EAGAIN) {
-                fprintf(stderr, "read fail (%s, line %d)\n", strerror(errno), line);
-                fail();
-            }
-            usleep(100000);
-            ret = 0;
-        }
-        red += ret;
-
-        /* premature ending tag check */
-        if ((red > 5) && !strncmp((buf + red) - 6, "]]>]]>", 6)) {
-            break;
-        }
-    } while (red < to_read);
-    buf[red] = '\0';
-
-    /* unify all datetimes */
-    for (ptr = strstr(buf, "+02:00"); ptr; ptr = strstr(ptr + 1, "+02:00")) {
-        if ((ptr[-3] == ':') && (ptr[-6] == ':') && (ptr[-9] == 'T') && (ptr[-12] == '-') && (ptr[-15] == '-')) {
-            strncpy(ptr - 19, "0000-00-00T00:00:00", 19);
-        }
-    }
-
-    for (red = 0; buf[red]; ++red) {
-        if (buf[red] != template[red]) {
-            fprintf(stderr, "read fail (non-matching template, line %d)\n\"%s\"(%d)\nvs. template\n\"%s\"\n",
-                    line, buf + red, red, template + red);
-            fail();
-        }
-    }
-
-    /* read ending tag */
-    while (((ret = read(fd, buf, 6)) == -1) && (errno == EAGAIN));
-    if (ret == -1) {
-        fprintf(stderr, "read fail (%s, line %d)\n", strerror(errno), line);
-        fail();
-    }
-    buf[ret] = '\0';
-    if ((ret < 6) || strcmp(buf, "]]>]]>")) {
-        fprintf(stderr, "read fail (end tag \"%s\", line %d)\n", buf, line);
-        fail();
-    }
-
-    free(buf);
-}
-
 static int
 np_start(void **state)
 {
@@ -596,6 +514,7 @@ np_start(void **state)
     "<enabled>false</enabled>"
     "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
     "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+      "<mtu>2000</mtu>"
       "<address>"
         "<ip>10.0.0.5</ip>"
         "<netmask>255.0.0.0</netmask>"
@@ -710,6 +629,7 @@ test_edit_delete1(void **state)
     "<enabled>false</enabled>"
     "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
     "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+      "<mtu>2000</mtu>"
       "<address>"
         "<ip>10.0.0.5</ip>"
         "<netmask>255.0.0.0</netmask>"
@@ -782,6 +702,7 @@ test_edit_delete2(void **state)
     "<enabled>false</enabled>"
     "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
     "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+      "<mtu>2000</mtu>"
       "<address>"
         "<ip>10.0.0.5</ip>"
         "<netmask>255.0.0.0</netmask>"
@@ -858,6 +779,76 @@ test_edit_delete3(void **state)
 
     test_write(p_out, edit_rpc, __LINE__);
     test_read(p_in, edit_rpl, __LINE__);
+}
+
+static void
+test_edit_delete4(void **state)
+{
+    (void)state; /* unused */
+    const char *get_config_rpc =
+    "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<get-config>"
+            "<source>"
+                "<running/>"
+            "</source>"
+        "</get-config>"
+    "</rpc>";
+    const char *get_config_rpl =
+    "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<data xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+"<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+  "<interface>"
+    "<name>iface2</name>"
+    "<description>iface2 dsc</description>"
+    "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:softwareLoopback</type>"
+    "<enabled>false</enabled>"
+    "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+    "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+      "<address>"
+        "<ip>10.0.0.5</ip>"
+        "<netmask>255.0.0.0</netmask>"
+      "</address>"
+      "<address>"
+        "<ip>172.0.0.5</ip>"
+        "<prefix-length>16</prefix-length>"
+      "</address>"
+      "<neighbor>"
+        "<ip>10.0.0.1</ip>"
+        "<link-layer-address>01:34:56:78:9a:bc:de:fa</link-layer-address>"
+      "</neighbor>"
+    "</ipv4>"
+  "</interface>"
+"</interfaces>"
+        "</data>"
+    "</rpc-reply>";
+    const char *edit_rpc =
+    "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<edit-config>"
+            "<target>"
+                "<running/>"
+            "</target>"
+            "<config xmlns:op=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+                "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+                    "<interface>"
+                        "<name>iface2</name>"
+                        "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+                            "<mtu op:operation=\"delete\"/>"
+                        "</ipv4>"
+                    "</interface>"
+                "</interfaces>"
+            "</config>"
+        "</edit-config>"
+    "</rpc>";
+    const char *edit_rpl =
+    "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<ok/>"
+    "</rpc-reply>";
+
+    test_write(p_out, edit_rpc, __LINE__);
+    test_read(p_in, edit_rpl, __LINE__);
+
+    test_write(p_out, get_config_rpc, __LINE__);
+    test_read(p_in, get_config_rpl, __LINE__);
 }
 
 static void
@@ -1561,7 +1552,7 @@ test_edit_merge3(void **state)
 }
 
 static void
-test_get_filter(void **state)
+test_get_filter1(void **state)
 {
     (void)state; /* unused */
     const char *get_config_rpc =
@@ -1598,6 +1589,49 @@ test_get_filter(void **state)
 }
 
 static void
+test_get_filter2(void **state)
+{
+    (void)state; /* unused */
+    const char *get_config_rpc =
+    "<rpc msgid=\"2\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+      "<get-config>"
+        "<source>"
+          "<running/>"
+         "</source>"
+         "<filter type=\"subtree\">"
+           "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+             "<interface>"
+               "<name/>"
+             "</interface>"
+           "</interfaces>"
+           "<test-container xmlns=\"urn:ietf:params:xml:ns:yang:test-feature-c\">"
+             "<test-leaf/>"
+           "</test-container>"
+         "</filter>"
+      "</get-config>"
+    "</rpc>";
+    const char *get_config_rpl =
+    "<rpc-reply msgid=\"2\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+      "<data xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+          "<interface>"
+            "<name>iface2</name>"
+          "</interface>"
+          "<interface>"
+            "<name>iface1</name>"
+          "</interface>"
+        "</interfaces>"
+        "<test-container xmlns=\"urn:ietf:params:xml:ns:yang:test-feature-c\">"
+          "<test-leaf>green</test-leaf>"
+        "</test-container>"
+      "</data>"
+    "</rpc-reply>";
+
+    test_write(p_out, get_config_rpc, __LINE__);
+    test_read(p_in, get_config_rpl, __LINE__);
+}
+
+static void
 test_startstop(void **state)
 {
     (void)state; /* unused */
@@ -1613,13 +1647,15 @@ main(void)
                     cmocka_unit_test(test_edit_delete1),
                     cmocka_unit_test(test_edit_delete2),
                     cmocka_unit_test(test_edit_delete3),
+                    cmocka_unit_test(test_edit_delete4),
                     cmocka_unit_test(test_edit_create1),
                     cmocka_unit_test(test_edit_create2),
                     cmocka_unit_test(test_edit_create3),
                     cmocka_unit_test(test_edit_merge1),
                     cmocka_unit_test(test_edit_merge2),
                     cmocka_unit_test(test_edit_merge3),
-                    cmocka_unit_test(test_get_filter),
+                    cmocka_unit_test(test_get_filter1),
+                    cmocka_unit_test(test_get_filter2),
                     cmocka_unit_test_teardown(test_startstop, np_stop),
     };
 

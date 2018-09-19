@@ -285,94 +285,6 @@ server_thread(void *arg)
 /*
  * TEST
  */
-static void
-test_write(int fd, const char *data, int line)
-{
-    int ret, written, to_write;
-
-    written = 0;
-    to_write = strlen(data);
-    do {
-        ret = write(fd, data + written, to_write - written);
-        if (ret == -1) {
-            if (errno != EAGAIN) {
-                fprintf(stderr, "write fail (%s, line %d)\n", strerror(errno), line);
-                fail();
-            }
-            usleep(100000);
-            ret = 0;
-        }
-        written += ret;
-    } while (written < to_write);
-
-    while (((ret = write(fd, "]]>]]>", 6)) == -1) && (errno == EAGAIN));
-    if (ret == -1) {
-        fprintf(stderr, "write fail (%s, line %d)\n", strerror(errno), line);
-        fail();
-    } else if (ret < 6) {
-        fprintf(stderr, "write fail (end tag, written only %d bytes, line %d)\n", ret, line);
-        fail();
-    }
-}
-
-static void
-test_read(int fd, const char *template, int line)
-{
-    char *buf, *ptr;
-    int ret, red, to_read;
-
-    red = 0;
-    to_read = strlen(template);
-    buf = malloc(to_read + 1);
-    do {
-        ret = read(fd, buf + red, to_read - red);
-        if (ret == -1) {
-            if (errno != EAGAIN) {
-                fprintf(stderr, "read fail (%s, line %d)\n", strerror(errno), line);
-                fail();
-            }
-            usleep(100000);
-            ret = 0;
-        }
-        red += ret;
-
-        /* premature ending tag check */
-        if ((red > 5) && !strncmp((buf + red) - 6, "]]>]]>", 6)) {
-            break;
-        }
-    } while (red < to_read);
-    buf[red] = '\0';
-
-    /* unify all datetimes */
-    for (ptr = strchr(buf, '-'); ptr; ptr = strchr(ptr + 1, '-')) {
-        if ((ptr[3] == '-') && (ptr[6] == 'T') && (ptr[9] == ':') && (ptr[12] == ':')) {
-            strncpy(ptr - 4, "0000-00-00T00:00:00", 19);
-        }
-    }
-
-    for (red = 0; buf[red]; ++red) {
-        if (buf[red] != template[red]) {
-            fprintf(stderr, "read fail (non-matching template, line %d)\n\"%s\"(%d)\nvs. template\n\"%s\"\n",
-                    line, buf + red, red, template + red);
-            fail();
-        }
-    }
-
-    /* read ending tag */
-    while (((ret = read(fd, buf, 6)) == -1) && (errno == EAGAIN));
-    if (ret == -1) {
-        fprintf(stderr, "read fail (%s, line %d)\n", strerror(errno), line);
-        fail();
-    }
-    buf[ret] = '\0';
-    if ((ret < 6) || strcmp(buf, "]]>]]>")) {
-        fprintf(stderr, "read fail (end tag \"%s\", line %d)\n", buf, line);
-        fail();
-    }
-
-    free(buf);
-}
-
 static int
 np_start(void **state)
 {
@@ -451,6 +363,81 @@ test_basic(void **state)
     vals[2].data.string_val = strdup("127.0.0.1");
 
     notif_clb(SR_EV_NOTIF_T_REALTIME, "/ietf-netconf-notifications:netconf-session-start", vals, val_cnt, time(NULL), notif_clb_data);
+
+    sr_free_values(vals, val_cnt);
+
+    /* read notif */
+    test_read(p_in, notif_data, __LINE__);
+}
+
+static void
+test_config_change(void **state)
+{
+    (void)state; /* unused */
+    sr_val_t *vals;
+    size_t val_cnt;
+    const char *subsc_rpc =
+    "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<create-subscription xmlns=\"urn:ietf:params:xml:ns:netconf:notification:1.0\">"
+            "<stream>NETCONF</stream>"
+        "</create-subscription>"
+    "</rpc>";
+    const char *subsc_rpl =
+    "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<ok/>"
+    "</rpc-reply>";
+    const char *notif_data =
+    "<notification xmlns=\"urn:ietf:params:xml:ns:netconf:notification:1.0\">"
+        "<eventTime>0000-00-00T00:00:00Z</eventTime>"
+        "<netconf-config-change xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-notifications\">"
+          "<changed-by>"
+            "<session-id>42</session-id>"
+            "<username>test</username>"
+          "</changed-by>"
+          "<datastore>running</datastore>"
+          "<edit>"
+            "<operation>create</operation>"
+          "</edit>"
+        "</netconf-config-change>"
+    "</notification>";
+
+    initialized = 0;
+    while (!initialized) {
+        usleep(100000);
+    }
+
+    test_write(p_out, subsc_rpc, __LINE__);
+    test_read(p_in, subsc_rpl, __LINE__);
+
+    /* send notif */
+    val_cnt = 6;
+    vals = calloc(val_cnt, sizeof *vals);
+
+    vals[0].xpath = strdup("/ietf-netconf-notifications:netconf-config-change/changed-by");
+    vals[0].type = SR_CONTAINER_T;
+
+    vals[1].xpath = strdup("/ietf-netconf-notifications:netconf-config-change/changed-by/session-id");
+    vals[1].type = SR_UINT32_T;
+    vals[1].data.uint32_val = 42;
+
+    vals[2].xpath = strdup("/ietf-netconf-notifications:netconf-config-change/changed-by/username");
+    vals[2].type = SR_STRING_T;
+    vals[2].data.string_val = strdup("test");
+
+    vals[3].xpath = strdup("/ietf-netconf-notifications:netconf-config-change/datastore");
+    vals[3].type = SR_ENUM_T;
+    vals[3].data.enum_val = strdup("running");
+
+    vals[4].xpath = strdup("/ietf-netconf-notifications:netconf-config-change/edit[1]");
+    vals[4].type = SR_LIST_T;
+
+    /* A real config-change notification will have an instance-id here, which is omitted for ease of testing. */
+
+    vals[5].xpath = strdup("/ietf-netconf-notifications:netconf-config-change/edit[1]/operation");
+    vals[5].type = SR_ENUM_T;
+    vals[5].data.enum_val = strdup("create");
+
+    notif_clb(SR_EV_NOTIF_T_REALTIME, "/ietf-netconf-notifications:netconf-config-change", vals, val_cnt, time(NULL), notif_clb_data);
 
     sr_free_values(vals, val_cnt);
 
@@ -718,6 +705,7 @@ main(void)
 {
     const struct CMUnitTest tests[] = {
                     cmocka_unit_test_setup(test_basic, np_start),
+                    cmocka_unit_test(test_config_change),
                     cmocka_unit_test(test_filter_xpath),
                     cmocka_unit_test(test_filter_subtree),
                     cmocka_unit_test_teardown(test_replay, np_stop),

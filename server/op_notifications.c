@@ -190,8 +190,11 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
 {
     struct np_subscriber *subscriber = (struct np_subscriber *)private_ctx;
     struct lyd_node *ntf = NULL, *node;
+    struct sr2ly_cache cache;
     size_t i;
     const char *ntf_type_str = NULL;
+
+    memset(&cache, 0, sizeof cache);
 
     switch (notif_type) {
     case SR_EV_NOTIF_T_REALTIME:
@@ -219,7 +222,7 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
         }
 
         for (i = 0; i < val_cnt; i++) {
-            if (op_sr_val_to_lyd_node(ntf, &vals[i], &node)) {
+            if (op_sr2ly(ntf, &vals[i], &node, &cache)) {
                 ERR("Creating notification (%s) data (%s) failed.", xpath, vals[i].xpath);
                 goto error;
             }
@@ -230,6 +233,7 @@ np2srv_ntf_clb(const sr_ev_notif_type_t notif_type, const char *xpath, const sr_
     np2srv_ntf_send(subscriber, ntf, timestamp, notif_type);
 
 error:
+    op_sr2ly_free_cache(&cache);
     lyd_free(ntf);
 }
 

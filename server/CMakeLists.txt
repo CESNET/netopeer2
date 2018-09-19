@@ -13,14 +13,14 @@ if(NOT UNIX)
 endif()
 
 # set version
-set(NP2SRV_VERSION 0.5.31)
+set(NP2SRV_VERSION 0.6.15)
 
 # set default build type if not specified by user
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE debug)
 endif()
 
-set(CMAKE_C_FLAGS         "${CMAKE_C_FLAGS} -Wall -Wextra")
+set(CMAKE_C_FLAGS         "${CMAKE_C_FLAGS} -Wall -Wextra -std=gnu11")
 set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
 set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -DDEBUG")
 
@@ -35,6 +35,11 @@ endif()
 option(ENABLE_CONFIGURATION "Enable server configuration" ON)
 set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
 set(DEFAULT_HOST_KEY "/etc/ssh/ssh_host_rsa_key" CACHE STRING "Default server host key (used only if configuration is disabled)")
+
+option(ENABLE_LY_CTX_INFO_CACHE "Enable caching the ly_ctx_info() result; reduces processing at the cost of increased memory usage." ON)
+if(ENABLE_LY_CTX_INFO_CACHE)
+    set(NP2SRV_ENABLED_LY_CTX_INFO_CACHE 1)
+endif()
 
 # set prefix for the PID file
 if (NOT PIDFILE_PREFIX)
