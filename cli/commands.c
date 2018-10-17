@@ -688,14 +688,14 @@ void
 cmd_connect_help(void)
 {
 #if defined(NC_ENABLED_SSH) && defined(NC_ENABLED_TLS)
-    printf("connect [--help] [--host <hostname>] [--port <num>]\n");
-    printf("    SSH [--ssh] [--login <username>]\n");
-    printf("    TLS  --tls  [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
+    printf("connect [--help] [--ssh] [--host <hostname>] [--port <num>] [--login <username>]\n");
+    printf("connect [--help] --tls [--host <hostname>] [--port <num>] [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
 #elif defined(NC_ENABLED_SSH)
     printf("connect [--help] [--ssh] [--host <hostname>] [--port <num>] [--login <username>]\n");
 #elif defined(NC_ENABLED_TLS)
     printf("connect [--help] [--tls] [--host <hostname>] [--port <num>] [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
 #endif
+    printf("connect [--help] --unix [--socket <path>]\n");
 }
 
 void
@@ -2393,6 +2393,59 @@ error_cleanup:
 
 #endif /* NC_ENABLED_TLS */
 
+static int
+cmd_connect_listen_unix(struct arglist *cmd, int is_connect)
+{
+    const char *func_name = (is_connect ? "cmd_connect" : "cmd_listen");
+    const char *path = NULL;
+    int c, ret = EXIT_FAILURE;
+    int option_index = 0;
+    struct option long_options[] = {
+        {"unix", 0, 0, 'u'},
+        {"socket", 1, 0, 'S'},
+        {0, 0, 0, 0}
+    };
+
+    if (!is_connect) {
+        ERROR(func_name, "listen mode not supported for unix socket.");
+        return EXIT_FAILURE;
+    }
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    while ((c = getopt_long(cmd->count, cmd->list, "uS:",
+                                        long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'u':
+            /* we know already */
+            break;
+        case 'S':
+            path = optarg;
+            break;
+        default:
+            ERROR(func_name, "Unknown option -%c.", c);
+            cmd_connect_help();
+            return EXIT_FAILURE;
+        }
+    }
+
+    if (!path)
+        path = "/var/run/netopeer2-server.sock";
+
+    /* create the session */
+    session = nc_connect_unix(path, NULL);
+    if (session == NULL) {
+        ERROR(func_name, "Connecting to %s failed.", path);
+        goto error_cleanup;
+    }
+
+    ret = EXIT_SUCCESS;
+
+error_cleanup:
+    return ret;
+}
+
 int
 cmd_searchpath(const char *arg, char **UNUSED(tmp_config_file))
 {
@@ -2510,17 +2563,23 @@ cmd_status(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 {
     const char *s;
     const char * const *cpblts;
+    NC_TRANSPORT_IMPL transport;
     int i;
 
     if (!session) {
         printf("Client is not connected to any NETCONF server.\n");
     } else {
+        transport = nc_session_get_ti(session);
         printf("Current NETCONF session:\n");
         printf("  ID          : %u\n", nc_session_get_id(session));
-        printf("  Host        : %s\n", nc_session_get_host(session));
-        printf("  Port        : %u\n", nc_session_get_port(session));
+        if (transport == NC_TI_LIBSSH || transport == NC_TI_OPENSSL) {
+            printf("  Host        : %s\n", nc_session_get_host(session));
+            printf("  Port        : %u\n", nc_session_get_port(session));
+        } else if (transport == NC_TI_UNIX) {
+            printf("  Path        : %s\n", nc_session_get_path(session));
+        }
         printf("  User        : %s\n", nc_session_get_username(session));
-        switch (nc_session_get_ti(session)) {
+        switch (transport) {
 #ifdef NC_ENABLED_SSH
         case NC_TI_LIBSSH:
             s = "SSH";
@@ -2533,6 +2592,9 @@ cmd_status(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 #endif
         case NC_TI_FD:
             s = "FD";
+            break;
+        case NC_TI_UNIX:
+            s = "UNIX";
             break;
         default:
             s = "Unknown";
@@ -2574,6 +2636,8 @@ cmd_connect_listen(const char *arg, int is_connect)
             {"key", 1, 0, 'k'},
             {"trusted", 1, 0, 'r'},
 #endif
+            {"unix", 0, 0, 'u'},
+            {"socket", 1, 0, 'S'},
             {0, 0, 0, 0}
     };
     int option_index = 0;
@@ -2582,7 +2646,8 @@ cmd_connect_listen(const char *arg, int is_connect)
     optind = 0;
 
     if (session) {
-        ERROR(func_name, "Already connected to %s.", nc_session_get_host(session));
+        ERROR(func_name, "Already connected to %s.",
+            nc_session_get_host(session) ? : nc_session_get_path(session));
         return EXIT_FAILURE;
     }
 
@@ -2595,11 +2660,11 @@ cmd_connect_listen(const char *arg, int is_connect)
     ret = -1;
 
 #if defined(NC_ENABLED_SSH) && defined(NC_ENABLED_TLS)
-    optstring = "hsti:o:p:l:c:k:r:";
+    optstring = "hsti:o:p:l:c:k:r:uS:";
 #elif defined(NC_ENABLED_SSH)
-    optstring = "hsi:o:p:l:";
+    optstring = "hsi:o:p:l:uS:";
 #elif defined(NC_ENABLED_TLS)
-    optstring = "hti:o:p:c:k:r:";
+    optstring = "hti:o:p:c:k:r:uS:";
 #endif
 
     while ((c = getopt_long(cmd.count, cmd.list, optstring, long_options, &option_index)) != -1) {
@@ -2623,6 +2688,9 @@ cmd_connect_listen(const char *arg, int is_connect)
             ret = cmd_connect_listen_tls(&cmd, is_connect);
             break;
 #endif
+        case 'u':
+            ret = cmd_connect_listen_unix(&cmd, is_connect);
+            break;
         default:
             break;
         }
