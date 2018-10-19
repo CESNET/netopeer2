@@ -29,60 +29,12 @@
 #include "operations.h"
 #include "netconf_monitoring.h"
 
-/* add whole subtree */
-static int
-opget_build_subtree_from_sysrepo(sr_session_ctx_t *srs, struct lyd_node **root, const char *subtree_xpath)
-{
-    sr_val_t *value;
-    sr_val_iter_t *sriter;
-    struct lyd_node *node;
-    struct sr2ly_cache cache;
-    char *full_subtree_xpath = NULL;
-    int rc;
-
-    if (asprintf(&full_subtree_xpath, "%s//.", subtree_xpath) == -1) {
-        EMEM;
-        return -1;
-    }
-
-    memset(&cache, 0, sizeof cache);
-    np2srv_sr_session_refresh(srs, NULL);
-
-    rc = np2srv_sr_get_items_iter(srs, full_subtree_xpath, &sriter, NULL);
-    free(full_subtree_xpath);
-    if (rc == 1) {
-        /* it's ok, model without data or just non-existing path */
-        return 0;
-    } else if (rc) {
-        return -1;
-    }
-
-    while ((!np2srv_sr_get_item_next(srs, sriter, &value, NULL))) {
-        if (op_sr2ly(*root, value, &node, &cache)) {
-            sr_free_val(value);
-            sr_free_val_iter(sriter);
-            return -1;
-        }
-
-        if (!(*root)) {
-            *root = node;
-        }
-        sr_free_val(value);
-    }
-    sr_free_val_iter(sriter);
-
-    op_sr2ly_free_cache(&cache);
-    return 0;
-}
-
 struct nc_server_reply *
 op_get(struct lyd_node *rpc, struct nc_session *ncs)
 {
-    const struct lys_module *module;
-    const struct lys_node *snode;
     struct lyd_node_leaf_list *leaf;
     struct lyd_node *root = NULL, *node;
-    char **filters = NULL, *path;
+    char **filters = NULL;
     int filter_count = 0, rc;
     unsigned int config_only;
     uint32_t i;
@@ -152,26 +104,8 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     } else {
         ly_set_free(nodeset);
 
-        i = 0;
-        while ((module = ly_ctx_get_module_iter(np2srv.ly_ctx, &i))) {
-            if (!module->implemented) {
-                continue;
-            }
-
-            LY_TREE_FOR(module->data, snode) {
-                if (!(snode->nodetype & (LYS_GROUPING | LYS_NOTIF | LYS_RPC))) {
-                    /* module with some actual data definitions */
-                    break;
-                }
-            }
-
-            if (snode) {
-                asprintf(&path, "/%s:*", module->name);
-                if (op_filter_xpath_add_filter(path, &filters, &filter_count)) {
-                    free(path);
-                    goto error;
-                }
-            }
+        if (op_filter_create_allmodules(&filters, &filter_count)) {
+            goto error;
         }
     }
 
@@ -213,7 +147,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
      */
     for (i = 0; (signed)i < filter_count; i++) {
         /* create the subtree */
-        if (opget_build_subtree_from_sysrepo(sessions->srs, &root, filters[i])) {
+        if (op_sr2ly_subtree(sessions->srs, &root, filters[i])) {
             goto error;
         }
     }

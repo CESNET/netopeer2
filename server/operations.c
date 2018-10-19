@@ -2631,6 +2631,37 @@ op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_coun
     return 0;
 }
 
+int op_filter_create_allmodules(char ***filters, int *filter_count)
+{
+    uint32_t i = 0;
+    const struct lys_module *module;
+    const struct lys_node *snode;
+    char *path;
+
+    while ((module = ly_ctx_get_module_iter(np2srv.ly_ctx, &i))) {
+        if (!module->implemented) {
+            continue;
+        }
+
+        LY_TREE_FOR(module->data, snode) {
+            if (!(snode->nodetype & (LYS_GROUPING | LYS_NOTIF | LYS_RPC))) {
+                /* module with some actual data definitions */
+                break;
+            }
+        }
+
+        if (snode) {
+            asprintf(&path, "/%s:*", module->name);
+            if (op_filter_xpath_add_filter(path, filters, filter_count)) {
+                free(path);
+                return -1;
+            }
+        }
+    }
+    return 0;
+}
+
+
 enum {
     OP_SR2LY_PARSE_PRED_SUCCESS = 0,
     OP_SR2LY_PARSE_PRED_NO_KEY,
@@ -3083,3 +3114,49 @@ op_sr2ly_free_cache(struct sr2ly_cache *cache)
     }
     free(cache->items);
 }
+
+int
+op_sr2ly_subtree(sr_session_ctx_t *srs, struct lyd_node **root, const char *subtree_xpath)
+{
+    sr_val_t *value;
+    sr_val_iter_t *sriter;
+    struct lyd_node *node;
+    struct sr2ly_cache cache;
+    char *full_subtree_xpath = NULL;
+    int rc;
+
+    if (asprintf(&full_subtree_xpath, "%s//.", subtree_xpath) == -1) {
+        EMEM;
+        return -1;
+    }
+
+    memset(&cache, 0, sizeof cache);
+    np2srv_sr_session_refresh(srs, NULL);
+
+    rc = np2srv_sr_get_items_iter(srs, full_subtree_xpath, &sriter, NULL);
+    free(full_subtree_xpath);
+    if (rc == 1) {
+        /* it's ok, model without data or just non-existing path */
+        return 0;
+    } else if (rc) {
+        return -1;
+    }
+
+    while ((!np2srv_sr_get_item_next(srs, sriter, &value, NULL))) {
+        if (op_sr2ly(*root, value, &node, &cache)) {
+            sr_free_val(value);
+            sr_free_val_iter(sriter);
+            return -1;
+        }
+
+        if (!(*root)) {
+            *root = node;
+        }
+        sr_free_val(value);
+    }
+    sr_free_val_iter(sriter);
+
+    op_sr2ly_free_cache(&cache);
+    return 0;
+}
+

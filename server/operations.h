@@ -141,6 +141,7 @@ struct nc_server_reply *op_build_err_nacm(struct nc_server_reply *ereply);
 int op_filter_get_tree_from_data(struct lyd_node **root, struct lyd_node *data, const char *subtree_path);
 int op_filter_xpath_add_filter(char *new_filter, char ***filters, int *filter_count);
 int op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_count);
+int op_filter_create_allmodules(char ***filters, int *filter_count);
 
 struct sr2ly_cache {
     struct {
@@ -155,6 +156,9 @@ struct sr2ly_cache {
 
 void op_sr2ly_free_cache(struct sr2ly_cache *cache);
 int op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_node, struct sr2ly_cache *cache);
+
+/* build out whole subtree */
+int op_sr2ly_subtree(sr_session_ctx_t *srs, struct lyd_node **root, const char *subtree_xpath);
 
 struct nc_server_reply *op_get(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_lock(struct lyd_node *rpc, struct nc_session *ncs);
