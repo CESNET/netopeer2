@@ -107,18 +107,6 @@ static struct lyd_node *opcopy_import_any(struct lyd_node_anydata *any, struct n
     return root;
 }
 
-static struct lyd_node *opcopy_import_url(const char *url, struct nc_server_reply **ereply)
-{
-    struct nc_server_error *e;
-    struct lyd_node *root = NULL;
-
-    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-    nc_err_set_msg(e, "fixme", "en");
-    *ereply = nc_server_reply_err(e);
-
-    return root;
-}
-
 struct nc_server_reply *
 op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 {
@@ -135,8 +123,10 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     int rc = SR_ERR_OK, path_index = 0, missing_keys = 0, lastkey = 0;
     unsigned int i;
     char quote;
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
     char *target_url = 0;
     const char* urlval;
+#endif
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
@@ -159,6 +149,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
         target_ds = SR_DS_CANDIDATE;
         target_is_ds = 1;
     } else if (!strcmp(tgt_dsname, "url")) {
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
         urlval = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
         if (urlval) {
             target_url = (char *)malloc(strlen(urlval) + 1);
@@ -171,6 +162,13 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
             ereply = nc_server_reply_err(e);
             goto finish;
         }
+#else
+        ly_set_free(nodeset);
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, "<url> source not supported", "en");
+        ereply = nc_server_reply_err(e);
+        goto finish;
+#endif
     }
 
     ly_set_free(nodeset);
@@ -195,9 +193,13 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
             goto finish;
         }
     } else if (!strcmp(src_dsname, "url")) {
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
         urlval = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
         if (urlval) {
-            root = opcopy_import_url(urlval, &ereply);
+            if (op_url_import(urlval, &root, &ereply)) {
+                ly_set_free(nodeset);
+                goto finish;
+            }
         } else {
             ly_set_free(nodeset);
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
@@ -205,6 +207,13 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
             ereply = nc_server_reply_err(e);
             goto finish;
         }
+#else
+        ly_set_free(nodeset);
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, "<url> source not supported", "en");
+        ereply = nc_server_reply_err(e);
+        goto finish;
+#endif
     }
 
     ly_set_free(nodeset);
@@ -411,10 +420,12 @@ dfs_continue:
         ereply = nc_server_reply_ok();
 
     } else {
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
         /* copy datastore to url */
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
         nc_err_set_msg(e, "fixme", "en");
         ereply = nc_server_reply_err(e);
+#endif
     }
 
 finish:

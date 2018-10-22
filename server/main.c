@@ -1189,6 +1189,10 @@ server_init(void)
     const struct lys_node *snode;
     const struct lys_module *mod;
     int rc;
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+    char *capbuf;
+    char *urlcap;
+#endif
 
     /* connect to the sysrepo */
     rc = sr_connect("netopeer2", SR_CONN_DAEMON_REQUIRED | SR_CONN_DAEMON_START, &np2srv.sr_conn);
@@ -1230,6 +1234,12 @@ server_init(void)
     /* set capabilities for the NETCONF Notifications */
     nc_server_set_capability("urn:ietf:params:netconf:capability:notification:1.0");
     nc_server_set_capability("urn:ietf:params:netconf:capability:interleave:1.0");
+
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+    urlcap = np2srv_url_gencap("urn:ietf:params:netconf:capability:url:1.0", &capbuf);
+    nc_server_set_capability(urlcap);
+    free(capbuf);
+#endif
 
     /* set NETCONF operations callbacks */
     snode = ly_ctx_get_node(np2srv.ly_ctx, NULL, "/ietf-netconf:get-config", 0);

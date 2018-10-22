@@ -56,4 +56,8 @@
  */
 #cmakedefine NP2SRV_ENABLED_LY_CTX_INFO_CACHE
 
+/** @brief Enable URL capability
+*/
+#cmakedefine NP2SRV_ENABLED_URL_CAPABILITY
+
 #endif /* NP2SRV_CONFIG_H_ */

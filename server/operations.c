@@ -29,6 +29,10 @@
 #include "common.h"
 #include "operations.h"
 
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+#include <curl/curl.h>
+#endif
+
 /* lock for accessing/reconnecting sysrepo connection and all sysrepo sessions */
 pthread_rwlock_t sr_lock = PTHREAD_RWLOCK_INITIALIZER;
 
@@ -3159,4 +3163,123 @@ op_sr2ly_subtree(sr_session_ctx_t *srs, struct lyd_node **root, const char *subt
     op_sr2ly_free_cache(&cache);
     return 0;
 }
+
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+
+static int url_protocols = NP2SRV_URL_UNKNOWN;
+
+static char* url_protocol_str[] = {
+        "scp",
+        "http",
+        "https",
+        "ftp",
+        "sftp",
+        "ftps",
+        "file",
+        ""
+};
+
+int np2srv_url_get_protocols()
+{
+    unsigned i, j;
+
+    if (url_protocols == NP2SRV_URL_UNKNOWN)
+    {
+        /* Read protocols from curl */
+        curl_version_info_data* data = curl_version_info(CURLVERSION_NOW);
+        for (i = 0; data->protocols[i]; i++) {
+            for (j = 0; url_protocol_str[j][0]; j++) {
+                if (!strcmp(data->protocols[i], url_protocol_str[j])) {
+                    url_protocols |= (1 << j);
+                    break;
+                }
+            }
+        }
+    }
+
+    return url_protocols;
+}
+
+int np2srv_url_is_enabled(NP2SRV_URL_PROTOCOLS protocol)
+{
+    return np2srv_url_get_protocols() & protocol;
+}
+
+/**< @brief generates url capability string with enabled protocols */
+char* np2srv_url_gencap(const char *cap, char **buf)
+{
+    char **cpblt = buf, *cpblt_update = NULL;
+    int first = 1;
+    int i;
+    int protocol = 1;
+
+    int prot = np2srv_url_get_protocols();
+    if (prot == 0) {
+        return (NULL);
+    }
+
+    if (asprintf(cpblt, "%s?scheme=", cap) < 0) {
+        ERR("%s: asprintf error (%s:%d)", __func__, __FILE__, __LINE__);
+        return (NULL);
+    }
+
+    for (i = 0, protocol = 1; (unsigned int) i < (sizeof(url_protocol_str) / sizeof(url_protocol_str[0])); i++, protocol <<= 1) {
+        if (protocol & prot) {
+            if (asprintf(&cpblt_update, "%s%s%s", *cpblt, first ? "" : ",", url_protocol_str[i]) < 0) {
+                ERR("%s: asprintf error (%s:%d)", __func__, __FILE__, __LINE__);
+            }
+            free(*cpblt);
+            *cpblt = cpblt_update;
+            cpblt_update = NULL;
+            first = 0;
+        }
+    }
+
+    return (*cpblt);
+}
+
+/**< @brief gets protocol id from url*/
+NP2SRV_URL_PROTOCOLS nc_url_get_protocol(const char *url)
+{
+    int protocol = 1; /* not a SCP, just an init value for bit shift */
+    int protocol_set = 0;
+    int i;
+    char *url_aux = strdup(url);
+    char *c;
+
+    c = strchr(url_aux, ':');
+    if (c == NULL) {
+        free(url_aux);
+        ERR("%s: invalid URL string, missing protocol specification", __func__);
+        return (NP2SRV_URL_UNKNOWN);
+    }
+
+    for (i = 0; (unsigned int) i < (sizeof(url_protocol_str) / sizeof(url_protocol_str[0])); i++, protocol <<= 1) {
+        if (strncmp(url_aux, url_protocol_str[i], strlen(url_protocol_str[i])) == 0) {
+            protocol_set = 1;
+            break;
+        }
+    }
+    free(url_aux);
+
+    if (protocol_set) {
+        return (protocol);
+    } else {
+        return (NP2SRV_URL_UNKNOWN);
+    }
+}
+
+
+
+int *op_url_import(const char *url, struct lyd_node **root, struct nc_server_reply **ereply)
+{
+    struct nc_server_error *e;
+
+    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+    nc_err_set_msg(e, "fixme", "en");
+    *ereply = nc_server_reply_err(e);
+
+    return -1;
+}
+#endif
 

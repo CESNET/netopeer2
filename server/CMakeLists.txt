@@ -6,6 +6,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../CMakeModules/
 project(netopeer2-server C)
 include(GNUInstallDirs)
 include(CheckFunctionExists)
+include(FindCURL)
 
 # check the supported platform
 if(NOT UNIX)
@@ -35,6 +36,7 @@ endif()
 option(ENABLE_CONFIGURATION "Enable server configuration" ON)
 set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
 set(DEFAULT_HOST_KEY "/etc/ssh/ssh_host_rsa_key" CACHE STRING "Default server host key (used only if configuration is disabled)")
+option(ENABLE_URL "Enable URL capability" ON)
 
 option(ENABLE_LY_CTX_INFO_CACHE "Enable caching the ly_ctx_info() result; reduces processing at the cost of increased memory usage." ON)
 if(ENABLE_LY_CTX_INFO_CACHE)
@@ -64,6 +66,18 @@ if (ENABLE_CONFIGURATION)
 else()
     if (NOT KEYSTORED_KEYS_DIR)
         set(KEYSTORED_KEYS_DIR "none")
+    endif()
+endif()
+
+# URL capability
+if (ENABLE_URL)
+    if (CURL_FOUND)
+        message(STATUS "Found libcurl ${CURL_VERSION_STRING}")
+        message(STATUS "Enabling URL capability")
+        set(NP2SRV_ENABLED_URL_CAPABILITY 1)
+        include_directories(${CURL_INCLUDE_DIRS})
+    else()
+        message("libcurl not found, URL capability will be not be enabled")
     endif()
 endif()
 
@@ -146,6 +160,11 @@ include_directories(${LIBNETCONF2_INCLUDE_DIRS})
 find_package(SYSREPO REQUIRED)
 target_link_libraries(netopeer2-server ${SYSREPO_LIBRARIES})
 include_directories(${SYSREPO_INCLUDE_DIRS})
+
+# URL capability
+if(NP2SRV_ENABLED_URL_CAPABILITY)
+    target_link_libraries(netopeer2-server ${CURL_LIBRARIES})
+endif()
 
 # install binary
 install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
