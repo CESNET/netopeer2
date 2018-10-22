@@ -56,6 +56,7 @@ enum LOOPCTRL {
 volatile enum LOOPCTRL control = LOOP_CONTINUE;
 
 static void *worker_thread(void *arg);
+static int np2srv_state_data_clb(const char *xpath, sr_val_t **values, size_t *values_cnt, uint64_t request_id, void *private_ctx);
 static void np2srv_feature_change_clb(const char *module_name, const char *feature_name, bool enabled, void *private_ctx);
 static void np2srv_module_install_clb(const char *module_name, const char *revision, sr_module_state_t state, void *private_ctx);
 
@@ -96,6 +97,25 @@ np2srv_sr_reconnect(void)
 
     /* subscribe for changes of features state */
     rc = sr_feature_enable_subscribe(np2srv.sr_sess.srs, np2srv_feature_change_clb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr);
+    if (rc != SR_ERR_OK) {
+        goto finish;
+    }
+
+    /* subscribe for providing state data */
+    rc = sr_dp_get_items_subscribe(np2srv.sr_sess.srs, "/ietf-netconf-monitoring:netconf-state", np2srv_state_data_clb, NULL,
+                                   SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr);
+    if (rc != SR_ERR_OK) {
+        goto finish;
+    }
+
+    rc = sr_dp_get_items_subscribe(np2srv.sr_sess.srs, "/nc-notifications:netconf", np2srv_state_data_clb, NULL,
+                                   SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr);
+    if (rc != SR_ERR_OK) {
+        goto finish;
+    }
+
+    rc = sr_dp_get_items_subscribe(np2srv.sr_sess.srs, "/ietf-yang-library:yang-library", np2srv_state_data_clb, NULL,
+                                   SR_SUBSCR_CTX_REUSE, &np2srv.sr_subscr);
     if (rc != SR_ERR_OK) {
         goto finish;
     }
