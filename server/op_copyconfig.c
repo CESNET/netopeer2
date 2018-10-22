@@ -53,16 +53,81 @@ find_last_slash(char *string)
     return NULL;
 }
 
+int opcopy_get_subtree(sr_datastore_t source, struct lyd_node **config, struct nc_server_reply **ereply)
+{
+    struct ly_set *nodeset;
+    struct nc_server_error *e;
+
+    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+    nc_err_set_msg(e, "FIXME: FAILED", "en");    // FIXME
+    *ereply = nc_server_reply_err(e);
+    return -1;
+}
+
+static struct lyd_node *opcopy_import_any(struct lyd_node_anydata *any, struct nc_server_reply **ereply)
+{
+    struct nc_server_error *e;
+    struct lyd_node *root = NULL;
+
+    switch (any->value_type) {
+    case LYD_ANYDATA_CONSTSTRING:
+    case LYD_ANYDATA_STRING:
+    case LYD_ANYDATA_SXML:
+        root = lyd_parse_mem(np2srv.ly_ctx, any->value.str, LYD_XML, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT | LYD_OPT_STRICT);
+        break;
+    case LYD_ANYDATA_DATATREE:
+        root = any->value.tree;
+        any->value.tree = NULL; /* "unlink" data tree from anydata to have full control */
+        break;
+    case LYD_ANYDATA_XML:
+        root = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT | LYD_OPT_STRICT);
+        break;
+    case LYD_ANYDATA_LYB:
+        root = lyd_parse_mem(np2srv.ly_ctx, any->value.mem, LYD_LYB, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT | LYD_OPT_STRICT);
+        break;
+    case LYD_ANYDATA_JSON:
+    case LYD_ANYDATA_JSOND:
+    case LYD_ANYDATA_SXMLD:
+    case LYD_ANYDATA_LYBD:
+        EINT;
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+        *ereply = nc_server_reply_err(e);
+    }
+    if (!root) {
+        if (ly_errno != LY_SUCCESS) {
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+            *ereply = nc_server_reply_err(e);
+        } else {
+            /* TODO delete-config ??? */
+        }
+    }
+
+    return root;
+}
+
+static struct lyd_node *opcopy_import_url(const char *url, struct nc_server_reply **ereply)
+{
+    struct nc_server_error *e;
+    struct lyd_node *root = NULL;
+
+    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+    nc_err_set_msg(e, "fixme", "en");
+    *ereply = nc_server_reply_err(e);
+
+    return root;
+}
 
 struct nc_server_reply *
 op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 {
     struct np2_sessions *sessions;
-    sr_datastore_t target = 0, source = 0;
+    sr_datastore_t target_ds = 0, source_ds = 0;
+    int target_is_ds = 0, source_is_ds = 0;
     struct ly_set *nodeset;
-    struct lyd_node *config = NULL, *iter, *next;
-    struct lyd_node_anydata *any;
-    const char *dsname;
+    struct lyd_node *root = NULL, *iter, *next;
+    const char *src_dsname, *tgt_dsname;
     char *str, path[1024];
     sr_val_t value;
     struct nc_server_error *e;
@@ -70,6 +135,8 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     int rc = SR_ERR_OK, path_index = 0, missing_keys = 0, lastkey = 0;
     unsigned int i;
     char quote;
+    char *target_url = 0;
+    const char* urlval;
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
@@ -80,89 +147,96 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
     /* get know which datastore is being affected */
     nodeset = lyd_find_path(rpc, "/ietf-netconf:copy-config/target/*");
-    dsname = nodeset->set.d[0]->schema->name;
-    ly_set_free(nodeset);
+    tgt_dsname = nodeset->set.d[0]->schema->name;
 
-    if (!strcmp(dsname, "running")) {
-        target = SR_DS_RUNNING;
-    } else if (!strcmp(dsname, "startup")) {
-        target = SR_DS_STARTUP;
-    } else if (!strcmp(dsname, "candidate")) {
-        target = SR_DS_CANDIDATE;
-    }
-    /* TODO URL capability */
-
-    if (sessions->ds != target) {
-        /* update sysrepo session */
-        np2srv_sr_session_switch_ds(sessions->srs, target, NULL);
-        sessions->ds = target;
-    }
-    if (sessions->ds != SR_DS_CANDIDATE) {
-        /* update data from sysrepo */
-        if (np2srv_sr_session_refresh(sessions->srs, &ereply)) {
-            goto finish;
-        }
-    }
-
-    /* get source */
-    nodeset = lyd_find_path(rpc, "/ietf-netconf:copy-config/source/*");
-    dsname = nodeset->set.d[0]->schema->name;
-
-    if (!strcmp(dsname, "running")) {
-        source = SR_DS_RUNNING;
-    } else if (!strcmp(dsname, "startup")) {
-        source = SR_DS_STARTUP;
-    } else if (!strcmp(dsname, "candidate")) {
-        source = SR_DS_CANDIDATE;
-    } else if (!strcmp(dsname, "config")) {
-        any = (struct lyd_node_anydata *)nodeset->set.d[0];
-        switch (any->value_type) {
-        case LYD_ANYDATA_CONSTSTRING:
-        case LYD_ANYDATA_STRING:
-        case LYD_ANYDATA_SXML:
-            config = lyd_parse_mem(np2srv.ly_ctx, any->value.str, LYD_XML, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT | LYD_OPT_STRICT);
-            break;
-        case LYD_ANYDATA_DATATREE:
-            config = any->value.tree;
-            any->value.tree = NULL; /* "unlink" data tree from anydata to have full control */
-            break;
-        case LYD_ANYDATA_XML:
-            config = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT | LYD_OPT_STRICT);
-            break;
-        case LYD_ANYDATA_LYB:
-            config = lyd_parse_mem(np2srv.ly_ctx, any->value.mem, LYD_LYB, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT | LYD_OPT_STRICT);
-            break;
-        case LYD_ANYDATA_JSON:
-        case LYD_ANYDATA_JSOND:
-        case LYD_ANYDATA_SXMLD:
-        case LYD_ANYDATA_LYBD:
-            EINT;
+    if (!strcmp(tgt_dsname, "running")) {
+        target_ds = SR_DS_RUNNING;
+        target_is_ds = 1;
+    } else if (!strcmp(tgt_dsname, "startup")) {
+        target_ds = SR_DS_STARTUP;
+        target_is_ds = 1;
+    } else if (!strcmp(tgt_dsname, "candidate")) {
+        target_ds = SR_DS_CANDIDATE;
+        target_is_ds = 1;
+    } else if (!strcmp(tgt_dsname, "url")) {
+        urlval = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
+        if (urlval) {
+            target_url = (char *)malloc(strlen(urlval) + 1);
+            strcpy(target_url, urlval);
+            urlval = 0;
+        } else {
             ly_set_free(nodeset);
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+            nc_err_set_msg(e, "Missing target url", "en");
             ereply = nc_server_reply_err(e);
             goto finish;
         }
-        if (!config) {
-            if (ly_errno != LY_SUCCESS) {
-                ly_set_free(nodeset);
-                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
-                ereply = nc_server_reply_err(e);
-                goto finish;
-            } else {
-                /* TODO delete-config ??? */
-            }
-        }
     }
-    /* TODO URL capability */
+
     ly_set_free(nodeset);
 
-    /* perform operation */
-    if (config) {
-        /* remove all the data from the models mentioned in the <config> ... */
+    /* get source */
+    nodeset = lyd_find_path(rpc, "/ietf-netconf:copy-config/source/*");
+    src_dsname = nodeset->set.d[0]->schema->name;
+
+    if (!strcmp(src_dsname, "running")) {
+        source_ds = SR_DS_RUNNING;
+        source_is_ds = 1;
+    } else if (!strcmp(src_dsname, "startup")) {
+        source_ds = SR_DS_STARTUP;
+        source_is_ds = 1;
+    } else if (!strcmp(src_dsname, "candidate")) {
+        source_ds = SR_DS_CANDIDATE;
+        source_is_ds = 1;
+    } else if (!strcmp(src_dsname, "config")) {
+        root = opcopy_import_any((struct lyd_node_anydata *)nodeset->set.d[0], &ereply);
+        if (!root) {
+            ly_set_free(nodeset);
+            goto finish;
+        }
+    } else if (!strcmp(src_dsname, "url")) {
+        urlval = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
+        if (urlval) {
+            root = opcopy_import_url(urlval, &ereply);
+        } else {
+            ly_set_free(nodeset);
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, "Missing source url", "en");
+            ereply = nc_server_reply_err(e);
+            goto finish;
+        }
+    }
+
+    ly_set_free(nodeset);
+
+    if (source_is_ds && target_is_ds)
+    {
+        /* datastore-to-datastore copy */
+        rc = np2srv_sr_copy_config(sessions->srs, NULL, source_ds, target_ds, &ereply);
+        /* commit is done implicitely by sr_copy_config() */
+        goto finish;
+    }
+
+    if (target_is_ds)
+    {
+        /* copy url/config (at root) to datastore */
+        if (sessions->ds != target_ds) {
+            /* update sysrepo session */
+            np2srv_sr_session_switch_ds(sessions->srs, target_ds, NULL);
+            sessions->ds = target_ds;
+        }
+        if (sessions->ds != SR_DS_CANDIDATE) {
+            /* update data from sysrepo */
+            if (np2srv_sr_session_refresh(sessions->srs, &ereply)) {
+                goto finish;
+            }
+        }
+
+        /* perform operation */
+
+        /* remove all the data from the models mentioned in the source config... */
         nodeset = ly_set_new();
-        LY_TREE_FOR(config, iter) {
+        LY_TREE_FOR(root, iter) {
             if (iter->dflt) {
                 continue;
             }
@@ -174,8 +248,8 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
         }
         ly_set_free(nodeset);
 
-        /* and copy <config>'s content into sysrepo */
-        LY_TREE_DFS_BEGIN(config, next, iter) {
+        /* and copy source config's content into sysrepo */
+        LY_TREE_DFS_BEGIN(root, next, iter) {
             /* maintain path */
             if (!missing_keys) {
                 if (!iter->parent || lyd_node_module(iter) != lyd_node_module(iter->parent)) {
@@ -297,7 +371,7 @@ dfs_continue:
             while (!next) {
                 /* parent is already processed, go to its sibling */
                 iter = iter->parent;
-                if (iter == config->parent) {
+                if (iter == root->parent) {
                     /* we are done, no next element to process */
                     break;
                 }
@@ -319,27 +393,31 @@ dfs_continue:
 
         /* commit the result */
         rc = np2srv_sr_commit(sessions->srs, &ereply);
-    } else {
-        rc = np2srv_sr_copy_config(sessions->srs, NULL, source, target, &ereply);
-        /* commit is done implicitely by sr_copy_config() */
-    }
-    if (rc) {
-        goto finish;
-    }
 
-    if (sessions->ds == SR_DS_CANDIDATE) {
-        if (np2srv_sr_validate(sessions->srs, &ereply)) {
-            /* content is not valid or error, rollback */
-            np2srv_sr_discard_changes(sessions->srs, NULL);
+        if (rc) {
             goto finish;
         }
-        /* mark candidate as modified */
-        sessions->flags |= NP2S_CAND_CHANGED;
+
+        if (sessions->ds == SR_DS_CANDIDATE) {
+            if (np2srv_sr_validate(sessions->srs, &ereply)) {
+                /* content is not valid or error, rollback */
+                np2srv_sr_discard_changes(sessions->srs, NULL);
+                goto finish;
+            }
+            /* mark candidate as modified */
+            sessions->flags |= NP2S_CAND_CHANGED;
+        }
+
+        ereply = nc_server_reply_ok();
+
+    } else {
+        /* copy datastore to url */
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, "fixme", "en");
+        ereply = nc_server_reply_err(e);
     }
 
-    ereply = nc_server_reply_ok();
-
 finish:
-    lyd_free_withsiblings(config);
+    lyd_free_withsiblings(root);
     return ereply;
 }
