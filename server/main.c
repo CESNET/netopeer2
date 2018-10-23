@@ -1077,7 +1077,12 @@ np2srv_init_schemas(void)
         ERR("Module \"%s\" feature \"startup\" not enabled in sysrepo.", mod_name);
         goto error;
     }
-    /* TODO lys_features_state(mod, "url"); */
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+    if (lys_features_state(mod, "url") != 1) {
+        ERR("Module \"%s\" feature \"url\" not enabled in sysrepo.", mod_name);
+        goto error;
+    }
+#endif
     if (lys_features_state(mod, "xpath") != 1) {
         ERR("Module \"%s\" feature \"xpath\" not enabled in sysrepo.", mod_name);
         goto error;

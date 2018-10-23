@@ -42,7 +42,7 @@ enable_yang_module_feature() {
 }
 
 install_yang_module ietf-netconf
-for f in writable-running candidate rollback-on-error validate startup xpath; do
+for f in writable-running candidate rollback-on-error validate startup xpath @URLCAPSTR@; do
     enable_yang_module_feature ietf-netconf $f
 done
 

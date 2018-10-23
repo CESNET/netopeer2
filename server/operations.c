@@ -22,6 +22,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <pthread.h>
+#include <errno.h>
 
 #include <sysrepo.h>
 #include <sysrepo/values.h>
@@ -31,6 +32,14 @@
 
 #ifdef NP2SRV_ENABLED_URL_CAPABILITY
 #include <curl/curl.h>
+
+/* define init flags */
+#ifdef CURL_GLOBAL_ACK_EINTR
+#define URL_INIT_FLAGS CURL_GLOBAL_SSL|CURL_GLOBAL_ACK_EINTR
+#else
+#define URL_INIT_FLAGS CURL_GLOBAL_SSL
+#endif
+
 #endif
 
 /* lock for accessing/reconnecting sysrepo connection and all sysrepo sessions */
@@ -3269,17 +3278,84 @@ NP2SRV_URL_PROTOCOLS nc_url_get_protocol(const char *url)
     }
 }
 
+static size_t nc_url_writedata(char *ptr, size_t size, size_t nmemb, void* userdata)
+{
+    int* fd = (int*)userdata;
+    return write(*fd, ptr, size * nmemb);
+}
+
+static int np2srv_url_open(const char *url)
+{
+    CURL * curl;
+    CURLcode res;
+    char curl_buffer[CURL_ERROR_SIZE];
+    char url_tmp_name[(sizeof(P_tmpdir) / sizeof(char)) + 15] = P_tmpdir "/np2srv-XXXXXX";
+    int url_tmpfile;
+
+    /* prepare temporary file ... */
+    if ((url_tmpfile = mkstemp(url_tmp_name)) < 0) {
+        ERR("%s: cannot create temporary file (%s, %s)", __func__, url_tmp_name, strerror(errno));
+        return (-1);
+    }
+
+    /* and hide it from the file system */
+    unlink(url_tmp_name);
+
+    DBG("Getting file from URL: %s (via curl)", url);
+
+    /* set up libcurl */
+    curl_global_init(URL_INIT_FLAGS);
+    curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, nc_url_writedata);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &url_tmpfile);
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
+    res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        ERR("%s: curl error: %s", __func__, curl_buffer);
+        close(url_tmpfile);
+        url_tmpfile = -1;
+    } else {
+        /* move back to the beginning of the output file */
+        lseek(url_tmpfile, 0, SEEK_SET);
+    }
+
+    /* cleanup */
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+
+    return url_tmpfile;
+}
 
 
-int *op_url_import(const char *url, struct lyd_node **root, struct nc_server_reply **ereply)
+int op_url_import(const char *url, struct lyd_node **root, struct nc_server_reply **ereply)
 {
     struct nc_server_error *e;
 
-    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-    nc_err_set_msg(e, "fixme", "en");
-    *ereply = nc_server_reply_err(e);
+    int fd = np2srv_url_open(url);
+    if (fd == -1) {
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, "Could not open URL", "en");
+        *ereply = nc_server_reply_err(e);
+        return -1;
+    }
 
-    return -1;
+    *root = lyd_parse_fd(np2srv.ly_ctx, fd, LYD_XML, LYD_OPT_CONFIG | LYD_OPT_STRICT);
+    if (!*root) {
+        if (ly_errno != LY_SUCCESS) {
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+            *ereply = nc_server_reply_err(e);
+        } else {
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, "No data", "en");
+            *ereply = nc_server_reply_err(e);
+        }
+
+        return -1;
+    }
+
+    return 0;
 }
 #endif
 

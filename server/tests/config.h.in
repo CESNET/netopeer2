@@ -121,14 +121,22 @@ __wrap_sr_list_schemas(sr_session_ctx_t *session, sr_schema_t **schemas, size_t 
     (*schemas)[1].revision.file_path_yin = strdup(TESTS_DIR"/files/ietf-netconf.yin");
     (*schemas)[1].installed = 1;
 
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+    (*schemas)[1].enabled_feature_cnt = 7;
+    (*schemas)[1].enabled_features = calloc(7, sizeof *(*schemas)[1].enabled_features);
+#else
     (*schemas)[1].enabled_feature_cnt = 6;
     (*schemas)[1].enabled_features = calloc(6, sizeof *(*schemas)[1].enabled_features);
+#endif
     (*schemas)[1].enabled_features[0] = strdup("writable-running");
     (*schemas)[1].enabled_features[1] = strdup("candidate");
     (*schemas)[1].enabled_features[2] = strdup("rollback-on-error");
     (*schemas)[1].enabled_features[3] = strdup("validate");
     (*schemas)[1].enabled_features[4] = strdup("startup");
     (*schemas)[1].enabled_features[5] = strdup("xpath");
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+    (*schemas)[1].enabled_features[6] = strdup("url");
+#endif
 
     (*schemas)[2].module_name = strdup("ietf-netconf-notifications");
     (*schemas)[2].ns = strdup("urn:ietf:params:xml:ns:yang:ietf-netconf-notifications");

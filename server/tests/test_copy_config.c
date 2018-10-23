@@ -29,12 +29,16 @@
 #include <signal.h>
 #include <unistd.h>
 
+#include "config.h"
 #include "tests/config.h"
 
 #define main server_main
-#include "config.h"
 #undef NP2SRV_PIDFILE
 #define NP2SRV_PIDFILE "/tmp/test_np2srv.pid"
+
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+#define URL_TESTFILE "/tmp/nc2_copy_config.xml"
+#endif
 
 #include "../main.c"
 
@@ -154,15 +158,16 @@ __wrap_sr_free_val_iter(sr_val_iter_t *iter)
     }
 }
 
+static int set_item_count = 0;
+
 int
 __wrap_sr_set_item(sr_session_ctx_t *session, const char *xpath, const sr_val_t *value, const sr_edit_options_t opts)
 {
     (void)session;
     (void)value;
     (void)opts;
-    static int count = 0;
 
-    switch (count) {
+    switch (set_item_count) {
     case 0:
         assert_string_equal(xpath, "/ietf-interfaces:interfaces/interface[name='iface1/1']");
         break;
@@ -251,7 +256,7 @@ __wrap_sr_set_item(sr_session_ctx_t *session, const char *xpath, const sr_val_t 
         assert_string_equal(xpath, "too many nodes");
         break;
     }
-    ++count;
+    ++set_item_count;
 
     return SR_ERR_OK;
 }
@@ -413,6 +418,10 @@ np_stop(void **state)
     close(pipes[0][1]);
     close(pipes[1][0]);
     close(pipes[1][1]);
+
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+    unlink(URL_TESTFILE);
+#endif
     return ret;
 }
 
@@ -479,9 +488,85 @@ test_copy_config(void **state)
         "<ok/>"
     "</rpc-reply>";
 
+    set_item_count = 0;
     test_write(p_out, copy_rpc, __LINE__);
     test_read(p_in, copy_rpl, __LINE__);
 }
+
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+static void
+test_copy_config_url(void **state)
+{
+    (void)state; /* unused */
+    const char *copy_data =
+              "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+              "<interface>"
+              "<name>iface1/1</name>"
+              "<description>iface1/1 dsc</description>"
+              "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:ethernetCsmacd</type>"
+              "<enabled>true</enabled>"
+              "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+              "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+                "<enabled>true</enabled>"
+                "<forwarding>true</forwarding>"
+                "<mtu>68</mtu>"
+                "<neighbor>"
+                  "<ip>10.0.0.2</ip>"
+                  "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
+                "</neighbor>"
+              "</ipv4>"
+              "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+                "<enabled>true</enabled>"
+                "<forwarding>false</forwarding>"
+              "</ipv6>"
+              "</interface>"
+              "<interface>"
+              "<name>'iface1/2'</name>"
+              "<description>iface1/2 dsc</description>"
+              "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:ethernetCsmacd</type>"
+              "<enabled>true</enabled>"
+              "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+              "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+                "<enabled>true</enabled>"
+                "<forwarding>true</forwarding>"
+                "<mtu>68</mtu>"
+                "<neighbor>"
+                  "<ip>10.0.0.2</ip>"
+                  "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
+                "</neighbor>"
+              "</ipv4>"
+              "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+                "<enabled>true</enabled>"
+                "<forwarding>false</forwarding>"
+              "</ipv6>"
+              "</interface>"
+              "</interfaces>"
+            ;
+    const char *copy_rpc =
+    "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<copy-config>"
+            "<target>"
+                "<running/>"
+            "</target>"
+            "<source>"
+                "<url>file://" URL_TESTFILE "</url>"
+            "</source>"
+        "</copy-config>"
+    "</rpc>";
+    const char *copy_rpl =
+    "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<ok/>"
+    "</rpc-reply>";
+
+    FILE* xmlfile = fopen(URL_TESTFILE, "w");
+    fprintf(xmlfile, "%s", copy_data);
+    fclose(xmlfile);
+
+    set_item_count = 0;
+    test_write(p_out, copy_rpc, __LINE__);
+    test_read(p_in, copy_rpl, __LINE__);
+}
+#endif
 
 static void
 test_startstop(void **state)
@@ -497,6 +582,9 @@ main(void)
     const struct CMUnitTest tests[] = {
                     cmocka_unit_test_setup(test_startstop, np_start),
                     cmocka_unit_test(test_copy_config),
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+                    cmocka_unit_test(test_copy_config_url),
+#endif
                     cmocka_unit_test_teardown(test_startstop, np_stop),
     };
 

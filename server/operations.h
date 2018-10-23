@@ -204,7 +204,7 @@ int np2srv_url_get_protocols();
 /**< @brief generates url capability string with enabled protocols */
 char* np2srv_url_gencap(const char *cap, char **buf);
 
-int *op_url_import(const char *url, struct lyd_node **root, struct nc_server_reply **ereply);
+int op_url_import(const char *url, struct lyd_node **root, struct nc_server_reply **ereply);
 #endif /* NP2SRV_ENABLED_URL_CAPABILITY */
 
 #endif /* NP2SRV_OPERATIONS_H_ */
