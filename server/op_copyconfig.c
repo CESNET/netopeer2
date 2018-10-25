@@ -517,8 +517,10 @@ dfs_continue:
 
 finish:
     lyd_free_withsiblings(root);
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
     if (target_url) {
         free(target_url);
     }
+#endif
     return ereply;
 }
