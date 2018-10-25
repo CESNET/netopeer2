@@ -3129,7 +3129,7 @@ op_sr2ly_free_cache(struct sr2ly_cache *cache)
 }
 
 int
-op_sr2ly_subtree(sr_session_ctx_t *srs, struct lyd_node **root, const char *subtree_xpath)
+op_sr2ly_subtree(sr_session_ctx_t *srs, struct lyd_node **root, const char *subtree_xpath, struct nc_server_reply **ereply)
 {
     sr_val_t *value;
     sr_val_iter_t *sriter;
@@ -3137,10 +3137,11 @@ op_sr2ly_subtree(sr_session_ctx_t *srs, struct lyd_node **root, const char *subt
     struct sr2ly_cache cache;
     char *full_subtree_xpath = NULL;
     int rc;
+    struct nc_server_error *e;
 
     if (asprintf(&full_subtree_xpath, "%s//.", subtree_xpath) == -1) {
         EMEM;
-        return -1;
+        goto error;
     }
 
     memset(&cache, 0, sizeof cache);
@@ -3152,14 +3153,14 @@ op_sr2ly_subtree(sr_session_ctx_t *srs, struct lyd_node **root, const char *subt
         /* it's ok, model without data or just non-existing path */
         return 0;
     } else if (rc) {
-        return -1;
+        goto error;
     }
 
     while ((!np2srv_sr_get_item_next(srs, sriter, &value, NULL))) {
         if (op_sr2ly(*root, value, &node, &cache)) {
             sr_free_val(value);
             sr_free_val_iter(sriter);
-            return -1;
+            goto error;
         }
 
         if (!(*root)) {
@@ -3171,11 +3172,30 @@ op_sr2ly_subtree(sr_session_ctx_t *srs, struct lyd_node **root, const char *subt
 
     op_sr2ly_free_cache(&cache);
     return 0;
+
+error:
+    if (ereply) {
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+        if (*ereply) {
+            nc_server_reply_add_err(*ereply, e);
+        } else {
+            *ereply = nc_server_reply_err(e);
+        }
+    }
+    return -1;
 }
 
 #ifdef NP2SRV_ENABLED_URL_CAPABILITY
 
 static int url_protocols = NP2SRV_URL_UNKNOWN;
+
+/* Struct for uploading data with curl */
+struct np2srv_url_mem
+{
+    char *memory;
+    size_t size;
+};
 
 static char* url_protocol_str[] = {
         "scp",
@@ -3284,6 +3304,24 @@ static size_t nc_url_writedata(char *ptr, size_t size, size_t nmemb, void* userd
     return write(*fd, ptr, size * nmemb);
 }
 
+static size_t nc_url_readdata(void *ptr, size_t size, size_t nmemb, void *userdata)
+{
+    size_t copied = 0;
+    size_t aux_size = size * nmemb;
+    struct np2srv_url_mem *data = (struct np2srv_url_mem *) userdata;
+
+    if (aux_size < 1 || data->size == 0) {
+        /* no space or nothing lefts */
+        return 0;
+    }
+
+    copied = (data->size > aux_size) ? aux_size : data->size;
+    memcpy(ptr, data->memory, copied);
+    data->memory = data->memory + copied; /* move pointer */
+    data->size = data->size - copied; /* decrease amount of data left */
+    return (copied);
+}
+
 static int np2srv_url_open(const char *url)
 {
     CURL * curl;
@@ -3357,5 +3395,76 @@ int op_url_import(const char *url, struct lyd_node **root, struct nc_server_repl
 
     return 0;
 }
+
+int op_url_export(const char *url, struct lyd_node *root, int wd, struct nc_server_reply **ereply)
+{
+    CURL * curl;
+    CURLcode res;
+    struct np2srv_url_mem mem_data;
+    char curl_buffer[CURL_ERROR_SIZE];
+    struct nc_server_error *e;
+    struct lyd_node *config;
+
+    const char *schema =
+    "module np2-internal-config {"
+      "namespace \"urn:ietf:params:xml:ns:netconf:base:1.0\";"
+      "prefix np2cfg;"
+      "anyxml config;"
+    "}";
+
+    struct ly_ctx* ctx = ly_ctx_new(NULL, LY_CTX_TRUSTED);
+    lys_parse_mem(ctx, schema, LYS_IN_YANG);
+
+    config = lyd_new_output_anydata(NULL,
+            ly_ctx_get_module(ctx, "np2-internal-config", NULL, 0),
+            "config", lyd_dup(root, 1), LYD_ANYDATA_DATATREE);
+
+    if (!config) {
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+        *ereply = nc_server_reply_err(e);
+        return (-1);
+    }
+
+    char *data;
+    lyd_print_mem(&data, config, LYD_XML, LYP_FORMAT | wd);
+//    fprintf(stderr, "%s", data);
+
+    lyd_free_withsiblings(config);
+    ly_ctx_destroy(ctx, NULL);
+
+    DBG("Uploading file to URL: %s (via curl)", url);
+
+    /* fill the structure for libcurl's READFUNCTION */
+    mem_data.memory = data;
+    mem_data.size = strlen(data);
+
+    /* set up libcurl */
+    curl_global_init(URL_INIT_FLAGS);
+    curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+    curl_easy_setopt(curl, CURLOPT_READDATA, &mem_data);
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, nc_url_readdata);
+    curl_easy_setopt(curl, CURLOPT_INFILESIZE, (long)mem_data.size);
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
+    res = curl_easy_perform(curl);
+    free(data);
+
+    if (res != CURLE_OK) {
+        ERR("%s: curl error: %s", __func__, curl_buffer);
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, curl_buffer, "en");
+        *ereply = nc_server_reply_err(e);
+        return (-1);
+    }
+
+    /* cleanup */
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+
+    return 0;
+}
+
 #endif
 

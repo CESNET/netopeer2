@@ -158,7 +158,7 @@ void op_sr2ly_free_cache(struct sr2ly_cache *cache);
 int op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_node, struct sr2ly_cache *cache);
 
 /* build out whole subtree */
-int op_sr2ly_subtree(sr_session_ctx_t *srs, struct lyd_node **root, const char *subtree_xpath);
+int op_sr2ly_subtree(sr_session_ctx_t *srs, struct lyd_node **root, const char *subtree_xpath, struct nc_server_reply **ereply);
 
 struct nc_server_reply *op_get(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_lock(struct lyd_node *rpc, struct nc_session *ncs);
@@ -205,6 +205,8 @@ int np2srv_url_get_protocols();
 char* np2srv_url_gencap(const char *cap, char **buf);
 
 int op_url_import(const char *url, struct lyd_node **root, struct nc_server_reply **ereply);
+int op_url_export(const char *url, struct lyd_node *root, int wd, struct nc_server_reply **ereply);
+
 #endif /* NP2SRV_ENABLED_URL_CAPABILITY */
 
 #endif /* NP2SRV_OPERATIONS_H_ */

@@ -53,15 +53,26 @@ find_last_slash(char *string)
     return NULL;
 }
 
-int opcopy_get_subtree(sr_datastore_t source, struct lyd_node **config, struct nc_server_reply **ereply)
+static int opcopy_wd_nc2ly(NC_WD_MODE nc_wd)
 {
-    struct ly_set *nodeset;
-    struct nc_server_error *e;
+    int ly_wd;
+    switch(nc_wd) {
+    case NC_WD_UNKNOWN:
+    case NC_WD_EXPLICIT:
+        ly_wd = LYP_WD_EXPLICIT;
+        break;
+    case NC_WD_TRIM:
+        ly_wd = LYP_WD_TRIM;
+        break;
+    case NC_WD_ALL:
+        ly_wd = LYP_WD_ALL;
+        break;
+    case NC_WD_ALL_TAG:
+        ly_wd = LYP_WD_ALL_TAG;
+        break;
+    }
 
-    e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-    nc_err_set_msg(e, "FIXME: FAILED", "en");    // FIXME
-    *ereply = nc_server_reply_err(e);
-    return -1;
+    return ly_wd;
 }
 
 static struct lyd_node *opcopy_import_any(struct lyd_node_anydata *any, struct nc_server_reply **ereply)
@@ -126,6 +137,10 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 #ifdef NP2SRV_ENABLED_URL_CAPABILITY
     char *target_url = 0;
     const char* urlval;
+    char **filters = NULL;
+    int filter_count = 0;
+    NC_WD_MODE nc_wd;
+    struct lyd_node_leaf_list *leaf;
 #endif
 
     /* get sysrepo connections for this session */
@@ -221,7 +236,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     if (source_is_ds && target_is_ds)
     {
         /* datastore-to-datastore copy */
-        rc = np2srv_sr_copy_config(sessions->srs, NULL, source_ds, target_ds, &ereply);
+        np2srv_sr_copy_config(sessions->srs, NULL, source_ds, target_ds, &ereply);
         /* commit is done implicitely by sr_copy_config() */
         goto finish;
     }
@@ -422,13 +437,88 @@ dfs_continue:
     } else {
 #ifdef NP2SRV_ENABLED_URL_CAPABILITY
         /* copy datastore to url */
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, "fixme", "en");
-        ereply = nc_server_reply_err(e);
+        if (sessions->ds != source_ds) {
+            /* update sysrepo session */
+            np2srv_sr_session_switch_ds(sessions->srs, source_ds, NULL);
+            sessions->ds = source_ds;
+        }
+        if (sessions->ds != SR_DS_CANDIDATE) {
+            /* update data from sysrepo */
+            if (np2srv_sr_session_refresh(sessions->srs, &ereply)) {
+                goto finish;
+            }
+        } else if (!(sessions->flags & NP2S_CAND_CHANGED)) {
+            /* update candidate to be the same as running */
+            if (np2srv_sr_session_refresh(sessions->srs, &ereply)) {
+                goto finish;
+            }
+        }
+        sessions->opts |= SR_SESS_CONFIG_ONLY;
+
+        /* create filters */
+        if (op_filter_create_allmodules(&filters, &filter_count)) {
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, "Server internal error", "en");
+            ereply = nc_server_reply_err(e);
+            goto finish;
+        }
+
+        /*
+         * create the data tree for the data reply
+         */
+        for (i = 0; (signed)i < filter_count; i++) {
+            /* create the subtree */
+            if (op_sr2ly_subtree(sessions->srs, &root, filters[i], &ereply)) {
+                break;
+            }
+        }
+
+        for (i = 0; (signed)i < filter_count; ++i) {
+            free(filters[i]);
+        }
+        filter_count = 0;
+        free(filters);
+        filters = NULL;
+
+        if (ereply) {
+            goto finish;
+        }
+
+        /* get default value for with-defaults */
+        nc_server_get_capab_withdefaults(&nc_wd, NULL);
+
+        /* update with value from the RPC, if any */
+        nodeset = lyd_find_path(rpc, "/ietf-netconf:*/ietf-netconf-with-defaults:with-defaults");
+        if (nodeset->number) {
+            leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
+            if (!strcmp(leaf->value_str, "report-all")) {
+                nc_wd = NC_WD_ALL;
+            } else if (!strcmp(leaf->value_str, "report-all-tagged")) {
+                nc_wd = NC_WD_ALL_TAG;
+            } else if (!strcmp(leaf->value_str, "trim")) {
+                nc_wd = NC_WD_TRIM;
+            } else if (!strcmp(leaf->value_str, "explicit")) {
+                nc_wd = NC_WD_EXPLICIT;
+            } else {
+                /* we received it, so it was validated, this cannot be */
+                EINT;
+                e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+                nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+                ereply = nc_server_reply_err(e);
+            }
+        }
+        ly_set_free(nodeset);
+
+        if (op_url_export(target_url, root, opcopy_wd_nc2ly(nc_wd), &ereply) == 0) {
+            ereply = nc_server_reply_ok();
+        }
 #endif
     }
 
 finish:
     lyd_free_withsiblings(root);
+    if (target_url) {
+        free(target_url);
+    }
     return ereply;
 }

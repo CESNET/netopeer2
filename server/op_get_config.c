@@ -147,7 +147,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
      */
     for (i = 0; (signed)i < filter_count; i++) {
         /* create the subtree */
-        if (op_sr2ly_subtree(sessions->srs, &root, filters[i])) {
+        if (op_sr2ly_subtree(sessions->srs, &root, filters[i], &ereply)) {
             goto error;
         }
     }
