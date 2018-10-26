@@ -159,6 +159,7 @@ int op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **ne
 
 /* build out whole subtree */
 int op_sr2ly_subtree(sr_session_ctx_t *srs, struct lyd_node **root, const char *subtree_xpath, struct nc_server_reply **ereply);
+struct lyd_node *op_import_anydata(struct lyd_node_anydata *any, int options, struct nc_server_reply **ereply);
 
 struct nc_server_reply *op_get(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_lock(struct lyd_node *rpc, struct nc_session *ncs);

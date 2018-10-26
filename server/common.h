@@ -54,6 +54,10 @@ struct np2srv {
     struct lyd_node *ly_ctx_info_cache; /**< a cache of calling ly_ctx_info on the ly_ctx */
 #endif
     pthread_rwlock_t ly_ctx_lock;  /**< libyang's context rwlock */
+
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+    struct ly_ctx *urlcfg_ctx;     /**< Context for URL config XML */
+#endif
 };
 extern struct np2srv np2srv;
 

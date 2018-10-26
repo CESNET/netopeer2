@@ -3186,6 +3186,52 @@ error:
     return -1;
 }
 
+struct lyd_node *
+op_import_anydata(struct lyd_node_anydata *any, int options, struct nc_server_reply **ereply)
+{
+    struct nc_server_error *e;
+    struct lyd_node *root = NULL;
+
+    switch (any->value_type) {
+    case LYD_ANYDATA_CONSTSTRING:
+    case LYD_ANYDATA_STRING:
+    case LYD_ANYDATA_SXML:
+        root = lyd_parse_mem(np2srv.ly_ctx, any->value.str, LYD_XML, options);
+        break;
+    case LYD_ANYDATA_DATATREE:
+        root = any->value.tree;
+        if (options & LYD_OPT_DESTRUCT) {
+            any->value.tree = NULL; /* "unlink" data tree from anydata to have full control */
+        }
+        break;
+    case LYD_ANYDATA_XML:
+        root = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, options);
+        break;
+    case LYD_ANYDATA_LYB:
+        root = lyd_parse_mem(np2srv.ly_ctx, any->value.mem, LYD_LYB, options);
+        break;
+    case LYD_ANYDATA_JSON:
+    case LYD_ANYDATA_JSOND:
+    case LYD_ANYDATA_SXMLD:
+    case LYD_ANYDATA_LYBD:
+        EINT;
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+        *ereply = nc_server_reply_err(e);
+    }
+    if (!root) {
+        if (ly_errno != LY_SUCCESS) {
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+            *ereply = nc_server_reply_err(e);
+        } else {
+            /* TODO delete-config ??? */
+        }
+    }
+
+    return root;
+}
+
 #ifdef NP2SRV_ENABLED_URL_CAPABILITY
 
 static int url_protocols = NP2SRV_URL_UNKNOWN;
@@ -3365,7 +3411,6 @@ static int np2srv_url_open(const char *url)
     return url_tmpfile;
 }
 
-
 int op_url_import(const char *url, struct lyd_node **root, struct nc_server_reply **ereply)
 {
     struct nc_server_error *e;
@@ -3378,8 +3423,8 @@ int op_url_import(const char *url, struct lyd_node **root, struct nc_server_repl
         return -1;
     }
 
-    *root = lyd_parse_fd(np2srv.ly_ctx, fd, LYD_XML, LYD_OPT_CONFIG | LYD_OPT_STRICT);
-    if (!*root) {
+    struct lyd_node *config = lyd_parse_fd(np2srv.urlcfg_ctx, fd, LYD_XML, LYD_OPT_CONFIG | LYD_OPT_STRICT);
+    if (!config) {
         if (ly_errno != LY_SUCCESS) {
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
             nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
@@ -3390,6 +3435,26 @@ int op_url_import(const char *url, struct lyd_node **root, struct nc_server_repl
             *ereply = nc_server_reply_err(e);
         }
 
+        return -1;
+    }
+
+    // Since the config XML was imported into the urlcfg context, we must
+    // export and re-import the XML data using the system context (see note
+    // in lyd_parse_xml() about nodes read with lyxml_read*).
+    char* xmlstr;
+    lyxml_print_mem(&xmlstr, ((struct lyd_node_anydata *)config)->value.xml, 0);
+    *root = lyd_parse_mem(np2srv.ly_ctx, xmlstr, LYD_XML, LYD_OPT_CONFIG | LYD_OPT_STRICT);
+    if (*root == NULL) {
+        ERR("Failed to read remote config");
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+        *ereply = nc_server_reply_err(e);
+    }
+    free(xmlstr);
+
+    lyd_free(config);
+
+    if (*root == NULL) {
         return -1;
     }
 
@@ -3405,23 +3470,13 @@ int op_url_export(const char *url, struct lyd_node *root, int wd, struct nc_serv
     struct nc_server_error *e;
     struct lyd_node *config;
 
-    const char *schema =
-    "module np2-internal-config {"
-      "namespace \"urn:ietf:params:xml:ns:netconf:base:1.0\";"
-      "prefix np2cfg;"
-      "anyxml config;"
-    "}";
-
-    struct ly_ctx* ctx = ly_ctx_new(NULL, LY_CTX_TRUSTED);
-    lys_parse_mem(ctx, schema, LYS_IN_YANG);
-
     config = lyd_new_output_anydata(NULL,
-            ly_ctx_get_module(ctx, "np2-internal-config", NULL, 0),
+            ly_ctx_get_module(np2srv.urlcfg_ctx, "np2-internal-config", NULL, 0),
             "config", lyd_dup(root, 1), LYD_ANYDATA_DATATREE);
 
     if (!config) {
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+        nc_err_set_msg(e, np2log_lasterr(np2srv.urlcfg_ctx), "en");
         *ereply = nc_server_reply_err(e);
         return (-1);
     }
@@ -3431,7 +3486,6 @@ int op_url_export(const char *url, struct lyd_node *root, int wd, struct nc_serv
 //    fprintf(stderr, "%s", data);
 
     lyd_free_withsiblings(config);
-    ly_ctx_destroy(ctx, NULL);
 
     DBG("Uploading file to URL: %s (via curl)", url);
 

@@ -53,6 +53,7 @@ find_last_slash(char *string)
     return NULL;
 }
 
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
 static int opcopy_wd_nc2ly(NC_WD_MODE nc_wd)
 {
     int ly_wd;
@@ -74,49 +75,7 @@ static int opcopy_wd_nc2ly(NC_WD_MODE nc_wd)
 
     return ly_wd;
 }
-
-static struct lyd_node *opcopy_import_any(struct lyd_node_anydata *any, struct nc_server_reply **ereply)
-{
-    struct nc_server_error *e;
-    struct lyd_node *root = NULL;
-
-    switch (any->value_type) {
-    case LYD_ANYDATA_CONSTSTRING:
-    case LYD_ANYDATA_STRING:
-    case LYD_ANYDATA_SXML:
-        root = lyd_parse_mem(np2srv.ly_ctx, any->value.str, LYD_XML, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT | LYD_OPT_STRICT);
-        break;
-    case LYD_ANYDATA_DATATREE:
-        root = any->value.tree;
-        any->value.tree = NULL; /* "unlink" data tree from anydata to have full control */
-        break;
-    case LYD_ANYDATA_XML:
-        root = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT | LYD_OPT_STRICT);
-        break;
-    case LYD_ANYDATA_LYB:
-        root = lyd_parse_mem(np2srv.ly_ctx, any->value.mem, LYD_LYB, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT | LYD_OPT_STRICT);
-        break;
-    case LYD_ANYDATA_JSON:
-    case LYD_ANYDATA_JSOND:
-    case LYD_ANYDATA_SXMLD:
-    case LYD_ANYDATA_LYBD:
-        EINT;
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
-        *ereply = nc_server_reply_err(e);
-    }
-    if (!root) {
-        if (ly_errno != LY_SUCCESS) {
-            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
-            *ereply = nc_server_reply_err(e);
-        } else {
-            /* TODO delete-config ??? */
-        }
-    }
-
-    return root;
-}
+#endif
 
 struct nc_server_reply *
 op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
@@ -202,7 +161,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
         source_ds = SR_DS_CANDIDATE;
         source_is_ds = 1;
     } else if (!strcmp(src_dsname, "config")) {
-        root = opcopy_import_any((struct lyd_node_anydata *)nodeset->set.d[0], &ereply);
+        root = op_import_anydata((struct lyd_node_anydata *)nodeset->set.d[0], LYD_OPT_CONFIG | LYD_OPT_DESTRUCT | LYD_OPT_STRICT, &ereply);
         if (!root) {
             ly_set_free(nodeset);
             goto finish;
