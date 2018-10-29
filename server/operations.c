@@ -3411,7 +3411,7 @@ static int np2srv_url_open(const char *url)
     return url_tmpfile;
 }
 
-int op_url_import(const char *url, struct lyd_node **root, struct nc_server_reply **ereply)
+int op_url_import(const char *url, int parser_options, struct lyd_node **root, struct nc_server_reply **ereply)
 {
     struct nc_server_error *e;
 
@@ -3423,7 +3423,7 @@ int op_url_import(const char *url, struct lyd_node **root, struct nc_server_repl
         return -1;
     }
 
-    struct lyd_node *config = lyd_parse_fd(np2srv.urlcfg_ctx, fd, LYD_XML, LYD_OPT_CONFIG | LYD_OPT_STRICT);
+    struct lyd_node *config = lyd_parse_fd(np2srv.urlcfg_ctx, fd, LYD_XML, parser_options);
     if (!config) {
         if (ly_errno != LY_SUCCESS) {
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
@@ -3442,8 +3442,8 @@ int op_url_import(const char *url, struct lyd_node **root, struct nc_server_repl
     // export and re-import the XML data using the system context (see note
     // in lyd_parse_xml() about nodes read with lyxml_read*).
     char* xmlstr;
-    lyxml_print_mem(&xmlstr, ((struct lyd_node_anydata *)config)->value.xml, 0);
-    *root = lyd_parse_mem(np2srv.ly_ctx, xmlstr, LYD_XML, LYD_OPT_CONFIG | LYD_OPT_STRICT);
+    lyxml_print_mem(&xmlstr, ((struct lyd_node_anydata *)config)->value.xml, LYXML_PRINT_FORMAT | LYXML_PRINT_SIBLINGS);
+    *root = lyd_parse_mem(np2srv.ly_ctx, xmlstr, LYD_XML, parser_options);
     if (*root == NULL) {
         ERR("Failed to read remote config");
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
@@ -3461,7 +3461,7 @@ int op_url_import(const char *url, struct lyd_node **root, struct nc_server_repl
     return 0;
 }
 
-int op_url_export(const char *url, struct lyd_node *root, int wd, struct nc_server_reply **ereply)
+int op_url_export(const char *url, int printer_options, struct lyd_node *root, struct nc_server_reply **ereply)
 {
     CURL * curl;
     CURLcode res;
@@ -3482,7 +3482,7 @@ int op_url_export(const char *url, struct lyd_node *root, int wd, struct nc_serv
     }
 
     char *data;
-    lyd_print_mem(&data, config, LYD_XML, LYP_FORMAT | wd);
+    lyd_print_mem(&data, config, LYD_XML, printer_options);
 //    fprintf(stderr, "%s", data);
 
     lyd_free_withsiblings(config);

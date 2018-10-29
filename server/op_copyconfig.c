@@ -170,7 +170,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 #ifdef NP2SRV_ENABLED_URL_CAPABILITY
         urlval = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
         if (urlval) {
-            if (op_url_import(urlval, &root, &ereply)) {
+            if (op_url_import(urlval, LYD_OPT_CONFIG | LYD_OPT_STRICT, &root, &ereply)) {
                 ly_set_free(nodeset);
                 goto finish;
             }
@@ -468,7 +468,7 @@ dfs_continue:
         }
         ly_set_free(nodeset);
 
-        if (op_url_export(target_url, root, opcopy_wd_nc2ly(nc_wd), &ereply) == 0) {
+        if (op_url_export(target_url, LYP_FORMAT | opcopy_wd_nc2ly(nc_wd), root, &ereply) == 0) {
             ereply = nc_server_reply_ok();
         }
 #endif
