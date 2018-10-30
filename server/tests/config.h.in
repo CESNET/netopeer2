@@ -23,6 +23,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <ctype.h>
 
 /* taken from libnetconf2 session_p.h private header */
 
@@ -419,3 +420,75 @@ test_read(int fd, const char *template, int line)
 
     free(buf);
 }
+
+#ifdef ENABLE_TEST_FILE
+static void
+test_file(const char *path, const char *template, int line)
+{
+    int cc = 0;
+    int fcnt = 0;
+    char buf = '\0';
+    int fc = 0;
+    int fd = open(path, O_RDONLY);
+
+    if (fd < 0) {
+        fprintf(stderr, "read fail (line %d, could not open file %s)\n", line, path);
+        fail();
+    }
+
+    fc = read(fd, &buf, 1);
+    if (fc < 0) {
+        fprintf(stderr, "read fail (line %d, could not read file %s)\n", line, path);
+        fail();
+    }
+
+    if (*template != buf) {
+        fprintf(stderr, "read fail (line %d, non-matching template char %d)\n\"%c\" vs. template\n\"%c\"\n",
+                line, cc, buf, *template);
+        close(fd);
+        fail();
+    }
+
+    while (1) {
+        do {
+            cc++, template++;
+        } while (*template && isspace(*template));
+
+        do {
+            fcnt++;
+            fc = read(fd, &buf, 1);
+        } while (fc == 1 && isspace(buf));
+
+        if (!*template || fc != 1) {
+            break;
+        }
+
+        if (*template != buf) {
+            fprintf(stderr, "read fail (line %d, non-matching template char %d)\n\"%c\" vs. template\n\"%c\"\n",
+                    line, cc, buf, *template);
+            close(fd);
+            fail();
+        }
+    }
+
+    while (*template) {
+        if (!isspace(*template)) {
+            close(fd);
+            fprintf(stderr, "read fail (characters remaining in template, line %d)\n", line);
+            fail();
+        }
+        template++;
+    }
+
+    while (fc == 1) {
+        if (!isspace(buf)) {
+            close(fd);
+            fprintf(stderr, "read fail (characters remaining in file, line %d)\n", line);
+            fail();
+        }
+        fc = read(fd, &buf, 1);
+    }
+
+    close(fd);
+}
+#endif  // ENABLE_TEST_FILE

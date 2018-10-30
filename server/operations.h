@@ -207,6 +207,7 @@ char* np2srv_url_gencap(const char *cap, char **buf);
 
 int op_url_import(const char *url, int parser_options, struct lyd_node **root, struct nc_server_reply **ereply);
 int op_url_export(const char *url, int printer_options, struct lyd_node *root, struct nc_server_reply **ereply);
+int op_url_init(const char *url, struct nc_server_reply **ereply);
 
 #endif /* NP2SRV_ENABLED_URL_CAPABILITY */
 

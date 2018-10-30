@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.6)
 
-set(tests test_close_session test_get test_generic test_copy_config test_edit_get_config test_un_lock test_notif test_kill)
+set(tests test_close_session test_get test_generic test_copy_config test_edit_get_config test_un_lock test_notif test_kill test_delete_config)
 
 set(test test_close_session)
 set(${test}_mock_funcs sr_connect sr_session_start sr_list_schemas sr_get_schema sr_module_install_subscribe sr_feature_enable_subscribe sr_module_change_subscribe sr_dp_get_items_subscribe sr_session_start_user sr_session_stop sr_disconnect sr_event_notif_send nc_accept nc_session_free nc_server_endpt_count)
@@ -55,6 +55,13 @@ set(test test_kill)
 set(${test}_mock_funcs sr_check_exec_permission)
 set(${test}_wrap_link_flags "-Wl")
 foreach(mock_func IN LISTS test_close_session_mock_funcs ${test}_mock_funcs)
+    set(${test}_wrap_link_flags "${${test}_wrap_link_flags},--wrap=${mock_func}")
+endforeach()
+
+set(test test_delete_config)
+set(${test}_mock_funcs sr_session_refresh sr_check_exec_permission sr_get_items_iter sr_get_item_next sr_free_val_iter sr_move_item sr_session_set_options)
+set(${test}_wrap_link_flags "-Wl")
+foreach(mock_func IN LISTS test_close_session_mock_funcs test_copy_config_mock_funcs ${test}_mock_funcs)
     set(${test}_wrap_link_flags "${${test}_wrap_link_flags},--wrap=${mock_func}")
 endforeach()
 

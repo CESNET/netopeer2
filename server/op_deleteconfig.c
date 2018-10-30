@@ -33,6 +33,11 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
     char path[1024];
     struct ly_set *nodeset;
     struct nc_server_reply *ereply = NULL;
+    struct nc_server_error *e;
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+    char *target_url = 0;
+    const char* urlval;
+#endif
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
@@ -44,12 +49,56 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* get know which datastore is being affected */
     nodeset = lyd_find_path(rpc, "/ietf-netconf:delete-config/target/*");
     dsname = nodeset->set.d[0]->schema->name;
-    ly_set_free(nodeset);
 
     if (!strcmp(dsname, "startup")) {
         target = SR_DS_STARTUP;
+    } else if (!strcmp(dsname, "url")) {
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+        urlval = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
+        if (urlval) {
+            target_url = (char *)malloc(strlen(urlval) + 1);
+            strcpy(target_url, urlval);
+            urlval = 0;
+        } else {
+            ly_set_free(nodeset);
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, "Missing target url", "en");
+            ereply = nc_server_reply_err(e);
+            goto finish;
+        }
+#else
+        ly_set_free(nodeset);
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, "<url> source not supported", "en");
+        ereply = nc_server_reply_err(e);
+        goto finish;
+#endif
     }
-    /* TODO URL capability */
+
+    ly_set_free(nodeset);
+
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+    if (target_url) {
+        // Perform delete on the URL
+
+        struct lyd_node *urlcfg;
+        // Import URL
+        if (op_url_import(target_url, LYD_OPT_CONFIG | LYD_OPT_STRICT, &urlcfg, &ereply)) {
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, "File at url does not appear to contain a valid config", "en");
+            nc_server_reply_add_err(ereply, e);
+            goto finish;
+        }
+
+        lyd_free_withsiblings(urlcfg);
+        if (op_url_init(target_url, &ereply)) {
+            goto finish;
+        }
+
+        ereply = nc_server_reply_ok();
+        goto finish;
+    }
+#endif
 
     if (sessions->ds != target) {
         /* update sysrepo session */
@@ -97,5 +146,10 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
     ereply = nc_server_reply_ok();
 
 finish:
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+    if (target_url) {
+        free(target_url);
+    }
+#endif
     return ereply;
 }

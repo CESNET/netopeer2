@@ -28,10 +28,13 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <unistd.h>
-#include <ctype.h>
 
 #include "config.h"
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+#define ENABLE_TEST_FILE
+#endif
 #include "tests/config.h"
+#undef ENABLE_TEST_FILE
 
 #define main server_main
 #undef NP2SRV_PIDFILE
@@ -637,75 +640,6 @@ test_copy_config_from_url(void **state)
     set_item_count = 0;
     test_write(p_out, copy_rpc, __LINE__);
     test_read(p_in, copy_rpl, __LINE__);
-}
-
-static void test_file(const char *path, const char *template, int line)
-{
-    int cc = 0;
-    int fcnt = 0;
-    char buf = '\0';
-    int fc = 0;
-    int fd = open(path, O_RDONLY);
-
-    if (fd < 0) {
-        fprintf(stderr, "read fail (line %d, could not open file %s)\n", line, path);
-        fail();
-    }
-
-    fc = read(fd, &buf, 1);
-    if (fc < 0) {
-        fprintf(stderr, "read fail (line %d, could not read file %s)\n", line, path);
-        fail();
-    }
-
-    if (*template != buf) {
-        fprintf(stderr, "read fail (line %d, non-matching template char %d)\n\"%c\" vs. template\n\"%c\"\n",
-                line, cc, buf, *template);
-        close(fd);
-        fail();
-    }
-
-    while (1) {
-        do {
-            cc++, template++;
-        } while (*template && isspace(*template));
-
-        do {
-            fcnt++;
-            fc = read(fd, &buf, 1);
-        } while (fc == 1 && isspace(buf));
-
-        if (!*template || fc != 1) {
-            break;
-        }
-
-        if (*template != buf) {
-            fprintf(stderr, "read fail (line %d, non-matching template char %d)\n\"%c\" vs. template\n\"%c\"\n",
-                    line, cc, buf, *template);
-            close(fd);
-            fail();
-        }
-    }
-
-    while (*template) {
-        if (!isspace(*template)) {
-            close(fd);
-            fprintf(stderr, "read fail (characters remaining in template, line %d)\n", line);
-            fail();
-        }
-        template++;
-    }
-
-    while (fc == 1) {
-        if (!isspace(buf)) {
-            close(fd);
-            fprintf(stderr, "read fail (characters remaining in file, line %d)\n", line);
-            fail();
-        }
-        fc = read(fd, &buf, 1);
-    }
-
-    close(fd);
 }
 
 static void

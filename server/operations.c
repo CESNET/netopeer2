@@ -3520,5 +3520,62 @@ int op_url_export(const char *url, int printer_options, struct lyd_node *root, s
     return 0;
 }
 
+int op_url_init(const char *url, struct nc_server_reply **ereply)
+{
+    CURL * curl;
+    CURLcode res;
+    struct np2srv_url_mem mem_data;
+    char curl_buffer[CURL_ERROR_SIZE];
+    struct nc_server_error *e;
+    struct lyd_node *config;
+
+    config = lyd_new_path(NULL, np2srv.urlcfg_ctx, "/np2-internal-config:config", NULL, 0, 0);
+
+    if (!config) {
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, np2log_lasterr(np2srv.urlcfg_ctx), "en");
+        *ereply = nc_server_reply_err(e);
+        return (-1);
+    }
+
+    char *data;
+    lyd_print_mem(&data, config, LYD_XML, 0);
+//    fprintf(stderr, "%s", data);
+
+    lyd_free_withsiblings(config);
+
+    DBG("Uploading file to URL: %s (via curl)", url);
+
+    /* fill the structure for libcurl's READFUNCTION */
+    mem_data.memory = data;
+    mem_data.size = strlen(data);
+
+    /* set up libcurl */
+    curl_global_init(URL_INIT_FLAGS);
+    curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+    curl_easy_setopt(curl, CURLOPT_READDATA, &mem_data);
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, nc_url_readdata);
+    curl_easy_setopt(curl, CURLOPT_INFILESIZE, (long)mem_data.size);
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
+    res = curl_easy_perform(curl);
+    free(data);
+
+    if (res != CURLE_OK) {
+        ERR("%s: curl error: %s", __func__, curl_buffer);
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, curl_buffer, "en");
+        *ereply = nc_server_reply_err(e);
+        return (-1);
+    }
+
+    /* cleanup */
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+
+    return 0;
+}
+
 #endif
 
