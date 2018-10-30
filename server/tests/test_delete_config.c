@@ -614,7 +614,7 @@ np_stop(void **state)
     close(pipes[1][1]);
 
 #ifdef NP2SRV_ENABLED_URL_CAPABILITY
-//    unlink(URL_TESTFILE);
+    unlink(URL_TESTFILE);
 #endif
     return ret;
 }
