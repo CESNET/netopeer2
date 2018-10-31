@@ -30,7 +30,9 @@
 #include <unistd.h>
 
 #include "config.h"
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
 #define ENABLE_TEST_FILE
+#endif
 #include "tests/config.h"
 #undef ENABLE_TEST_FILE
 

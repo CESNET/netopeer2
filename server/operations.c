@@ -3254,12 +3254,16 @@ static char* url_protocol_str[] = {
         ""
 };
 
-int np2srv_url_get_protocols()
+/**
+ * @brief Return enabled protocols for URL capability
+ * @return binary array of protocol IDs (ORed NP2SRV_URL_PROTOCOLS)
+ */
+static int
+np2srv_url_get_protocols()
 {
     unsigned i, j;
 
-    if (url_protocols == NP2SRV_URL_UNKNOWN)
-    {
+    if (url_protocols == NP2SRV_URL_UNKNOWN) {
         /* Read protocols from curl */
         curl_version_info_data* data = curl_version_info(CURLVERSION_NOW);
         for (i = 0; data->protocols[i]; i++) {
@@ -3275,13 +3279,9 @@ int np2srv_url_get_protocols()
     return url_protocols;
 }
 
-int np2srv_url_is_enabled(NP2SRV_URL_PROTOCOLS protocol)
-{
-    return np2srv_url_get_protocols() & protocol;
-}
-
 /**< @brief generates url capability string with enabled protocols */
-char* np2srv_url_gencap(const char *cap, char **buf)
+char*
+np2srv_url_gencap(const char *cap, char **buf)
 {
     char **cpblt = buf, *cpblt_update = NULL;
     int first = 1;
@@ -3313,44 +3313,15 @@ char* np2srv_url_gencap(const char *cap, char **buf)
     return (*cpblt);
 }
 
-/**< @brief gets protocol id from url*/
-NP2SRV_URL_PROTOCOLS nc_url_get_protocol(const char *url)
-{
-    int protocol = 1; /* not a SCP, just an init value for bit shift */
-    int protocol_set = 0;
-    int i;
-    char *url_aux = strdup(url);
-    char *c;
-
-    c = strchr(url_aux, ':');
-    if (c == NULL) {
-        free(url_aux);
-        ERR("%s: invalid URL string, missing protocol specification", __func__);
-        return (NP2SRV_URL_UNKNOWN);
-    }
-
-    for (i = 0; (unsigned int) i < (sizeof(url_protocol_str) / sizeof(url_protocol_str[0])); i++, protocol <<= 1) {
-        if (strncmp(url_aux, url_protocol_str[i], strlen(url_protocol_str[i])) == 0) {
-            protocol_set = 1;
-            break;
-        }
-    }
-    free(url_aux);
-
-    if (protocol_set) {
-        return (protocol);
-    } else {
-        return (NP2SRV_URL_UNKNOWN);
-    }
-}
-
-static size_t nc_url_writedata(char *ptr, size_t size, size_t nmemb, void* userdata)
+static size_t
+np2_url_writedata(char *ptr, size_t size, size_t nmemb, void* userdata)
 {
     int* fd = (int*)userdata;
     return write(*fd, ptr, size * nmemb);
 }
 
-static size_t nc_url_readdata(void *ptr, size_t size, size_t nmemb, void *userdata)
+static size_t
+np2_url_readdata(void *ptr, size_t size, size_t nmemb, void *userdata)
 {
     size_t copied = 0;
     size_t aux_size = size * nmemb;
@@ -3368,7 +3339,8 @@ static size_t nc_url_readdata(void *ptr, size_t size, size_t nmemb, void *userda
     return (copied);
 }
 
-static int np2srv_url_open(const char *url)
+static int
+np2srv_url_open(const char *url)
 {
     CURL * curl;
     CURLcode res;
@@ -3391,7 +3363,7 @@ static int np2srv_url_open(const char *url)
     curl_global_init(URL_INIT_FLAGS);
     curl = curl_easy_init();
     curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, nc_url_writedata);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, np2_url_writedata);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &url_tmpfile);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
     res = curl_easy_perform(curl);
@@ -3411,7 +3383,8 @@ static int np2srv_url_open(const char *url)
     return url_tmpfile;
 }
 
-int op_url_import(const char *url, int parser_options, struct lyd_node **root, struct nc_server_reply **ereply)
+int
+op_url_import(const char *url, int parser_options, struct lyd_node **root, struct nc_server_reply **ereply)
 {
     struct nc_server_error *e;
 
@@ -3461,7 +3434,8 @@ int op_url_import(const char *url, int parser_options, struct lyd_node **root, s
     return 0;
 }
 
-int op_url_export(const char *url, int printer_options, struct lyd_node *root, struct nc_server_reply **ereply)
+int
+op_url_export(const char *url, int printer_options, struct lyd_node *root, struct nc_server_reply **ereply)
 {
     CURL * curl;
     CURLcode res;
@@ -3483,7 +3457,6 @@ int op_url_export(const char *url, int printer_options, struct lyd_node *root, s
 
     char *data;
     lyd_print_mem(&data, config, LYD_XML, printer_options);
-//    fprintf(stderr, "%s", data);
 
     lyd_free_withsiblings(config);
 
@@ -3499,7 +3472,7 @@ int op_url_export(const char *url, int printer_options, struct lyd_node *root, s
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
     curl_easy_setopt(curl, CURLOPT_READDATA, &mem_data);
-    curl_easy_setopt(curl, CURLOPT_READFUNCTION, nc_url_readdata);
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, np2_url_readdata);
     curl_easy_setopt(curl, CURLOPT_INFILESIZE, (long)mem_data.size);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
     res = curl_easy_perform(curl);
@@ -3520,7 +3493,8 @@ int op_url_export(const char *url, int printer_options, struct lyd_node *root, s
     return 0;
 }
 
-int op_url_init(const char *url, struct nc_server_reply **ereply)
+int
+op_url_init(const char *url, struct nc_server_reply **ereply)
 {
     CURL * curl;
     CURLcode res;
@@ -3540,7 +3514,6 @@ int op_url_init(const char *url, struct nc_server_reply **ereply)
 
     char *data;
     lyd_print_mem(&data, config, LYD_XML, 0);
-//    fprintf(stderr, "%s", data);
 
     lyd_free_withsiblings(config);
 
@@ -3556,7 +3529,7 @@ int op_url_init(const char *url, struct nc_server_reply **ereply)
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
     curl_easy_setopt(curl, CURLOPT_READDATA, &mem_data);
-    curl_easy_setopt(curl, CURLOPT_READFUNCTION, nc_url_readdata);
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, np2_url_readdata);
     curl_easy_setopt(curl, CURLOPT_INFILESIZE, (long)mem_data.size);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
     res = curl_easy_perform(curl);

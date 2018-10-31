@@ -196,12 +196,6 @@ typedef enum NP2SRV_URL_PROTOCOLS {
     NP2SRV_URL_ALL     = 127  /**< All supported protocols */
 } NP2SRV_URL_PROTOCOLS;
 
-/**
- * @brief Return enabled protocols for URL capability
- * @return binary array of protocol IDs (ORed NP2SRV_URL_PROTOCOLS)
- */
-int np2srv_url_get_protocols();
-
 /**< @brief generates url capability string with enabled protocols */
 char* np2srv_url_gencap(const char *cap, char **buf);
 
