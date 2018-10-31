@@ -74,7 +74,6 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
             ds = SR_DS_CANDIDATE;
         }
-        /* TODO URL capability */
 
         ly_set_free(nodeset);
     }

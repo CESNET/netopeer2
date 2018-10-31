@@ -31,6 +31,10 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
     struct lyd_node_anydata *any;
     const char *dsname;
     sr_datastore_t ds = SR_DS_CANDIDATE;
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+    const char* urlval;
+    int rc;
+#endif
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
@@ -96,8 +100,31 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
 
         ereply = nc_server_reply_ok();
         goto finish;
+    } else if (!strcmp(dsname, "url")) {
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+        urlval = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
+        if (urlval) {
+            rc = op_url_import(urlval, LYD_OPT_CONFIG | LYD_OPT_DESTRUCT | LYD_OPT_STRICT, &config, &ereply);
+            if (rc == 0) {
+                lyd_free_withsiblings(config);
+                ereply = nc_server_reply_ok();
+            }
+            goto finish;
+        } else {
+            ly_set_free(nodeset);
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, "Missing target url", "en");
+            ereply = nc_server_reply_err(e);
+            goto finish;
+        }
+#else
+        ly_set_free(nodeset);
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, "<url> source not supported", "en");
+        ereply = nc_server_reply_err(e);
+        goto finish;
+#endif
     }
-    /* TODO support URL */
 
     if (ds != sessions->ds) {
         /* update sysrepo session */
