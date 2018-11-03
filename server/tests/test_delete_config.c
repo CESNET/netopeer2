@@ -380,7 +380,7 @@ __wrap_sr_delete_item(sr_session_ctx_t *session, const char *xpath, const sr_edi
     uint32_t i;
 
     if (data == NULL) {
-        if (opts && SR_EDIT_STRICT) {
+        if (opts & SR_EDIT_STRICT) {
             return SR_ERR_DATA_MISSING;
         }
         return SR_ERR_OK;
