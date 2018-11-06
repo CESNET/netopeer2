@@ -192,16 +192,14 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
     ly_set_free(nodeset);
 
-    if (source_is_ds && target_is_ds)
-    {
+    if (source_is_ds && target_is_ds) {
         /* datastore-to-datastore copy */
         np2srv_sr_copy_config(sessions->srs, NULL, source_ds, target_ds, &ereply);
         /* commit is done implicitely by sr_copy_config() */
         goto finish;
     }
 
-    if (target_is_ds)
-    {
+    if (target_is_ds) {
         /* copy url/config (at root) to datastore */
         if (sessions->ds != target_ds) {
             /* update sysrepo session */
