@@ -3396,7 +3396,7 @@ op_url_import(const char *url, int parser_options, struct lyd_node **root, struc
         return -1;
     }
 
-    struct lyd_node *config = lyd_parse_fd(np2srv.urlcfg_ctx, fd, LYD_XML, parser_options);
+    struct lyd_node *config = lyd_parse_fd(np2srv.ly_ctx, fd, LYD_XML, parser_options);
     if (!config) {
         if (ly_errno != LY_SUCCESS) {
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
@@ -3411,21 +3411,9 @@ op_url_import(const char *url, int parser_options, struct lyd_node **root, struc
         return -1;
     }
 
-    // Since the config XML was imported into the urlcfg context, we must
-    // export and re-import the XML data using the system context (see note
-    // in lyd_parse_xml() about nodes read with lyxml_read*).
-    char* xmlstr;
-    lyxml_print_mem(&xmlstr, ((struct lyd_node_anydata *)config)->value.xml, LYXML_PRINT_FORMAT | LYXML_PRINT_SIBLINGS);
-    *root = lyd_parse_mem(np2srv.ly_ctx, xmlstr, LYD_XML, parser_options);
-    if (*root == NULL) {
-        ERR("Failed to read remote config");
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
-        *ereply = nc_server_reply_err(e);
-    }
-    free(xmlstr);
+    *root = op_import_anydata((struct lyd_node_anydata *)config, parser_options, ereply);
 
-    lyd_free(config);
+    lyd_free_withsiblings(config);
 
     if (*root == NULL) {
         return -1;
@@ -3445,12 +3433,12 @@ op_url_export(const char *url, int printer_options, struct lyd_node *root, struc
     struct lyd_node *config;
 
     config = lyd_new_output_anydata(NULL,
-            ly_ctx_get_module(np2srv.urlcfg_ctx, "np2-internal-config", NULL, 0),
+            ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf", NULL, 0),
             "config", lyd_dup(root, 1), LYD_ANYDATA_DATATREE);
 
     if (!config) {
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, np2log_lasterr(np2srv.urlcfg_ctx), "en");
+        nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
         *ereply = nc_server_reply_err(e);
         return (-1);
     }
@@ -3503,11 +3491,11 @@ op_url_init(const char *url, struct nc_server_reply **ereply)
     struct nc_server_error *e;
     struct lyd_node *config;
 
-    config = lyd_new_path(NULL, np2srv.urlcfg_ctx, "/np2-internal-config:config", NULL, 0, 0);
+    config = lyd_new_path(NULL, np2srv.ly_ctx, "/ietf-netconf:config", NULL, 0, 0);
 
     if (!config) {
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, np2log_lasterr(np2srv.urlcfg_ctx), "en");
+        nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
         *ereply = nc_server_reply_err(e);
         return (-1);
     }

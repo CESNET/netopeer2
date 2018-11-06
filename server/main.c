@@ -1175,37 +1175,6 @@ error:
     return -1;
 }
 
-#ifdef NP2SRV_ENABLED_URL_CAPABILITY
-static int
-np2srv_init_urlctx()
-{
-    /*
-     * Create a context for working with config XML in a standalone file.
-     *
-     * In standalone config files, the <config> node with namespace
-     * "urn:ietf:params:xml:ns:netconf:base:1.0" wraps xml data. We create a
-     * special schema module to define this to libyang so we can
-     * import/export these files. The overloading of the namespace prevents
-     * us from storing this module in our server context, so it must be kept
-     * in a new context.
-     */
-    const char *schema =
-    "module np2-internal-config {"
-      "namespace \"urn:ietf:params:xml:ns:netconf:base:1.0\";"
-      "prefix np2cfg;"
-      "anyxml config;"
-    "}";
-
-    struct ly_ctx* ctx = ly_ctx_new(NULL, LY_CTX_NOYANGLIBRARY);
-    if (lys_parse_mem(ctx, schema, LYS_IN_YANG) == NULL) {
-        return -1;
-    }
-
-    np2srv.urlcfg_ctx = ctx;
-    return 0;
-}
-#endif
-
 static int
 np2srv_default_hostkey_clb(const char *name, void *UNUSED(user_data), char **privkey_path, char **UNUSED(privkey_data),
                            int *UNUSED(privkey_data_rsa))
@@ -1252,12 +1221,6 @@ server_init(void)
     if (np2srv_init_schemas()) {
         goto error;
     }
-
-#ifdef NP2SRV_ENABLED_URL_CAPABILITY
-    if (np2srv_init_urlctx()) {
-        goto error;
-    }
-#endif
 
     /* init monitoring */
     ncm_init();
@@ -1703,9 +1666,6 @@ cleanup:
 
     /* libyang cleanup */
     ly_ctx_destroy(np2srv.ly_ctx, NULL);
-#ifdef NP2SRV_ENABLED_URL_CAPABILITY
-    ly_ctx_destroy(np2srv.urlcfg_ctx, NULL);
-#endif
 
     return ret;
 }
