@@ -24,10 +24,10 @@
 #include <signal.h>
 #include <unistd.h>
 
+#include "config.h"
 #include "tests/config.h"
 
 #define main server_main
-#include "config.h"
 #undef NP2SRV_PIDFILE
 #define NP2SRV_PIDFILE "/tmp/test_np2srv.pid"
 
@@ -427,6 +427,11 @@ test_get(void **state)
                         "<feature>"
                             "<name>startup</name>"
                         "</feature>"
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+                        "<feature>"
+                            "<name>url</name>"
+                        "</feature>"
+#endif
                         "<feature>"
                             "<name>xpath</name>"
                         "</feature>"

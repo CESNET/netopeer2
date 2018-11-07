@@ -22,12 +22,25 @@
 #include <string.h>
 #include <ctype.h>
 #include <pthread.h>
+#include <errno.h>
 
 #include <sysrepo.h>
 #include <sysrepo/values.h>
 
 #include "common.h"
 #include "operations.h"
+
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+#include <curl/curl.h>
+
+/* define init flags */
+#ifdef CURL_GLOBAL_ACK_EINTR
+#define URL_INIT_FLAGS CURL_GLOBAL_SSL|CURL_GLOBAL_ACK_EINTR
+#else
+#define URL_INIT_FLAGS CURL_GLOBAL_SSL
+#endif
+
+#endif
 
 /* lock for accessing/reconnecting sysrepo connection and all sysrepo sessions */
 pthread_rwlock_t sr_lock = PTHREAD_RWLOCK_INITIALIZER;
@@ -2631,6 +2644,37 @@ op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_coun
     return 0;
 }
 
+int op_filter_create_allmodules(char ***filters, int *filter_count)
+{
+    uint32_t i = 0;
+    const struct lys_module *module;
+    const struct lys_node *snode;
+    char *path;
+
+    while ((module = ly_ctx_get_module_iter(np2srv.ly_ctx, &i))) {
+        if (!module->implemented) {
+            continue;
+        }
+
+        LY_TREE_FOR(module->data, snode) {
+            if (!(snode->nodetype & (LYS_GROUPING | LYS_NOTIF | LYS_RPC))) {
+                /* module with some actual data definitions */
+                break;
+            }
+        }
+
+        if (snode) {
+            asprintf(&path, "/%s:*", module->name);
+            if (op_filter_xpath_add_filter(path, filters, filter_count)) {
+                free(path);
+                return -1;
+            }
+        }
+    }
+    return 0;
+}
+
+
 enum {
     OP_SR2LY_PARSE_PRED_SUCCESS = 0,
     OP_SR2LY_PARSE_PRED_NO_KEY,
@@ -3083,3 +3127,416 @@ op_sr2ly_free_cache(struct sr2ly_cache *cache)
     }
     free(cache->items);
 }
+
+int
+op_sr2ly_subtree(sr_session_ctx_t *srs, struct lyd_node **root, const char *subtree_xpath, struct nc_server_reply **ereply)
+{
+    sr_val_t *value;
+    sr_val_iter_t *sriter;
+    struct lyd_node *node;
+    struct sr2ly_cache cache;
+    char *full_subtree_xpath = NULL;
+    int rc;
+    struct nc_server_error *e;
+
+    if (asprintf(&full_subtree_xpath, "%s//.", subtree_xpath) == -1) {
+        EMEM;
+        goto error;
+    }
+
+    memset(&cache, 0, sizeof cache);
+    np2srv_sr_session_refresh(srs, NULL);
+
+    rc = np2srv_sr_get_items_iter(srs, full_subtree_xpath, &sriter, NULL);
+    free(full_subtree_xpath);
+    if (rc == 1) {
+        /* it's ok, model without data or just non-existing path */
+        return 0;
+    } else if (rc) {
+        goto error;
+    }
+
+    while ((!np2srv_sr_get_item_next(srs, sriter, &value, NULL))) {
+        if (op_sr2ly(*root, value, &node, &cache)) {
+            sr_free_val(value);
+            sr_free_val_iter(sriter);
+            goto error;
+        }
+
+        if (!(*root)) {
+            *root = node;
+        }
+        sr_free_val(value);
+    }
+    sr_free_val_iter(sriter);
+
+    op_sr2ly_free_cache(&cache);
+    return 0;
+
+error:
+    if (ereply) {
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+        if (*ereply) {
+            nc_server_reply_add_err(*ereply, e);
+        } else {
+            *ereply = nc_server_reply_err(e);
+        }
+    }
+    return -1;
+}
+
+struct lyd_node *
+op_import_anydata(struct lyd_node_anydata *any, int options, struct nc_server_reply **ereply)
+{
+    struct nc_server_error *e;
+    struct lyd_node *root = NULL;
+
+    switch (any->value_type) {
+    case LYD_ANYDATA_CONSTSTRING:
+    case LYD_ANYDATA_STRING:
+    case LYD_ANYDATA_SXML:
+        root = lyd_parse_mem(np2srv.ly_ctx, any->value.str, LYD_XML, options);
+        break;
+    case LYD_ANYDATA_DATATREE:
+        root = any->value.tree;
+        if (options & LYD_OPT_DESTRUCT) {
+            any->value.tree = NULL; /* "unlink" data tree from anydata to have full control */
+        }
+        break;
+    case LYD_ANYDATA_XML:
+        root = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, options);
+        break;
+    case LYD_ANYDATA_LYB:
+        root = lyd_parse_mem(np2srv.ly_ctx, any->value.mem, LYD_LYB, options);
+        break;
+    case LYD_ANYDATA_JSON:
+    case LYD_ANYDATA_JSOND:
+    case LYD_ANYDATA_SXMLD:
+    case LYD_ANYDATA_LYBD:
+        EINT;
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+        *ereply = nc_server_reply_err(e);
+    }
+    if (!root) {
+        if (ly_errno != LY_SUCCESS) {
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+            *ereply = nc_server_reply_err(e);
+        } else {
+            /* TODO delete-config ??? */
+        }
+    }
+
+    return root;
+}
+
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+
+static int url_protocols = NP2SRV_URL_UNKNOWN;
+
+/* Struct for uploading data with curl */
+struct np2srv_url_mem
+{
+    char *memory;
+    size_t size;
+};
+
+static char* url_protocol_str[] = {
+        "scp",
+        "http",
+        "https",
+        "ftp",
+        "sftp",
+        "ftps",
+        "file",
+        ""
+};
+
+/**
+ * @brief Return enabled protocols for URL capability
+ * @return binary array of protocol IDs (ORed NP2SRV_URL_PROTOCOLS)
+ */
+static int
+np2srv_url_get_protocols()
+{
+    unsigned i, j;
+
+    if (url_protocols == NP2SRV_URL_UNKNOWN) {
+        /* Read protocols from curl */
+        curl_version_info_data* data = curl_version_info(CURLVERSION_NOW);
+        for (i = 0; data->protocols[i]; i++) {
+            for (j = 0; url_protocol_str[j][0]; j++) {
+                if (!strcmp(data->protocols[i], url_protocol_str[j])) {
+                    url_protocols |= (1 << j);
+                    break;
+                }
+            }
+        }
+    }
+
+    return url_protocols;
+}
+
+/**< @brief generates url capability string with enabled protocols */
+char*
+np2srv_url_gencap(const char *cap, char **buf)
+{
+    char **cpblt = buf, *cpblt_update = NULL;
+    int first = 1;
+    int i;
+    int protocol = 1;
+
+    int prot = np2srv_url_get_protocols();
+    if (prot == 0) {
+        return (NULL);
+    }
+
+    if (asprintf(cpblt, "%s?scheme=", cap) < 0) {
+        ERR("%s: asprintf error (%s:%d)", __func__, __FILE__, __LINE__);
+        return (NULL);
+    }
+
+    for (i = 0, protocol = 1; (unsigned int) i < (sizeof(url_protocol_str) / sizeof(url_protocol_str[0])); i++, protocol <<= 1) {
+        if (protocol & prot) {
+            if (asprintf(&cpblt_update, "%s%s%s", *cpblt, first ? "" : ",", url_protocol_str[i]) < 0) {
+                ERR("%s: asprintf error (%s:%d)", __func__, __FILE__, __LINE__);
+            }
+            free(*cpblt);
+            *cpblt = cpblt_update;
+            cpblt_update = NULL;
+            first = 0;
+        }
+    }
+
+    return (*cpblt);
+}
+
+static size_t
+np2_url_writedata(char *ptr, size_t size, size_t nmemb, void* userdata)
+{
+    int* fd = (int*)userdata;
+    return write(*fd, ptr, size * nmemb);
+}
+
+static size_t
+np2_url_readdata(void *ptr, size_t size, size_t nmemb, void *userdata)
+{
+    size_t copied = 0;
+    size_t aux_size = size * nmemb;
+    struct np2srv_url_mem *data = (struct np2srv_url_mem *) userdata;
+
+    if (aux_size < 1 || data->size == 0) {
+        /* no space or nothing lefts */
+        return 0;
+    }
+
+    copied = (data->size > aux_size) ? aux_size : data->size;
+    memcpy(ptr, data->memory, copied);
+    data->memory = data->memory + copied; /* move pointer */
+    data->size = data->size - copied; /* decrease amount of data left */
+    return (copied);
+}
+
+static int
+np2srv_url_open(const char *url)
+{
+    CURL * curl;
+    CURLcode res;
+    char curl_buffer[CURL_ERROR_SIZE];
+    char url_tmp_name[(sizeof(P_tmpdir) / sizeof(char)) + 15] = P_tmpdir "/np2srv-XXXXXX";
+    int url_tmpfile;
+
+    /* prepare temporary file ... */
+    if ((url_tmpfile = mkstemp(url_tmp_name)) < 0) {
+        ERR("%s: cannot create temporary file (%s, %s)", __func__, url_tmp_name, strerror(errno));
+        return (-1);
+    }
+
+    /* and hide it from the file system */
+    unlink(url_tmp_name);
+
+    DBG("Getting file from URL: %s (via curl)", url);
+
+    /* set up libcurl */
+    curl_global_init(URL_INIT_FLAGS);
+    curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, np2_url_writedata);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &url_tmpfile);
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
+    res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        ERR("%s: curl error: %s", __func__, curl_buffer);
+        close(url_tmpfile);
+        url_tmpfile = -1;
+    } else {
+        /* move back to the beginning of the output file */
+        lseek(url_tmpfile, 0, SEEK_SET);
+    }
+
+    /* cleanup */
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+
+    return url_tmpfile;
+}
+
+int
+op_url_import(const char *url, int parser_options, struct lyd_node **root, struct nc_server_reply **ereply)
+{
+    struct nc_server_error *e;
+
+    int fd = np2srv_url_open(url);
+    if (fd == -1) {
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, "Could not open URL", "en");
+        *ereply = nc_server_reply_err(e);
+        return -1;
+    }
+
+    struct lyd_node *config = lyd_parse_fd(np2srv.ly_ctx, fd, LYD_XML, parser_options);
+    if (!config) {
+        if (ly_errno != LY_SUCCESS) {
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+            *ereply = nc_server_reply_err(e);
+        } else {
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, "No data", "en");
+            *ereply = nc_server_reply_err(e);
+        }
+
+        return -1;
+    }
+
+    *root = op_import_anydata((struct lyd_node_anydata *)config, parser_options, ereply);
+
+    lyd_free_withsiblings(config);
+
+    if (*root == NULL) {
+        return -1;
+    }
+
+    return 0;
+}
+
+int
+op_url_export(const char *url, int printer_options, struct lyd_node *root, struct nc_server_reply **ereply)
+{
+    CURL * curl;
+    CURLcode res;
+    struct np2srv_url_mem mem_data;
+    char curl_buffer[CURL_ERROR_SIZE];
+    struct nc_server_error *e;
+    struct lyd_node *config;
+
+    config = lyd_new_output_anydata(NULL,
+            ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf", NULL, 0),
+            "config", lyd_dup(root, 1), LYD_ANYDATA_DATATREE);
+
+    if (!config) {
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+        *ereply = nc_server_reply_err(e);
+        return (-1);
+    }
+
+    char *data;
+    lyd_print_mem(&data, config, LYD_XML, printer_options);
+
+    lyd_free_withsiblings(config);
+
+    DBG("Uploading file to URL: %s (via curl)", url);
+
+    /* fill the structure for libcurl's READFUNCTION */
+    mem_data.memory = data;
+    mem_data.size = strlen(data);
+
+    /* set up libcurl */
+    curl_global_init(URL_INIT_FLAGS);
+    curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+    curl_easy_setopt(curl, CURLOPT_READDATA, &mem_data);
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, np2_url_readdata);
+    curl_easy_setopt(curl, CURLOPT_INFILESIZE, (long)mem_data.size);
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
+    res = curl_easy_perform(curl);
+    free(data);
+
+    if (res != CURLE_OK) {
+        ERR("%s: curl error: %s", __func__, curl_buffer);
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, curl_buffer, "en");
+        *ereply = nc_server_reply_err(e);
+        return (-1);
+    }
+
+    /* cleanup */
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+
+    return 0;
+}
+
+int
+op_url_init(const char *url, struct nc_server_reply **ereply)
+{
+    CURL * curl;
+    CURLcode res;
+    struct np2srv_url_mem mem_data;
+    char curl_buffer[CURL_ERROR_SIZE];
+    struct nc_server_error *e;
+    struct lyd_node *config;
+
+    config = lyd_new_path(NULL, np2srv.ly_ctx, "/ietf-netconf:config", NULL, 0, 0);
+
+    if (!config) {
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
+        *ereply = nc_server_reply_err(e);
+        return (-1);
+    }
+
+    char *data;
+    lyd_print_mem(&data, config, LYD_XML, 0);
+
+    lyd_free_withsiblings(config);
+
+    DBG("Uploading file to URL: %s (via curl)", url);
+
+    /* fill the structure for libcurl's READFUNCTION */
+    mem_data.memory = data;
+    mem_data.size = strlen(data);
+
+    /* set up libcurl */
+    curl_global_init(URL_INIT_FLAGS);
+    curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+    curl_easy_setopt(curl, CURLOPT_READDATA, &mem_data);
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, np2_url_readdata);
+    curl_easy_setopt(curl, CURLOPT_INFILESIZE, (long)mem_data.size);
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
+    res = curl_easy_perform(curl);
+    free(data);
+
+    if (res != CURLE_OK) {
+        ERR("%s: curl error: %s", __func__, curl_buffer);
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, curl_buffer, "en");
+        *ereply = nc_server_reply_err(e);
+        return (-1);
+    }
+
+    /* cleanup */
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+
+    return 0;
+}
+
+#endif
+

@@ -185,7 +185,9 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     uint16_t path_levels_index, path_levels_size = 0;
     int op_index, op_size, path_index = 0, missing_keys = 0, lastkey = 0, np_cont;
     int ret, path_len, new_len;
-    struct lyd_node_anydata *any;
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+    const char* urlval;
+#endif
 
     /* get sysrepo connections for this session */
     sessions = (struct np2_sessions *)nc_session_get_data(ncs);
@@ -272,43 +274,36 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     /* config */
     nodeset = lyd_find_path(rpc, "/ietf-netconf:edit-config/config");
     if (nodeset->number) {
-        any = (struct lyd_node_anydata *)nodeset->set.d[0];
-        ly_errno = LY_SUCCESS;
-        switch (any->value_type) {
-        case LYD_ANYDATA_CONSTSTRING:
-        case LYD_ANYDATA_STRING:
-        case LYD_ANYDATA_SXML:
-            config = lyd_parse_mem(np2srv.ly_ctx, any->value.str, LYD_XML, LYD_OPT_EDIT | LYD_OPT_STRICT);
-            break;
-        case LYD_ANYDATA_DATATREE:
-            config = any->value.tree;
-            any->value.tree = NULL; /* "unlink" data tree from anydata to have full control */
-            break;
-        case LYD_ANYDATA_XML:
-            config = lyd_parse_xml(np2srv.ly_ctx, &any->value.xml, LYD_OPT_EDIT | LYD_OPT_STRICT);
-            break;
-        case LYD_ANYDATA_LYB:
-            config = lyd_parse_mem(np2srv.ly_ctx, any->value.mem, LYD_LYB, LYD_OPT_EDIT | LYD_OPT_STRICT);
-            break;
-        case LYD_ANYDATA_JSON:
-        case LYD_ANYDATA_JSOND:
-        case LYD_ANYDATA_SXMLD:
-        case LYD_ANYDATA_LYBD:
-            EINT;
-            break;
-        }
-        ly_set_free(nodeset);
-        if (ly_errno != LY_SUCCESS) {
-            ereply = nc_server_reply_err(nc_err_libyang(np2srv.ly_ctx));
-            goto cleanup;
-        } else if (!config) {
-            /* nothing to do */
-            ereply = nc_server_reply_ok();
+        config = op_import_anydata((struct lyd_node_anydata *)nodeset->set.d[0], LYD_OPT_EDIT | LYD_OPT_STRICT, &ereply);
+        if (!config) {
+            ly_set_free(nodeset);
             goto cleanup;
         }
-    } else {
-        /* TODO support for :url capability */
-        ly_set_free(nodeset);
+    }
+    ly_set_free(nodeset);
+
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+    /* url */
+    nodeset = lyd_find_path(rpc, "/ietf-netconf:edit-config/url");
+    if (nodeset->number) {
+        urlval = ((struct lyd_node_leaf_list*)nodeset->set.d[0])->value_str;
+        if (urlval) {
+            if (op_url_import(urlval, LYD_OPT_EDIT | LYD_OPT_STRICT, &config, &ereply)) {
+                ly_set_free(nodeset);
+                goto cleanup;
+            }
+        } else {
+            ly_set_free(nodeset);
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, "Missing source url", "en");
+            ereply = nc_server_reply_err(e);
+            goto cleanup;
+        }
+    }
+    ly_set_free(nodeset);
+#endif
+
+    if (config == NULL) {
         EINT;
         goto internalerror;
     }

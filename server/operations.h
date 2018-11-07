@@ -141,6 +141,7 @@ struct nc_server_reply *op_build_err_nacm(struct nc_server_reply *ereply);
 int op_filter_get_tree_from_data(struct lyd_node **root, struct lyd_node *data, const char *subtree_path);
 int op_filter_xpath_add_filter(char *new_filter, char ***filters, int *filter_count);
 int op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_count);
+int op_filter_create_allmodules(char ***filters, int *filter_count);
 
 struct sr2ly_cache {
     struct {
@@ -155,6 +156,10 @@ struct sr2ly_cache {
 
 void op_sr2ly_free_cache(struct sr2ly_cache *cache);
 int op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_node, struct sr2ly_cache *cache);
+
+/* build out whole subtree */
+int op_sr2ly_subtree(sr_session_ctx_t *srs, struct lyd_node **root, const char *subtree_xpath, struct nc_server_reply **ereply);
+struct lyd_node *op_import_anydata(struct lyd_node_anydata *any, int options, struct nc_server_reply **ereply);
 
 struct nc_server_reply *op_get(struct lyd_node *rpc, struct nc_session *ncs);
 struct nc_server_reply *op_lock(struct lyd_node *rpc, struct nc_session *ncs);
@@ -172,5 +177,32 @@ struct nc_server_reply *op_ntf_subscribe(struct lyd_node *rpc, struct nc_session
 void op_ntf_unsubscribe(struct nc_session *session);
 void op_ntf_yang_lib_change(const struct lyd_node *ylib_info);
 struct lyd_node *ntf_get_data(void);
+
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+/**
+ * @brief List of protocol IDs supported by URL capability implementation.
+ * Values are used to enable/disable server support of these protocols
+ * (nc_url_enable(), nc_url_disable()).
+ */
+typedef enum NP2SRV_URL_PROTOCOLS {
+    NP2SRV_URL_UNKNOWN =   0, /**< No protocol. */
+    NP2SRV_URL_SCP     =   1, /**< SCP (Secure Copy Protocol). */
+    NP2SRV_URL_HTTP    =   2, /**< HTTP (Hypertext Transfer Protocol). */
+    NP2SRV_URL_HTTPS   =   4, /**< HTTPS (Hypertext Transfer Protocol Secure). */
+    NP2SRV_URL_FTP     =   8, /**< FTP (File Transfer Protocol). */
+    NP2SRV_URL_SFTP    =  16, /**< SFTP (SSH File Transfer Protocol) */
+    NP2SRV_URL_FTPS    =  32, /**< FTPS (FTP/SSL) */
+    NP2SRV_URL_FILE    =  64, /**< local file */
+    NP2SRV_URL_ALL     = 127  /**< All supported protocols */
+} NP2SRV_URL_PROTOCOLS;
+
+/**< @brief generates url capability string with enabled protocols */
+char* np2srv_url_gencap(const char *cap, char **buf);
+
+int op_url_import(const char *url, int parser_options, struct lyd_node **root, struct nc_server_reply **ereply);
+int op_url_export(const char *url, int printer_options, struct lyd_node *root, struct nc_server_reply **ereply);
+int op_url_init(const char *url, struct nc_server_reply **ereply);
+
+#endif /* NP2SRV_ENABLED_URL_CAPABILITY */
 
 #endif /* NP2SRV_OPERATIONS_H_ */

@@ -29,12 +29,16 @@
 #include <signal.h>
 #include <unistd.h>
 
+#include "config.h"
 #include "tests/config.h"
 
 #define main server_main
-#include "config.h"
 #undef NP2SRV_PIDFILE
 #define NP2SRV_PIDFILE "/tmp/test_np2srv.pid"
+
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+#define URL_TESTFILE "/tmp/nc2_edit_config.xml"
+#endif
 
 #include "../main.c"
 
@@ -579,6 +583,10 @@ np_stop(void **state)
     close(pipes[0][1]);
     close(pipes[1][0]);
     close(pipes[1][1]);
+
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+    unlink(URL_TESTFILE);
+#endif
     return ret;
 }
 
@@ -1551,6 +1559,513 @@ test_edit_merge3(void **state)
     test_read(p_in, get_config_rpl, __LINE__);
 }
 
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+static void
+test_edit_delete_url(void **state)
+{
+    (void)state; /* unused */
+    const char *get_config_rpc =
+    "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<get-config>"
+            "<source>"
+                "<running/>"
+            "</source>"
+        "</get-config>"
+    "</rpc>";
+    const char *get_config_rpl =
+    "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+      "<data xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+          "<interface>"
+            "<name>iface2</name>"
+            "<description>iface2 dsc</description>"
+            "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:softwareLoopback</type>"
+            "<enabled>false</enabled>"
+            "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+            "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+              "<address>"
+                "<ip>10.0.0.5</ip>"
+                "<netmask>255.0.0.0</netmask>"
+              "</address>"
+              "<address>"
+                "<ip>172.0.0.5</ip>"
+                "<prefix-length>16</prefix-length>"
+              "</address>"
+              "<neighbor>"
+                "<ip>10.0.0.1</ip>"
+                "<link-layer-address>01:34:56:78:9a:bc:de:fa</link-layer-address>"
+              "</neighbor>"
+            "</ipv4>"
+            "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+              "<address>"
+                "<ip>2001:abcd:ef01:2345:6789:0:1:5</ip>"
+                "<prefix-length>64</prefix-length>"
+              "</address>"
+              "<neighbor>"
+                "<ip>2001:abcd:ef01:2345:6789:0:1:1</ip>"
+                "<link-layer-address>01:34:56:78:9a:bc:de:fa</link-layer-address>"
+              "</neighbor>"
+              "<dup-addr-detect-transmits>100</dup-addr-detect-transmits>"
+              "<autoconf>"
+                "<create-global-addresses>true</create-global-addresses>"
+                "<create-temporary-addresses>false</create-temporary-addresses>"
+                "<temporary-valid-lifetime>600</temporary-valid-lifetime>"
+                "<temporary-preferred-lifetime>300</temporary-preferred-lifetime>"
+              "</autoconf>"
+            "</ipv6>"
+          "</interface>"
+          "<interface>"
+            "<name>iface1</name>"
+            "<description>iface1 dsc</description>"
+            "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:ethernetCsmacd</type>"
+            "<enabled>true</enabled>"
+            "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+              "<enabled>true</enabled>"
+              "<forwarding>true</forwarding>"
+              "<mtu>68</mtu>"
+              "<address>"
+                "<ip>172.0.0.1</ip>"
+                "<prefix-length>16</prefix-length>"
+              "</address>"
+              "<neighbor>"
+                "<ip>10.0.0.2</ip>"
+                "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
+              "</neighbor>"
+            "</ipv4>"
+            "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+              "<enabled>true</enabled>"
+              "<forwarding>false</forwarding>"
+              "<mtu>1280</mtu>"
+              "<address>"
+                "<ip>2001:abcd:ef01:2345:6789:0:1:1</ip>"
+                "<prefix-length>64</prefix-length>"
+              "</address>"
+              "<neighbor>"
+                "<ip>2001:abcd:ef01:2345:6789:0:1:2</ip>"
+                "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
+              "</neighbor>"
+              "<dup-addr-detect-transmits>52</dup-addr-detect-transmits>"
+              "<autoconf>"
+                "<create-global-addresses>true</create-global-addresses>"
+                "<create-temporary-addresses>false</create-temporary-addresses>"
+                "<temporary-valid-lifetime>600</temporary-valid-lifetime>"
+                "<temporary-preferred-lifetime>300</temporary-preferred-lifetime>"
+              "</autoconf>"
+            "</ipv6>"
+            "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+          "</interface>"
+        "</interfaces>"
+        "<test-container xmlns=\"urn:ietf:params:xml:ns:yang:test-feature-c\">"
+          "<test-leaf>green</test-leaf>"
+        "</test-container>"
+        "<melt xmlns=\"urn:ietf:params:xml:ns:yang:simplified-melt\">"
+          "<pmd-profile>"
+            "<name>melt-pmd-01</name>"
+            "<measurement-class>melt-cdcr</measurement-class>"
+          "</pmd-profile>"
+        "</melt>"
+      "</data>"
+    "</rpc-reply>";
+    const char *edit_rpc =
+    "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<edit-config>"
+            "<target>"
+                "<running/>"
+            "</target>"
+            "<url>file://" URL_TESTFILE "</url>"
+        "</edit-config>"
+    "</rpc>";
+    const char *edit_rpl =
+    "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<ok/>"
+    "</rpc-reply>";
+    const char *edit_data =
+    "<config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xmlns:op=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+            "<interface>"
+                "<name>iface1</name>"
+                "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+                    "<address op:operation=\"delete\">"
+                      "<ip>10.0.0.1</ip>"
+                      "<netmask>255.0.0.0</netmask>"
+                    "</address>"
+                "</ipv4>"
+            "</interface>"
+        "</interfaces>"
+    "</config>";
+
+    FILE* xmlfile = fopen(URL_TESTFILE, "w");
+    fprintf(xmlfile, "%s", edit_data);
+    fclose(xmlfile);
+
+    test_write(p_out, edit_rpc, __LINE__);
+    test_read(p_in, edit_rpl, __LINE__);
+
+    test_write(p_out, get_config_rpc, __LINE__);
+    test_read(p_in, get_config_rpl, __LINE__);
+}
+
+static void
+test_edit_create_url(void **state)
+{
+    (void)state; /* unused */
+    const char *get_config_rpc =
+    "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<get-config>"
+            "<source>"
+                "<running/>"
+            "</source>"
+        "</get-config>"
+    "</rpc>";
+    const char *get_config_rpl =
+    "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+      "<data xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+          "<interface>"
+            "<name>iface2</name>"
+            "<description>iface2 dsc</description>"
+            "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:softwareLoopback</type>"
+            "<enabled>false</enabled>"
+            "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+            "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+              "<address>"
+                "<ip>10.0.0.5</ip>"
+                "<netmask>255.0.0.0</netmask>"
+              "</address>"
+              "<address>"
+                "<ip>172.0.0.5</ip>"
+                "<prefix-length>16</prefix-length>"
+              "</address>"
+              "<neighbor>"
+                "<ip>10.0.0.1</ip>"
+                "<link-layer-address>01:34:56:78:9a:bc:de:fa</link-layer-address>"
+              "</neighbor>"
+            "</ipv4>"
+            "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+              "<address>"
+                "<ip>2001:abcd:ef01:2345:6789:0:1:5</ip>"
+                "<prefix-length>64</prefix-length>"
+              "</address>"
+              "<neighbor>"
+                "<ip>2001:abcd:ef01:2345:6789:0:1:1</ip>"
+                "<link-layer-address>01:34:56:78:9a:bc:de:fa</link-layer-address>"
+              "</neighbor>"
+              "<dup-addr-detect-transmits>100</dup-addr-detect-transmits>"
+              "<autoconf>"
+                "<create-global-addresses>true</create-global-addresses>"
+                "<create-temporary-addresses>false</create-temporary-addresses>"
+                "<temporary-valid-lifetime>600</temporary-valid-lifetime>"
+                "<temporary-preferred-lifetime>300</temporary-preferred-lifetime>"
+              "</autoconf>"
+            "</ipv6>"
+          "</interface>"
+          "<interface>"
+            "<name>iface1</name>"
+            "<description>iface1 dsc</description>"
+            "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:ethernetCsmacd</type>"
+            "<enabled>true</enabled>"
+            "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+              "<enabled>true</enabled>"
+              "<forwarding>true</forwarding>"
+              "<mtu>68</mtu>"
+              "<address>"
+                "<ip>172.0.0.1</ip>"
+                "<prefix-length>16</prefix-length>"
+              "</address>"
+              "<neighbor>"
+                "<ip>10.0.0.2</ip>"
+                "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
+              "</neighbor>"
+              "<address>"
+                "<ip>10.0.0.6</ip>"
+                "<netmask>255.255.255.0</netmask>"
+              "</address>"
+            "</ipv4>"
+            "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+              "<enabled>true</enabled>"
+              "<forwarding>false</forwarding>"
+              "<mtu>1280</mtu>"
+              "<address>"
+                "<ip>2001:abcd:ef01:2345:6789:0:1:1</ip>"
+                "<prefix-length>64</prefix-length>"
+              "</address>"
+              "<neighbor>"
+                "<ip>2001:abcd:ef01:2345:6789:0:1:2</ip>"
+                "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
+              "</neighbor>"
+              "<dup-addr-detect-transmits>52</dup-addr-detect-transmits>"
+              "<autoconf>"
+                "<create-global-addresses>true</create-global-addresses>"
+                "<create-temporary-addresses>false</create-temporary-addresses>"
+                "<temporary-valid-lifetime>600</temporary-valid-lifetime>"
+                "<temporary-preferred-lifetime>300</temporary-preferred-lifetime>"
+              "</autoconf>"
+            "</ipv6>"
+            "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+          "</interface>"
+        "</interfaces>"
+        "<test-container xmlns=\"urn:ietf:params:xml:ns:yang:test-feature-c\">"
+          "<test-leaf>green</test-leaf>"
+        "</test-container>"
+        "<melt xmlns=\"urn:ietf:params:xml:ns:yang:simplified-melt\">"
+          "<pmd-profile>"
+            "<name>melt-pmd-01</name>"
+            "<measurement-class>melt-cdcr</measurement-class>"
+          "</pmd-profile>"
+        "</melt>"
+      "</data>"
+    "</rpc-reply>";
+    const char *edit_rpc =
+    "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<edit-config>"
+            "<target>"
+                "<running/>"
+            "</target>"
+            "<url>file://" URL_TESTFILE "</url>"
+        "</edit-config>"
+    "</rpc>";
+    const char *edit_rpl =
+    "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<ok/>"
+    "</rpc-reply>";
+    const char *edit_data =
+    "<config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xmlns:op=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+            "<interface>"
+                "<name>iface1</name>"
+                "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+                    "<address op:operation=\"create\">"
+                      "<ip>10.0.0.6</ip>"
+                      "<netmask>255.255.255.0</netmask>"
+                    "</address>"
+                "</ipv4>"
+            "</interface>"
+        "</interfaces>"
+    "</config>";
+
+    FILE* xmlfile = fopen(URL_TESTFILE, "w");
+    fprintf(xmlfile, "%s", edit_data);
+    fclose(xmlfile);
+
+    test_write(p_out, edit_rpc, __LINE__);
+    test_read(p_in, edit_rpl, __LINE__);
+
+    test_write(p_out, get_config_rpc, __LINE__);
+    test_read(p_in, get_config_rpl, __LINE__);
+}
+
+static void
+test_edit_merge_url(void **state)
+{
+    (void)state; /* unused */
+    const char *get_config_rpc =
+    "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<get-config>"
+            "<source>"
+                "<running/>"
+            "</source>"
+        "</get-config>"
+    "</rpc>";
+    const char *get_config_rpl =
+    "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+      "<data xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+          "<interface>"
+            "<name>iface2</name>"
+            "<description>iface2 dsc</description>"
+            "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:softwareLoopback</type>"
+            "<enabled>false</enabled>"
+            "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+            "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+              "<address>"
+                "<ip>10.0.0.5</ip>"
+                "<netmask>255.0.0.0</netmask>"
+              "</address>"
+              "<address>"
+                "<ip>172.0.0.5</ip>"
+                "<prefix-length>16</prefix-length>"
+              "</address>"
+              "<neighbor>"
+                "<ip>10.0.0.1</ip>"
+                "<link-layer-address>01:34:56:78:9a:bc:de:fa</link-layer-address>"
+              "</neighbor>"
+            "</ipv4>"
+            "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+              "<address>"
+                "<ip>2001:abcd:ef01:2345:6789:0:1:5</ip>"
+                "<prefix-length>64</prefix-length>"
+              "</address>"
+              "<neighbor>"
+                "<ip>2001:abcd:ef01:2345:6789:0:1:1</ip>"
+                "<link-layer-address>01:34:56:78:9a:bc:de:fa</link-layer-address>"
+              "</neighbor>"
+              "<dup-addr-detect-transmits>100</dup-addr-detect-transmits>"
+              "<autoconf>"
+                "<create-global-addresses>true</create-global-addresses>"
+                "<create-temporary-addresses>false</create-temporary-addresses>"
+                "<temporary-valid-lifetime>600</temporary-valid-lifetime>"
+                "<temporary-preferred-lifetime>300</temporary-preferred-lifetime>"
+              "</autoconf>"
+            "</ipv6>"
+          "</interface>"
+          "<interface>"
+            "<name>iface1</name>"
+            "<description>iface1 dsc</description>"
+            "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:ethernetCsmacd</type>"
+            "<enabled>true</enabled>"
+            "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+              "<enabled>true</enabled>"
+              "<forwarding>true</forwarding>"
+              "<mtu>68</mtu>"
+              "<address>"
+                "<ip>172.0.0.1</ip>"
+                "<prefix-length>16</prefix-length>"
+              "</address>"
+              "<neighbor>"
+                "<ip>10.0.0.2</ip>"
+                "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
+              "</neighbor>"
+              "<address>"
+                "<ip>10.0.0.6</ip>"
+                "<netmask>255.255.255.0</netmask>"
+              "</address>"
+            "</ipv4>"
+            "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+              "<enabled>true</enabled>"
+              "<forwarding>false</forwarding>"
+              "<mtu>1280</mtu>"
+              "<address>"
+                "<ip>2001:abcd:ef01:2345:6789:0:1:1</ip>"
+                "<prefix-length>64</prefix-length>"
+              "</address>"
+              "<neighbor>"
+                "<ip>2001:abcd:ef01:2345:6789:0:1:2</ip>"
+                "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
+              "</neighbor>"
+              "<dup-addr-detect-transmits>52</dup-addr-detect-transmits>"
+              "<autoconf>"
+                "<create-global-addresses>true</create-global-addresses>"
+                "<create-temporary-addresses>false</create-temporary-addresses>"
+                "<temporary-valid-lifetime>600</temporary-valid-lifetime>"
+                "<temporary-preferred-lifetime>300</temporary-preferred-lifetime>"
+              "</autoconf>"
+            "</ipv6>"
+            "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+          "</interface>"
+        "</interfaces>"
+        "<test-container xmlns=\"urn:ietf:params:xml:ns:yang:test-feature-c\">"
+          "<test-leaf>green</test-leaf>"
+        "</test-container>"
+        "<melt xmlns=\"urn:ietf:params:xml:ns:yang:simplified-melt\">"
+          "<pmd-profile>"
+            "<name>melt-pmd-01</name>"
+            "<measurement-class>melt-cdcr</measurement-class>"
+          "</pmd-profile>"
+        "</melt>"
+      "</data>"
+    "</rpc-reply>";
+    const char *edit_rpc =
+    "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<edit-config>"
+            "<target>"
+                "<running/>"
+            "</target>"
+            "<url>file://" URL_TESTFILE "</url>"
+        "</edit-config>"
+    "</rpc>";
+    const char *edit_rpl =
+    "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<ok/>"
+    "</rpc-reply>";
+    const char *edit_data =
+    "<config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+        "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+          "<interface>"
+            "<name>iface1</name>"
+            "<description>iface1 dsc</description>"
+            "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:ethernetCsmacd</type>"
+            "<enabled>true</enabled>"
+            "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+            "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+              "<enabled>true</enabled>"
+              "<forwarding>true</forwarding>"
+              "<mtu>68</mtu>"
+            "</ipv4>"
+            "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+              "<enabled>true</enabled>"
+              "<forwarding>false</forwarding>"
+              "<mtu>1280</mtu>"
+              "<address>"
+                "<ip>2001:abcd:ef01:2345:6789:0:1:1</ip>"
+                "<prefix-length>64</prefix-length>"
+              "</address>"
+              "<neighbor>"
+                "<ip>2001:abcd:ef01:2345:6789:0:1:2</ip>"
+                "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
+              "</neighbor>"
+              "<dup-addr-detect-transmits>52</dup-addr-detect-transmits>"
+              "<autoconf>"
+                "<create-global-addresses>true</create-global-addresses>"
+                "<create-temporary-addresses>false</create-temporary-addresses>"
+                "<temporary-valid-lifetime>600</temporary-valid-lifetime>"
+                "<temporary-preferred-lifetime>300</temporary-preferred-lifetime>"
+              "</autoconf>"
+            "</ipv6>"
+          "</interface>"
+          "<interface>"
+            "<name>iface2</name>"
+            "<description>iface2 dsc</description>"
+            "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:softwareLoopback</type>"
+            "<enabled>false</enabled>"
+            "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+            "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+              "<address>"
+                "<ip>10.0.0.5</ip>"
+                "<netmask>255.0.0.0</netmask>"
+              "</address>"
+              "<address>"
+                "<ip>172.0.0.5</ip>"
+                "<prefix-length>16</prefix-length>"
+              "</address>"
+              "<neighbor>"
+                "<ip>10.0.0.1</ip>"
+                "<link-layer-address>01:34:56:78:9a:bc:de:fa</link-layer-address>"
+              "</neighbor>"
+            "</ipv4>"
+            "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+              "<address>"
+                "<ip>2001:abcd:ef01:2345:6789:0:1:5</ip>"
+                "<prefix-length>64</prefix-length>"
+              "</address>"
+              "<neighbor>"
+                "<ip>2001:abcd:ef01:2345:6789:0:1:1</ip>"
+                "<link-layer-address>01:34:56:78:9a:bc:de:fa</link-layer-address>"
+              "</neighbor>"
+              "<dup-addr-detect-transmits>100</dup-addr-detect-transmits>"
+              "<autoconf>"
+                "<create-global-addresses>true</create-global-addresses>"
+                "<create-temporary-addresses>false</create-temporary-addresses>"
+                "<temporary-valid-lifetime>600</temporary-valid-lifetime>"
+                "<temporary-preferred-lifetime>300</temporary-preferred-lifetime>"
+              "</autoconf>"
+            "</ipv6>"
+          "</interface>"
+        "</interfaces>"
+    "</config>";
+
+    FILE* xmlfile = fopen(URL_TESTFILE, "w");
+    fprintf(xmlfile, "%s", edit_data);
+    fclose(xmlfile);
+
+    test_write(p_out, edit_rpc, __LINE__);
+    test_read(p_in, edit_rpl, __LINE__);
+
+    test_write(p_out, get_config_rpc, __LINE__);
+    test_read(p_in, get_config_rpl, __LINE__);
+}
+
+#endif
+
 static void
 test_get_filter1(void **state)
 {
@@ -1656,6 +2171,13 @@ main(void)
                     cmocka_unit_test(test_edit_merge3),
                     cmocka_unit_test(test_get_filter1),
                     cmocka_unit_test(test_get_filter2),
+
+#ifdef NP2SRV_ENABLED_URL_CAPABILITY
+                    cmocka_unit_test(test_edit_delete_url),
+                    cmocka_unit_test(test_edit_create_url),
+                    cmocka_unit_test(test_edit_merge_url),
+#endif
+
                     cmocka_unit_test_teardown(test_startstop, np_stop),
     };
 
