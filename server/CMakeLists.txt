@@ -78,7 +78,7 @@ if (ENABLE_URL)
         set(URLCAPSTR url)
         include_directories(${CURL_INCLUDE_DIRS})
     else()
-        message("libcurl not found, URL capability will be not be enabled")
+        message(WARNING "libcurl not found, URL capability will be not be enabled")
     endif()
 endif()
 
