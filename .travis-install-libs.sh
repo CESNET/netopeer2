@@ -30,16 +30,16 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
 make -j2 && sudo make install
 cd ../..
 
-if [ ! -d "libssh-0.7.5/build" ]; then
+if [ ! -d "libssh-0.8.5/build" ]; then
     echo "Building libssh from source."
-    wget https://git.libssh.org/projects/libssh.git/snapshot/libssh-0.7.5.tar.gz
-    tar -xzf libssh-0.7.5.tar.gz
-    mkdir libssh-0.7.5/build && cd libssh-0.7.5/build
+    wget https://www.libssh.org/files/0.8/libssh-0.8.5.tar.xz
+    tar -xzf libssh-0.8.5.tar.xz
+    mkdir libssh-0.8.5/build && cd libssh-0.8.5/build
     cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr .. && make -j2 && sudo make install
     cd ../..
 else
     echo "Using libssh from cache."
-    cd libssh-0.7.5/build
+    cd libssh-0.8.5/build
     sudo make install
     cd ../..
 fi

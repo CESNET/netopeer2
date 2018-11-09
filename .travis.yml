@@ -10,14 +10,6 @@ matrix:
       dist: trusty
       sudo: required
       compiler: gcc
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-7
-      env:
-        - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
 
 branches:
   only:
@@ -26,7 +18,7 @@ branches:
 
 cache:
   directories:
-    - libssh-0.7.5
+    - libssh-0.8.5
     - protobuf
     - protobuf-c
     - cmocka-1.1.1
