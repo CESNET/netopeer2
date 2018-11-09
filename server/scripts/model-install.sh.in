@@ -4,13 +4,11 @@ set -eu -o pipefail
 
 shopt -s failglob
 
-local_path=$(dirname $0)
-
 : ${SYSREPOCTL:=sysrepoctl}
 : ${SYSREPOCFG:=sysrepocfg}
 : ${SYSREPOCTL_ROOT_PERMS:=-o root:root -p 600}
-: ${STOCK_CONFIG:=$local_path/../stock_config.xml}
-: ${YANG_DIR:=$local_path/../../modules}
+: ${STOCK_CONFIG:=@CMAKE_CURRENT_SOURCE_DIR@/stock_config.xml}
+: ${YANG_DIR:=@CMAKE_CURRENT_SOURCE_DIR@/../modules}
 
 is_yang_module_installed() {
     module=$1
