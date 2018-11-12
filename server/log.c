@@ -110,7 +110,7 @@ np2log(int priority, const char *fmt, ...)
     va_end(ap);
 
     if (np2_stderr_log) {
-        format = malloc(9 + strlen(fmt) + 2);
+        format = malloc(11 + strlen(fmt) + 2);
         if (!format) {
             fprintf(stderr, "ERROR: Memory allocation failed (%s:%d)", __FILE__, __LINE__);
             return;
@@ -118,19 +118,19 @@ np2log(int priority, const char *fmt, ...)
 
         switch (priority) {
         case LOG_ERR:
-            sprintf(format, "ERROR: %s\n", fmt);
+            sprintf(format, "[ERR]: %s\n", fmt);
             break;
         case LOG_WARNING:
-            sprintf(format, "WARNING: %s\n", fmt);
+            sprintf(format, "[WRN]: %s\n", fmt);
             break;
         case LOG_INFO:
-            sprintf(format, "VERBOSE: %s\n", fmt);
+            sprintf(format, "[INF]: %s\n", fmt);
             break;
         case LOG_DEBUG:
-            sprintf(format, "DEBUG: %s\n", fmt);
+            sprintf(format, "[DBG]: %s\n", fmt);
             break;
         default:
-            sprintf(format, "UNKNOWN: %s\n", fmt);
+            sprintf(format, "[UNKNOWN]: %s\n", fmt);
             break;
         }
 
