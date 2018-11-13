@@ -194,7 +194,9 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
     if (source_is_ds && target_is_ds) {
         /* datastore-to-datastore copy */
-        np2srv_sr_copy_config(sessions->srs, NULL, source_ds, target_ds, &ereply);
+        if (!np2srv_sr_copy_config(sessions->srs, NULL, source_ds, target_ds, &ereply)) {
+            ereply = nc_server_reply_ok();
+        }
         /* commit is done implicitely by sr_copy_config() */
         goto finish;
     }
@@ -373,9 +375,7 @@ dfs_continue:
         }
 
         /* commit the result */
-        rc = np2srv_sr_commit(sessions->srs, &ereply);
-
-        if (rc) {
+        if (np2srv_sr_commit(sessions->srs, &ereply)) {
             goto finish;
         }
 
