@@ -55,10 +55,16 @@ op_build_err_sr(struct nc_server_reply *ereply, sr_session_ctx_t *session)
     /* get all sysrepo errors connected with the last sysrepo operation */
     sr_get_last_errors(session, &err_info, &err_count);
     for (i = 0; i < err_count; ++i) {
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, err_info[i].message, "en");
-        if (err_info[i].xpath) {
-            nc_err_set_path(e, err_info[i].xpath);
+        if (!strncmp(err_info[i].message, "When condition", 14)) {
+            assert(err_info[i].xpath);
+            e = nc_err(NC_ERR_UNKNOWN_ELEM, NC_ERR_TYPE_APP, err_info[i].xpath);
+            nc_err_set_msg(e, err_info[i].message, "en");
+        } else {
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, err_info[i].message, "en");
+            if (err_info[i].xpath) {
+                nc_err_set_path(e, err_info[i].xpath);
+            }
         }
         if (ereply) {
             nc_server_reply_add_err(ereply, e);
