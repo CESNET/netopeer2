@@ -346,7 +346,7 @@ recv_reply:
 
         /* special case */
         if (nc_rpc_get_type(rpc) == NC_RPC_GETSCHEMA) {
-            if (!data_rply->data || (data_rpl->data->schema->nodetype != LYS_RPC) ||
+            if (!data_rpl->data || (data_rpl->data->schema->nodetype != LYS_RPC) ||
                 (data_rpl->data->child == NULL) ||
                 (data_rpl->data->child->schema->nodetype != LYS_ANYXML)) {
                 ERROR(__func__, "Unexpected data reply to <get-schema> RPC.");
