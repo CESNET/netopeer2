@@ -46,7 +46,7 @@
 pthread_rwlock_t sr_lock = PTHREAD_RWLOCK_INITIALIZER;
 
 static struct nc_server_reply *
-op_build_err_sr(struct nc_server_reply *ereply, sr_session_ctx_t *session)
+op_build_err_sr(struct nc_server_reply *ereply, sr_session_ctx_t *session, int sr_rc)
 {
     const sr_error_info_t *err_info;
     size_t err_count, i;
@@ -55,17 +55,30 @@ op_build_err_sr(struct nc_server_reply *ereply, sr_session_ctx_t *session)
     /* get all sysrepo errors connected with the last sysrepo operation */
     sr_get_last_errors(session, &err_info, &err_count);
     for (i = 0; i < err_count; ++i) {
-        if (!strncmp(err_info[i].message, "When condition", 14)) {
+        switch (sr_rc) {
+        case SR_ERR_UNAUTHORIZED:
+            e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
             assert(err_info[i].xpath);
-            e = nc_err(NC_ERR_UNKNOWN_ELEM, NC_ERR_TYPE_APP, err_info[i].xpath);
+            nc_err_set_path(e, err_info[i].xpath);
             nc_err_set_msg(e, err_info[i].message, "en");
-        } else {
+            break;
+        case SR_ERR_VALIDATION_FAILED:
+            if (!strncmp(err_info[i].message, "When condition", 14)) {
+                assert(err_info[i].xpath);
+                e = nc_err(NC_ERR_UNKNOWN_ELEM, NC_ERR_TYPE_APP, err_info[i].xpath);
+                nc_err_set_msg(e, err_info[i].message, "en");
+                break;
+            }
+            /* fallthrough */
+        default:
             e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
             nc_err_set_msg(e, err_info[i].message, "en");
             if (err_info[i].xpath) {
                 nc_err_set_path(e, err_info[i].xpath);
             }
+            break;
         }
+
         if (ereply) {
             nc_server_reply_add_err(ereply, e);
         } else {
@@ -116,7 +129,7 @@ np2srv_sr_session_switch_ds(sr_session_ctx_t *srs, sr_datastore_t ds, struct nc_
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -168,15 +181,6 @@ np2srv_sr_set_item(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *val
     if (rc != SR_ERR_OK) {
         if (ereply) {
             switch (rc) {
-            case SR_ERR_UNAUTHORIZED:
-                e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
-                nc_err_set_path(e, xpath);
-                if (*ereply) {
-                    nc_server_reply_add_err(*ereply, e);
-                } else {
-                    *ereply = nc_server_reply_err(e);
-                }
-                break;
             case SR_ERR_DATA_EXISTS:
                 e = nc_err(NC_ERR_DATA_EXISTS, NC_ERR_TYPE_PROT);
                 nc_err_set_path(e, xpath);
@@ -196,7 +200,7 @@ np2srv_sr_set_item(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *val
                 }
                 break;
             default:
-                *ereply = op_build_err_sr(*ereply, srs);
+                *ereply = op_build_err_sr(*ereply, srs, rc);
                 break;
             }
         } else {
@@ -249,15 +253,6 @@ np2srv_sr_delete_item(sr_session_ctx_t *srs, const char *xpath, const sr_edit_op
     if (rc != SR_ERR_OK) {
         if (ereply) {
             switch (rc) {
-            case SR_ERR_UNAUTHORIZED:
-                e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
-                nc_err_set_path(e, xpath);
-                if (*ereply) {
-                    nc_server_reply_add_err(*ereply, e);
-                } else {
-                    *ereply = nc_server_reply_err(e);
-                }
-                break;
             case SR_ERR_DATA_EXISTS:
                 e = nc_err(NC_ERR_DATA_EXISTS, NC_ERR_TYPE_PROT);
                 nc_err_set_path(e, xpath);
@@ -277,7 +272,7 @@ np2srv_sr_delete_item(sr_session_ctx_t *srs, const char *xpath, const sr_edit_op
                 }
                 break;
             default:
-                *ereply = op_build_err_sr(*ereply, srs);
+                *ereply = op_build_err_sr(*ereply, srs, rc);
                 break;
             }
         } else {
@@ -329,7 +324,7 @@ np2srv_sr_get_item(sr_session_ctx_t *srs, const char *xpath, sr_val_t **value, s
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -379,7 +374,7 @@ np2srv_sr_get_items(sr_session_ctx_t *srs, const char *xpath, sr_val_t **values,
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -429,7 +424,7 @@ np2srv_sr_get_changes_iter(sr_session_ctx_t *srs, const char *xpath, sr_change_i
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -485,7 +480,7 @@ np2srv_sr_get_change_next(sr_session_ctx_t *srs, sr_change_iter_t *iter, sr_chan
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -541,7 +536,7 @@ np2srv_sr_get_items_iter(sr_session_ctx_t *srs, const char *xpath, sr_val_iter_t
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -597,7 +592,7 @@ np2srv_sr_get_item_next(sr_session_ctx_t *srs, sr_val_iter_t *iter, sr_val_t **v
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -648,7 +643,7 @@ np2srv_sr_move_item(sr_session_ctx_t *srs, const char *xpath, const sr_move_posi
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -711,7 +706,7 @@ np2srv_sr_rpc_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *inp
                 }
                 break;
             default:
-                *ereply = op_build_err_sr(*ereply, srs);
+                *ereply = op_build_err_sr(*ereply, srs, rc);
                 break;
             }
         } else {
@@ -776,7 +771,7 @@ np2srv_sr_action_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *
                 }
                 break;
             default:
-                *ereply = op_build_err_sr(*ereply, srs);
+                *ereply = op_build_err_sr(*ereply, srs, rc);
                 break;
             }
         } else {
@@ -827,27 +822,19 @@ np2srv_sr_check_exec_permission(sr_session_ctx_t *srs, const char *xpath, struct
         return np2srv_sr_check_exec_permission(srs, xpath, ereply);
     }
 
+    if (!permitted) {
+        rc = SR_ERR_UNAUTHORIZED;
+    }
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
-        }
-    } else if (!permitted) {
-        e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
-        if (ereply) {
-            if (*ereply) {
-                nc_server_reply_add_err(*ereply, e);
-            } else {
-                *ereply = nc_server_reply_err(e);
-            }
-        } else {
-            ERR("%s failed (sysrepo: access denied).", __func__);
         }
     }
 
     pthread_rwlock_unlock(&sr_lock);
-    if ((rc != SR_ERR_OK) || !permitted) {
+    if (rc != SR_ERR_OK) {
         return -1;
     }
     return 0;
@@ -903,7 +890,7 @@ exec_func:
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -966,7 +953,7 @@ exec_func:
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -1017,7 +1004,7 @@ np2srv_sr_event_notif_subscribe(sr_session_ctx_t *srs, const char *xpath, sr_eve
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -1068,7 +1055,7 @@ np2srv_sr_event_notif_replay(sr_session_ctx_t *srs, sr_subscription_ctx_t *subsc
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -1119,7 +1106,7 @@ np2srv_sr_event_notif_send(sr_session_ctx_t *srs, const char *xpath, const sr_va
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -1230,7 +1217,7 @@ np2srv_sr_session_stop(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -1280,7 +1267,7 @@ np2srv_sr_session_set_options(sr_session_ctx_t *srs, const sr_sess_options_t opt
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -1330,7 +1317,7 @@ np2srv_sr_session_refresh(sr_session_ctx_t *srs, struct nc_server_reply **ereply
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -1380,7 +1367,7 @@ np2srv_sr_discard_changes(sr_session_ctx_t *srs, struct nc_server_reply **ereply
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -1442,7 +1429,7 @@ exec_func:
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -1492,7 +1479,7 @@ np2srv_sr_validate(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -1543,7 +1530,7 @@ np2srv_sr_copy_config(sr_session_ctx_t *srs, const char *module_name, sr_datasto
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -1593,7 +1580,7 @@ np2srv_sr_lock_datastore(sr_session_ctx_t *srs, struct nc_server_reply **ereply)
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -1643,7 +1630,7 @@ np2srv_sr_unlock_datastore(sr_session_ctx_t *srs, struct nc_server_reply **erepl
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -1693,7 +1680,7 @@ np2srv_sr_unsubscribe(sr_session_ctx_t *srs, sr_subscription_ctx_t *subscription
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -1743,7 +1730,7 @@ np2srv_sr_list_schemas(sr_session_ctx_t *srs, sr_schema_t **schemas, size_t *sch
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -1794,7 +1781,7 @@ np2srv_sr_get_submodule_schema(sr_session_ctx_t *srs, const char *submodule_name
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
@@ -1845,7 +1832,7 @@ np2srv_sr_get_schema(sr_session_ctx_t *srs, const char *module_name, const char 
 
     if (rc != SR_ERR_OK) {
         if (ereply) {
-            *ereply = op_build_err_sr(*ereply, srs);
+            *ereply = op_build_err_sr(*ereply, srs, rc);
         } else {
             ERR("%s failed (sysrepo: %s).", __func__, sr_strerror(rc));
         }
