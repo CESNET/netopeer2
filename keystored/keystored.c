@@ -121,7 +121,8 @@ ks_cert_change_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_n
 }
 
 static int
-ks_privkey_get_cb(const char *xpath, sr_val_t **values, size_t *values_cnt, uint64_t UNUSED(request_id), void *UNUSED(private_ctx))
+ks_privkey_get_cb(const char *xpath, sr_val_t **values, size_t *values_cnt, uint64_t UNUSED(request_id),
+                  const char *UNUSED(original_xpath), void *UNUSED(private_ctx))
 {
     int ret;
     const char *name;
