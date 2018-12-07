@@ -4,6 +4,7 @@
 [![Build Status](https://secure.travis-ci.org/CESNET/Netopeer2.png?branch=master)](http://travis-ci.org/CESNET/Netopeer2)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/8416/badge.svg)](https://scan.coverity.com/projects/8416)
 [![Ohloh Project Status](https://www.openhub.net/p/Netopeer2/widgets/project_thin_badge.gif)](https://www.openhub.net/p/Netopeer2)
+[![Test Status](https://img.shields.io/travis/ADTRAN/netopeer2-integration-tests/master.svg?label=netopeer2-integration-tests)](https://travis-ci.org/ADTRAN/netopeer2-integration-tests)
 
 **Netopeer2** is a set of tools implementing network configuration tools based
 on the NETCONF Protocol. This is the second generation of the toolset, originally
