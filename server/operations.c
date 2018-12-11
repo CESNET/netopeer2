@@ -58,9 +58,10 @@ op_build_err_sr(struct nc_server_reply *ereply, sr_session_ctx_t *session, int s
         switch (sr_rc) {
         case SR_ERR_UNAUTHORIZED:
             e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
-            assert(err_info[i].xpath);
-            nc_err_set_path(e, err_info[i].xpath);
             nc_err_set_msg(e, err_info[i].message, "en");
+            if (err_info[i].xpath) {
+                nc_err_set_path(e, err_info[i].xpath);
+            }
             break;
         case SR_ERR_VALIDATION_FAILED:
             if (!strncmp(err_info[i].message, "When condition", 14)) {
