@@ -24,6 +24,12 @@
  */
 #define NP2SRV_PIDFILE "@PIDFILE_PREFIX@/netopeer2-server.pid"
 
+/** @brief Netopeer2 Server UNIX socket file path
+ * The default path /var/run/netopeer2-server.sock follows
+ * the Filesystem Hierarchy Standard
+ */
+#define NP2SRV_UNIX_SOCKFILE "@PIDFILE_PREFIX@/netopeer2-server.sock"
+
 /** @brief Netopeer2 Server SSH default RSA host key path
  */
 #define NP2SRV_HOST_KEY "@DEFAULT_HOST_KEY@"

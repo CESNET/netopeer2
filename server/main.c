@@ -32,6 +32,8 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <assert.h>
+#include <pwd.h>
+#include <grp.h>
 
 #include <libyang/libyang.h>
 #include <nc_server.h>
@@ -44,6 +46,11 @@
 struct np2srv np2srv;
 struct np2srv_dslock dslock;
 pthread_rwlock_t dslock_rwl = PTHREAD_RWLOCK_INITIALIZER;
+static int unix_sock_listen = 0;
+static char *unix_sock_path = NP2SRV_UNIX_SOCKFILE;
+static mode_t unix_sock_mode = (mode_t)-1;
+static uid_t unix_sock_uid = (uid_t)-1;
+static gid_t unix_sock_gid = (gid_t)-1;
 
 /**
  * @brief Control flags for the main loop
@@ -176,7 +183,7 @@ print_version(void)
 /**
  * @brief Command line options definition for getopt()
  */
-#define OPTSTRING "dhv:Vc:"
+#define OPTSTRING "dhv:Vc:Us:m:u:g:"
 /**
  * @brief Print command line options description
  * @param[in] progname Name of the process.
@@ -184,7 +191,14 @@ print_version(void)
 static void
 print_usage(char* progname)
 {
-    fprintf(stdout, "Usage: %s [-dhV] [-v level] [-c category]\n", progname);
+    fprintf(stdout, "Usage: %s [-dhVU] [-v level] [-c category] [-s unix_sock_path] [-m unix_sock_mode]\n", progname);
+    fprintf(stdout, "          [-u unix_sock_uid] [-g unix_sock_gid]\n");
+    fprintf(stdout, " -U                  listen locally on a unix socket\n");
+    fprintf(stdout, " -s                  set the path to the unix socket\n");
+    fprintf(stdout, "                     (default: "NP2SRV_UNIX_SOCKFILE")\n");
+    fprintf(stdout, " -m                  set mode for listening unix socket\n");
+    fprintf(stdout, " -u                  set uid for listening unix socket\n");
+    fprintf(stdout, " -g                  set gid for listening unix socket\n");
     fprintf(stdout, " -d                  debug mode (do not daemonize and print\n");
     fprintf(stdout, "                     verbose messages to stderr instead of syslog)\n");
     fprintf(stdout, " -h                  display help\n");
@@ -739,7 +753,7 @@ np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_s
     int c, monitored;
     sr_val_t *event_data;
     const struct lys_module *mod;
-    char *host;
+    char *host = NULL;
 
     if (connect_ds(new_session)) {
         /* error */
@@ -786,7 +800,8 @@ np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_s
 
     if ((mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL, 1))) {
         /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
-        host = (char*)nc_session_get_host(new_session);
+        if (nc_session_get_ti(new_session) != NC_TI_UNIX)
+            host = (char*)nc_session_get_host(new_session);
         event_data = calloc(host ? 3 : 2, sizeof *event_data);
         event_data[0].xpath = "/ietf-netconf-notifications:netconf-session-start/username";
         event_data[0].type = SR_STRING_T;
@@ -811,7 +826,7 @@ static void
 np2srv_del_session_clb(struct nc_session *session)
 {
     int i;
-    char *host;
+    char *host = NULL;
     sr_val_t *event_data;
     const struct lys_module *mod;
     size_t c = 0;
@@ -840,7 +855,8 @@ np2srv_del_session_clb(struct nc_session *session)
 
     if ((mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL, 1))) {
         /* generate ietf-netconf-notification's netconf-session-end event for sysrepo */
-        host = (char *)nc_session_get_host(session);
+        if (nc_session_get_ti(session) != NC_TI_UNIX)
+            host = (char *)nc_session_get_host(session);
         c = 3;
         if (host) {
             ++c;
@@ -1190,6 +1206,24 @@ np2srv_default_hostkey_clb(const char *name, void *UNUSED(user_data), char **pri
     return 1;
 }
 
+static int load_unix_endpoint(void)
+{
+    if (nc_server_add_endpt("unix", NC_TI_UNIX))
+        return -1;
+
+    if (nc_server_endpt_set_perms("unix", unix_sock_mode, unix_sock_uid, unix_sock_gid)) {
+        nc_server_del_endpt("unix", NC_TI_UNIX);
+        return -1;
+    }
+
+    if (nc_server_endpt_set_address("unix", unix_sock_path)) {
+        nc_server_del_endpt("unix", NC_TI_UNIX);
+        return -1;
+    }
+
+    return 0;
+}
+
 static int
 server_init(void)
 {
@@ -1328,6 +1362,9 @@ server_init(void)
         }
     }
 
+    if (unix_sock_listen && load_unix_endpoint() < 0)
+        goto error;
+
     return 0;
 
 error:
@@ -1435,6 +1472,61 @@ worker_thread(void *arg)
     return NULL;
 }
 
+static mode_t parse_mode(const char *arg)
+{
+    char *endptr;
+    mode_t mode;
+
+    if (arg == NULL || *arg == '\0')
+        return (mode_t)-1;
+
+    mode = strtoul(arg, &endptr, 8);
+    if (*endptr != '\0' || mode == 0 || mode > 0777)
+        return (mode_t)-1;
+
+    return mode;
+}
+
+static uid_t parse_uid(const char *arg)
+{
+    struct passwd *pwd;
+    char *endptr;
+    uid_t uid;
+
+    if (arg == NULL || *arg == '\0')
+        return (uid_t)-1;
+
+    uid = strtoul(arg, &endptr, 10);
+    if (*endptr == '\0')
+        return uid;
+
+    pwd = getpwnam(arg);
+    if (pwd == NULL)
+        return (uid_t)-1;
+
+    return pwd->pw_uid;
+}
+
+static gid_t parse_gid(const char *arg)
+{
+    struct group *grp;
+    gid_t g;
+    char *endptr;
+
+    if (arg == NULL || *arg == '\0')
+        return (gid_t)-1;
+
+    g = strtol(arg, &endptr, 10);
+    if (*endptr == '\0')
+        return g;
+
+    grp = getgrnam(arg);
+    if (grp == NULL)
+        return (gid_t)-1;
+
+    return grp->gr_gid;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -1457,6 +1549,37 @@ main(int argc, char *argv[])
     /* process command line options */
     while ((c = getopt(argc, argv, OPTSTRING)) != -1) {
         switch (c) {
+        case 'U':
+            unix_sock_listen = 1;
+            break;
+        case 's':
+            unix_sock_path = strdup(optarg);
+            if (unix_sock_path == NULL) {
+                ERR("Failed to duplicate unix path\n");
+                return EXIT_FAILURE;
+            }
+            break;
+        case 'm':
+            unix_sock_mode = parse_mode(optarg);
+            if (unix_sock_mode == (mode_t)-1) {
+                ERR("Invalid sock permissions\n");
+                return EXIT_FAILURE;
+            }
+            break;
+        case 'u':
+            unix_sock_uid = parse_uid(optarg);
+            if (unix_sock_uid == (uid_t)-1) {
+                ERR("Invalid user id\n");
+                return EXIT_FAILURE;
+            }
+            break;
+        case 'g':
+            unix_sock_gid = parse_gid(optarg);
+            if (unix_sock_gid == (gid_t)-1) {
+                ERR("Invalid group id\n");
+                return EXIT_FAILURE;
+            }
+            break;
         case 'd':
             daemonize = 0;
             break;
