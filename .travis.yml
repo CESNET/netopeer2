@@ -1,5 +1,10 @@
 language: c
 
+sudo: required
+
+services:
+  - docker
+
 matrix:
   include:
     - os: linux
@@ -30,8 +35,7 @@ before_install:
 
 script:
   - mkdir build-cli && cd build-cli && cmake ../cli && make -j2
-  - mkdir ../build-server && cd ../build-server && cmake ../server && make -j2 && ctest --output-on-failure
-  - cd ../integration_tests/ && make build && make test
+  - mkdir ../build-server && cd ../build-server && cmake ../server && make -j2 && ctest --output-on-failure && make integration-test
   - cd ..
 
 after_success:
