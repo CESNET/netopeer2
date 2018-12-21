@@ -1,0 +1,491 @@
+module bbf-qos-classifiers {
+  yang-version 1.1;
+  namespace "urn:bbf:yang:bbf-qos-classifiers";
+
+  prefix bbf-qos-cls;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  import bbf-yang-types {
+    prefix bbf-yang;
+  }
+
+  import bbf-dot1q-types {
+    prefix bbf-dot1qt;
+  }
+
+  import bbf-frame-classification {
+    prefix bbf-classif;
+  }
+
+  import bbf-qos-types {
+    prefix bbf-qos-t;
+  }
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+
+     Editor:      Ludwig Pauwels, Nokia
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This module contains a collection of YANG definitions for 
+     supporting the Broadband Forum requirements on the management of
+     Quality of Service (QoS) as applicable to access network 
+     equipment. As such, this module is specific to access network 
+     equipment (e.g., BBF-specified Access Nodes and FTTdp DPUs).
+
+     Specifically, this module contains a collection of classifiers 
+     used by policies applied to packets.
+
+     Copyright (c) 2017-2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383_Amendment-1.pdf>";
+  }
+  revision 2017-05-08 {
+    description
+      "Initial revision.
+       * Approval Date:    see revision date above.
+       * Publication Date: 2017-06-02.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383.pdf>";
+  }
+
+  typedef qos-pbit-marking-index {
+    type uint8;
+    description
+      "An index in a Priority Code Point bits (PBIT) marking list, 
+       generated via a QoS profile.";
+  }
+
+  typedef qos-dei-marking-index {
+    type uint8;
+    description
+      "An index in a Drop Eligibility Inidicator (DEI) marking list 
+       generated via a QoS profile.";
+  }
+
+
+  identity classifier-entry-filter-operation-type {
+    description
+      "Classifier entry filter logical operation.";
+  }
+
+  identity match-any-filter {
+    base classifier-entry-filter-operation-type;
+    description
+      "Classifier entry filter logical OR operation.";
+  }
+
+  identity match-all-filter {
+    base classifier-entry-filter-operation-type;
+    description
+      "Classifier entry filter logical AND operation.";
+  }
+
+  identity action-type {
+    description
+      "This base identity type defines action-types.";
+  }
+
+  identity pbit-marking {
+    base action-type;
+    description
+      "The action-type identity indicating the system shall generate 
+       one or more values for the priority bit (PBIT) bits.";
+  }
+
+  identity dei-marking {
+    base action-type;
+    description
+      "The action-type identity indicating the system shall generate 
+       one or more values for the Drop Eligibility Inidicator (DEI) 
+       bit.";
+  }
+
+  identity scheduling-traffic-class {
+    base action-type;
+    description
+      "The action-type identity indicating a scheduling traffic 
+       class.";
+  }
+
+  identity dscp-marking {
+    base action-type;
+    description
+      "The action-type identity indicating the system shall generate 
+       a value for the Differentiated Services Code Point (DSCP) 
+       bits.";
+  }
+
+  identity action-scope {
+    description
+      "This base identity type defines action scopes.";
+  }
+
+  identity vlan-sub-interface {
+    base action-scope;
+    description
+      "The scope of the action is the VLAN sub-interface.";
+  }
+
+  identity ethernet-interface {
+    base action-scope;
+    description
+      "The scope of the action is the Ethernet like interface.
+       This encompasses all VLAN sub-interfaces within the
+       Ethernet like interface in scope.";
+  }
+
+  typedef action-scope {
+    type identityref {
+      base action-scope;
+    }
+    description
+      "The scope of the action.";
+  }
+
+  grouping pbit-marking {
+    list pbit-marking-list {
+      key "index";
+      description
+        "The list defines a set of values for the PBIT bits.
+
+         Each pbit-value from this list is a value provided to the 
+         ingress / egress packet editing process that can reference 
+         an entry in this list for writing PBIT bits to a VLAN tag.
+         Having a list of values allows different PBIT bits to be
+         written to different VLAN tags.";
+
+      leaf index {
+        type qos-pbit-marking-index;
+        description
+          "The index within the list.";
+      }
+
+      leaf pbit-value {
+        type bbf-dot1qt:pbit;
+        description
+          "A pbit-value to be inserted in the PBIT bits of a tag of a 
+           packet.";
+      }
+    }
+    description
+      "PBIT marking grouping.";
+  }
+
+  grouping dei-marking {
+    list dei-marking-list {
+      key "index";
+      description
+        "The list defines a set of values for DEI bits.
+
+         Each dei-value from this list is a value provided to the 
+         ingress / egress packet editing process that can reference 
+         an entry in this list for writing a DEI bit to a VLAN tag.
+         Having a list of values allows a different DEI bit to be
+         written to different VLAN tags.";
+
+      leaf index {
+        type qos-dei-marking-index;
+        description
+          "The index within the list.";
+      }
+
+      leaf dei-value {
+        type bbf-dot1qt:dei;
+        description
+          "A dei-value to be inserted in the DEI bit of a tag of a 
+           packet.";
+      }
+    }
+    description
+      "DEI marking grouping.";
+  }
+
+  grouping dscp-marking {
+    leaf dscp {
+      type inet:dscp;
+      description
+        "The value to be inserted in the DSCP field in the header of 
+         an IP packet.";
+    }
+    description
+      "DSCP marking grouping.";
+  }
+
+  grouping classifier-entry-inline-attr {
+    description
+      "Classifier inline attributes.";
+
+    container match-criteria {
+      description
+        "Match criteria to be applied to a packet.";
+
+      uses bbf-classif:multiple-vlan-tag-match;
+
+      uses bbf-classif:dscp-match;
+
+      uses bbf-classif:protocol-match;
+    }
+  }
+
+  grouping classifier-action-entry-cfg {
+    description
+      "List of actions to be applied to a classified set of packets.";
+
+    list classifier-action-entry-cfg {
+      key "action-type";
+      ordered-by user;
+
+      description
+        "Configuration of classifier associated actions.";
+
+      leaf action-type {
+        type identityref {
+          base action-type;
+        }
+        description
+          "This defines the action type.";
+      }
+
+      choice action-cfg-params {
+        description
+          "Choice of action types.";
+
+        case pbit-marking {
+          container pbit-marking-cfg {
+            when "../action-type='bbf-qos-cls:pbit-marking'" {
+              description
+                "Only applicable when the action-type is 
+                 pbit-marking.";
+            }
+            uses pbit-marking;
+            description
+              "PBIT bits marking configuration container.";
+          }
+        }
+
+        case dei-marking {
+          container dei-marking-cfg {
+            when "../action-type='bbf-qos-cls:dei-marking'" {
+              description
+                "Only applicable when the action-type is 
+                 dei-marking.";
+            }
+            uses dei-marking;
+            description
+              "DEI marking configuration container.";
+          }
+        }
+
+        case dscp-marking {
+          container dscp-marking-cfg {
+            when "../action-type='bbf-qos-cls:dscp-marking'" {
+              description
+                "Only applicable when the action-type is 
+                 dscp-marking.";
+            }
+            uses dscp-marking;
+            description
+              "DSCP marking configuration container.";
+          }
+        }
+
+        case scheduling-traffic-class {
+          leaf scheduling-traffic-class {
+            when
+              "../action-type=
+               'bbf-qos-cls:scheduling-traffic-class'" {
+              description
+                "Only applicable when the action-type is 
+                 scheduling-traffic-class.";
+            }
+            type bbf-qos-t:traffic-class-id;
+            description
+              "Define the traffic class for scheduling.";
+          }
+        }
+      }
+    }
+  }
+
+  container classifiers {
+    description
+      "List of classifier entries.";
+
+    list classifier-entry {
+      key "name";
+      description
+        "Classifier entry template.";
+
+      leaf name {
+        type bbf-yang:string-ascii64;
+        description
+          "Classifier name.";
+      }
+
+      leaf description {
+        type bbf-yang:string-ascii64-or-empty;
+        description
+          "Description of the class template.";
+      }
+
+      leaf filter-operation {
+        type identityref {
+          base classifier-entry-filter-operation-type;
+        }
+
+        default "bbf-qos-cls:match-any-filter";
+        description
+          "Filters are applicable as any or all filters.";
+      }
+
+      choice filter-method {
+        description
+          "Choice of filter configuration way.";
+
+        case inline {
+          description
+            "The classifier criteria are directly configured here.";
+          uses classifier-entry-inline-attr;
+        }
+      }
+      uses classifier-action-entry-cfg;
+    }
+  }
+
+  grouping classifier-entry-ref {
+    description
+      "A reference to a classifier entry.";
+
+    leaf name {
+      type leafref {
+        path '/bbf-qos-cls:classifiers/bbf-qos-cls:classifier-'
+           + 'entry/bbf-qos-cls:name';
+      }
+      description
+        "The name of the referenced classifier entry.";
+    }
+  }
+
+  augment '/classifiers/classifier-entry/filter-method/inline/'
+        + 'match-criteria/vlan-tag-match-type/vlan-tagged/tag' {
+    description
+      "Allows to classify packets based on their containing PBIT bits 
+       / DEI bit values.";
+
+    leaf in-pbit-list {
+      type bbf-dot1qt:pbit-list;
+      description
+        "Filter containing PBIT bits value(s) to be matched with the 
+         value of the corresponding packet field. The list of values
+         form an OR condition: in case the value of the packet field
+         matches with one of the values of the leaf then there is a 
+         match. In case the leaf specifies a set of values and none
+         of them appear in the packet, then there is no match. In case
+         the leaf specifies a value for a packet field that is not 
+         present, then no packets match the filter. E.g. an untagged 
+         packet does not contain PBIT bits, hence this packet will not
+         match a specified PBIT bits value. In case the leaf is an 
+         empty list, or unknown, then no match is required and all 
+         packets classify the filter, including untagged packets.
+
+         An Ethernet frame can contain multiple VLAN tags or no VLAN 
+         tag. The vlan-tag-match-type/vlan-tagged/tag is a list and 
+         the element with index 0 is used to match with the PBIT bits 
+         of outermost VLAN tag of the packet, the element with index 
+         1 is used to match with the PBIT bits of the second VLAN tag 
+         of the packet.";
+    }
+
+    leaf in-dei {
+      type uint8 {
+        range "0..1";
+      }
+      description
+        "Filter containing DEI bit value(s) to be matched with the 
+         values of the corresponding packet fields. In case the leaf 
+         specifies a value for a packet field that is not present, 
+         then no packets match the filter. E.g. an untagged packet 
+         does not contain a DEI bit, hence this packet will not match 
+         a specified DEI bit value. In case the leaf is unknown, 
+         no match is required and all packets classify the filter,
+         including untagged packets.
+
+         An Ethernet frame can contain multiple VLAN tags or no VLAN 
+         tag. The vlan-tag-match-type/vlan-tagged/tag is a list and 
+         the element with index 0 is used to match with the DEI bit of
+         the outermost VLAN tag of the packet, the element with index 
+         1 is used to match with the DEI bit of the second VLAN tag of
+         the packet.";
+    }
+  }
+}

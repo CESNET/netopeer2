@@ -1,0 +1,584 @@
+module bbf-frame-classification {
+  yang-version 1.1;
+  namespace "urn:bbf:yang:bbf-frame-classification";
+
+  prefix bbf-classif;
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  import bbf-dot1q-types {
+    prefix bbf-dot1qt;
+  }
+
+  import bbf-inet-types {
+    prefix bbf-inet;
+  }
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+
+     Editor:      Ludwig Pauwels, Nokia
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This module contains a collection of YANG definitions for 
+     supporting the Broadband Forum requirements on frame 
+     classification as applicable to access network equipment. As 
+     such, this module is specific to access network equipment (e.g., 
+     BBF-specified Access Nodes and FTTdp DPUs).
+
+     Specifically, this module contains reusable groupings defined for
+     frame classification.
+
+     Copyright (c) 2017-2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383_Amendment-1.pdf>";
+  }
+  revision 2017-05-08 {
+    description
+      "Initial revision.
+       * Approval Date:    see revision date above.
+       * Publication Date: 2017-06-02.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383.pdf>";
+  }
+
+  grouping mac-address-match {
+    description
+      "Provides a set of leafs that allow to classify a MAC address.";
+
+    choice mac-address {
+      description
+        "A choice on the value of the MAC address.";
+
+      case any-multicast-mac-address {
+        description
+          "This represents the multicast MAC addresses, i.e. addresses
+           for which the least significant bit of the first octet is 
+           set to 1.";
+
+        leaf any-multicast-mac-address {
+          type empty;
+          description
+            "Indicates the MAC address is a multicast address.";
+        }
+      }
+
+      case unicast-address {
+        description
+          "This represents the unicast MAC addresses, i.e. addresses
+           for which the least significant bit of the first octet is 
+           set to 0 (zero).";
+
+        leaf unicast-address {
+          type empty;
+          description
+            "Indicates the MAC address is a unicast address.";
+        }
+      }
+
+      case broadcast-address {
+        description
+          "This represents the broadcast MAC address, i.e. address
+           FF:FF:FF:FF:FF:FF.";
+
+        leaf broadcast-address {
+          type empty;
+          description
+            "Indicates the MAC address is a broadcast address.";
+        }
+      }
+
+      case cfm-multicast-address {
+        description
+          "This represents a mask for all CFM OAM multicast addresses.
+           These are the addresses of the form 01:80:C2:00:00:3X.";
+
+        leaf cfm-multicast-address {
+          type empty;
+          description
+            "Indicates the MAC address is a CFM multicast address.";
+          reference
+            "IEEE 802.1-2014, section 8.13.11";
+        }
+      }
+
+      case ipv4-multicast-address {
+        description
+          "This represents a mask for all IPv4 multicast addresses.
+           These are the addresses in the range 01:00:5E:00:00:00 up 
+           to and including 01:00:5E:7F:FF:FF.";
+
+        leaf ipv4-multicast-address {
+          type empty;
+          description
+            "Indicates the MAC address is an IPv4 multicast address.";
+        }
+      }
+
+      case ipv6-multicast-address {
+        description
+          "This represents a mask for all IPv6 multicast addresses.
+           These are the addresses of the form 33:33:XX:XX:XX:XX.";
+
+        leaf ipv6-multicast-address {
+          type empty;
+          description
+            "Indicates the MAC address is an IPv6 multicast address.";
+        }
+      }
+
+      case mac-address-filter {
+        description
+          "The value and the mask together identify a set of MAC 
+           addresses that comply with this classification. Evaluation 
+           is performed by making a bit-wise AND operation between the
+           to be evaluated MAC address and the mac-address-mask. There
+           is a match if the result equals the value specified in the 
+           mac-address-value.";
+
+        leaf mac-address-value {
+          type yang:mac-address;
+          description
+            "The value with which a comparison shall be made after 
+             performing the bit-wise AND operation on the to be 
+             evaluated MAC address.";
+        }
+
+        leaf mac-address-mask {
+          type yang:mac-address;
+          default "FF:FF:FF:FF:FF:FF";
+          description
+            "A mask to be applied on the to be evaluated MAC address. 
+             The mask is applied as a bit-wise AND operation.";
+        }
+      }
+    }
+  }
+
+  grouping ethertype-match {
+    description
+      "Flexible match on the Ethertype of frames.";
+
+    leaf ethernet-frame-type {
+      type bbf-dot1qt:ether-type-or-acronym;
+      default "any";
+      description
+        "The value to be compared with the first Ethertype of an 
+         untagged Ethernet frame; or for frames that contain one or 
+         more VLAN tags it is the value to be compared with the 
+         Ethertype that is defined by the context where this grouping 
+         is used. It can be even the Ethertype that identifies a VLAN 
+         tag.";
+    }
+  }
+
+  typedef tag-index {
+    type uint8 {
+      range "0..1";
+    }
+    description
+      "The index of the VLAN tag in a frame.
+       - Tag 0 refers to the outer tag, i.e. the tag just after the 
+       source MAC address.
+       - Tag 1 refers to the tag after tag 0.";
+  }
+
+  grouping dot1q-tag-ranges-or-any {
+    description
+      "Grouping to allow configuration to identify an 802.1Q VLAN tag 
+       that matches any specific VLAN-ID within a set of non 
+       overlapping VLAN-ID ranges, or the 'any' value to match any 
+       VLAN-ID.";
+
+    container dot1q-tag {
+      description
+        "Identifies an 802.1Q VLAN tag with an explicit tag-type, an 
+         ordered list of vlan-id ranges, or 'any' VLAN-ID.";
+
+      leaf tag-type {
+        type union {
+          type bbf-dot1qt:dot1q-tag-type;
+          type uint16;
+          type enumeration {
+            enum "any" {
+              description
+                "Matches any tag type.";
+            }
+          }
+        }
+        mandatory true;
+        description
+          "VLAN tag type.";
+      }
+
+      leaf vlan-id {
+        type union {
+          type bbf-dot1qt:vlan-id-range;
+          type enumeration {
+            enum "any" {
+              description
+                "Matches any VLAN-ID in the range 1 to 4094, or
+                 matches priority tagged frames.";
+            }
+            enum "priority-tagged" {
+              description
+                "Priority-tagged frames are frames with a VLAN tag 
+                 present and that match VLAN-ID 0.";
+            }
+          }
+        }
+        mandatory true;
+        description
+          "Allowed VLAN-IDs.";
+      }
+
+      leaf pbit {
+        type union {
+          type bbf-dot1qt:pbit-list;
+          type enumeration {
+            enum "any" {
+              description
+                "Matches any pbit value in the range of 0 to 7.";
+            }
+          }
+        }
+        default "any";
+        description
+          "Allowed PBIT values.";
+      }
+
+      leaf dei {
+        type union {
+          type bbf-dot1qt:dei;
+          type enumeration {
+            enum "any" {
+              description
+                "Matches any Drop Eligible Inidicator (DEI) value, 
+                 i.e. value 0 or 1.";
+            }
+          }
+        }
+        default "any";
+        description
+          "Allowed DEI values.";
+      }
+    }
+  }
+
+  grouping multiple-vlan-tag-match {
+    description
+      "Flexible match on the VLAN tags of Ethernet frames.";
+
+    choice vlan-tag-match-type {
+      default "match-all";
+      description
+        "Provides a choice of how the frames may be matched.";
+
+      case match-all {
+        leaf match-all {
+          type empty;
+          description
+            "Matches all traffic, i.e; irrespective of the frame being
+             tagged or untagged.";
+        }
+      }
+
+      case untagged {
+        leaf untagged {
+          type empty;
+          description
+            "Untagged match. Matches all untagged traffic.";
+        }
+      }
+
+      case vlan-tagged {
+        list tag {
+          key "index";
+          min-elements 1;
+          max-elements 2;
+          description
+            "The tags to match, with the outermost tag to match 
+             assigned index 0.";
+
+          leaf index {
+            type tag-index;
+
+            must "count(../../tag[index = 0]) > 0" {
+              error-message
+                "An inner tag can only be matched on when also 
+                 matching on an outer tag.";
+              description
+                "Only allow matching on an inner tag, if also 
+                 matching on the outer tags at the same time.";
+            }
+            description
+              "The index into the tag stack, outermost tag first.";
+          }
+        }
+      }
+    }
+  }
+
+  grouping ipv4-address-match {
+    description
+      "Flexible match on the IPv4 address field.";
+
+    choice ipv4-address {
+      description
+        "A choice on the value of the IPv4 address.";
+
+      case any-multicast-ipv4-address {
+        description
+          "This represents all IPv4 addresses in the range 224.0.0.0 
+           up to 239.255.255.255.";
+
+        leaf any-multicast-ipv4-address {
+          type empty;
+          description
+            "Indicates the address is an IPv4 multicast group 
+             address.";
+        }
+      }
+
+      case all-hosts-multicast-address {
+        description
+          "This represents the 'all hosts' IPv4 multicast group 
+           address 224.0.0.1 that is used to address all hosts on the 
+           same network segment.";
+
+        leaf all-hosts-multicast-address {
+          type empty;
+          description
+            "Indicates the IPv4 address is the 'all hosts' IPv4 
+             multicast group address.";
+        }
+      }
+
+      case rip-multicast-address {
+        description
+          "This represents the RIP version 2 IPv4 multicast 
+           group address 224.0.0.9 that is used to send routing 
+           information to all RIPv2-aware routers on a network 
+           segment.";
+
+        leaf rip-multicast-address {
+          type empty;
+          description
+            "Indicates the IPv4 address is the RIP version 2 IPv4 
+             multicast group address.";
+        }
+      }
+
+      case ntp-multicast-address {
+        description
+          "This represents the NTP group IPv4 multicast group address 
+           224.0.1.1 that is used to send network timing protocol 
+           messages to all NTP clients on a network segment.";
+
+        leaf ntp-multicast-address {
+          type empty;
+          description
+            "Indicates the IPv4 address is the NTP IPv4 multicast 
+             group address.";
+        }
+      }
+    }
+  }
+
+  grouping dscp-match {
+    description
+      "Flexible match on the IPv4 or IPv6 Differentiated Services 
+       Code Point (DSCP) field.";
+    leaf dscp-range {
+      type union {
+        type bbf-inet:dscp-range;
+        type enumeration {
+          enum "any" {
+            description
+              "Matches any DSCP value in the range of 0 to 63.";
+          }
+        }
+      }
+      default "any";
+      description
+        "String identifying the DSCP values and/or range.";
+    }
+  }
+
+  grouping frame-destination-match {
+    description
+      "Flexible match on the Ethernet or IPv4 or IPv6 destination 
+       address.";
+
+    choice frame-filter {
+      default "any-frame";
+      description
+        "Identifies the set of frames to which the frame-forwarding 
+         action shall apply.";
+
+      case any-frame {
+        description
+          "Any frame.";
+        leaf any-frame {
+          type empty;
+          description
+            "Any frame.";
+        }
+      }
+
+      case destination-mac-address {
+        description
+          "The frame classification to be performed on the 
+           destination MAC address.";
+        uses bbf-classif:mac-address-match;
+      }
+
+      case destination-ipv4-address {
+        description
+          "The frame classification to be performed on the 
+           destination IPv4 address.";
+        uses bbf-classif:ipv4-address-match;
+      }
+
+      case destination-ipv6-address {
+        description
+          "The frame classification to be performed on the 
+           destination IPv6 address.";
+      }
+    }
+  }
+
+
+  grouping protocol-match {
+    description
+      "Flexible match on possible packet field combinations that 
+       identify a protocol.";
+
+    choice protocols {
+      default "any-protocol";
+      description
+        "The choice allows to specify combintations of packet field 
+         values that identify a particular protocol/ or allows to 
+         indicate any protocol.";
+
+      case any-protocol {
+        leaf any-protocol {
+          type empty;
+          description
+            "Identifies any protocol, i.e. not match is specified for 
+             any protocol.";
+        }
+      }
+
+      case protocol {
+        leaf-list protocol {
+          type enumeration {
+            enum "igmp" {
+              description
+                "Identifies IPv4 IGMP packets, i.e. the IPv4 packets 
+                 for which in the IPv4 header the protocol field is 
+                 set to the value 0x02.";
+            }
+            enum "mld" {
+              description
+                "Identifies IPv6 MLD packets, MLD packets are a subset
+                 of the ICMPv6 protocol. ICMPv6 messages are 
+                 identified with Next Header value of 58. MLD packets 
+                 are identified by specific values of the Type field.
+                 Type field values are defined in RFC 3810.";
+            }
+            enum "dhcpv4" {
+              description
+                "Identifies IPv4 packets with UDP source port 68 and
+                 destination port 67 (client to server), or with UDP
+                 source port 67 and destination port 68 (server to
+                 client).";
+            }
+            enum "dhcpv6" {
+              description
+                "Identifies IPv6 packets with UDP source port 547 and
+                 destination port 546 (client to server), or with UDP
+                 source port 546 and destination port 547 (server to
+                 client).";
+            }
+            enum "pppoe-discovery" {
+              description
+                "Identifies PPPoE discovery packets, which are 
+                 Ethernet packets with Ethertype=0x8863.";
+            }
+          }
+          description
+            "Defines the protocols which will be matched.";
+        }
+      }
+    }
+  }
+}

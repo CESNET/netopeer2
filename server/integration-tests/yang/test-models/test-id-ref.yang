@@ -1,0 +1,26 @@
+module test-id-ref {
+  namespace "http://example.com/netopeer2-integration-tests/test-id-ref";
+  prefix "tst-id-ref";
+
+  revision 2018-07-25 {
+    description
+      "Initial revision.";
+
+    reference
+      "None";
+  }
+
+  identity base-id;
+
+  identity derived-id {
+    base base-id;
+  }
+
+  container contain {
+    leaf id-ref {
+      type identityref {
+        base base-id;
+      }
+    }
+  }
+}

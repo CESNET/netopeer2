@@ -1,0 +1,469 @@
+module bbf-sub-interface-tagging {
+  yang-version 1.1;
+  namespace "urn:bbf:yang:bbf-sub-interface-tagging";
+
+  prefix bbf-subif-tag;
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  import bbf-dot1q-types {
+    prefix bbf-dot1qt;
+  }
+
+  import bbf-if-type {
+    prefix bbfift;
+  }
+
+  import bbf-sub-interfaces {
+    prefix bbf-subif;
+  }
+
+  import bbf-frame-classification {
+    prefix bbf-classif;
+  }
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+
+     Editor:      Ludwig Pauwels, Nokia
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This module contains a collection of YANG definitions for 
+     supporting the Broadband Forum requirements on the management of
+     sub-interfaces as applicable to access network equipment. As 
+     such, this module is specific to access network equipment (e.g., 
+     BBF-specified Access Nodes and FTTdp DPUs).
+
+     Specifically, this module defines the ingress and egress tagging 
+     of a VLAN sub-interface.
+
+     Copyright (c) 2017-2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383_Amendment-1.pdf>";
+  }
+  revision 2017-05-08 {
+    description
+      "Initial revision.
+       * Approval Date:    see revision date above.
+       * Publication Date: 2017-06-02.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383.pdf>";
+  }
+
+  feature copy-vlan-id-from-tag-index {
+    description
+      "Indicates support for copying the VLAN ID from a specified 
+       tag index.";
+  }
+
+  feature write-pbit-value-in-vlan-tag {
+    description
+      "Indicates support for writing a configurable PBIT bits value 
+       into a VLAN tag.";
+  }
+
+  grouping pbit-marking {
+    description
+      "The Priority bits (3 bits) of a VLAN tag (PBIT).
+
+       These PBIT bits are in the VLAN tag next to the Drop 
+       Eligible Inidicator (DEI) bit (1 bit) and the VLAN-ID 
+       (12 bits).";
+
+    choice pbit {
+      mandatory true;
+      description
+        "Defines how to write the PBIT bits.";
+
+      case write-pbit-0 {
+        description
+          "Tagged and priority-tagged frames contain PBIT bits.
+           Untagged frames do not contain PBIT bits.
+
+           Write-pbit-0 provides a simple method to identify what 
+           PBIT bits MUST be inserted in the output frame that can be
+           applied to all frame types. More advanced methods can be 
+           provided via other pbit-action cases.";
+
+        leaf write-pbit-0 {
+          type empty;
+          description
+            "Push PBIT bits=000 in the tag.";
+        }
+      }
+
+      case copy-pbit-from-input-or-0 {
+        description
+          "Copy from the specified input tag, or write PBIT bits=000 
+           if the input tag does not exist.";
+
+        leaf pbit-from-tag-index {
+          type bbf-classif:tag-index;
+          description
+            "Specifies from which tag the PBIT bits MUST be copied.";
+        }
+      }
+
+      case write-pbit-value {
+        if-feature "write-pbit-value-in-vlan-tag";
+        description
+          "Write a PBIT value into the tag.";
+
+        leaf write-pbit {
+          type bbf-dot1qt:pbit;
+          description
+            "Specified PBIT value to write into the tag.";
+        }
+      }
+    }
+  }
+
+  grouping dei-marking {
+    description
+      "The DEI bit (1 bit) of a VLAN tag.
+
+       This bit is in the VLAN tag next to the PBIT bits (3 bits) and 
+       the VLAN-ID (12 bits).";
+
+    choice dei {
+      mandatory true;
+      description
+        "Defines how to write the DEI bit.";
+
+      case write-dei-0 {
+        description
+          "Tagged and priority-tagged frames contain a DEI bit.
+           Untagged frames do not contain a DEI bit.
+
+           Write-dei-0 provides a simple method to identify what DEI
+           MUST be inserted in the output frame that can be applied to
+           all frame types. More advanced methods can be provided via 
+           other dei-action cases.";
+
+        leaf write-dei-0 {
+          type empty;
+          description
+            "Push DEI=0 in the tag.";
+        }
+      }
+
+      case copy-dei-from-input-or-0 {
+        description
+          "Copy DEI from the specified input tag, or write DEI=0 if 
+           the input tag does not exist.";
+
+        leaf dei-from-tag-index {
+          type bbf-classif:tag-index;
+
+          description
+            "Specifies from which tag the DEI bit MUST be copied.";
+        }
+      }
+
+      case write-dei-1 {
+        description
+          "Tagged and priority-tagged frames contain a DEI bit.
+           Untagged frames do not contain a DEI bit.
+
+           Write-dei-1 provides a simple method to identify what DEI
+           MUST be inserted in the output frame that can be applied to
+           all frame types. More advanced methods can be provided via 
+           other dei-action cases.";
+
+        leaf write-dei-1 {
+          type empty;
+          description
+            "Push DEI=1 in the tag.";
+        }
+      }
+    }
+  }
+
+  grouping dot1q-tag {
+    description
+      "Grouping to allow configuration to identify a single 802.1Q 
+       VLAN tag.";
+
+    container dot1q-tag {
+      description
+        "Identifies an 802.1Q VLAN tag with an explicit tag-type and 
+         a single VLAN-ID.";
+
+      leaf tag-type {
+        type union {
+          type bbf-dot1qt:dot1q-tag-type;
+          type uint16;
+        }
+        mandatory true;
+        description
+          "VLAN tag type.";
+      }
+
+      leaf vlan-id {
+        type union {
+          type bbf-dot1qt:vlan-id-or-0;
+          type enumeration {
+            enum "vlan-id-from-tag-index" {
+              if-feature "copy-vlan-id-from-tag-index";
+              description
+                "The VLAN ID is derived from one of the ingress
+                 tags as specified by 'vlan-id-from-tag-index'.";
+            }
+          }
+        }
+        mandatory true;
+        description
+          "The VLAN-ID, the value 0 (priority-tagged) or configure
+           to derive from an existing tag.";
+      }
+
+      leaf vlan-id-from-tag-index-or-discard {
+        when "../vlan-id = 'vlan-id-from-tag-index'" {
+          description
+            "Only applicable when the 'vlan-id' is configured to 
+             be derived from a tag index.";
+        }
+        if-feature "copy-vlan-id-from-tag-index";
+        type bbf-classif:tag-index;
+        mandatory true;
+        description
+          "Specifies from which tag the VLAN ID is be copied. If the
+           specified input tag does not exist, the packet is 
+           discarded.";
+      }
+
+      uses pbit-marking;
+      uses dei-marking;
+    }
+  }
+
+  grouping flexible-rewrite {
+    description
+      "Tag manipulation actions.";
+
+    leaf pop-tags {
+      type uint8 {
+        range "0..2";
+      }
+
+      default "0";
+
+      description
+        "The number of tags to pop (or translate if used in 
+         conjunction with push-tags).";
+    }
+
+    list push-tag {
+      key "index";
+      max-elements 2;
+
+      description
+        "The number of tags to push (or translate if used in 
+         conjunction with pop-tags).";
+      /*
+       * Server should order by increasing index.
+       */
+      leaf index {
+        type bbf-classif:tag-index;
+
+        /*
+         * Only allow a push of an inner tag if an outer tag is also
+         * being pushed.
+         */
+        must "(count(../../push-tag[index = 0]) > 0)" {
+          error-message
+            "An inner tag can only be pushed if an outer tag is also 
+             specified.";
+
+          description
+            "Only allow a push of an inner tag if an outer tag is 
+             also being pushed.";
+        }
+        description
+          "The index into the tag stack.";
+      }
+
+      uses dot1q-tag;
+    }
+  }
+
+  augment '/if:interfaces/if:interface/bbf-subif:frame-processing/'
+        + 'bbf-subif:inline-frame-processing/bbf-subif:inline-'
+        + 'frame-processing/bbf-subif:ingress-rule/bbf-subif:rule/'
+        + 'bbf-subif:flexible-match' {
+
+    when
+      "derived-from-or-self(../../../../if:type,
+       'bbfift:vlan-sub-interface')" {
+      description
+        "Augments the general flexible-match container with specific 
+         VLAN match criteria.";
+    }
+
+    description
+      "Augments the general flexible-match container with specific 
+       vlan match criteria.";
+
+    container match-criteria {
+      description
+        "This container collects match criteria for various packet 
+         fields.
+
+         The match criteria are unambiguously in case a packet field 
+         is unique. This is not the case for the match criteria 
+         defined via leaf ethernet-frame-type included via the uses 
+         ethertype-match. The value provided by the leaf inside this 
+         grouping is to be compared with the first Ethertype of an 
+         untagged Ethernet frame; or for frames that contain one or 
+         more VLAN tags it is the value to be compared with the 
+         Ethertype that is the first after the VLAN tags for which a 
+         matching criteria is specified via the leafs of the grouping 
+         multiple-vlan-tag-match. 
+
+         E.g. if matching criteria are specified for one outer VLAN
+         tag, and a received IPoE frame is single tagged, then the
+         ethernet-frame-type refers to the Ethertype 0x0800 being the
+         Ethertype that identifies the packet as IPoE. While the same
+         YANG configuration applied to a received IPoE frame that is
+         double tagged, then the ethernet-frame-type refers to the 
+         Ethertype 0x8100 being the Ethertype that identifies the 
+         packet contains an inner VLAN tag.";
+
+      uses bbf-classif:frame-destination-match;
+
+      uses bbf-classif:multiple-vlan-tag-match;
+
+      uses bbf-classif:ethertype-match;
+
+      uses bbf-classif:protocol-match;
+    }
+  }
+
+  augment '/if:interfaces/if:interface/bbf-subif:frame-processing/'
+        + 'bbf-subif:inline-frame-processing/bbf-subif:inline-'
+        + 'frame-processing/bbf-subif:ingress-rule/bbf-subif:rule/'
+        + 'bbf-subif:flexible-match/match-criteria/vlan-tag-match-'
+        + 'type/vlan-tagged/tag' {
+    when
+      "derived-from-or-self(../../../../../../if:type,
+       'bbfift:vlan-sub-interface')" {
+      description
+        "Defines match criteria for all the fields of VLAN tags, being
+         the TPID, the VLAN-ID, the PBIT bits, and the DEI bit.";
+    }
+
+    description
+      "Defines match criteria for all the fields of VLAN tags, being 
+       the TPID, the VLAN-ID, the PBIT bits, and the DEI bit.";
+
+    uses bbf-classif:dot1q-tag-ranges-or-any;
+  }
+
+  augment '/if:interfaces/if:interface/bbf-subif:frame-processing/'
+        + 'bbf-subif:inline-frame-processing/bbf-subif:inline-'
+        + 'frame-processing/bbf-subif:ingress-rule/bbf-subif:rule/'
+        + 'bbf-subif:ingress-rewrite' {
+    when
+      "derived-from-or-self(../../../../if:type,
+       'bbfift:vlan-sub-interface')" {
+      description
+        "Augments the general ingress-rewrite container with specific 
+         VLAN rewrite actions.";
+    }
+
+    description
+      "Augments the general ingress-rewrite container with specific 
+       VLAN rewrite actions.";
+
+    uses flexible-rewrite;
+  }
+
+
+
+  augment '/if:interfaces/if:interface/bbf-subif:frame-processing/'
+        + 'bbf-subif:inline-frame-processing/bbf-subif:inline-'
+        + 'frame-processing/bbf-subif:egress-rewrite' {
+
+    when
+      "derived-from-or-self(../../if:type,
+       'bbfift:vlan-sub-interface')" {
+      description
+        "Augments the general egress-rewrite container with specific 
+         VLAN rewrite actions.";
+    }
+
+    description
+      "Augments the general egress-rewrite container with specific 
+       VLAN rewrite actions.";
+
+    uses flexible-rewrite;
+  }
+}

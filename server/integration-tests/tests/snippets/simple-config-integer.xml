@@ -1,0 +1,29 @@
+<snippet>
+  <edit>
+    <nc:config xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <system xmlns="urn:ietf:params:xml:ns:yang:ietf-system">
+        <clock>
+          <timezone-utc-offset>-300</timezone-utc-offset>
+        </clock>
+      </system>
+    </nc:config>
+  </edit>
+  <response>
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <system xmlns="urn:ietf:params:xml:ns:yang:ietf-system">
+        <clock>
+          <timezone-utc-offset>-300</timezone-utc-offset>
+        </clock>
+      </system>
+    </data>
+  </response>
+  <cleanup>
+    <nc:config xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <system xmlns="urn:ietf:params:xml:ns:yang:ietf-system">
+        <clock>
+          <timezone-utc-offset nc:operation="delete"/>
+        </clock>
+      </system>
+    </nc:config>
+  </cleanup>
+</snippet>

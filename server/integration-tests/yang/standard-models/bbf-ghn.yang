@@ -1,0 +1,120 @@
+module bbf-ghn {
+  yang-version 1.1;
+  namespace "urn:bbf:yang:bbf-ghn";
+  prefix bbf-ghn;
+
+  include bbf-ghn-base;
+  include bbf-ghn-pointers;
+
+  /* types */
+  include bbf-ghn-types;
+  include bbf-ghn-perf-types;
+
+  /* Node Profiles */
+  include bbf-ghn-node-profiles;
+  include bbf-ghn-node-id-profile-body;
+
+  /* domain Profiles */
+  include bbf-ghn-domain-profiles;
+  include bbf-ghn-scheduling-profile-body;
+  include bbf-ghn-security-profile-body;
+  include bbf-ghn-dba-profile-body;
+  include bbf-ghn-domain-id-profile-body;
+
+  /* Link Profiles */
+  include bbf-ghn-link-profiles;
+  include bbf-ghn-line-spectrum-profile-body;
+  include bbf-ghn-channel-estimation-profile-body;
+
+  /* interface state */
+  include bbf-ghn-domain-state;
+  include bbf-ghn-domain-status-body;
+  include bbf-ghn-local-node-info;
+  include bbf-ghn-local-node-info-body;
+  include bbf-ghn-node-state;
+  include bbf-ghn-node-inventory-body;
+  include bbf-ghn-node-status-body;
+  include bbf-ghn-link-state;
+  include bbf-ghn-link-status-body;
+
+  /* Performance */
+  include bbf-ghn-performance-management;
+  include bbf-ghn-node-performance-body;
+  include bbf-ghn-link-performance-body;
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Marcos Martinez, Marvell Semiconductor Inc.
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "An experimental YANG module supporting Vector of Profiles
+     for G.hn lines.
+
+     Copyright (c) 2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-374; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-374: Yang Modules for Management of G.hn Systems in FTTdp 
+               Architecture <https://www.broadband-forum.org/technical
+                                     /download/TR-374.pdf>";
+  }
+}

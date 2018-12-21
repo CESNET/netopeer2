@@ -1,0 +1,35 @@
+module test-referer {
+  namespace "http://example.com/netopeer2-integration-tests/test-referer";
+  prefix "tst-refr";
+
+  import "test-referee" {
+    prefix "tst-refe";
+  }
+
+  description
+    "Module referring to other data";
+
+  revision 2018-07-18 {
+    description
+      "Initial revision.";
+
+    reference
+      "None";
+  }
+
+  container contain-2 {
+    list data-ref {
+      key "name";
+
+      leaf name {
+        type leafref {
+          path "/tst-refe:contain-1/tst-refe:data/tst-refe:name";
+        }
+      }
+
+      leaf another-value {
+        type string;
+      }
+    }
+  }
+}

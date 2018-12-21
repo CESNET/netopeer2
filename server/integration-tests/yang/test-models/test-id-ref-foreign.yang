@@ -1,0 +1,24 @@
+module test-id-ref-foreign {
+  namespace "http://example.com/netopeer2-integration-tests/test-id-ref-foreign";
+  prefix "tst-id-ref-for";
+
+  import test-id-ref {
+    prefix "tst-id-ref";
+  }
+
+  revision 2018-07-25 {
+    description
+      "Initial revision.";
+
+    reference
+      "None";
+  }
+
+  identity foreign-derived-from-base-id {
+    base tst-id-ref:base-id;
+  }
+
+  identity foreign-derived-from-derived-id {
+    base tst-id-ref:derived-id;
+  }
+}

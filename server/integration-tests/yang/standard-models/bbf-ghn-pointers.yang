@@ -1,0 +1,390 @@
+submodule bbf-ghn-pointers {
+  yang-version 1.1;
+  belongs-to bbf-ghn {
+    prefix bbf-ghn;
+  }
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  import bbf-yang-types {
+    prefix bbf-yang-types;
+  }
+
+  /* Base definition */
+  include bbf-ghn-base;
+
+  /* Types */
+  include bbf-ghn-types;
+
+  /* Profile Definitions */
+  include bbf-ghn-domain-profiles;
+  include bbf-ghn-node-profiles;
+  include bbf-ghn-link-profiles;
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Marcos Martinez, Marvell Semiconductor Inc.
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This module contains a collection of YANG definitions for
+     managing Vector of Profiles (VoP) on G.hn interfaces.
+
+     Copyright (c) 2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-374; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-374: Yang Modules for Management of G.hn Systems in FTTdp 
+               Architecture <https://www.broadband-forum.org/technical
+                                     /download/TR-374.pdf>";
+  }
+
+  typedef domain-config-vector-ref {
+
+    type leafref {
+      path '/bbf-ghn:ghn/bbf-ghn:vectors/bbf-ghn:domain-config-'
+         + 'vector/bbf-ghn:name';
+    }
+    description
+      "Used to reference a domain configuration vector of profiles.";
+  }
+
+  typedef node-config-vector-ref {
+
+    type leafref {
+      path '/bbf-ghn:ghn/bbf-ghn:vectors/bbf-ghn:node-config-'
+         + 'vector/bbf-ghn:name';
+    }
+    description
+      "Used to reference a node configuration vector of profiles.";
+  }
+
+  typedef link-config-vector-ref {
+
+    type leafref {
+      path '/bbf-ghn:ghn/bbf-ghn:vectors/bbf-ghn:link-config-'
+         + 'vector/bbf-ghn:name';
+    }
+    description
+      "Used to reference a link configuration vector of profiles.";
+  }
+
+
+  // Domain-wide vector
+  grouping profile-domain-vector {
+    description
+      "A vector of profiles used to configure the domain.";
+
+    leaf scheduling-profile {
+      type scheduling-profile-ref;
+      mandatory true;
+      description
+        "References a time division scheduling profile to be
+         used to configure the line.";
+    }
+
+    leaf security-profile {
+      type security-profile-ref;
+      mandatory true;
+      description
+        "References a security profile to be
+         used to configure the line.";
+    }
+
+    leaf dba-profile {
+      type dba-profile-ref;
+      mandatory true;
+      description
+        "References a Dynamic Bandwidth Allocation (DBA) 
+         profile to be used to configure the line.";
+    }
+  }
+
+  // Node-wide vector
+  grouping profile-node-vector {
+    description
+      "A vector of profiles used to configure the node.";
+
+    leaf node-id-profile {
+      type node-id-profile-ref;
+      mandatory true;
+      description
+        "References a node id profile to be
+         used to configure the node.";
+    }
+  }
+
+  // link-wide vector
+  grouping profile-link-vector {
+    description
+      "A vector of profiles used to configure the link.";
+
+    leaf line-spectrum-profile {
+      type line-spectrum-profile-ref;
+      mandatory true;
+      description
+        "References a line spectrum profile to be
+         used to configure the line.";
+    }
+
+    leaf channel-estimation-profile {
+      type channel-estimation-profile-ref;
+      mandatory true;
+      description
+        "References a channel estimation profile to be
+         used to configure the line.";
+    }
+  }
+
+  augment '/bbf-ghn:ghn/bbf-ghn:vectors' {
+    description
+      "Data nodes to support configuration vectors.";
+
+    list domain-config-vector {
+
+      key "name";
+      description
+        "A list of domain configuration vectors aka vector of profiles
+         (VoP).";
+
+      leaf name {
+        type bbf-yang-types:string-ascii64;
+        description
+          "Uniquely identifies the line configuration vector.";
+      }
+
+      uses profile-domain-vector;
+    }
+
+    list node-config-vector {
+
+      key "name";
+      description
+        "A list of node configuration vectors aka vector of profiles
+         (VoP).";
+
+      leaf name {
+        type bbf-yang-types:string-ascii64;
+        description
+          "Uniquely identifies the node configuration vector.";
+      }
+
+      uses profile-node-vector;
+    }
+
+    list link-config-vector {
+
+      key "name";
+      description
+        "A list of link configuration vectors aka vector of profiles
+         (VoP).";
+
+      leaf name {
+        type bbf-yang-types:string-ascii64;
+        description
+          "Uniquely identifies the node configuration vector.";
+      }
+
+      uses profile-link-vector;
+    }
+  }
+
+  augment '/if:interfaces/if:interface/bbf-ghn:ghn-interface/bbf-'
+        + 'ghn:domain' {
+    description
+      "Domain-wide configuration parameters.
+       Data nodes to support the assignment of a profile vector
+       for domain-wide profiles.";
+
+    choice profile-config {
+      default "no-profiles-attached";
+      description
+        "Provides methods for direct or indirect attachment of
+         the profile vector. The attachment can be:
+           * A collection of profiles (direct attachment)
+             that references the profiles one by one
+           * A vector of profiles (indirect attachment)
+             that references the profiles as a whole";
+
+      case no-profiles-attached {
+        leaf no-profiles-attached {
+          type empty;
+          description
+            "If present, indicates that no profiles are attached
+             to this domain.";
+        }
+      }
+
+      case direct-attachment-mode {
+        uses profile-domain-vector;
+      }
+
+      case indirect-attachment-mode {
+        leaf domain-config-vector {
+          type domain-config-vector-ref;
+          mandatory true;
+          description
+            "Assigns a Domain Configuration Vector to a G.hn 
+             network.";
+        }
+      }
+    }
+  }
+
+
+  augment '/if:interfaces/if:interface/bbf-ghn:ghn-interface/bbf-'
+        + 'ghn:node' {
+    description
+      "Node-wide configuration parameters.
+       Data nodes to support the assignment of a profile vector.
+       The attachment can be:
+           * A collection of profiles (direct attachment)
+             that references the profiles one by one
+           * A vector of profiles (indirect attachment)
+             that references the profiles as a whole";
+
+    container node {
+      description
+        "This container groups the configuration of the G.hn interface
+         including node aspects of the configuration.";
+
+      choice profile-config {
+        default "no-profiles-attached";
+        description
+          "Provides methods for direct or indirect attachment of
+           the profile vector.";
+
+        case no-profiles-attached {
+          leaf no-profiles-attached {
+            type empty;
+            description
+              "If present, indicates that no profiles are attached
+               to this node.";
+          }
+        }
+
+        case direct-attachment-mode {
+          uses profile-node-vector;
+        }
+
+        case indirect-attachment-mode {
+          leaf node-config-vector {
+            type node-config-vector-ref;
+            mandatory true;
+            description
+              "Assigns a node Configuration Vector to a G.hn 
+               network.";
+          }
+        }
+      }
+    }
+
+    list link {
+
+      key "device-id";
+      description
+        "This list groups the configuration of the G.hn interface
+         links.";
+
+      leaf device-id {
+
+        type bbf-ghn:device-id;
+        description
+          "The DeviceID of the G.hn interface this node is connected
+           for this link.";
+        reference
+          "ITU-T G.9961 clause 8.7.1.1";
+      }
+
+      choice profile-config {
+        default "no-profiles-attached";
+        description
+          "Provides methods for direct or indirect attachment of
+           the profile vector.";
+
+        case no-profiles-attached {
+          leaf no-profiles-attached {
+            type empty;
+            description
+              "If present, indicates that no profiles are attached
+               to this node.";
+          }
+        }
+
+        case direct-attachment-mode {
+          uses profile-link-vector;
+        }
+
+        case indirect-attachment-mode {
+          leaf link-config-vector {
+            type link-config-vector-ref;
+            mandatory true;
+            description
+              "Assigns a node Configuration Vector to a G.hn 
+               network.";
+          }
+        }
+      }
+    }
+  }
+}

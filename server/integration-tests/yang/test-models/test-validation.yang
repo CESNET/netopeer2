@@ -1,0 +1,82 @@
+module test-validation {
+  yang-version 1.1;
+  namespace "http://example.com/netopeer2-integration-tests/test-validation";
+  prefix "tst-validation";
+
+  description
+    "Module that is used to test validation";
+
+  feature disabled-container {
+    description
+      "Indicates support for disabled-container.";
+  }
+
+  feature disabled-leaf {
+    description
+      "Indicates support for disabled-leaf.";
+  }
+
+  feature disabled-list {
+    description
+      "Indicates support for disabled-list.";
+  }
+
+  feature enabled-leaf {
+    description
+      "Indicates support for enabled-leaf.";
+  }
+
+  container validation {
+    leaf pattern-validated-string {
+      type string {
+        pattern "[A-Za-z]*";
+      }
+    }
+
+    leaf length-validated-string {
+      type string {
+        length "6..10";
+      }
+    }
+
+    leaf range-validated-int {
+      type int8 {
+        range "-5..5";
+      }
+    }
+  }
+
+  container disabled-elements {
+    leaf disabled-leaf {
+      if-feature disabled-leaf;
+      type string;
+    }
+
+    leaf enabled-leaf {
+      if-feature enabled-leaf;
+      type string;
+    }
+
+    list disabled-list {
+      if-feature disabled-list;
+      key name;
+      leaf name {
+        type string;
+      }
+    }
+  }
+
+  container disabled-container {
+    if-feature disabled-container;
+    leaf disabled-container-leaf {
+      type string;
+    }
+
+    list disabled-container-list {
+      key name;
+      leaf name {
+        type string;
+      }
+    }
+  }
+}

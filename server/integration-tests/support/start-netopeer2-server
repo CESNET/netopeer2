@@ -1,0 +1,19 @@
+#!/bin/bash
+
+MAX_ATTEMPTS=100
+DELAY_BETWEEN_ATTEMPTS=1
+
+while [ "$MAX_ATTEMPTS" -gt "0" ]
+do
+    if [ -e /var/run/sysrepod.sock ] || [ -e /tmp/sysrepod.sock ]
+    then
+        echo "Sysrepo is started"
+        exec /usr/bin/netopeer2-server -d -v 8
+    fi
+    echo "Sysrepo has not started. Waiting"
+    sleep $DELAY_BETWEEN_ATTEMPTS
+    MAX_ATTEMPTS=$(($MAX_ATTEMPTS - 1))
+done
+
+echo "Sysrepo did not start"
+exit 1

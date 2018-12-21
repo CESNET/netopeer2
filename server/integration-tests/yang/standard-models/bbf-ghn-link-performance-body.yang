@@ -1,0 +1,278 @@
+submodule bbf-ghn-link-performance-body {
+  yang-version 1.1;
+  belongs-to bbf-ghn {
+    prefix bbf-ghn;
+  }
+
+  import bbf-yang-types {
+    prefix bbf-yang;
+  }
+
+  include bbf-ghn-perf-types;
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Marcos Martinez, Marvell Semiconductor Inc.
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This module contains a collection of YANG definitions for
+     managing Vector of Profiles (VoP) on G.hn interfaces.
+
+     Copyright (c) 2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-374; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-374: Yang Modules for Management of G.hn Systems in FTTdp 
+               Architecture <https://www.broadband-forum.org/technical
+                                     /download/TR-374.pdf>";
+  }
+
+
+  grouping link-performance-parameters {
+    description
+      "Defines the performance parameters applicable to all nodes
+       of G.hn domains.";
+
+    leaf initializations {
+      type bbf-yang:performance-counter32-or-inactive;
+      description
+        "Reports a count of the full initialization of this link.";
+    }
+
+    leaf out-management-bytes {
+      type bbf-yang:performance-counter32-or-inactive;
+      description
+        "Reports a count of management bytes sent.";
+    }
+    leaf out-management-packets {
+      type bbf-yang:performance-counter32-or-inactive;
+      description
+        "Reports a count of management packets sent.";
+    }
+    leaf in-valid-phy-headers {
+      type bbf-yang:performance-counter32-or-inactive;
+      description
+        "Reports a count of G.hn PHY headers correctly
+         received over this link.";
+    }
+    leaf in-invalid-phy-headers {
+      type bbf-yang:performance-counter32-or-inactive;
+      description
+        "Reports a count of G.hn PHY headers received 
+         with errors over this link.";
+    }
+    leaf in-phy-frames {
+      type bbf-yang:performance-counter32-or-inactive;
+      description
+        "Reports a count of G.hn PHY frames received over this link.";
+    }
+    leaf out-phy-frames {
+      type bbf-yang:performance-counter32-or-inactive;
+      description
+        "Reports a count of G.hn PHY frames transmitted 
+         over this link.";
+    }
+    leaf in-lpdu-frames {
+      type bbf-yang:performance-counter32-or-inactive;
+      description
+        "Reports a count of Logical link control Protocol Data Unit) 
+         LPDU frames received over this link.";
+    }
+    leaf out-lpdu-frames {
+      type bbf-yang:performance-counter32-or-inactive;
+      description
+        "Reports a count of LPDU frames transmitted
+         over this link.";
+    }
+    leaf out-resent-lpdu-frames {
+      type bbf-yang:performance-counter32-or-inactive;
+      description
+        "Reports a count of LPDU frames that have been 
+         re-transmitted over this link.";
+    }
+    leaf in-crc-errored-lpdu-frames {
+      type bbf-yang:performance-counter32-or-inactive;
+      description
+        "Reports a count of LPDU frames that have been 
+         received with CRC errors over this link.";
+    }
+    leaf in-llc-frames {
+      type bbf-yang:performance-counter32-or-inactive;
+      description
+        "Reports a count of Logical Link COntrol (LLC) 
+         frames received over this link.";
+    }
+    leaf out-llc-frames {
+      type bbf-yang:performance-counter32-or-inactive;
+      description
+        "Reports a count of LLC frames transmitted over this link.";
+    }
+    leaf in-crc-errored-llc-frames {
+      type bbf-yang:performance-counter32-or-inactive;
+      description
+        "Reports a count of LLC frames that have been 
+         received with Cyclic Redundancy Check (CRC) 
+         errors over this link.";
+    }
+    leaf in-mic-errored-llc-frames {
+      type bbf-yang:performance-counter32-or-inactive;
+      description
+        "Reports a count of LLC frames that have been 
+         received with Message Integrity Code (MIC) 
+         errors over this link.";
+    }
+  }
+
+  grouping link-performance-15min-parameters {
+    description
+      "Defines the 15 minute performance parameters applicable only
+       to the G.hn nodes.";
+  }
+
+  grouping link-performance-24hr-parameters {
+    description
+      "Defines the 24 hour performance parameters applicable only
+       to the G.hn nodes.";
+  }
+
+  grouping link-performance {
+    description
+      "Defines the parameters required for performance
+       management of G.hn nodes.";
+
+    container performance {
+      description
+        "Performance parameters";
+
+      container intervals-15min {
+        description
+          "15 minute interval performance history";
+
+        container current {
+          description
+            "Contains the counts that are currently accumulating.";
+
+          uses performance-history-measured-time;
+          uses link-performance-parameters;
+        }
+
+        uses performance-15min-history-parameters;
+
+        list history {
+          key "interval-number";
+          max-elements 96;
+          ordered-by system;
+          description
+            "A history of 15 minute intervals.";
+
+          leaf interval-number {
+            type performance-15min-history-interval;
+            description
+              "The number of the interval relative to the current
+               interval.";
+          }
+
+          uses performance-history-15min-interval-parameters;
+          uses link-performance-parameters;
+          uses link-performance-15min-parameters;
+        }
+      }
+
+
+      container intervals-24hr {
+        if-feature "performance-24hr";
+        description
+          "24 hour interval performance history";
+
+        container current {
+          description
+            "Contains the counts that are currently accumulating.";
+
+          uses performance-history-measured-time;
+          uses link-performance-parameters;
+          uses link-performance-24hr-parameters;
+        }
+
+        uses performance-24hr-history-parameters;
+
+        list history {
+          key "interval-number";
+          max-elements 7;
+          ordered-by system;
+          description
+            "A history of 24 hour intervals.";
+
+          leaf interval-number {
+            type performance-24hr-history-interval;
+            description
+              "The number of the interval relative to the current
+               interval.";
+          }
+
+          uses performance-history-24hr-interval-parameters;
+          uses link-performance-parameters;
+          uses link-performance-24hr-parameters;
+        }
+      }
+    }
+  }
+}

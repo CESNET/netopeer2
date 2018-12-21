@@ -1,0 +1,54 @@
+module test-actions-augment {
+  yang-version 1.1;
+  namespace "http://example.com/netopeer2-integration-tests/test-actions-augment";
+  prefix "tst-acts-aug";
+
+  import test-actions {
+    prefix "tst-acts";
+  }
+
+  revision 2018-07-26 {
+    description
+      "Initial revision.";
+
+    reference
+      "None";
+  }
+
+
+  augment "/tst-acts:config-data/tst-acts:config-list" {
+    list augmented-list {
+      key aug-name;
+
+      leaf aug-name {
+        type string;
+      }
+
+      action aug-list-action {
+        input {
+          leaf action-input {
+            type string;
+          }
+        }
+        output {
+          leaf action-output {
+            type string;
+          }
+        }
+      }
+    }
+
+    action aug-action {
+      input {
+        leaf action-input {
+          type string;
+        }
+      }
+      output {
+        leaf action-output {
+          type string;
+        }
+      }
+    }
+  }
+}

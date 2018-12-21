@@ -1,0 +1,302 @@
+module bbf-ethernet-performance-management {
+  yang-version 1.1;
+  namespace "urn:bbf:yang:bbf-ethernet-performance-management";
+  prefix bbf-eth-pm;
+
+  import bbf-yang-types {
+    prefix bbf-yang;
+  }
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  import bbf-interfaces-performance-management {
+    prefix bbf-if-pm;
+  }
+
+  import iana-if-type {
+    prefix ianaift;
+  }
+
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Project Stream";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+                  <mailto:joey.boyd@adtran.com>
+
+     Editor:      Ludwig Pauwels, Nokia
+                  <mailto:ludwig.pauwels@nokia.com>
+
+     PS Leader:   Michael Shaffer, Nokia
+                  <mailto:michael.shaffer@nokia.com>
+
+     PS Leader:   William Lupton, Broadband Forum
+                  <mailto:wlupton@broadband-forum.org>";
+
+  description
+    "This module contains a collection of YANG definitions for 
+     supporting the Broadband Forum requirements on Ethernet interface
+     management as applicable to access network equipment. As such, 
+     this module is specific to access network equipment (e.g., 
+     BBF-specified Access Nodes and FTTdp DPUs).
+
+     Specifically, this module augments 
+     bbf-interface-performance-management with Ethernet specific 
+     counters.
+
+     Copyright (c) 2017, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2017-05-08 {
+    description
+      "Initial revision.
+       * Approval Date:    see revision date above.
+       * Publication Date: 2017-06-02.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383.pdf>";
+  }
+
+  grouping eth-interface-performance-counters {
+    description
+      "Counters associated with current and historical 15 minute and
+       24 hour performance counters";
+
+
+    leaf in-pkts-errors-fcs {
+      type bbf-yang:performance-counter64;
+      description
+        "A count of frames received on a particular interface that are
+         an integral number of octets in length but do not pass the 
+         FCS check. This count does not include frames received with 
+         frame-too-long or frame-too-short error. 
+
+         The count represented by an instance of this leaf is 
+         incremented when the frameCheckError status is returned by 
+         the MAC service to the LLC (or other MAC user). Received 
+         frames for which multiple error conditions pertain are, 
+         according to the conventions of IEEE 802.3 Layer Management, 
+         counted exclusively according to the error status presented 
+         to the LLC. 
+
+         Note: Coding errors detected by the Physical Layer for speeds
+         above 10 Mb/s will cause the frame to fail the FCS check. 
+         Discontinuities in the value of this counter can occur at 
+         re-initialization of the management system, and at other 
+         times as indicated by the value of 
+         ifCounterDiscontinuityTime.
+
+         A frame that is counted by an instance of this leaf is also
+         counted by the corresponding instance of 
+         'in-errors' leaf.";
+      reference
+        "IEEE 802.3, 30.3.1.1.6, aFrameCheckSequenceErrors";
+    }
+
+    leaf in-giant-pkts {
+      type bbf-yang:performance-counter64;
+      description
+        "A count of frames received on a particular interface that 
+         exceed the maximum permitted frame size. 
+
+         The count represented by an instance of this leaf is 
+         incremented when the frameTooLong status is returned by the 
+         MAC service to the LLC (or other MAC user). Received frames 
+         for which multiple error conditions pertain are, according to
+         the conventions of IEEE 802.3 Layer Management, counted 
+         exclusively according to the error status presented to the 
+         LLC. 
+
+         Discontinuities in the value of this counter can occur at 
+         re-initialization of the management system, and at other 
+         times as indicated by the value of 
+         ifCounterDiscontinuityTime.";
+      reference
+        "IEEE 802.3, 30.3.1.1.25, aFrameTooLongErrors";
+    }
+
+    leaf in-errors-mac-internal {
+      type bbf-yang:performance-counter64;
+      description
+        "A count of frames for which reception on a particular 
+         IEEE 802.3 Ethernet interface fails due to an internal 
+         MAC sublayer receive error. 
+
+         A frame is only counted by an instance of this leaf if it 
+         is not counted by the corresponding instance of either the 
+         'in-giant-pkts' leaf, the 'in-pkts-errors-alignment-fcs' 
+         leaf, or the 'in-pkts-errors-fcs' leaf.
+         The precise meaning of the count represented by an instance
+         of this leaf is implementation-specific. 
+
+         In particular, an instance of this leaf may represent a 
+         count of receive errors on a particular IEEE 802.3 
+         Ethernet interface that are not otherwise counted. 
+
+         Discontinuities in the value of this counter can occur at 
+         re-initialization of the management system, and at other 
+         times as indicated by the value of 
+         ifCounterDiscontinuityTime ";
+      reference
+        "IEEE 802.3, 30.3.1.1.15, aFramesLostDueToIntMACRcvError";
+    }
+
+    leaf out-errors-mac-internal {
+      type bbf-yang:performance-counter64;
+      description
+        "A count of frames for which transmission on a particular IEEE
+         802.3 Ethernet interface fails due to an internal MAC 
+         sublayer transmit error. 
+
+         A frame is only counted by an instance of this leaf if it 
+         is not counted by the corresponding instance of either the 
+         'out-collisions-late' leaf, the 
+         'out-pkts-collisions-excessive' leaft, or the 
+         'out-errors-carrier-sense' leaf. The precise meaning of the
+         count represented by an instance of this leaf is 
+         implementation-specific. 
+
+         In particular, an instance of this leaf may represent a 
+         count of transmission errors on a particular IEEE 802.3 
+         Ethernet interface that are not otherwise counted. 
+
+         Discontinuities in the value of this counter can occur at 
+         re-initialization of the management system, and at other 
+         times as indicated by the value of 
+         ifCounterDiscontinuityTime.";
+      reference
+        "IEEE 802.3, 30.3.1.1.12, 
+         aFramesLostDueToIntMACXmitError";
+    }
+  }
+
+  augment '/if:interfaces-state/if:interface/bbf-if-pm:performance/'
+        + 'bbf-if-pm:intervals-15min/bbf-if-pm:current' {
+    when
+      "derived-from-or-self(../../../if:type,
+                            'ianaift:ethernetCsmacd')" {
+      description
+        "Only applicable to Ethernet interfaces.";
+    }
+    description
+      "Augment the current 15 minute interface performance counts 
+       with Ethernet specific attributes.";
+
+    container ethernet {
+      description
+        "Current 15 minute Ethernet performance counters.";
+
+      uses eth-interface-performance-counters;
+    }
+  }
+
+  augment '/if:interfaces-state/if:interface/bbf-if-pm:performance/'
+        + 'bbf-if-pm:intervals-15min/bbf-if-pm:history' {
+    when
+      "derived-from-or-self(../../../if:type, 
+                            'ianaift:ethernetCsmacd')" {
+      description
+        "Only applicable to Ethernet interfaces.";
+    }
+    description
+      "Augment the historic 15 minute interface performance counts 
+       with Ethernet specific attributes.";
+
+    container ethernet {
+      description
+        "Historic 15 minute Ethernet performance counters.";
+
+      uses eth-interface-performance-counters;
+    }
+  }
+
+  augment '/if:interfaces-state/if:interface/bbf-if-pm:performance/'
+        + 'bbf-if-pm:intervals-24hr/bbf-if-pm:current' {
+    when
+      "derived-from-or-self(../../../if:type, 
+                            'ianaift:ethernetCsmacd')" {
+      description
+        "Only applicable to Ethernet interfaces.";
+    }
+    if-feature "bbf-if-pm:performance-24hr";
+    description
+      "Augment the current 24 hour interface performance counts with
+       Ethernet specific attributes.";
+
+    container ethernet {
+      description
+        "Current 24 hour Ethernet performance counters.";
+
+      uses eth-interface-performance-counters;
+    }
+  }
+
+  augment '/if:interfaces-state/if:interface/bbf-if-pm:performance/'
+        + 'bbf-if-pm:intervals-24hr/bbf-if-pm:history' {
+    when
+      "derived-from-or-self(../../../if:type, 
+                            'ianaift:ethernetCsmacd')" {
+      description
+        "Only applicable to Ethernet interfaces.";
+    }
+    if-feature "bbf-if-pm:performance-24hr";
+    description
+      "Augment the historic 24 hour interface performance counts with
+       Ethernet specific attributes.";
+
+    container ethernet {
+      description
+        "Historic 24 hour Ethernet performance counters.";
+
+      uses eth-interface-performance-counters;
+    }
+  }
+}

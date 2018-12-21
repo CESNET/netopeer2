@@ -1,0 +1,238 @@
+module bbf-subscriber-profiles {
+  yang-version 1.1;
+  namespace "urn:bbf:yang:bbf-subscriber-profiles";
+
+  prefix bbf-subprof;
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  import ietf-system {
+    prefix sys;
+  }
+
+  import bbf-yang-types {
+    prefix bbf-yang;
+  }
+
+  import bbf-if-type {
+    prefix bbfift;
+  }
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+
+     Editor:      Ludwig Pauwels, Nokia
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This module contains a collection of YANG definitions for 
+     supporting the Broadband Forum requirements on the management of
+     subscribers as applicable to access network equipment. As such, 
+     this module is specific to access network equipment (e.g., 
+     BBF-specified Access Nodes and FTTdp DPUs).
+
+     Specifically, this module defines subscriber profiles.
+
+     Copyright (c) 2017-2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383_Amendment-1.pdf>";
+  }
+  revision 2017-05-08 {
+    description
+      "Initial revision.
+       * Approval Date:    see revision date above.
+       * Publication Date: 2017-06-02.";
+
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383.pdf>";
+  }
+
+  typedef subscriber-profile-ref {
+    type leafref {
+      path '/bbf-subprof:subscriber-profiles/bbf-subprof:'
+         + 'subscriber-profile/bbf-subprof:name';
+    }
+    description
+      "A reference to a subscriber profile.";
+  }
+
+  container subscriber-profiles {
+    description
+      "Subscriber configuration profile.";
+
+    list subscriber-profile {
+      key "name";
+
+      description
+        "List containing the parameters for a subscriber profile.
+         Various protocols need to insert strings in options / 
+         sub-tags. These strings are used to identify the subscriber. 
+         This insertion can be enabled per protocol per VLAN
+         sub-interface. Identifying the subscriber is independent of 
+         the protocol and most likely identical for all VLAN
+         sub-interfaces on top of the same physical line. Therefore 
+         this data is provided in a profile.";
+
+      leaf name {
+        type bbf-yang:string-ascii64;
+        description
+          "Name of the profile.";
+      }
+
+      leaf circuit-id {
+        type bbf-yang:string-ascii63-or-empty;
+        default "";
+        description
+          "The circuit ID string to be inserted in the subscriber
+           management protocol packets.";
+        reference
+          "TR-178 - R117 and TR-177 - R08";
+      }
+
+      leaf remote-id {
+        type bbf-yang:string-ascii63-or-empty;
+        default "";
+        description
+          "The remote-id string to be inserted in the subscriber
+           management protocol packets.";
+        reference
+          "TR-178 - R120 and TR-177 - R10";
+      }
+
+      leaf subscriber-id {
+        type bbf-yang:string-ascii63-or-empty;
+        default "";
+        description
+          "A subcriber-id string to be inserted in the subscriber
+           management protocol packets.
+
+           The subscriber-id carries a value that can be independent 
+           of the physical network configuration through which the 
+           subscriber is connected. This value complements, and might 
+           well be used in addition to the network-based 
+           information.";
+        reference
+          "RFC 4580 - Section 2";
+      }
+    }
+  }
+
+  augment '/if:interfaces/if:interface' {
+    when
+      "derived-from-or-self (if:type,
+       'bbfift:vlan-sub-interface')" {
+      description
+        "Applies only to VLAN sub-interfaces that are not 
+         network ports.";
+    }
+
+    description
+      "Additions for subscriber management on the VLAN 
+       sub-interface.";
+
+    container subscriber-profile {
+      description
+        "Subscriber configuration parameters.";
+
+      leaf profile {
+        type subscriber-profile-ref;
+        description
+          "Reference to a subcriber configuration profile. A profile 
+           is optional because it is possible that subscriber 
+           identification is always generated according to a syntax.";
+      }
+    }
+  }
+
+  augment '/sys:system' {
+    description
+      "Augment the system with generic subscriber management 
+       objects.";
+
+    container subscriber-management {
+      description
+        "Subscriber management system data.";
+
+      leaf access-node-id {
+        type bbf-yang:string-ascii63-or-empty;
+
+        default "access-node-not-configured";
+
+        description
+          "An identifier representing the access node. This string 
+           will be inserted in case the keyword Access_Node_ID is part
+           of the syntax according to which a subscriber 
+           identification string shall be generated.";
+        reference
+          "TR-101i2 - R153";
+      }
+    }
+  }
+}
