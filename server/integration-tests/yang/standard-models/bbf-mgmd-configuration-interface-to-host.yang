@@ -1,0 +1,278 @@
+submodule bbf-mgmd-configuration-interface-to-host {
+  yang-version 1.1;
+  belongs-to bbf-mgmd {
+    prefix bbf-mgmd-c-i2h;
+  }
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+
+     Editor:      Ludwig Pauwels, Nokia
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This module contains a collection of YANG definitions for 
+     supporting the Multicast Group Membership Discovery (MGMD) 
+     Protocols. In particular, it describes configuration objects used
+     for managing the Internet Group Management Protocol (IGMP) and 
+     the Multicast Listener Discovery (MLD) protocol on interfaces 
+     that connect the system to multicast hosts.
+
+     Copyright (c) 2017-2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383_Amendment-1.pdf>";
+  }
+  revision 2017-03-28 {
+    description
+      "Initial revision.
+       * Approval Date:    see revision date above.
+       * Publication Date: yyyy-mm-dd.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383.pdf>";
+  }
+
+  grouping interface-to-host {
+    description
+      "Grouping of objects used for configuring the Internet Group 
+       Management Protocol (IGMP) and the Multicast Listener Discovery
+       (MLD) protocol on interfaces that connect multicast hosts.";
+
+    leaf query-interval {
+      type uint32 {
+        range "1..31744";
+      }
+      units "seconds";
+      default "125";
+      description
+        "The interval at which MGMD General Query messages (GMQs) are 
+         sent on interfaces.";
+      reference
+        "RFC 3376 Section 8.2;
+         RFC 3810 Section 9.14.2;
+         RFC 5519 mgmdRouterInterfaceQueryInterval";
+    }
+
+    leaf query-max-response-time {
+      type uint32 {
+        range "0..31744";
+      }
+      units "0.1 seconds";
+      default "100";
+      description
+        "The maximum query response time advertised in MGMD General 
+         Query messages sent on interfaces. The value 0 means that the
+         host receiving the Query message shall reply immediately on 
+         it. A value different than 0 means that the host waits a 
+         random time between 0 and the time specified in the Query 
+         message before answering the Query message.
+
+         The object is shared between IGMPv2, MLDv1, IGMPv3 and MLDv2 
+         but has a difference in translating the configured value into
+         a time inserted in the Query message:
+
+         IGMPv2:
+           Object value < 255 : the time value is equal to the object 
+           value (units in 100ms)
+           Object value >= 255 : the time value is 255 (units in 
+           100ms)
+
+         MLDv1:
+           Object value < 374 : the time value is equal to the object 
+           value (units in 100ms)
+           Object value >= 374 : the time value is 374 (units in
+           100ms)
+
+         IGMPv3 & MLDv2:
+           Object value < 128 : the time value is equal to the object
+           value (units in 100ms)
+           Object value >= 128 : the time value is calculated from the
+           object value. It is the lowest discrete value higher or 
+           equal to the object value.
+           The supported set of discrete values are calculated from a 
+           floating point calculation 'mantissa * (2 power(exponent))'
+           for which the mantissa is a number from 16 to 31 and the 
+           exponent is a number from 3 to 10.";
+      reference
+        "RFC 2710 section 7.3;
+         RFC 2933 igmpInterfaceQueryMaxResponseTime;
+         RFC 3376 Section 8.3;
+         RFC 3810 Section 5.1.9;
+         RFC 5519 mgmdRouterInterfaceQueryMaxResponseTime";
+    }
+
+    leaf last-member-query-interval {
+      when '../immediate-leave = "disabled"';
+      type uint32 {
+        range "2..31744";
+      }
+      units "0.1 seconds";
+      default "10";
+      description
+        "The last member query interval is the max response time
+         inserted into MGMD Group-Specific Query messages sent in 
+         response to leaves, and is also the amount of time between 
+         MGMD Group-Specific Query messages.";
+      reference
+        "RFC 2710 section 7.8;
+         RFC3376 Section 8.8;
+         RFC5519 mgmdRouterInterfaceLastMemberQueryInterval";
+    }
+
+    leaf last-member-query-count {
+      when '../immediate-leave = "disabled"';
+      type uint32 {
+        range "1..255";
+      }
+      default "2";
+      description
+        "The number of unanswered MGMD Group-Specific Query messages 
+         sent out before it is assumed that there are no local members
+         interested in the IP multicast stream.
+
+         This object is applied to each interface on which the proxy 
+         generates MGMD Membership Query messages.";
+      reference
+        "RFC3376 Section 8.9";
+    }
+
+    leaf startup-query-interval {
+      type uint32 {
+        range "0..31744";
+      }
+      units "seconds";
+      default "30";
+      description
+        "This variable represents the interval between MGMD General 
+         Query messages sent by a Querier on startup.";
+      reference
+        "RFC3376 Section 8.6";
+    }
+
+    leaf startup-query-count {
+      type uint32 {
+        range "1..255";
+      }
+      default "2";
+      description
+        "The startup query count is the number of MGMD General Query 
+         messages sent out on startup, separated by the startup query 
+         interval.";
+      reference
+        "RFC3376 Section 8.7";
+    }
+
+    leaf immediate-leave {
+      type enumeration {
+        enum "enabled" {
+          description
+            "Enabled";
+        }
+        enum "disabled" {
+          description
+            "Disabled";
+        }
+      }
+      default "disabled";
+      description
+        "Immediate leave controls the function by which an interface 
+         that receives a leave for a certain group might immediately 
+         delete the corresponding group record.
+
+         Configuring immediate leave reduces the amount of time it
+         takes for the switch to stop sending multicast traffic to an 
+         interface when the last host on that interface leaves the 
+         group.
+
+         When immediate leave is disabled, the switch no longer tracks
+         hosts. Instead, whenever it receives a leave from a host on 
+         an interface, it sends out a MGMD Group-Specific Query 
+         message to all hosts on that interface. If it does not 
+         receive any MGMD Membership Report message on the interface 
+         in response to the MGMD Group-Specific Query message within a
+         set interval, it stops forwarding multicast traffic to the 
+         interface.";
+      reference
+        "G.988 Section 9.3.27 Immediate Leave";
+    }
+
+    leaf robustness {
+      type uint32 {
+        range "1..255";
+      }
+      default "2";
+      description
+        "The robustness variable allows tuning for the expected packet
+         loss on a subnet. If a subnet is expected to be lossy, the
+         robustness variable may be increased. IGMP and MLD are robust
+         to (robustness variable - 1) packet losses.";
+      reference
+        "RFC 3376 Section 8.1;
+         RFC 5519 mgmdRouterInterfaceRobustness";
+    }
+  }
+}

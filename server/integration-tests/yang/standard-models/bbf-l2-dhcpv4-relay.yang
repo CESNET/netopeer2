@@ -1,0 +1,454 @@
+module bbf-l2-dhcpv4-relay {
+  yang-version 1.1;
+  namespace "urn:bbf:yang:bbf-l2-dhcpv4-relay";
+
+  prefix bbf-l2-d4r;
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  import bbf-yang-types {
+    prefix bbf-yang;
+  }
+
+  import bbf-if-type {
+    prefix bbfift;
+  }
+
+  import bbf-subscriber-types {
+    prefix bbf-subtype;
+  }
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Project Stream";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+                  <mailto:joey.boyd@adtran.com>
+
+     Editor:      Ludwig Pauwels, Nokia
+                  <mailto:ludwig.pauwels@nokia.com>
+
+     PS Leader:   Michael Shaffer, Nokia
+                  <mailto:michael.shaffer@nokia.com>
+
+     PS Leader:   William Lupton, Broadband Forum
+                  <mailto:wlupton@broadband-forum.org>";
+
+  description
+    "This module contains a collection of YANG definitions for 
+     supporting the Broadband Forum requirements on subscriber 
+     management via the DHCPv4 protocol as applicable to access 
+     network equipment. As such, this module is specific to access 
+     network equipment (e.g., BBF-specified Access Nodes and FTTdp 
+     DPUs).
+
+     Copyright (c) 2017, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2017-05-08 {
+    description
+      "Initial revision.
+       * Approval Date:    see revision date above.
+       * Publication Date: 2017-06-02.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383.pdf>";
+  }
+
+  augment '/if:interfaces/if:interface' {
+    when
+      "derived-from-or-self(if:type,
+                            'bbfift:vlan-sub-interface')" {
+      description
+        "Applies only to VLAN sub-interfaces.";
+    }
+    description
+      "Additions for L2 DHCPv4 Relay Agent on the VLAN
+       sub-interface.";
+
+    container l2-dhcpv4-relay {
+      presence
+        "Presence of this container indicates L2 DHCPv4 Relay Agent 
+         functionality is supported on this interface.";
+      description
+        "L2 DHCPv4 Relay Agent configuration parameters.";
+
+      leaf enable {
+        type boolean;
+        default "false";
+        description
+          "Manage the L2 DHCP Relay Agent option 82 functionality.";
+      }
+
+      leaf trusted-port {
+        type boolean;
+        default "false";
+        description
+          "On a trusted port the option 82 from the user is accepted
+           in upstream packets, and it is not removed from downstream 
+           packets.";
+      }
+
+      leaf profile-ref {
+        when "../enable = 'true'" {
+          description
+            "Applicable only when L2 DHCPv4 Relay Agent functionality 
+             is enabled.";
+        }
+        type leafref {
+          path '/bbf-l2-d4r:l2-dhcpv4-relay-profiles/bbf-l2-d4r:l2-'
+             + 'dhcpv4-relay-profile/bbf-l2-d4r:name';
+        }
+        mandatory true;
+        description
+          "Reference to the DHCPv4 configuration profile.";
+      }
+    }
+  }
+
+  container l2-dhcpv4-relay-profiles {
+    description
+      "L2 DHCPv4 Relay Agent configuration profiles.";
+
+    list l2-dhcpv4-relay-profile {
+      key "name";
+      description
+        "List containing the parameters for L2 DHCPv4 Relay Agent 
+         configuration.";
+
+      leaf name {
+        type bbf-yang:string-ascii64;
+        description
+          "Name of the profile.";
+      }
+
+      leaf max-packet-size {
+        type uint16;
+        units "bytes";
+        default "1500";
+        description
+          "The maximum size of the DHCP packet to be created after 
+           appending the Agent Information option. Packets which, 
+           after appending the Relay Agent Information option, would
+           exceed this configured maximum size shall be forwarded 
+           WITHOUT adding the Agent Information option.
+
+           The 'max-packet-size' expresses the maximum size of the IP 
+           packet, i.e. the payload of the Ethernet packet, i.e. it 
+           excludes the Ethernet header and possible VLAN tags, it 
+           includes the IP header, the UDP header, and the DHCP packet
+           itself.";
+        reference
+          "RFC 3046 - Section 2.1";
+      }
+
+      container option82-format {
+        description
+          "Contains information that needs to be filled 
+           in option 82";
+
+        leaf-list suboptions {
+          type enumeration {
+            enum "circuit-id" {
+              description
+                "Add the sub-option circuit ID in option 82, i.e. add 
+                 the sub-option with code 0x01.
+
+                 The value inserted is the value of the leaf 
+                 circuit-id defined in the instance in the list 
+                 subscriber-profiles/subscriber-profile that is 
+                 associated with the interface, if any. If this leaf 
+                 is unknown, then a sub-option 
+                 circuit ID will be generated according to the syntax 
+                 defined in the leaf default-circuit-id-syntax.";
+              reference
+                "RFC 3046 - Section 3.1";
+            }
+            enum "remote-id" {
+              description
+                "Add the sub-option remote ID in option 82, i.e. add 
+                 the sub-option with code 0x02.
+
+                 The value inserted is the value of the leaf 
+                 remote-id defined in the instance in the list 
+                 subscriber-profiles/subscriber-profile that is 
+                 associated with the interface, if any. If this leaf 
+                 is unknown, then a sub-option 
+                 remote ID will be generated according to the syntax 
+                 defined in the leaf default-remote-id-syntax.";
+              reference
+                "RFC 3046 - Section 3.2";
+            }
+            enum "access-loop-characteristics" {
+              description
+                "Signal the access loop characteristics in option 82.
+                 Access-loop-characteristics are added using the 
+                 vendor-specific sub-option with code 0x09.
+
+                 The content of the sub-option is controlled via the 
+                 leaf access-loop-suboptions.";
+              reference
+                "RFC 4243 - Sections 3 & 4";
+            }
+          }
+          min-elements 1;
+          description
+            "Identifies the sub-options that should be part of 
+             option 82.";
+        }
+
+        leaf default-circuit-id-syntax {
+          type bbf-yang:string-ascii63-or-empty;
+          default "";
+          description
+            "To be used to generate a sub-option circuit ID when no
+             circuit-id is provided for the VLAN sub-interface via a 
+             referenced subscriber-profiles/subscriber-profile.
+
+             The syntax is a string of ASCII characters that 
+             determines the actual value inserted in the sub-option.
+             Parts of the syntax that are recognized as predefined
+             keywords will be replaced by an actual value.";
+          reference
+            "TR-178 - R117";
+        }
+
+        leaf default-remote-id-syntax {
+          type bbf-yang:string-ascii63-or-empty;
+          default "";
+          description
+            "To be used to generate a sub-option remote ID when no 
+             remote-id is provided for the VLAN sub-interface via a 
+             referenced subscriber-profiles/subscriber-profile.
+
+             The syntax is a string of ASCII characters that 
+             determines the actual value inserted in the sub-option. 
+             Parts of the syntax that are recognized as predefined 
+             keywords will be replaced by an actual value.";
+          reference
+            "TR-178 - R120";
+        }
+
+        leaf access-loop-suboptions {
+          type bbf-subtype:broadband-line-characteristics;
+          default "";
+          description
+            "Broadband line characteristics that are to be added in
+             option 82.";
+          reference
+            "TR-178 - R121";
+        }
+
+        leaf start-numbering-from-zero {
+          type boolean;
+          default "false";
+          description
+            "In case the default-circuit-id-syntax or 
+             default-remote-id-syntax indicates a Slot or a Port 
+             identification shall be added to the sub-option value, 
+             then this leaf determines if the slot/port numbering 
+             MUST start from 0 or 1.";
+          reference
+            "TR-178 - R118";
+        }
+
+        leaf use-leading-zeroes {
+          type boolean;
+          default "false";
+          description
+            "In case the default-circuit-id-syntax or 
+             default-remote-id-syntax indicates a Slot or a Port 
+             identification shall be added to the sub-option value, 
+             then this leaf determines if the slot/port numbering 
+             MUST use leading 0's or not, i.e. generate a fixed 
+             length string or a string with only meaningful digits.";
+          reference
+            "TR-178 - R119";
+        }
+      }
+    }
+  }
+
+  augment '/if:interfaces-state/if:interface/if:statistics' {
+    when
+      "derived-from-or-self(../if:type,
+                            'bbfift:vlan-sub-interface')" {
+      description
+        "Applies only to VLAN sub-interfaces and only when the L2 
+         DHCPv4 Relay Agent functionality is enabled.";
+    }
+
+    description
+      "L2 DHCPv4 Relay Agent statistics.";
+
+    container dhcpv4 {
+      presence
+        "Statistics are provided when the L2 DHCPv4 Relay Agent 
+         functionality is enabled";
+
+      description
+        "Container presents the packet statistics related to the L2
+         DHCPv4 Relay Agent.";
+
+      leaf in-bad-packets-from-client {
+        type yang:counter32;
+        description
+          "Bad DHCPv4 packets received on the interface. The packets 
+           are received from a DHCPv4 Client connected to it (directly
+           or indirectly through a network).
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           L2 DHCPv4 Relay functionality is disabled/enabled.";
+      }
+
+      leaf in-bad-packets-from-server {
+        type yang:counter32;
+        description
+          "Bad DHCPv4 packets received on the interface. The packets 
+           are received from a DHCPv4 Server connected to it (directly
+           or indirectly through a network).
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           L2 DHCPv4 Relay functionality is disabled/enabled.";
+      }
+
+      leaf in-packets-from-client {
+        type yang:counter32;
+        description
+          "Valid DHCPv4 packets received on the interface. The packets
+           are received from a DHCPv4 Client connected to it (directly
+           or indirectly through a network).
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           L2 DHCPv4 Relay functionality is disabled/enabled.";
+      }
+
+      leaf in-packets-from-server {
+        type yang:counter32;
+        description
+          "Valid DHCPv4 packets received on the interface. The packets
+           are received from a DHCPv4 Server connected to it (directly
+           or indirectly through a network).
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           L2 DHCPv4 Relay functionality is disabled/enabled.";
+      }
+
+      leaf out-packets-to-server {
+        type yang:counter32;
+        description
+          "Valid DHCPv4 packets sent to the interface. The packets are
+           sent to a DHCPv4 Server connected to it (directly or 
+           indirectly through a network).
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           L2 DHCPv4 Relay functionality is disabled/enabled.";
+      }
+
+      leaf out-packets-to-client {
+        type yang:counter32;
+        description
+          "Valid DHCPv4 packets sent to the interface. The packets are
+           sent to a DHCPv4 Client connected to it (directly or 
+           indirectly through a network).
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           L2 DHCPv4 Relay functionality is disabled/enabled.";
+      }
+
+      leaf option-82-inserted-packets-to-server {
+        type yang:counter32;
+        description
+          "DHCPv4 packets from a Client to a Server that pass this 
+           interface and into which the L2 DHCPv4 Relay inserted 
+           option 82.
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           L2 DHCPv4 Relay functionality is disabled/enabled.";
+      }
+
+      leaf option-82-removed-packets-to-client {
+        type yang:counter32;
+        description
+          "DHCPv4 packets from a Server to a Client that pass this 
+           interface and from which the L2 DHCPv4 Relay removed 
+           option 82.
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           L2 DHCPv4 Relay functionality is disabled/enabled.";
+      }
+
+      leaf option-82-not-inserted-to-server {
+        type yang:counter32;
+        description
+          "DHCPv4 packets from a Client to a Server that pass this 
+           interface and for which the L2 DHCPv4 Relay did not insert 
+           option 82 because after insertion the length would exceed 
+           the maximum allowed packet size.
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           L2 DHCPv4 Relay functionality is disabled/enabled.";
+      }
+    }
+  }
+}

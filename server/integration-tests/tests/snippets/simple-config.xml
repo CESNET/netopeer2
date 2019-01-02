@@ -1,0 +1,23 @@
+<snippet>
+  <edit>
+    <nc:config xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <system xmlns="urn:ietf:params:xml:ns:yang:ietf-system">
+        <contact>SimpleSnippet</contact>
+      </system>
+    </nc:config>
+  </edit>
+  <response>
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <system xmlns="urn:ietf:params:xml:ns:yang:ietf-system">
+        <contact>SimpleSnippet</contact>
+      </system>
+    </data>
+  </response>
+  <cleanup>
+    <nc:config xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <system xmlns="urn:ietf:params:xml:ns:yang:ietf-system">
+        <contact nc:operation="delete" />
+      </system>
+    </nc:config>
+  </cleanup>
+</snippet>

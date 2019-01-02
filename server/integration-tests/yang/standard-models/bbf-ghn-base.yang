@@ -1,0 +1,228 @@
+submodule bbf-ghn-base {
+  yang-version 1.1;
+  belongs-to bbf-ghn {
+    prefix bbf-ghn;
+  }
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  import iana-if-type {
+    prefix ianaift;
+  }
+
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Marcos Martinez, Marvell Semiconductor Inc.
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This module contains a collection of YANG definitions for
+     managing top level G.hn configuration and augmenations to
+     ietf-interfaces.
+
+     Copyright (c) 2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-374; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-374: Yang Modules for Management of G.hn Systems in FTTdp 
+               Architecture <https://www.broadband-forum.org/technical
+                                     /download/TR-374.pdf>";
+  }
+
+
+  container ghn {
+    description
+      "This container includes the profiles and associated 
+       configuration parameters of the G.hn interface. 
+       It is divided in three sections:
+         - domain: Includes all the domain-wide profiles
+         - node: Includes all the node-wide profiles
+         - link: Includes all the link-wide profiles";
+
+    container domain {
+      description
+        "Domain-related configuration data.";
+    }
+
+    container node {
+      description
+        "Node-related configuration data.";
+    }
+
+    container link {
+      description
+        "Link-related configuration data.";
+    }
+
+    container vectors {
+      description
+        "Vectors of profiles.";
+    }
+  }
+
+  augment '/if:interfaces/if:interface' {
+    when "if:type = 'ianaift:ghn'" {
+      description
+        "Only applicable when the interface type is 'ghn'.";
+    }
+    description
+      "Data nodes for the configuration of G.hn lines.";
+
+    container ghn-interface {
+      presence
+        "If present, indicates that the interface is able to operate
+         according to the appropriate ITU-T specification for G.hn 
+         technologies.";
+      description
+        "This container includes the association of the G.hn 
+         interface to the possible profiles described in the 
+         G.hn container. 
+           It includes 
+            - Domain-wide configuration (domain container)
+            - Per-node configuration (node list). Each of the entries
+              of the list includes configuration (node-wide and 
+              link-wide) for a node in the G.hn domain that is 
+              connected through this interface";
+
+      container domain {
+        description
+          "Configuration data for the domain-wide parameters of the 
+           G.hn network connected through the G.hn interface.";
+      }
+
+      list node {
+
+        key "node-mac-address";
+        description
+          "List of nodes of the domain being configured including 
+           reference to profiles.";
+
+        leaf node-mac-address {
+
+          type yang:mac-address;
+          description
+            "The Medium Access Control (MAC) Address of the 
+             interface, denoted as node MAC address or 
+             Registration Identifier (REGID) in ITU-T G.9961.";
+        }
+      }
+    }
+  }
+
+  augment '/if:interfaces-state/if:interface' {
+    when "if:type = 'ianaift:ghn'" {
+      description
+        "Only applicable when the interface type is 'ghn'.";
+    }
+    description
+      "Data nodes for the operational state of G.hn interface.";
+
+    container ghn-interface {
+      presence
+        "If present, indicates that the interface is able to operate
+         according to the appropriate ITU-T specification for one
+         or more G.hn technologies.";
+      description
+        "This container includes state data for the G.hn network
+         connected to thsi interface 
+         It includes 
+           - Domain-wide state data (domain container)
+           - Per-node state data (node list). Each of the entries
+             of the list includes configuration (node-wide and 
+             link-wide) for a node in the G.hn domain that is 
+             connected through this interface. The identity
+             of the node corresponfing to ths iinterface is 
+             stored in local-node-info leaf";
+
+      container domain {
+        description
+          "State data for the domain-wide parameters of the 
+           G.hn network connected through this G.hn interface.";
+      }
+
+      list node {
+        key "node-mac-address";
+        description
+          "State data for the node-wide parameters of the 
+           G.hn network connected through the G.hn interface.";
+
+        leaf node-mac-address {
+          type yang:mac-address;
+          description
+            "The MAC Address of the interface, denoted as
+             node MAC address or REGID in ITU-T G.9961.";
+        }
+      }
+
+      container local-node-info {
+        description
+          "Identification information for the local G.hn node.";
+      }
+    }
+  }
+}

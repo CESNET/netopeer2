@@ -1,0 +1,500 @@
+module bbf-interfaces-performance-management {
+  yang-version 1.1;
+  namespace "urn:bbf:yang:bbf-interfaces-performance-management";
+
+  prefix bbf-if-pm;
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  import bbf-yang-types {
+    prefix bbf-yang;
+  }
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+
+     Editor:      Ludwig Pauwels, Nokia
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This module contains a collection of YANG definitions for 
+     supporting the Broadband Forum requirements on interface 
+     management as applicable to access network equipment. As such, 
+     this module is specific to access network equipment (e.g., 
+     BBF-specified Access Nodes and FTTdp DPUs).
+
+     Specifically, this module reports performance management of 
+     statistics defined by the IETF interfaces data model, 
+     ietf-interfaces (RFC7223).
+
+     Copyright (c) 2017-2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383_Amendment-1.pdf>";
+  }
+  revision 2017-05-08 {
+    description
+      "Initial revision.
+       * Approval Date:    see revision date above.
+       * Publication Date: 2017-06-02.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383.pdf>";
+  }
+
+  feature performance-24hr {
+    description
+      "Indicates that collection of 24 hour performance intervals
+       is supported.";
+  }
+
+  typedef performance-15min-interval {
+    type uint8 {
+      range "0..96";
+    }
+    description
+      "Defines the range of 15 minute intervals.";
+  }
+
+  typedef performance-15min-history-interval {
+    type performance-15min-interval {
+      range "1..96";
+    }
+    description
+      "Defines the range of 15 minutes intervals and defines
+       the position of the interval relative to the current interval
+       where 1 is the most recent completed interval.";
+  }
+
+  typedef performance-24hr-interval {
+    type uint8 {
+      range "0..7";
+    }
+    description
+      "Defines the range of 24 hour intervals.";
+  }
+
+  typedef performance-24hr-history-interval {
+    type performance-24hr-interval {
+      range "1..7";
+    }
+    description
+      "Defines the range of 24 hour intervals and defines
+       the position of the interval relative to the current interval
+       where 1 is the most recent completed interval.";
+  }
+
+  grouping performance-history-interval-parameters {
+    description
+      "Defines common parameters required when defining history
+       interval performance counters.";
+
+    leaf invalid-data-flag {
+      type boolean;
+      description
+        "Reports the validity of the corresponding PM data.";
+    }
+
+    leaf time-stamp {
+      type yang:date-and-time;
+      description
+        "Reports the start date/time for this interval.";
+    }
+  }
+
+  grouping performance-history-measured-time {
+    description
+      "Reports the measured time for a given interval";
+
+    leaf measured-time {
+      type uint32;
+      description
+        "Reports the amount of time, measured in seconds,
+         that statistics for this interval have been counted.";
+    }
+  }
+
+  grouping performance-history-15min-interval-parameters {
+    description
+      "Defines common parameters required when defining 15 minute
+       interval history performance counters.";
+
+    uses performance-history-measured-time;
+    uses performance-history-interval-parameters;
+  }
+
+  grouping performance-history-24hr-interval-parameters {
+    description
+      "Defines common parameters required when defining 24 hour
+       interval history performance counters.";
+
+    uses performance-history-measured-time;
+    uses performance-history-interval-parameters;
+  }
+
+  grouping performance-15min-history-parameters {
+    description
+      "Defines common parameters required when defining 15 minute
+       history performance counters.";
+
+    leaf number-of-intervals {
+      type performance-15min-interval;
+      description
+        "The total number of 15-minute PM intervals for which data 
+         was collected.";
+    }
+
+    leaf non-valid-intervals {
+      type performance-15min-interval;
+      description
+        "The number of 15-minute PM intervals for which the data
+         is considered to be invalid or incomplete.";
+    }
+  }
+
+  grouping performance-24hr-history-parameters {
+    description
+      "Defines common parameters required when defining 24 hour
+       history performance counters.";
+
+    leaf number-of-intervals {
+      type performance-24hr-interval;
+      description
+        "The total number of 24-hour PM intervals for which data 
+         was collected. ";
+    }
+
+    leaf non-valid-intervals {
+      type performance-24hr-interval;
+      description
+        "The number of 24-hour PM intervals for which the data
+         is considered to be invalid or incomplete.";
+    }
+  }
+
+  grouping interface-performance-counters {
+    description
+      "Counters associated with current and historical 15 minute and
+       24 hour performance counters.";
+
+    leaf in-octets {
+      type bbf-yang:performance-counter64;
+      description
+        "The total number of octets received on the interface,
+         including framing characters.";
+      reference
+        "RFC 2863: The Interfaces Group MIB - ifHCInOctets";
+    }
+
+    leaf in-unicast-pkts {
+      type bbf-yang:performance-counter64;
+      description
+        "The number of packets, delivered by this sub-layer to a
+         higher (sub-)layer, that were not addressed to a
+         multicast or broadcast address at this sub-layer.";
+      reference
+        "RFC 2863: The Interfaces Group MIB - ifHCInUcastPkts";
+    }
+
+    leaf in-broadcast-pkts {
+      type bbf-yang:performance-counter64;
+      description
+        "The number of packets, delivered by this sub-layer to a
+         higher (sub-)layer, that were addressed to a broadcast
+         address at this sub-layer.";
+      reference
+        "RFC 2863: The Interfaces Group MIB - ifHCInBroadcastPkts";
+    }
+
+    leaf in-multicast-pkts {
+      type bbf-yang:performance-counter64;
+      description
+        "The number of packets, delivered by this sub-layer to a
+         higher (sub-)layer, that were addressed to a multicast
+         address at this sub-layer.  For a MAC-layer protocol,
+         this includes both Group and Functional addresses.";
+      reference
+        "RFC 2863: The Interfaces Group MIB - ifHCInMulticastPkts";
+    }
+
+    leaf in-discards {
+      type bbf-yang:performance-counter32;
+      description
+        "The number of inbound packets that were chosen to be
+         discarded even though no errors had been detected to
+         prevent their being deliverable to a higher-layer
+         protocol.  One possible reason for discarding such a
+         packet could be to free up buffer space.";
+      reference
+        "RFC 2863: The Interfaces Group MIB - ifInDiscards";
+    }
+
+    leaf in-errors {
+      type bbf-yang:performance-counter32;
+      description
+        "For packet-oriented interfaces, the number of inbound
+         packets that contained errors preventing them from being
+         deliverable to a higher-layer protocol.  For character-
+         oriented or fixed-length interfaces, the number of
+         inbound transmission units that contained errors
+         preventing them from being deliverable to a higher-layer
+         protocol.";
+      reference
+        "RFC 2863: The Interfaces Group MIB - ifInErrors";
+    }
+
+    leaf in-unknown-protos {
+      type bbf-yang:performance-counter32;
+      description
+        "For packet-oriented interfaces, the number of packets
+         received via the interface that were discarded because
+         of an unknown or unsupported protocol.  For
+         character-oriented or fixed-length interfaces that
+         support protocol multiplexing, the number of
+         transmission units received via the interface that were
+         discarded because of an unknown or unsupported protocol.
+         For any interface that does not support protocol
+         multiplexing, this counter is not present.";
+      reference
+        "RFC 2863: The Interfaces Group MIB - ifInUnknownProtos";
+    }
+
+    leaf out-octets {
+      type bbf-yang:performance-counter64;
+      description
+        "The total number of octets transmitted out of the
+         interface, including framing characters.";
+      reference
+        "RFC 2863: The Interfaces Group MIB - ifHCOutOctets";
+    }
+
+    leaf out-unicast-pkts {
+      type yang:counter64;
+      description
+        "The total number of packets that higher-level protocols
+         requested be transmitted, and that were not addressed
+         to a multicast or broadcast address at this sub-layer,
+         including those that were discarded or not sent.";
+      reference
+        "RFC 2863: The Interfaces Group MIB - ifHCOutUcastPkts";
+    }
+
+    leaf out-broadcast-pkts {
+      type bbf-yang:performance-counter64;
+      description
+        "The total number of packets that higher-level protocols
+         requested be transmitted, and that were addressed to a
+         broadcast address at this sub-layer, including those
+         that were discarded or not sent.";
+      reference
+        "RFC 2863: The Interfaces Group MIB -
+                   ifHCOutBroadcastPkts";
+    }
+
+
+    leaf out-multicast-pkts {
+      type bbf-yang:performance-counter64;
+      description
+        "The total number of packets that higher-level protocols
+         requested be transmitted, and that were addressed to a
+         multicast address at this sub-layer, including those
+         that were discarded or not sent.  For a MAC-layer
+         protocol, this includes both Group and Functional
+         addresses.";
+      reference
+        "RFC 2863: The Interfaces Group MIB -
+                   ifHCOutMulticastPkts";
+    }
+
+    leaf out-discards {
+      type bbf-yang:performance-counter32;
+      description
+        "The number of outbound packets that were chosen to be
+         discarded even though no errors had been detected to
+         prevent their being transmitted.  One possible reason
+         for discarding such a packet could be to free up buffer
+         space.";
+      reference
+        "RFC 2863: The Interfaces Group MIB - ifOutDiscards";
+    }
+
+    leaf out-errors {
+      type bbf-yang:performance-counter32;
+      description
+        "For packet-oriented interfaces, the number of outbound
+         packets that could not be transmitted because of errors.
+         For character-oriented or fixed-length interfaces, the
+         number of outbound transmission units that could not be
+         transmitted because of errors.";
+      reference
+        "RFC 2863: The Interfaces Group MIB - ifOutErrors";
+    }
+  }
+
+  augment '/if:interfaces/if:interface' {
+    description
+      "Data nodes for the performance configuration parameters.";
+
+    container performance {
+      description
+        "Performance parameters.";
+
+      leaf enable {
+        type boolean;
+        default "false";
+        description
+          "If true, enables counting of performance statistics.
+           Then performance statistics will be available in
+           /interfaces/interface/performance. 
+           i.e. 15 minutes statistics and 24 hours statistics, 
+           and for both there are current statistics and history 
+           data.
+
+           If false, then there are no performance statistics.";
+      }
+    }
+  }
+
+  augment '/if:interfaces-state/if:interface' {
+    description
+      "Data nodes for the performance status parameters.";
+
+    container performance {
+      description
+        "Performance parameters.";
+
+      container intervals-15min {
+        description
+          "15 minute interval performance history.";
+
+        container current {
+          description
+            "Contains the counts that are currently accumulating.";
+
+          uses interface-performance-counters;
+        }
+
+        uses performance-15min-history-parameters;
+
+        list history {
+          key "interval-number";
+          max-elements 96;
+          description
+            "A history of 15 minute intervals.";
+
+          leaf interval-number {
+            type performance-15min-history-interval;
+            description
+              "The number of the interval relative to the current
+               interval.";
+          }
+
+          uses performance-history-15min-interval-parameters;
+          uses interface-performance-counters;
+        }
+      }
+
+
+      container intervals-24hr {
+        if-feature "performance-24hr";
+        description
+          "24 hour interval performance history.";
+
+        container current {
+          description
+            "Contains the counts that are currently accumulating.";
+
+          uses interface-performance-counters;
+        }
+
+        uses performance-24hr-history-parameters;
+
+        list history {
+          key "interval-number";
+          max-elements 7;
+          description
+            "A history of 24 hour intervals.";
+
+          leaf interval-number {
+            type performance-24hr-history-interval;
+            description
+              "The number of the interval relative to the current
+               interval.";
+          }
+
+          uses performance-history-24hr-interval-parameters;
+          uses interface-performance-counters;
+        }
+      }
+    }
+  }
+}

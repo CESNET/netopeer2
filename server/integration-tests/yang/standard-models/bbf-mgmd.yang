@@ -1,0 +1,1487 @@
+module bbf-mgmd {
+  yang-version 1.1;
+  namespace "urn:bbf:yang:bbf-mgmd";
+  prefix bbf-mgmd;
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  import bbf-yang-types {
+    prefix bbf-yang;
+  }
+
+  import bbf-mgmd-types {
+    prefix bbf-mgmd-types;
+  }
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  import bbf-if-type {
+    prefix bbfift;
+  }
+
+  include bbf-mgmd-configuration-interface-to-router;
+  include bbf-mgmd-configuration-interface-to-host;
+  include bbf-mgmd-configuration-multicast-snoop;
+  include bbf-mgmd-operational-interface-to-host;
+  include bbf-mgmd-operational-interface-to-router;
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+
+     Editor:      Ludwig Pauwels, Nokia
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This module contains a collection of YANG definitions for 
+     supporting the Broadband Forum requirements on layer 2 multicast 
+     management as applicable to access network equipment. As such, 
+     this module is specific to access network equipment (e.g., 
+     BBF-specified Access Nodes and FTTdp DPUs).
+
+     Specifically, this module contains a collection of YANG 
+     definitions for supporting the Multicast Group Membership 
+     Discovery (MGMD) Protocols. In particular, it describes objects 
+     used for managing the Internet Group Management Protocol (IGMP) 
+     and the Multicast Listener Discovery (MLD) protocol in systems 
+     that act as a multicast proxy, snooper, or a snooper with proxy
+     reporting.
+
+     Copyright (c) 2017-2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383_Amendment-1.pdf>";
+  }
+
+  feature mgmd-proxy {
+    description
+      "MGMD proxy functionality is supported.";
+  }
+
+  feature mgmd-snoop-transparent {
+    description
+      "MGMD snooping functionality is supported.";
+  }
+
+  feature mgmd-snoop-with-proxy-reporting {
+    description
+      "MGMD snooping with proxy reporting functionality is 
+       supported.";
+  }
+
+  feature multicast-cac {
+    description
+      "Multicast Connection Admission Control (CAC) functionality is 
+       supported.";
+  }
+
+  feature multicast-package {
+    description
+      "Multicast packages, i.e. a package of multicast channels, are 
+       supported.";
+  }
+
+  feature multicast-preview {
+    description
+      "Multicast preview offers the possibility to join multicast 
+       channels for a restricted period / restricted amount of 
+       times.";
+  }
+
+  feature mgmd-group-ip-range {
+    description
+      "Use group IP range feature to allow configuring a range of 
+       group-addresses in once.";
+  }
+
+  feature static-multicast-host-associations {
+    description
+      "The system supports static associations of multicast hosts to 
+       the tree of a multicast channel. The existence of a static 
+       association is controlled via configuration and not via dynamic
+       IGMP or MLD protocol messages.";
+  }
+
+  identity mgmd-mode {
+    description
+      "Defines the MGMD mode. The MGMD mode specifies how IGMP/MLD 
+       messages are processed to manage a multicast tree within the 
+       context of a Layer 2 forwarder.";
+  }
+
+  identity proxy {
+    base mgmd-mode;
+    description
+      "A proxy device performing IGMP/MLD-based forwarding has a 
+       single upstream interface (at a particular moment in time) and 
+       one or more downstream interfaces. The upstream interface (in 
+       the direction of the root of the multicast tree) performs the 
+       host portion of IGMP/MLD protocol and the downstream direction 
+       (away from the direction of the root of the multicast tree) 
+       performs the router portion of the IGMP/MLD protocol.";
+    reference
+      "RFC 4605";
+  }
+
+  identity snoop-transparent {
+    base mgmd-mode;
+    description
+      "A transparent snooper that forwards IGMP/MLD Membership Reports
+       only to those ports where multicast routers are attached.";
+    reference
+      "RFC 4541";
+  }
+
+  identity snoop-with-proxy-reporting {
+    base mgmd-mode;
+    description
+      "A snooper with proxy-reporting capability will perform report 
+       summarization and MGMD Membership Query suppression in order to
+       reduce the load on the upstream multicast router.";
+    reference
+      "RFC 4541 Section 2.1.1, bullet 2";
+  }
+
+  identity unmatched-join-processing {
+    description
+      "When an MGMD Membership Report is received, and it requests to 
+       join a group address for which there is no configuration data 
+       in the system, then there are various alternative ways on how 
+       to process the request.";
+    reference
+      "TR-101 - R-238";
+  }
+
+  identity unmatched-join-discard {
+    base unmatched-join-processing;
+    description
+      "When an MGMD Membership Report is received, and it requests to 
+       join a group address for which there is no configuration data 
+       in the system, then the system will discard the request.";
+    reference
+      "TR-101 - R-238";
+  }
+
+  identity unmatched-join-forward {
+    base unmatched-join-processing;
+    description
+      "When an MGMD Membership Report is received, and it requests to 
+       join a group address for which there is no configuration data 
+       in the system, then the system will forward the MGMD message as
+       regular data.";
+    reference
+      "TR-101 - R-238";
+  }
+
+  identity unmatched-join-snoop-or-proxy {
+    base unmatched-join-processing;
+    description
+      "When an MGMD Membership Report is received, and it requests to 
+       join a group address for which there is no configuration data 
+       in the system, then the system will still perform the 
+       transparent snooper, snooper with proxy-reporting, or proxy 
+       function and manage a multicast tree for it.";
+  }
+
+  typedef rate-limit-action-enum {
+    type enumeration {
+      enum "drop" {
+        description
+          "The action is to drop MGMD Membership Reports that if 
+           granted would result in requiring more bandwidth than 
+           available on the interface.";
+      }
+      enum "best-effort" {
+        description
+          "The action is to process MGMD Membership Reports even when 
+           granting them would result in requiring more bandwidth than
+           available on the interface. This can result in packet 
+           loss.";
+      }
+    }
+    description
+      "Defines the action to be taken for received MGMD Membership 
+       Reports that, if granted, would result in requiring more 
+       bandwidth than available on the interface.";
+  }
+
+  typedef usage-limit {
+    type union {
+      type enumeration {
+        enum "no-limit" {
+          description
+            "No limit is applied.";
+        }
+      }
+      type uint32;
+    }
+    description
+      "Defines possible resource usage limitations where the 
+       limitation can be expressed in a number. The value 'no-limit' 
+       expresses that no resource usage limitation is applicable.";
+  }
+
+  grouping multicast-channel-with-admission-control {
+    description
+      "A grouping of data to support admission control on 
+       multicast-channels.";
+
+    list multicast-channel-admission-control {
+      key "multicast-channel-name";
+      description
+        "A list containing admission control data per 
+         multicast-channel.";
+
+
+      leaf multicast-channel-name {
+        type leafref {
+          path '../../../bbf-mgmd:multicast-channel/bbf-mgmd:name';
+        }
+        description
+          "The name of the multicast channel.";
+      }
+
+      leaf access-right {
+        type enumeration {
+          enum "enabled" {
+            description
+              "This multicast channel is allowed to be watched.";
+          }
+          enum "preview" {
+            description
+              "This multicast channel is allowed to be previewed.";
+          }
+          enum "disabled" {
+            description
+              "This multicast channel is not allowed to be joined.";
+          }
+        }
+        default "enabled";
+        description
+          "Defines the type of permission for hosts to access this
+           multicast channel.";
+      }
+
+      container access-parameters {
+        description
+          "Access parameters for a multicast-channel.";
+
+        leaf preview-parameter {
+          when '../../access-right = "preview"';
+          if-feature "multicast-preview";
+          type leafref {
+            path '/bbf-mgmd:multicast/bbf-mgmd:mgmd/bbf-mgmd:'
+               + 'preview-parameters-profile/bbf-mgmd:name';
+          }
+
+          description
+            "The preview parameters setting for this multicast 
+             channel.";
+        }
+      }
+    }
+  }
+
+  container multicast {
+    description
+      "Multicast configuration.";
+    container mgmd {
+      description
+        "MGMD configuration, i.e. configuration related to the IGMP 
+         and/or MLD protocols.";
+
+      leaf global-administrative-enabled {
+        type boolean;
+        default "true";
+        description
+          "This object controls the administrative state of all MGMD 
+           functions in the system.
+
+           When this object is set to false, then all multicast 
+           functions in the system will stop working. I.e. 
+           - ongoing multicast traffic (video data) will stop being 
+             forwarded, which includes the forwarding to statically 
+             configured host associations,
+           - the dynamic established multicast trees and host 
+             associations will be cleared,
+           - no MGMD protocol messages will be sent,
+           - MGMD protocol messages coming from hosts and router will 
+             not be processed and will be silently dropped.
+
+           When this object is set to true, all multicast functions
+           in the system will start working (unless overruled by other
+           administrative states). I.e. 
+           - MGMD protocol messages coming from hosts and router will 
+             be processed and dynamic multicast trees will be built,
+           - multicast traffic (video data) will be forwarded  
+             according the multicast trees and their host 
+             associations.";
+      }
+
+      list preview-parameters-profile {
+        if-feature "multicast-preview";
+
+        key "name";
+        description
+          "Profile containing configuration data to be activated for a
+           multicast channel when it is previewed.";
+
+        leaf name {
+          type bbf-yang:string-ascii64;
+          description
+            "The name of a preview parameters profile.";
+        }
+
+        leaf preview-control-style {
+          type enumeration {
+            enum "pattern" {
+              description
+                "Set limit on preview action pattern.";
+            }
+            enum "total-time" {
+              description
+                "Set limit on total previewed time.";
+            }
+          }
+          description
+            "This leaf controls the preview method.";
+        }
+        container preview-pattern {
+          when '../preview-control-style = "pattern"';
+          description
+            "A container with data controlling the preview when the 
+             preview method allows for a pattern.";
+
+          leaf preview-repeat-interval {
+            type uint32;
+            units "seconds";
+            default "0";
+            description
+              "The minimum time in seconds between two previews of a
+               given multicast channel.";
+          }
+
+          leaf preview-repeat-count {
+            type usage-limit;
+            default "3";
+            description
+              "The maximum number of times a given multicast channel
+               may be previewed.";
+          }
+
+          leaf preview-clip-length {
+            type uint32;
+            units "seconds";
+            default "180";
+            description
+              "The maximum duration of each preview in seconds.";
+          }
+        }
+
+        leaf preview-time {
+          when '../preview-control-style = "total-time"';
+          type uint32;
+          units "seconds";
+          default "180";
+          description
+            "The total time permitted for previewing operation in 
+             seconds.";
+        }
+
+        leaf preview-permission-restore-cycle {
+          type uint32;
+          units "minutes";
+          default "60";
+          description
+            "Identifies the moments at which the preview repeat 
+             counter is reset. The moments are identified as follows: 
+             reset happens each day at the moment specified by taking 
+             the number of minutes as specified by this leaf after 
+             midnight. E.g. a value of 0 results in a reset at 
+             midnight local time, a value of 60 results in a reset at 
+             1h00.";
+        }
+      }
+
+      list multicast-snoop-transparent-profile {
+        if-feature "mgmd-snoop-transparent";
+        key "name";
+        description
+          "Profile containing configuration data to be used by 
+           systems configured in snoop transparent mode.";
+
+        leaf name {
+          type bbf-yang:string-ascii64;
+          description
+            "The name of a multicast snoop transparent profile.";
+        }
+
+        leaf protocol-version {
+          type bbf-mgmd-types:mgmd-protocol-and-version;
+          mandatory true;
+          description
+            "Protocol(s) and/or protocol version(s) supported on the 
+             various interfaces of the VPN.";
+        }
+
+        container interfaces-to-hosts-data {
+          description
+            "This container contains data nodes that are applied to an
+             interface when a system operates in snoop transparent 
+             mode.";
+
+          uses multicast-snoop;
+        }
+      }
+
+      list multicast-snoop-with-proxy-reporting-profile {
+        if-feature "mgmd-snoop-with-proxy-reporting";
+        key "name";
+        description
+          "Profile containing configuration data to be used by 
+           systems configured in snoop with proxy reporting mode.";
+
+        leaf name {
+          type bbf-yang:string-ascii64;
+          description
+            "The name of a multicast snoop with proxy reporting 
+             profile.";
+        }
+
+        leaf protocol-version {
+          type bbf-mgmd-types:mgmd-protocol-and-version;
+          mandatory true;
+          description
+            "Protocol(s) and/or protocol version(s) supported on the 
+             various interfaces of the VPN.";
+        }
+
+        container interfaces-to-hosts-data {
+          description
+            "This container contains data nodes that are applied to 
+             each interface facing the multicast tree when a system is
+             configured for snoop with proxy reporting.";
+
+          uses multicast-snoop;
+        }
+
+        container interface-to-router-data {
+          description
+            "This container contains data nodes that are applied to 
+             each interface away from the multicast tree when the 
+             system is configured for snoop with proxy reporting.";
+
+          uses interface-to-router;
+        }
+      }
+
+      list multicast-proxy-profile {
+        if-feature "mgmd-proxy";
+        key "name";
+        description
+          "Profile containing configuration data to be used by 
+           multicast proxy switches. A proxy provides service between 
+           a set of interfaces for which it acts as a router and a set
+           of interfaces for which it acts as a host.";
+
+        leaf name {
+          type bbf-yang:string-ascii64;
+          description
+            "The name of a multicast proxy profile.";
+        }
+
+        leaf protocol-version {
+          type bbf-mgmd-types:mgmd-protocol-and-version;
+          mandatory true;
+          description
+            "Protocol(s) and/or protocol version(s) supported on the 
+             various interfaces of the VPN.";
+        }
+
+        container interfaces-to-hosts-data {
+          description
+            "This container contains data nodes that are applied to 
+             each interface facing the multicast tree when the system 
+             is configured for proxy mode.";
+
+          uses interface-to-host;
+        }
+
+        container interface-to-router-data {
+          description
+            "This container contains data nodes that are applied to 
+             each interface facing away from the multicast tree when 
+             the system is configured for proxy mode.";
+
+          uses interface-to-router;
+        }
+      }
+
+      list multicast-vpn {
+        key "name";
+        description
+          "Multicast Virtual Private Network (VPN). A multicast VPN
+           defines the context of the multicast service.  A service 
+           operator may choose to configure a single multicast VPN or 
+           multiple multicast VPN (e.g., open access environment).";
+        reference
+          "TR-178";
+
+        leaf name {
+          type bbf-yang:string-ascii64;
+          description
+            "This object is the name associated with a particular
+             multicast VPN (service context).";
+        }
+
+        leaf vpn-administrative-enabled {
+          type boolean;
+          default "true";
+          description
+            "This object controls the administrative state of all MGMD
+             functions in the multicast VPN.
+
+             When this object is set to false, then all multicast 
+             functions in the multicast VPN will stop working. I.e. 
+             - ongoing multicast traffic (video data) will stop being 
+               forwarded, which includes the forwarding to statically 
+               configured host associations,
+             - the dynamic established multicast trees and host 
+               associations will be cleared,
+             - no MGMD protocol messages will be sent,
+             - MGMD protocol messages coming from hosts and router 
+               will not be processed and will be silently dropped.
+
+             When this object is set to true, all multicast functions
+             in the multicast VPN will start working (unless overruled
+             by other administrative states). I.e. 
+             - MGMD protocol messages coming from hosts and router 
+               will be processed and dynamic multicast trees will be 
+               built,
+             - multicast traffic (video data) will be forwarded  
+               according the multicast trees and their host 
+               associations.";
+        }
+
+        leaf mode {
+          type identityref {
+            base mgmd-mode;
+          }
+          mandatory true;
+          description
+            "Identifies the MGMD mode to be applied for this VPN. The 
+             MGMD mode specifies how IGMP/MLD messages are processed
+             to manage a multicast tree within the context of a Layer 
+             2 forwarder.";
+        }
+
+        leaf multicast-proxy-profile-name {
+          when '../mode = "bbf-mgmd:proxy"';
+          if-feature "mgmd-proxy";
+          type leafref {
+            path '/bbf-mgmd:multicast/bbf-mgmd:mgmd/bbf-mgmd:'
+               + 'multicast-proxy-profile/bbf-mgmd:name';
+          }
+          description
+            "A reference to a MGMD proxy profile.";
+        }
+
+        leaf multicast-snoop-transparent-profile-name {
+          when '../mode = "bbf-mgmd:snoop-transparent"';
+          if-feature "mgmd-snoop-transparent";
+          type leafref {
+            path '/bbf-mgmd:multicast/bbf-mgmd:mgmd/bbf-mgmd:'
+               + 'multicast-snoop-transparent-profile/bbf-mgmd:'
+               + 'name';
+          }
+          description
+            "A reference to a MGMD snoop transparent profile.";
+        }
+
+        leaf multicast-snoop-with-proxy-reporting-profile-name {
+          when '../mode = "bbf-mgmd:snoop-with-proxy-reporting"';
+          if-feature "mgmd-snoop-with-proxy-reporting";
+          type leafref {
+            path '/bbf-mgmd:multicast/bbf-mgmd:mgmd/bbf-mgmd:'
+               + 'multicast-snoop-with-proxy-reporting-profile/bbf-'
+               + 'mgmd:name';
+          }
+          description
+            "A reference to a MGMD snoop with proxy reporting 
+             profile.";
+        }
+
+        leaf ip-version {
+          type inet:ip-version;
+          default "ipv4";
+          description
+            "The IP version identifies the type of IP-addresses used 
+             within this VPN.";
+        }
+
+        choice ip-to-host {
+          when 'mode = "bbf-mgmd:proxy" or mode = "bbf-mgmd:snoop-'
+             + 'with-proxy-reporting"';
+          description
+            "Provides the mechanism to add IP addressing information
+             to the VPN. This data, if configured, shall be used in
+             MGMD Membership Query messages sent on host interfaces. 
+             If not configured then the proxy or snooper with proxy 
+             reporting will generate MGMD Membership Query messages 
+             with the IP address 0.0.0.0 or the equivalent for IPv6.";
+
+          case ip-address {
+            leaf ipv4-address {
+              when '../ip-version = "ipv4"';
+              type inet:ipv4-address;
+              default "0.0.0.0";
+              description
+                "This object specifies the IPv4 address to be used as
+                 source IP address in MGMD Membership Query messages 
+                 when mode is proxy or snoop-with-proxy-reporting.";
+            }
+
+            leaf ipv6-address {
+              when '../ip-version = "ipv6"';
+              type inet:ipv6-address;
+              default "::";
+              description
+                "This object specifies the IPv6 address to be used as
+                 as source IP address in MGMD Membership Query 
+                 messages when mode is proxy or 
+                 snoop-with-proxy-reporting.";
+            }
+          }
+        }
+
+        leaf unmatched-join-processing {
+          type identityref {
+            base unmatched-join-processing;
+          }
+          default "unmatched-join-discard";
+          description
+            "This attribute specifies the multicast VPN behavior when
+             the system receives a join for a multicast channel for 
+             which there is no explicit configuration in the 
+             multicast-channel list.
+
+             When no multicast package is associated to a particular 
+             multicast interface to a host, then an unmatched join is
+             a join on such an interface for a group address that is
+             not configured in the multicast channel list.
+
+             When a multicast package is associated to a particular 
+             multicast interface to a host, then this package controls
+             authorization for all multicast channels for which there 
+             is explicit configuration in the multicast-channel list. 
+             This means, a join for a multicast channel that exists in
+             the multicast-channel list and is not part of the host's 
+             package is never granted. Also in this case this leaf 
+             controls the processing of joins for group addresses for 
+             which there is no explicit configuration in the 
+             multicast-channel list.
+
+             This feature is useful in wholesale environments where 
+             group address authorization is performed elsewhere. The
+             value of 'unmatched-join-discard' specifies that the 
+             multicast switch will silently discard the unauthorized 
+             joins; the other values specify how the multicast switch 
+             shall process the unauthorized joins.";
+          reference
+            "TR-101 - R-238";
+        }
+
+        leaf network-interface-for-unmatched-reports {
+          when '../unmatched-join-processing = "bbf-mgmd:unmatched-'
+             + 'join-snoop-or-proxy"' {
+            description
+              "This leaf is provided at the condition the system shall
+               process unmatched MGMD Membership Reports according its
+               configured mode.";
+          }
+          type leafref {
+            path '../bbf-mgmd:multicast-network-interface/bbf-mgmd:'
+               + 'name';
+          }
+          mandatory true;
+          description
+            "This object identifies the multicast network interface 
+             involved for multicast group addresses for which there is
+             no specific configuration. It is the interface that is 
+             used to send MGMD Membership Reports, and inherent it is 
+             also the interface from which the system will receive the
+             related multicast packets.";
+        }
+
+        list multicast-interface-to-host {
+          key "name";
+          unique "vlan-sub-interface";
+          description
+            "This list contains configuration data for multicast 
+             interfaces to hosts. A multicast interface to a host is 
+             connecting a MGMD host to the multicast switch. A 
+             multicast interface to a host is characterized by the 
+             need to perform some checks before granting requests to 
+             join a multicast address.";
+
+          leaf name {
+            type bbf-yang:string-ascii64;
+            must
+              "(count(../../bbf-mgmd:multicast-network-interface
+               [bbf-mgmd:name = current()]) = 0)" {
+              error-message
+                "The name of a multicast interface to host can not be
+                 the name of a multicast network interface.";
+
+              description
+                "Only allow unique names over both the list of
+                 multicast to network interfaces and the multicast 
+                 interfaces to host.";
+            }
+            description
+              "The name of the multicast interface to a host.";
+          }
+
+          leaf vlan-sub-interface {
+            type if:interface-ref;
+            must
+              "derived-from-or-self(/if:interfaces/if:interface
+               [if:name = current()]/if:type,
+               'bbfift:vlan-sub-interface')" {
+              error-message
+                "The referenced interface must have the type 
+                 vlan-sub-interface.";
+
+              description
+                "The interface must be of the type 
+                 'vlan-sub-interface'.";
+            }
+            mandatory true;
+            description
+              "This object specifies the VLAN sub-interface on a host
+               interface.";
+          }
+
+          leaf data-path-vlan-sub-interface {
+            when '../../unmatched-join-processing = "bbf-mgmd:'
+               + 'unmatched-join-forward"' {
+              description
+                "This leaf is an optional object for the when the
+                 system shall process unmatched MGMD Membership 
+                 Reports as regular data. In that condition the system
+                 shall by default further process the message using 
+                 the VLAN sub-interface referenced by the leaf 
+                 vlan-sub-interface. Configuring the current leaf 
+                 overrules this default and sets another VLAN
+                 sub-interface to be used when further processing the
+                 MGMD message as data packet.";
+            }
+            type if:interface-ref;
+            must
+              "derived-from-or-self(/if:interfaces/if:interface
+               [if:name = current()]/if:type,
+               'bbfift:vlan-sub-interface')" {
+              error-message
+                "The referenced interface must have the type 
+                 vlan-sub-interface.";
+              description
+                "The interface must be of the type VLAN 
+                 sub-interface.";
+            }
+
+            description
+              "This object specifies the VLAN sub-interface to be used
+               when the multicast function needs knowledge on a 
+               related datapath. E.g. for re-inserting MGMD Membership
+               Reports for multicast group addresses for which there 
+               is no configuration. Further packet processing, 
+               including VLAN tag popping and or pushing, is subject 
+               to configuration of the referenced VLAN 
+               sub-interface.";
+          }
+
+
+          leaf interface-to-host-administrative-enabled {
+            type boolean;
+            default "true";
+            description
+              "This object controls the administrative state of MGMD 
+               functions for this multicast to host interface.
+
+               When this object is set to false, then all multicast 
+               functions will stop working for this interface. I.e. 
+               - ongoing multicast traffic (video data) will stop 
+                 being forwarded to the host, which includes the 
+                 forwarding for statically configured associations,
+               - the dynamic established host associations will be 
+                 cleared,
+               - no MGMD protocol (Membership Query) messages will be 
+                 sent to the host,
+               - MGMD protocol messages (Membership Report) coming 
+                 from the host will not be processed and will be 
+                 silently dropped.
+
+               When this object is set to true, all multicast 
+               functions on this interface to the host will start 
+               working (unless overruled by other administrative 
+               states). I.e. 
+               - MGMD protocol messages coming from the host will be
+                 processed and dynamic associations to trees will be 
+                 built,
+               - multicast traffic (video data) will be forwarded  
+                 according the associations for this host interface.";
+          }
+
+          leaf max-group-number {
+            type usage-limit;
+            default "no-limit";
+            description
+              "This attribute specifies the maximum number of dynamic
+               multicast groups that may be replicated to the 
+               interface at any one time. Dynamic refers to including 
+               all multicast groups requested via MGMD Membership 
+               Reports, and excludes all the static multicast 
+               branches. The default value 'no-limit' means that no 
+               administrative limit is imposed.";
+          }
+
+          leaf maximum-concurrent-devices-per-channel {
+            type usage-limit;
+            default "2";
+
+            description
+              "The maximum number of concurrent devices allowed on 
+               this host interface for a single multicast channel. 
+               This is relevant in combination with host tracking.";
+          }
+
+          leaf multicast-rate-limit {
+            if-feature "multicast-cac";
+            type uint32;
+            units "kbits/second";
+            default "0";
+            description
+              "The multicast rate limit specifies the total bandwidth 
+               available on the interface for multicast traffic.";
+          }
+
+          leaf multicast-rate-limit-exceed-action {
+            if-feature "multicast-cac";
+            type rate-limit-action-enum;
+            default "best-effort";
+            description
+              "The multicast rate limit exceed action specifies how a 
+               multicast switch shall act when the multicast CAC 
+               concludes that accepting the MGMD request would result
+               in a situation that more bandwith is needed than 
+               available on the host interface, then this request can
+               be accepted, possibly resulting in packet loss, or the 
+               request can be dropped.";
+          }
+
+          leaf-list multicast-package {
+            if-feature "multicast-package";
+            type leafref {
+              path '../../bbf-mgmd:multicast-package/bbf-mgmd:name';
+            }
+            description
+              "References the packages of multicast channels to which 
+               the host has a subscription. If packages are associated
+               to a multicast interface to a host, then these defines 
+               the multicast channels that are authorized. If no 
+               package is associated to a multicast interface to a 
+               host, then the full list of multicast channels of the 
+               VPN is authorized.";
+          }
+
+          action clear-host-interface-statistics {
+            description
+              "When the action is received, the statistics within the 
+               multicast interface to a host are cleared.";
+          }
+        }
+
+        list multicast-network-interface {
+          key "name";
+          description
+            "This list contains the network topology dependent 
+             configuration data a multicast switch needs to reach MGMD
+             routers. This basically provides the list of network 
+             interfaces via which it can reach them and in case the 
+             multicast switch acts as a proxy or as a snooper with 
+             proxy reporting it also provides the IP address.";
+
+          leaf name {
+            type bbf-yang:string-ascii64;
+            description
+              "The name of the multicast network interface.";
+          }
+
+          choice multicast-transport {
+            mandatory true;
+            description
+              "Provides the various choices for how multicast traffic 
+               can be distributed up to the multicast switch.";
+            case single-uplink {
+              container single-uplink-interface-data {
+                description
+                  "Contains the data for when the multicast has a 
+                   single VLAN sub-interface as network interface.";
+
+                leaf vlan-sub-interface {
+                  type if:interface-ref;
+                  must
+                    "derived-from-or-self(/if:interfaces
+                     /if:interface[if:name = current()]/if:type,
+                     'bbfift:vlan-sub-interface')" {
+                    error-message
+                      "The referenced interface must have the type 
+                       vlan-sub-interface.";
+                    description
+                      "The single uplink via which the multicast 
+                       traffic enters the switch shall be a VLAN 
+                       sub-interface on a network interface.";
+                  }
+
+                  description
+                    "This object specifies the VLAN sub-interface via 
+                     which the multicast channel is distributed to the
+                     multicast switch.";
+                }
+              }
+            }
+          }
+
+          choice ip-layer {
+            when '../mode = "bbf-mgmd:proxy" or 
+                  '
+               + '../mode = "bbf-mgmd:snoop-with-proxy-reporting"';
+            description
+              "Provides the mechanism to add IP addressing information
+               to the multicast network interface.";
+
+            case ip-address {
+              leaf ipv4-address {
+                when '../../ip-version = "ipv4"';
+                type inet:ipv4-address;
+                default "0.0.0.0";
+                description
+                  "This object specifies the IPv4 address to be used 
+                   as source IP address when mode is proxy or 
+                   snoop-with-proxy-reporting.";
+              }
+
+              leaf ipv6-address {
+                when '../../ip-version = "ipv6"';
+                type inet:ipv6-address;
+                default "::";
+                description
+                  "This object specifies the IPv6 address to be used 
+                   as source IP address when mode is proxy or 
+                   snoop-with-proxy-reporting.";
+              }
+            }
+          }
+
+          action clear-network-interface-statistics {
+            description
+              "When the action is received, the statistics within the 
+               multicast network interface are cleared.";
+          }
+        }
+
+        list multicast-channel {
+          key "name";
+          unique "ipv4/group-ipv4-address ipv4/source-ipv4-address";
+          unique "ipv6/group-ipv6-address ipv6/source-ipv6-address";
+
+          description
+            "This list contains management information of multicast 
+             channels for Any Source Multicast (ASM) and Source 
+             Specific Multicast (SSM) mode of operations. Multicast 
+             channels are uniquely identified by the source and
+             multicast group IP address.";
+
+          leaf name {
+            type bbf-yang:string-ascii64;
+            description
+              "This object is the name associated with a particular
+               multicast channel.";
+          }
+
+          leaf network-interface {
+            type leafref {
+              path '../../bbf-mgmd:multicast-network-interface/bbf-'
+                 + 'mgmd:name';
+            }
+            mandatory true;
+
+            description
+              "This object specifies the multicast network interface 
+               on which the multicast channel is received.";
+          }
+
+          container ipv4 {
+            description
+              "Container for all IPv4 dependent configuration data.";
+
+            leaf source-ipv4-address {
+              when '../../../ip-version = "ipv4"';
+              type inet:ipv4-address;
+              default "0.0.0.0";
+              description
+                "The source IP address of the multicast channel. A
+                 value '0.0.0.0' is used in the ASM mode of operation.
+                 A value different of '0.0.0.0' is used in the SSM 
+                 mode of operation.";
+            }
+
+            leaf group-ipv4-address {
+              when '../../../ip-version = "ipv4"';
+              type inet:ipv4-address;
+              mandatory true;
+              description
+                "The group IP address of the multicast channel.";
+            }
+
+            leaf group-ipv4-address-end {
+              when '../../../ip-version = "ipv4"';
+              if-feature "mgmd-group-ip-range";
+              type inet:ipv4-address;
+              description
+                "If the leaf group-ipv4-address-end is not present, 
+                 then the configuration is for a single group address 
+                 as specified in the leaf 'group-ipv4-address'.
+
+                 A group-ipv4-address-end with a value lower than the 
+                 leaf group-ipv4-address is invalid.
+
+                 A group-ipv4-address-end with a value greater that 
+                 the group-ipv4-address is valid and then the 
+                 configurations for all the group addresses starting 
+                 from group-ipv4-address up to and including the 
+                 group-ipv4-address-end.";
+            }
+          }
+
+          container ipv6 {
+            description
+              "Container for all IPv6 dependent configuration data.";
+
+            leaf source-ipv6-address {
+              when '../../../ip-version = "ipv6"';
+              type inet:ipv6-address;
+              default "::";
+              description
+                "The source IP address of the multicast channel. A
+                 value '::' is used in the ASM mode of operation. A 
+                 value different of '::' is used in the SSM mode of 
+                 operation.";
+            }
+
+            leaf group-ipv6-address {
+              when '../../../ip-version = "ipv6"';
+              type inet:ipv6-address;
+              mandatory true;
+              description
+                "The group IP address of the multicast channel.";
+            }
+
+            leaf group-ipv6-address-end {
+              when '../../../ip-version = "ipv6"';
+              if-feature "mgmd-group-ip-range";
+              type inet:ipv6-address;
+              description
+                "If the leaf group-ipv6-address-end is not present,
+                 then the configuration is for a single group address 
+                 as specified in the leaf 'group-ipv6-address'.
+
+                 A group-ipv6-address-end with a value lower than the 
+                 leaf group-ipv6-address is invalid.
+
+                 A group-ipv6-address-end with a value greater that 
+                 the group-ipv6-address is valid and then the 
+                 configuration is for all the group addresses starting
+                 from group-ipv6-address up to and including the 
+                 group-ipv6-address-end.";
+            }
+          }
+
+          leaf channel-rate {
+            if-feature "multicast-cac";
+            type uint32;
+            units "kbits/second";
+            default "0";
+            description
+              "The bandwidth of the multicast channel to be used at 
+               CAC.";
+          }
+
+          leaf-list interface-to-host {
+            if-feature "static-multicast-host-associations";
+            type leafref {
+              path '../../bbf-mgmd:multicast-interface-to-host/bbf-'
+                 + 'mgmd:name';
+            }
+
+            description
+              "This object specifies the host interfaces that are 
+               associated to the multicast channel by configuration. 
+               I.e. hosts that will receive the multicast packets 
+               (video traffic) of this multicast channel.";
+          }
+        }
+
+        list multicast-package {
+          if-feature "multicast-package";
+          key "name";
+          description
+            "Each entry contains the information related to a 
+             multicast package, i.e. a package of multicast 
+             channels.";
+
+          leaf name {
+            type bbf-yang:string-ascii64;
+            description
+              "The name of a multicast package.";
+          }
+
+          uses multicast-channel-with-admission-control;
+        }
+
+        action clear-vpn-statistics {
+          description
+            "When the action is received, the statistics within the
+             multicast VPN are cleared.";
+        }
+      }
+
+      action clear-global-statistics {
+        description
+          "When the action is received, the statistics of multicast 
+           functions within the system are cleared.";
+      }
+    }
+  }
+
+  container multicast-state {
+    config false;
+    description
+      "State data nodes associated with multicast.";
+
+    container mgmd {
+      description
+        "MGMD state data, i.e. operational data related to the IGMP 
+         and/or MLD protocols.";
+
+      list multicast-vpn {
+        key "name";
+        description
+          "Multicast Virtual Private Network (VPN). A VPN defines a 
+           the multicast service context.";
+
+        leaf name {
+          type bbf-yang:string-ascii64;
+          description
+            "This object is the name associated with a particular
+             multicast VPN (service context).";
+        }
+
+        leaf mode {
+          type identityref {
+            base mgmd-mode;
+          }
+          mandatory true;
+          description
+            "Identifies the MGMD mode to be applied for this VPN. The 
+             MGMD mode specifies how MGMD protocol messages are 
+             processed to manage a multicast tree within the context 
+             of a Layer 2 forwarder.";
+        }
+
+        list multicast-interface-to-host {
+          key "name";
+          description
+            "This list contains multicast interface to a host state
+             data. A multicast interface to a host is connecting a 
+             MGMD host to the multicast switch.";
+
+          leaf name {
+            type bbf-yang:string-ascii64;
+            description
+              "The name of the multicast interface to a host.";
+          }
+
+          container interface-to-host-rx-state-data {
+            description
+              "Contains all the counters for received MGMD messages 
+               when the multicast switch operates as a proxy, a 
+               snooper or a snooper with proxy reporting.";
+            uses mgmd-interface-to-hosts-receive-state;
+          }
+
+          container interface-to-hosts-tx-state-data {
+            description
+              "Contains all the counters for generated MGMD messages 
+               when the multicast switch operates as a proxy.
+               In that case it acts as a multicast router for this 
+               interface, and generates MGMD Membership Query messages
+               itself.";
+            uses mgmd-interface-to-hosts-transmit-state;
+          }
+
+          leaf multicast-rate-limit-exceeded-count {
+            if-feature "multicast-cac";
+            type yang:counter32;
+            description
+              "Counts the number of joins that did, or would 
+               have, exceeded the multicast rate limit, whether 
+               accepted or denied.";
+          }
+
+          leaf current-multicast-bw-delivered {
+            if-feature "multicast-cac";
+            type uint32;
+            units "kbits/second";
+            description
+              "The device its best effort estimate of the actual 
+               bandwidth currently being delivered or used.";
+          }
+
+          leaf number-active-multicast-channels {
+            type uint32;
+            description
+              "The total number of active multicast channels used by 
+               the host.";
+          }
+        }
+
+        list multicast-network-interface {
+          key "name";
+          description
+            "This list contains multicast network interface state 
+             data. A multicast network interface is connecting the 
+             multicast switch to a MGMD router.";
+
+          leaf name {
+            type bbf-yang:string-ascii64;
+            description
+              "The name of the multicast network interface.";
+          }
+
+          choice multicast-transport {
+            mandatory true;
+            description
+              "Provides the various choices for how multicast traffic 
+               can be distributed up to the multicast switch.";
+
+            case single-uplink {
+              container single-uplink-interface-to-router-state-data {
+                description
+                  "Identifies the VLAN sub-interface via which the 
+                   multicast traffic is received in the multicast 
+                   switch, and contains all the counters for generated
+                   and received MGMD messages when the multicast 
+                   switch operates as a proxy, has a single VLAN 
+                   sub-interface as network interface, and acts as a 
+                   multicast host for this interface.";
+                leaf vlan-sub-interface {
+                  type if:interface-state-ref;
+                  description
+                    "This object specifies the VLAN sub-interface via 
+                     which the multicast channel is received in the 
+                     multicast switch.";
+                }
+                uses mgmd-host-interface-state;
+              }
+            }
+          }
+        }
+
+        container multicast-proxy-or-snooper {
+          description
+            "State data per multicast switch, being a proxy or a 
+             snooper or a snooper with proxy reporting.";
+
+          leaf number-active-groups {
+            type uint32;
+            description
+              "Counts the total number of active multicast channels in
+               the VPN.";
+            reference
+              "TR-101 - R-217, multicast VLAN, item 1";
+          }
+        }
+
+        list active-channel {
+          key "source-address group-address";
+          description
+            "The active multicast channels state data. Active channels
+             are those for which the system maintains a multicast 
+             tree. This includes the multicast channels with static 
+             branches.";
+
+          leaf source-address {
+            type inet:ip-address;
+            description
+              "The source IP Address of the of the active multicast 
+               channel. The IPv4 address '0.0.0.0' or IPv6 address 
+               '::' is used for ASM mode of operation.";
+          }
+
+          leaf group-address {
+            type inet:ip-address;
+            description
+              "The group IP Address of the active multicast channel.";
+            reference
+              "RFC 5519 Section 5, mgmdHostCacheAddress";
+          }
+
+          leaf name {
+            type bbf-yang:string-ascii64;
+            description
+              "This object is the name that identifies the multicast 
+               channel with this source- and group-address in the 
+               configuration data, if any. 
+
+               In case the 'grant-unauthorized-membership-report' mode
+               of operation is used it can happen that an active 
+               multicast tree is built for a not configured source /
+               group address combination. In that case the name will 
+               be the empty string ''.";
+          }
+
+          leaf multicast-network-interface {
+            type leafref {
+              path '../../bbf-mgmd:multicast-network-interface/bbf-'
+                 + 'mgmd:name';
+            }
+            description
+              "This object specifies the multicast network interface 
+               via which the multicast channel is received.";
+          }
+
+          leaf number-active-interfaces-to-hosts {
+            type uint32;
+            description
+              "The total number of interfaces to hosts associated to 
+               the tree of the multicast channel.";
+          }
+
+          list multicast-interface-to-host {
+            key "name";
+            description
+              "This list contains the multicast interfaces to a host 
+               joining the multicast channel.";
+
+            leaf name {
+              type leafref {
+                path '../../../bbf-mgmd:multicast-interface-to-'
+                   + 'host/bbf-mgmd:name';
+              }
+              description
+                "Reference to a multicast interface to a host joining
+                 this multicast channel.";
+            }
+
+            leaf-list host-reporter-address {
+              type inet:ip-address;
+              description
+                "On a single multicast interface to a host multiple 
+                 MGMD hosts can be active, each being identified with 
+                 a different source IP address. A multicast switch 
+                 supporting immediate leave inspects and records the 
+                 source IP address of each host sending a leave or 
+                 join. This enables the MGMD switch to track, for each
+                 multicast group, the exact number and identity (i.e. 
+                 IP address) of hosts receiving it.";
+
+              reference
+                "TR-101 Section 6.2.1 RG Requirements, R-200";
+            }
+          }
+
+          leaf uptime {
+            type yang:timeticks;
+            units "0.01 seconds";
+            description
+              "The time elapsed since this multicast channel is 
+               active.";
+            reference
+              "RFC 5519 Section 5, mgmdHostCacheUpTime";
+          }
+        }
+      }
+    }
+  }
+}
+

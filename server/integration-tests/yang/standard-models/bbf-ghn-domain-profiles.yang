@@ -1,0 +1,191 @@
+submodule bbf-ghn-domain-profiles {
+  yang-version 1.1;
+  belongs-to bbf-ghn {
+    prefix bbf-ghn;
+  }
+
+  include bbf-ghn-base;
+  include bbf-ghn-scheduling-profile-body;
+  include bbf-ghn-security-profile-body;
+  include bbf-ghn-dba-profile-body;
+  include bbf-ghn-domain-id-profile-body;
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Marcos Martinez, Marvell Semiconductor Inc.
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This module contains a collection of YANG definitions for
+     managing G.hn domain profiles.
+
+     Copyright (c) 2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-374; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-374: Yang Modules for Management of G.hn Systems in FTTdp 
+               Architecture <https://www.broadband-forum.org/technical
+                                     /download/TR-374.pdf>";
+  }
+
+
+  typedef scheduling-profile-ref {
+    type leafref {
+      path '/bbf-ghn:ghn/bbf-ghn:domain/bbf-ghn:scheduling-profile/'
+         + 'bbf-ghn:name';
+    }
+    description
+      "Used to reference a scheduling profile.";
+  }
+
+  typedef security-profile-ref {
+    type leafref {
+      path '/bbf-ghn:ghn/bbf-ghn:domain/bbf-ghn:security-profile/'
+         + 'bbf-ghn:name';
+    }
+    description
+      "Used to reference a security profile.";
+  }
+
+  typedef dba-profile-ref {
+    type leafref {
+      path '/bbf-ghn:ghn/bbf-ghn:domain/bbf-ghn:dba-profile/bbf-'
+         + 'ghn:name';
+    }
+    description
+      "Used to reference a DBA profile.";
+  }
+
+  typedef domain-id-profile-ref {
+    type leafref {
+      path '/bbf-ghn:ghn/bbf-ghn:domain/bbf-ghn:domain-id-profile/'
+         + 'bbf-ghn:name';
+    }
+    description
+      "Used to reference a domain-id profile.";
+  }
+
+  augment '/bbf-ghn:ghn/bbf-ghn:domain' {
+    description
+      "Data nodes for domain configuration
+       profiles.";
+
+    list scheduling-profile {
+      key "name";
+      description
+        "A list of scheduling profiles.";
+
+      leaf name {
+        type string;
+        description
+          "A name that uniquely identifies the
+           profile.";
+      }
+
+      uses scheduling-profile-group;
+    }
+
+    list security-profile {
+      key "name";
+      description
+        "A list of security profiles.";
+
+      leaf name {
+        type string;
+        description
+          "A name that uniquely identifies the
+           profile.";
+      }
+
+      uses security-profile-group;
+    }
+
+    list dba-profile {
+      key "name";
+      description
+        "A list of Dynamic Bandwidth Allocation profiles.";
+
+      leaf name {
+        type string;
+        description
+          "A name that uniquely identifies the
+           profile.";
+      }
+
+      uses dba-profile-group;
+    }
+
+    list domain-id-profile {
+      key "name";
+      description
+        "A list of domain-id profiles.";
+
+      leaf name {
+        type string;
+        description
+          "A name that uniquely identifies the
+           profile.";
+      }
+
+      uses domain-id-profile-group;
+    }
+  }
+}

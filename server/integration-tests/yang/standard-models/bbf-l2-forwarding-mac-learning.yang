@@ -1,0 +1,246 @@
+submodule bbf-l2-forwarding-mac-learning {
+  yang-version 1.1;
+  belongs-to bbf-l2-forwarding {
+    prefix bbf-l2-fwd;
+  }
+
+  import iana-if-type {
+    prefix ianaift;
+  }
+
+  import bbf-if-type {
+    prefix bbfift;
+  }
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  include bbf-l2-forwarding-base;
+  include bbf-l2-forwarding-forwarders;
+  include bbf-l2-forwarding-forwarding-databases;
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+
+     Editor:      Ludwig Pauwels, Nokia
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This submodule contains a collection of YANG definitions for 
+     managing MAC learning.
+
+     Copyright (c) 2017-2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383_Amendment-1.pdf>";
+  }
+  revision 2017-05-08 {
+    description
+      "Initial revision.
+       * Approval Date:    see revision date above.
+       * Publication Date: 2017-06-02.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383.pdf>";
+  }
+
+  augment '/bbf-l2-fwd:forwarding/bbf-l2-fwd:forwarders/bbf-l2-fwd:'
+        + 'forwarder' {
+    description
+      "Augment the forwarder configuration with MAC address 
+       management.";
+
+    container mac-learning {
+      if-feature "forwarding-databases";
+      description
+        "The forwarding decision for each frame shall result in an 
+         unambiguous decision on the outgoing forwarder port(s). This 
+         combined with the dynamic behavior of MAC address learning 
+         results in the need for a unique learning decision or static 
+         configuration of MAC addresses.
+
+         In case the same source MAC address is used on multiple 
+         interfaces, then various strategies can be applied: 
+         - learn the MAC address the first time it is used, and at the
+           occasion of a second attempt, do not move the MAC address 
+           from the first forwarder port to another, instead generate 
+           an alarm for attempts of an undesired MAC movement.
+         - learn/move the MAC address on/to the forwarder port where 
+           it is used the last time.
+         - perform MAC address translation into a unique MAC address.
+         This strategy is also port specific: e.g. in case a MAC 
+         address is learned on a user port, then it might be forbidden
+         to move it to another user port, while it is acceptable to 
+         move it to the network port.";
+
+      leaf forwarding-database {
+        type leafref {
+          path '/bbf-l2-fwd:forwarding/bbf-l2-fwd:forwarding-'
+             + 'databases/bbf-l2-fwd:forwarding-database/bbf-l2-'
+             + 'fwd:name';
+        }
+        description
+          "A reference to a forwarding database.
+
+           The absence of a reference to a forwarding datase 
+           automatically means that MAC addresses are not learned.";
+      }
+    }
+  }
+
+  augment '/if:interfaces/if:interface' {
+    when
+      "derived-from-or-self(if:type, 'ianaift:ethernetCsmacd') or
+       derived-from-or-self(if:type, 'ianaift:ieee8023adLag') or
+       derived-from-or-self(if:type, 'ianaift:ptm') or
+       derived-from-or-self(if:type, 'bbfift:vlan-sub-interface')" {
+      description
+        "Ethernet / Ethernet-like interfaces on which MAC address are
+         learned can have a maximum number for what can be learned for
+         the full interface. MAC addresses are typically learned in 
+         the scope of a VLAN. Therefore it is also possible to 
+         restrict the number of MAC addresses that can be learned per 
+         VLAN per Ethernet (-like) interface.";
+    }
+    if-feature "forwarding-databases and mac-learning";
+
+    description
+      "Augment the interface list with MAC learning configuration.";
+
+    container mac-learning {
+      description
+        "Data nodes for MAC learning configuration.";
+
+      leaf max-number-mac-addresses {
+        type uint32;
+        default "4294967295";
+        description
+          "The maximum number of MAC addresses that can be stored in 
+           the forwarding database for this interface.";
+      }
+
+      leaf number-committed-mac-addresses {
+        type uint32;
+        default "1";
+        description
+          "The number of MAC addresses for which resources are 
+           reserved in the forwarding database. In this way the system
+           guarantees that for this interface it will always be able 
+           to support that amount of MAC addresses.";
+      }
+
+      leaf mac-learning-enable {
+        type boolean;
+        default "true";
+        description
+          "Enabling MAC learning means that the MAC address will be 
+           learned from the source MAC address from frames received 
+           over this interface. MAC learning disabled means that the 
+           MAC address will not be learned from the source MAC address
+           from frames received over this interface. For example this 
+           allows to provide a 1:1 VLAN without any MAC learning from 
+           frames forwarded within it.
+
+           MAC learning will be executed in case mac-learning-enable 
+           is 'true' on the VLAN sub-interface or on the lower-layer 
+           interface that supports the object (dependent on using 
+           independent or a shared forwarding database).";
+      }
+
+      leaf mac-learning-failure-action {
+        type enumeration {
+          enum "forward" {
+            description
+              "The frame is forwarded despite the source MAC address 
+               can not be learned.";
+
+            reference
+              "IEEE - 802.1Q-2014, Table 8-7";
+          }
+          enum "discard" {
+            description
+              "The frame from which the source MAC address could not 
+               be learned is discarded.";
+            reference
+              "TR-101i2 - R114, R115";
+          }
+        }
+        default "forward";
+        description
+          "When the MAC learning from the source MAC address of a 
+           frame is not possible because for example the maximum 
+           number of MAC addresses that can be learned on the 
+           interface is reached, or for example the forwarding 
+           database is full, then the system's behavior is as 
+           configured with this leaf.
+
+           Normal IEEE behavior is to forward the frame without MAC 
+           learning. BBF expected behavior is to discard the frame.";
+      }
+    }
+  }
+}

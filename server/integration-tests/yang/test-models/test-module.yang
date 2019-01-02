@@ -1,0 +1,9 @@
+module test-module {
+  namespace "http://example.com/netopeer2-integration-tests/test-module";
+  prefix "tst-module";
+
+  include "test-submodule";
+
+  description
+    "A simple module that just includes a submodule";
+}

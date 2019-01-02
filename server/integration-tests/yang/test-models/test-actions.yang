@@ -1,0 +1,80 @@
+module test-actions {
+  yang-version 1.1;
+  namespace "http://example.com/netopeer2-integration-tests/test-actions";
+  prefix "tst-acts";
+
+  revision 2018-07-26 {
+    description
+      "Initial revision.";
+
+    reference
+      "None";
+  }
+  
+  container config-data {
+    list config-list {
+      key name;
+
+      leaf name {
+        type string;
+      }
+
+      action ct-config-action {
+        input {
+          leaf action-input {
+            type string;
+          }
+        }
+        output {
+          leaf action-output {
+            type string;
+          }
+        }
+      }
+    }
+
+    container config-container {
+      leaf name {
+        type string;
+      }
+
+      action ct-config-container-action {
+        input {
+          leaf action-input {
+            type string;
+          }
+        }
+        output {
+          leaf action-output {
+            type string;
+          }
+        }
+      }
+    }
+  }
+
+  container state-data {
+    config false;
+
+    list state-list {
+      key name;
+
+      leaf name {
+        type string;
+      }
+
+      action ct-state-action {
+        input {
+          leaf action-input {
+            type string;
+          }
+        }
+        output {
+          leaf action-output {
+            type string;
+          }
+        }
+      }
+    }
+  }
+}

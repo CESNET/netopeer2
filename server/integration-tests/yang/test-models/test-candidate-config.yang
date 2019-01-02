@@ -1,0 +1,22 @@
+module test-candidate-config {
+  yang-version 1.1;
+  namespace "http://example.com/netopeer2-integration-tests/test-candidate-config";
+  prefix "tst-cand-cfg";
+
+  description
+    "Module that is used to test candidate config";
+
+  container test-candidate-config-container {
+    leaf simple-string {
+      type string;
+      description
+        "Simple string value";
+    }
+
+    leaf simple-int {
+      type uint64;
+      description
+        "Simple int value";
+    }
+  }
+}

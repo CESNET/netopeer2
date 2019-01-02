@@ -1,0 +1,131 @@
+module test-notifications {
+  yang-version 1.1;
+  namespace "http://www.example.com/ns/yang/test-notifications";
+  prefix "test-notifications";
+
+  contact
+    "<http://www.example.com/>";
+
+  description
+    "Module that is used to test notifications";
+
+  revision 2018-08-08 {
+    description
+      "Initial revision.";
+
+    reference
+      "None";
+  }
+
+  container string-container {
+    leaf simple-string {
+      type string;
+      description
+        "Simple string";
+    }
+  }
+
+  notification string-container-simple-string-changed {
+    description
+      "A test notification that is emitted whenever simple-string is modified";
+
+    leaf new-value {
+      type string;
+    }
+
+    leaf old-value {
+      type string;
+    }
+  }
+
+  container notification-from-container {
+    leaf notification-string {
+      type string;
+      description
+        "Notification string that will generate a notification when changed";
+    }
+
+    notification container-notification-string-changed {
+      description
+        "A test notification that is emitted whenever notification-string is modified";
+
+      leaf new-value {
+        type string;
+      }
+
+      leaf old-value {
+        type string;
+      }
+    }
+  }
+
+  container notification-from-list {
+    list notification-from-list {
+      key name;
+
+      leaf name {
+        type string;
+        description
+          "The unique name of a list item.";
+      }
+
+      leaf foo {
+        type string;
+        description
+          "Leaf for each list item that will emit a notification when
+           modified.";
+      }
+
+      notification list-foo-changed {
+        description
+          "A test notification that is emitted whenever foo is modified";
+
+        leaf name{
+          type string;
+        }
+
+        leaf new-value {
+          type string;
+        }
+
+        leaf old-value {
+          type string;
+        }
+      }
+
+      list embedded-list {
+        key name;
+
+        leaf name {
+          type string;
+          description
+            "The unique name of a list item.";
+        }
+
+        leaf embedded-foo {
+          type string;
+          description
+            "Leaf for each list item that will emit a notification when
+             modified.";
+        }
+
+        notification embedded-foo-changed {
+          description
+            "A test notification that is emitted whenever foo is modified";
+
+          leaf name{
+            type string;
+          }
+
+          leaf new-value {
+            type string;
+          }
+
+          leaf old-value {
+            type string;
+          }
+        }
+      }
+    }
+  }
+}

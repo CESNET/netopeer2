@@ -1,0 +1,389 @@
+submodule bbf-l2-forwarding-forwarding-databases {
+  yang-version 1.1;
+  belongs-to bbf-l2-forwarding {
+    prefix bbf-l2-fwd;
+  }
+
+  import bbf-yang-types {
+    prefix bbf-yang;
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  include bbf-l2-forwarding-base;
+  include bbf-l2-forwarding-forwarders;
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+
+     Editor:      Ludwig Pauwels, Nokia
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This submodule contains a collection of YANG definitions for 
+     managing forwarding databases.
+
+     Copyright (c) 2017-2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383_Amendment-1.pdf>";
+  }
+  revision 2017-05-08 {
+    description
+      "Initial revision.
+       * Approval Date:    see revision date above.
+       * Publication Date: 2017-06-02.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383.pdf>";
+  }
+
+  feature forwarding-databases {
+    description
+      "Indicates support for forwarding databases.";
+  }
+
+  feature shared-forwarding-databases {
+    description
+      "Indicates support for a single forwarding database being shared
+       by multiple forwarders.";
+  }
+
+  feature mac-learning {
+    description
+      "This feature indicates whether the network element supports MAC
+       learning.";
+  }
+
+  feature read-system-fdb-capacity {
+    description
+      "Provides the system's capacity for forwarding databases, i.e. 
+       the total number of entries for all forwarding databases 
+       together.";
+  }
+
+  augment '/bbf-l2-fwd:forwarding' {
+    description
+      "Augment the configuration nodes associated with layer 2 
+       forwarding with forwarding database objects.";
+
+    container forwarding-databases {
+      if-feature "forwarding-databases";
+      description
+        "Forwarding databases configuration.";
+
+      list forwarding-database {
+        key "name";
+        description
+          "The configuration of a specific forwarding database.";
+
+        leaf name {
+          type bbf-yang:string-ascii64;
+          description
+            "The name associated with the forwarding database.";
+        }
+
+        leaf max-number-mac-addresses {
+          type uint32;
+          default "4294967295";
+          description
+            "Limits the number of MAC addresses that can be stored in 
+             this forwarding database.";
+        }
+
+        leaf aging-timer {
+          if-feature "mac-learning";
+          type uint32;
+          units "seconds";
+          default "300";
+          description
+            "MAC addresses are learned in the forwarding database 
+             against a forwarder port or against an interface. When no
+             incoming traffic on this forwarder port or interface is 
+             received with a particular MAC address as source MAC 
+             address for a period specified in this aging timer, then 
+             this MAC address is removed from the forwarding 
+             database.";
+        }
+
+        leaf shared-forwarding-database {
+          if-feature "shared-forwarding-databases";
+          type boolean;
+          default "false";
+          description
+            "If true, the forwarding database instance can be 
+             referenced by multiple forwarder instances.
+
+             If false it can be referenced from only one forwarder 
+             instance.";
+        }
+
+        list static-mac-address {
+          key "mac-address";
+
+          description
+            "A policy for a configured MAC address specifies a 
+             learning constraint for it. The static configuration of 
+             MAC addresses serves multiple purposes:
+             - it can be configured with a rule that forbids to learn 
+               this MAC address
+             - it can be configured with a list of ports or interfaces
+               on which the MAC address can be learned
+             - it can be statically assigned to a specific port or 
+               interface. 
+             The absense of a policy for a particular MAC address 
+             means that there is no MAC learning constraint, i.e. the 
+             MAC address can be learned on any port or interface.";
+
+          leaf mac-address {
+            type yang:mac-address;
+            description
+              "The MAC address to which the constraint applies.";
+          }
+
+          choice learning-constraint {
+            default "do-not-learn-and-discard-frame";
+
+            description
+              "Provides alternative frame processing decisions for 
+               when the source MAC address of a frame matches the
+               value of the leaf mac-address.";
+
+            case do-not-learn-and-discard-frame {
+              leaf discard-frame {
+                type empty;
+                description
+                  "The frame shall be discarded.";
+              }
+            }
+
+            case allowed-to-learn-on {
+              if-feature "mac-learning";
+              choice allow-to-learn-on {
+                description
+                  "The source MAC address of the frame can be learned
+                   on any of the ports or interfaces as identified 
+                   further.";
+
+                case forwarder-port {
+                  container forwarder-port-ref {
+                    description
+                      "The reference to a forwarder port on which the 
+                       MAC address can be learned.";
+                    uses forwarder-port;
+                  }
+                }
+                case forwarder-port-group {
+                  if-feature "forwarder-port-groups";
+                  container forwarder-port-group-ref {
+                    description
+                      "The reference to a group of forwarder ports, 
+                       the MAC address can be learned on any of these 
+                       forwarder ports.";
+                    uses forwarder-port-group;
+                  }
+                }
+              }
+            }
+
+            case install-in-fdb-on {
+              choice install-on {
+                description
+                  "The source MAC address is statically configured in 
+                   the forwarding database on a specified port or 
+                   interface.";
+
+                case static-port {
+                  description
+                    "The MAC address is added statically to a 
+                     forwarder port.";
+
+                  container static-forwarder-port-ref {
+                    description
+                      "The reference to a forwarder port on which the 
+                       MAC address will be statically installed and as
+                       such affect the forwarding behavior 
+                       immediately.";
+                    uses forwarder-port;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  augment '/bbf-l2-fwd:forwarding-state' {
+    description
+      "Augment the state data nodes associated with layer 2 
+       forwarding with forwarding database objects.";
+
+    container forwarding-databases {
+      if-feature "forwarding-databases";
+      description
+        "The following objects allow to read out the forwarding 
+         database (FDB), i.e. the MAC addresses being learned within 
+         the system.
+
+         The strategy is to offer the same flexibility as in IEEE: 
+          - Allows at one extreme that each VLAN has its own FDB, this
+            allows the same MAC address to be learned independently 
+            within different VLANs. 
+          - Allows at the other extreme that the system has one FDB 
+            shared by all VLANs, this allows the same MAC address to 
+            be learned only once over all VLANs.
+          - Allows everything in between, i.e. an FDB for a set of 
+            VLANs, a 2nd FDB for another set.
+         To support this concept it is possible to have multiple 
+         forwarders assigned to a single FDB.";
+
+      leaf max-number-mac-addresses {
+        if-feature "read-system-fdb-capacity";
+        type uint32;
+        description
+          "Provides the system's capacity for forwarding databases, 
+           i.e. the total number of entries for all forwarding 
+           databases together.";
+      }
+
+      list forwarding-database {
+        key "name";
+        description
+          "The state data of a specific forwarding database.";
+
+        leaf name {
+          type bbf-yang:string-ascii64;
+          description
+            "The name of the forwarding database.";
+        }
+
+        container mac-addresses {
+          description
+            "MAC address data in the forwarding database state.";
+
+          list mac-address {
+            key "mac-address";
+            description
+              "The list of MAC addresses that are stored in the 
+               forwarding database.";
+
+            leaf mac-address {
+              type yang:mac-address;
+              description
+                "A specific MAC address that is stored in the 
+                 forwarding database.";
+            }
+
+            choice learned-on {
+              description
+                "In case of a shared forwarding database the MAC 
+                 address is stored on an 'Ethernet-like' interface
+                 In case of a not-shared forwarding database the MAC
+                 address is stored on a forwarder port of the single 
+                 forwarder that uses the forwarding database.";
+
+              case forwarder-port {
+                description
+                  "Objects used to identify a specific fowarder 
+                   port.";
+
+                uses forwarder-port-state;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  augment '/bbf-l2-fwd:forwarding-state/bbf-l2-fwd:forwarders/bbf-'
+        + 'l2-fwd:forwarder' {
+    description
+      "Augment the forwarder state data to add a reference to a 
+       forwarding database.";
+
+    container forwarding-databases {
+      if-feature "forwarding-databases";
+      description
+        "Forwarder objects relative to forwarding databases.";
+
+      leaf forwarding-database {
+        type leafref {
+          path '/bbf-l2-fwd:forwarding-state/bbf-l2-fwd:forwarding-'
+             + 'databases/bbf-l2-fwd:forwarding-database/bbf-l2-'
+             + 'fwd:name';
+        }
+        description
+          "A reference to a forwarding database associated with a 
+           forwarder.";
+      }
+    }
+  }
+}

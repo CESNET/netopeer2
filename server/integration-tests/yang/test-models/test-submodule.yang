@@ -1,0 +1,34 @@
+submodule test-submodule {
+  belongs-to "test-module" {
+    prefix "tst-module";
+  }
+
+  description
+    "A simple submodule";
+
+  feature submodule-enabled-feature {
+    description
+      "A feature that will be turned on";
+  }
+
+  feature submodule-disabled-feature {
+    description
+      "A feature that will be turned off";
+  }
+
+  container enabled-container {
+    if-feature submodule-enabled-feature;
+
+    leaf enabled-container-leaf {
+      type string;
+    }
+  }
+
+  container disabled-container {
+    if-feature submodule-disabled-feature;
+
+    leaf disabled-container-leaf {
+      type string;
+    }
+  }
+}

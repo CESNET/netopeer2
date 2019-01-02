@@ -1,0 +1,483 @@
+module bbf-ldra {
+  yang-version 1.1;
+  namespace "urn:bbf:yang:bbf-ldra";
+
+  prefix bbf-ldra;
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  import bbf-yang-types {
+    prefix bbf-yang;
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  import bbf-if-type {
+    prefix bbfift;
+  }
+
+  import bbf-subscriber-types {
+    prefix bbf-subtype;
+  }
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+
+     Editor:      Ludwig Pauwels, Nokia
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This module contains a collection of YANG definitions for 
+     supporting the Broadband Forum requirements on subscriber 
+     management via the DHCPv6 protocol as applicable to access 
+     network equipment. As such, this module is specific to access 
+     network equipment (e.g., BBF-specified Access Nodes and FTTdp 
+     DPUs).
+
+     This functionality is also known as a Lightweight DHCPv6 Relay 
+     Agent (LDRA).
+
+     Copyright (c) 2017-2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383_Amendment-1.pdf>";
+  }
+  revision 2017-05-08 {
+    description
+      "Initial revision.
+       * Approval Date:    see revision date above.
+       * Publication Date: 2017-06-02.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383.pdf>";
+  }
+
+  augment '/if:interfaces/if:interface' {
+    when "derived-from-or-self(if:type,'bbfift:vlan-sub-interface')" {
+
+      description
+        "Applies only to VLAN sub-interfaces.";
+    }
+    description
+      "Additions for DHCPv6 LDRA on the VLAN sub-interface.";
+
+    container dhcpv6-ldra {
+      presence
+        "Presence of this container indicates DHCPv6 LDRA 
+         functionality is supported on this interface.";
+      description
+        "DHCPv6 LDRA configuration parameters.";
+
+      leaf enable {
+        type boolean;
+        default "false";
+        description
+          "Enable DHCPv6 LDRA functionality.";
+      }
+
+      leaf trusted-port {
+        type boolean;
+        default "false";
+        description
+          "Mark the client-facing interface as trusted for the DHCPv6
+           LDRA. When a client-facing interface is deemed untrusted, 
+           the DHCPv6 LDRA MUST discard any message of type 
+           RELAY-FORW (12) received from the client-facing 
+           interface.";
+        reference
+          "RFC 6221 - Section 6.1.2";
+      }
+
+      leaf profile-ref {
+        when "../enable = 'true'" {
+          description
+            "Applicable only when DHCPv6 LDRA functionality is 
+             enabled.";
+        }
+        type leafref {
+          path '/bbf-ldra:dhcpv6-ldra-profiles/bbf-ldra:dhcpv6-'
+             + 'ldra-profile/bbf-ldra:name';
+        }
+        mandatory true;
+        description
+          "Reference to the DHCPv6 configuration profile.";
+      }
+    }
+  }
+
+  container dhcpv6-ldra-profiles {
+    description
+      "DHCPv6 LDRA configuration profile.";
+
+    list dhcpv6-ldra-profile {
+      key "name";
+      description
+        "List containing the parameters for DHCPv6 LDRA 
+         configuration.";
+
+      leaf name {
+        type bbf-yang:string-ascii64;
+        description
+          "Name of the profile.";
+      }
+
+      container options {
+        description
+          "Contains relay information that needs to be filled in the 
+           relayed (RELAY-FORW) DHCPv6 messages.";
+
+        leaf-list option {
+          type enumeration {
+            enum "interface-id" {
+              description
+                "Add option interface-ID (code 18) to the relayed 
+                 (RELAY-FORW) DHCPv6 messages. The LDRA SHOULD use the
+                 same option value for a given interface, and this 
+                 value SHOULD be retained  across restarts. This is
+                 because if the value changes, a server will not be
+                 able to use it reliably in parameter assignment 
+                 policies.
+
+                 The value inserted is the value of the leaf 
+                 circuit-id defined in the instance in the list 
+                 subscriber-profiles/subscriber-profile that is 
+                 associated with the interface, if any. If this leaf 
+                 is unknown, then the option 
+                 interface-ID will be generated according to the 
+                 syntax defined in the leaf 
+                 default-interface-id-syntax.";
+              reference
+                "RFC 6221 - Section 5.3.2";
+            }
+            enum "remote-id" {
+              description
+                "Add option remote-ID (code 37) to the relayed 
+                 (RELAY-FORW) DHCPv6 messages.
+
+                 The value inserted is the value of the leaf 
+                 remote-id defined in the instance in the list 
+                 subscriber-profiles/subscriber-profile that is 
+                 associated with the interface, if any. If this leaf 
+                 is unknown, then the option 
+                 remote-ID will be generated according to the syntax 
+                 defined in the leaf default-remote-id-syntax.";
+              reference
+                "RFC 4649 - Section 4";
+            }
+            enum "subscriber-id" {
+              description
+                "Add option subscriber-ID (code 38) to the relayed 
+                 (RELAY-FORW) DHCPv6 messages.
+
+                 The value inserted is the value of the leaf 
+                 subscriber-id defined in the instance in the list 
+                 subscriber-profiles/subscriber-profile that is 
+                 associated with the interface, if any. If this leaf 
+                 unknown, then the option will
+                 contain an empty string.";
+              reference
+                "RFC 4580 - Section 3";
+            }
+            enum "enterprise-number" {
+              description
+                "Enterprise-number to be added to the relayed 
+                 (RELAY-FORW) DHCPv6 messages.";
+              reference
+                "RFC 3315";
+            }
+            enum "vendor-specific-information" {
+              description
+                "Add access loop characteristics (code 17) to the
+                 relayed (RELAY-FORW) DHCPv6 messages. The content of
+                 the option is controlled via the leaf 
+                 access-loop-characteristics.";
+              reference
+                "TR-177 - R12";
+            }
+          }
+          min-elements 1;
+          description
+            "Identifies the options that should be added to the 
+             relayed (RELAY-FORW) DHCPv6 messages.";
+        }
+
+        leaf default-interface-id-syntax {
+          type bbf-yang:string-ascii63-or-empty;
+          default "";
+          description
+            "To be used to generate a option interface-ID when no
+             circuit-id is provided for the VLAN sub-interface via a 
+             referenced subscriber-profiles/subscriber-profile.
+
+             The syntax is a string of ASCII characters that 
+             determines the actual value inserted in the option. 
+             Parts of the syntax that are recognized as predefined
+             keywords will be replaced by an actual value.";
+          reference
+            "TR-177 - R07";
+        }
+
+        leaf default-remote-id-syntax {
+          type bbf-yang:string-ascii63-or-empty;
+          default "";
+          description
+            "To be used to generate a option remote-ID when no 
+             remote-id is provided for the VLAN sub-interface via a 
+             referenced subscriber-profiles/subscriber-profile.
+
+             The syntax is a string of ASCII characters that 
+             determines the actual value inserted in the option. 
+             Parts of the syntax that are recognized as predefined 
+             keywords will be replaced by an actual value.";
+          reference
+            "TR-177 - R09";
+        }
+
+        leaf enterprise-number {
+          type uint32;
+          default "3561";
+          description
+            "IANA Enterprise Number that identifies the vendor.";
+          reference
+            "RFC 3315";
+        }
+
+        leaf access-loop-characteristics {
+          type bbf-subtype:broadband-line-characteristics;
+          default "";
+          description
+            "Access Loop sub-options that are to be added in option 
+             17.";
+          reference
+            "TR-178 - R122";
+        }
+
+        leaf start-numbering-from-zero {
+          type boolean;
+          default "false";
+          description
+            "In case the default-interface-id-syntax or 
+             default-remote-id-syntax indicates a Slot or a Port 
+             identification shall be added to the sub-option value, 
+             then this leaf determines if the slot/port numbering 
+             MUST start from 0 or 1.";
+          reference
+            "TR-178 - R118";
+        }
+
+        leaf use-leading-zeroes {
+          type boolean;
+          default "false";
+          description
+            "In case the default-interface-id-syntax or 
+             default-remote-id-syntax indicates a Slot or a Port 
+             identification shall be added to the sub-option value, 
+             then this leaf determines if the slot/port numbering 
+             MUST use leading 0's or not, i.e. generate a fixed 
+             length string or a string with only meaningful digits.";
+          reference
+            "TR-178 - R119";
+        }
+      }
+    }
+  }
+
+  augment '/if:interfaces-state/if:interface/if:statistics' {
+    when
+      "derived-from-or-self (../if:type,
+       'bbfift:vlan-sub-interface')" {
+      description
+        "Applies only to VLAN sub-interfaces and only when the DHCPv6 
+         LDRA functionality is enabled.";
+    }
+    description
+      "DHCPv6 LDRA statistics.";
+
+    container dhcpv6-ldra {
+      presence
+        "Statistics are provided when the DHCPv6 LDRA functionality is
+         enabled.";
+
+      description
+        "A container presents the packet statistics related to the 
+         DHCPv6 LDRA.";
+
+      leaf in-bad-packets-from-client {
+        type yang:counter32;
+        description
+          "Bad DHCPv6 packets received on the interface. The packets 
+           are received from a DHCPv6 Client connected to it (directly
+           or indirectly through a network).
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           DHCPv6 LDRA functionality is disabled/enabled.";
+      }
+
+      leaf in-bad-packets-from-server {
+        type yang:counter32;
+        description
+          "Bad DHCPv6 packets received on the interface. The packets 
+           are received from a DHCPv6 Server connected to it (directly
+           or indirectly through a network).
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           DHCPv6 LDRA functionality is disabled/enabled.";
+      }
+
+      leaf option-17-inserted-packets-to-server {
+        type yang:counter32;
+        description
+          "DHCPv6 packets from a Client to a Server that passed this 
+           interface and for which the DHCPv6 LDRA did insert 
+           option 17.
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           DHCPv6 LDRA functionality is disabled/enabled.";
+      }
+
+      leaf option-17-removed-packets-to-client {
+        type yang:counter32;
+        description
+          "DHCPv6 packets from a Server to a Client that passed this 
+           interface and for which the DHCPv6 LDRA did remove 
+           option 17.
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           DHCPv6 LDRA functionality is disabled/enabled.";
+      }
+
+      leaf option-18-inserted-packets-to-server {
+        type yang:counter32;
+        description
+          "DHCPv6 packets from a Client to a Server that passed this 
+           interface and for which the DHCPv6 LDRA did insert 
+           option 18.
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           DHCPv6 LDRA functionality is disabled/enabled.";
+      }
+
+      leaf option-18-removed-packets-to-client {
+        type yang:counter32;
+        description
+          "DHCPv6 packets from a Server to a Client that passed this 
+           interface and for which the DHCPv6 LDRA did remove 
+           option 18.
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           DHCPv6 LDRA functionality is disabled/enabled.";
+      }
+
+      leaf option-37-inserted-packets-to-server {
+        type yang:counter32;
+        description
+          "DHCPv6 packets from a Client to a Server that passed this 
+           interface and for which the DHCPv6 LDRA did insert 
+           option 37.
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           DHCPv6 LDRA functionality is disabled/enabled.";
+      }
+
+      leaf option-37-removed-packets-to-client {
+        type yang:counter32;
+        description
+          "DHCPv6 packets from a Server to a Client that passed this 
+           interface and for which the DHCPv6 LDRA did remove 
+           option 37.
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           DHCPv6 LDRA functionality is disabled/enabled.";
+      }
+
+      leaf outgoing-mtu-exceeded-packets-from-client {
+        type yang:counter32;
+        description
+          "DHCPv6 packets from a Client that are dropped because the 
+           Relay-Message size after adding the options would exceed 
+           the MTU of the outgoing interface.
+
+           Discontinuities in the counter can occur at 
+           re-initialization of the management system, and/or when the
+           DHCPv6 LDRA functionality is disabled/enabled.";
+        reference
+          "RFC 6221 section 5.3.1";
+      }
+    }
+  }
+}

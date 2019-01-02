@@ -1,0 +1,193 @@
+submodule bbf-l2-forwarding-split-horizon-profiles {
+  yang-version 1.1;
+  belongs-to bbf-l2-forwarding {
+    prefix bbf-l2-fwd;
+  }
+
+  import bbf-yang-types {
+    prefix bbf-yang;
+  }
+
+  import bbf-interface-usage {
+    prefix bbf-if-usg;
+  }
+
+  include bbf-l2-forwarding-base;
+  include bbf-l2-forwarding-forwarders;
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+
+     Editor:      Ludwig Pauwels, Nokia
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This submodule contains a collection of YANG definitions for 
+     managing split horizon profiles.
+
+     Copyright (c) 2017-2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383_Amendment-1.pdf>";
+  }
+  revision 2017-05-08 {
+    description
+      "Initial revision.
+       * Approval Date:    see revision date above.
+       * Publication Date: 2017-06-02.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383.pdf>";
+  }
+
+  feature split-horizon-profiles {
+    description
+      "Indicates support for split horizon profiles.";
+  }
+
+  augment '/bbf-l2-fwd:forwarding' {
+    description
+      "Augment the configuration nodes associated with layer 2 
+       forwarding with split horizon profile objects.";
+
+    container split-horizon-profiles {
+      if-feature "split-horizon-profiles";
+      description
+        "Split horizon profile configuration.";
+
+      list split-horizon-profile {
+        key "name";
+        description
+          "A profile manages (not) allowed forwarding between various 
+           forwarder ports based on their underlying interface usage.
+           The absence of data for a particular in-interface-usage has
+           a result that from that type of forwarder ports frames are 
+           allowed to be forwarded to any other forwarder port.";
+
+        leaf name {
+          type bbf-yang:string-ascii64;
+          description
+            "The name of the profile.";
+        }
+
+        list split-horizon {
+          key "in-interface-usage";
+          description
+            "Frame forwarding is not allowed from interfaces/ports 
+             that have an interface usage as specified in 
+             in-interface-usage to interfaces/ports that have an 
+             interface usage for which the value is in the leaf-list 
+             out-interface-usages.";
+
+          leaf in-interface-usage {
+            type bbf-if-usg:interface-usage;
+            description
+              "The interface usage from which forwarding is specified 
+               here.";
+          }
+
+          leaf-list out-interface-usage {
+            type bbf-if-usg:interface-usage;
+            description
+              "The interface usage to which frames coming from the 
+               'in-interface-usage' are not allowed to be forwarded. 
+               Frame forwarding to interface usages not configured is 
+               allowed.";
+          }
+        }
+      }
+    }
+  }
+
+  augment '/bbf-l2-fwd:forwarding/bbf-l2-fwd:forwarders/bbf-l2-fwd:'
+        + 'forwarder' {
+    description
+      "Augment the forwarder configuration to add a reference to a
+       split horizon profile.";
+
+    container split-horizon-profiles {
+      if-feature "split-horizon-profiles";
+      description
+        "A split-horizon-profile allows to restrict forwarding between
+         its forwarder ports based on their interface usages. 
+
+         Without split-horizon-profile, packets can be forwarded 
+         within a forwarder from any of its forwarder ports to any 
+         other of its forwarder ports.";
+
+      leaf split-horizon-profile {
+        type leafref {
+          path '/bbf-l2-fwd:forwarding/bbf-l2-fwd:split-horizon-'
+             + 'profiles/bbf-l2-fwd:split-horizon-profile/bbf-l2-'
+             + 'fwd:name';
+        }
+        description
+          "A reference to a split horizon profile associated with a 
+           forwarder.";
+      }
+    }
+  }
+}

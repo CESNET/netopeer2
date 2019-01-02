@@ -1,0 +1,252 @@
+module bbf-qos-policies {
+  yang-version 1.1;
+  namespace "urn:bbf:yang:bbf-qos-policies";
+
+  prefix bbf-qos-pol;
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  import iana-if-type {
+    prefix ianaift;
+  }
+
+  import bbf-if-type {
+    prefix bbfift;
+  }
+
+  import bbf-yang-types {
+    prefix bbf-yang;
+  }
+
+  import bbf-qos-classifiers {
+    prefix bbf-qos-cls;
+  }
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+
+     Editor:      Ludwig Pauwels, Nokia
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This module contains a collection of YANG definitions for 
+     supporting the Broadband Forum requirements on the management of
+     Quality of Service (QoS) as applicable to access network 
+     equipment. As such, this module is specific to access network 
+     equipment (e.g., BBF-specified Access Nodes and FTTdp DPUs).
+
+     Specifically, this module contains a collection of policies 
+     applied to packets. 
+
+     Copyright (c) 2017-2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383_Amendment-1.pdf>";
+  }
+  revision 2017-05-08 {
+    description
+      "Initial revision.
+       * Approval Date:    see revision date above.
+       * Publication Date: 2017-06-02.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383.pdf>";
+  }
+
+  typedef qos-policy-profile-ref {
+    type leafref {
+      path '/bbf-qos-pol:qos-policy-profiles/bbf-qos-pol:policy-'
+         + 'profile/bbf-qos-pol:name';
+    }
+    description
+      "The name of the referenced QoS policy profile.";
+  }
+
+  container policies {
+    description
+      "Configuration associated with policies.";
+
+    list policy {
+      key "name";
+      description
+        "List of policies.";
+
+      leaf name {
+        type bbf-yang:string-ascii64;
+        description
+          "Name of the policy.";
+      }
+
+      leaf description {
+        type bbf-yang:string-ascii64-or-empty;
+        description
+          "Description of the policy.";
+      }
+
+      list classifiers {
+        key "name";
+        ordered-by user;
+        description
+          "Provides a lists of classifiers which are evaluated in 
+           order as specified by the user. When a classifier is 
+           matched, no other classifiers are evaluated.";
+
+        uses bbf-qos-cls:classifier-entry-ref;
+      }
+    }
+  }
+
+  grouping policy-entry-ref {
+    description
+      "A reference to a policy entry.";
+
+    leaf name {
+      type leafref {
+        path '/bbf-qos-pol:policies/bbf-qos-pol:policy/bbf-qos-pol:'
+           + 'name';
+      }
+      description
+        "The name of the referenced policy entry.";
+    }
+  }
+
+  container qos-policy-profiles {
+    description
+      "This container provides a framework for QoS policy profile 
+       configuration.";
+
+    list policy-profile {
+      key "name";
+      description
+        "A list of policy profiles.";
+
+      leaf name {
+        type bbf-yang:string-ascii64;
+        description
+          "Name of the QoS policy profile.";
+      }
+
+      list policy-list {
+        key "name";
+        ordered-by user;
+        description
+          "Provides ordered lists of policies for the ingress and for 
+           the egress direction.
+
+           The definition is that all policies are executed in the  
+           order of the list. The output of one policy is used as 
+           input for the next policy.";
+
+        uses policy-entry-ref;
+      }
+    }
+  }
+
+  augment '/if:interfaces/if:interface' {
+    when
+      "derived-from-or-self(if:type, 'ianaift:ethernetCsmacd') or
+       derived-from-or-self(if:type, 'ianaift:ieee8023adLag') or
+       derived-from-or-self(if:type, 'ianaift:ptm') or
+       derived-from-or-self(if:type, 'bbfift:vlan-sub-interface')" {
+      description
+        "Interfaces that can have QoS policy profiles assigned.";
+    }
+
+    description
+      "Interfaces that can have QoS policy profiles assigned. 
+
+       If several interfaces linked by a parent-child
+       relationship in the interface stack are configured with 
+       a QOS policy of the same type (e.g. ingress-qos-policy), 
+       then all QOS policies must be applied sequentially.
+
+       In the case of ingress, the QOS policy on the lower-level 
+       interface(s) (e.g. ethernetCsmacd) must first be applied before
+       the one on the upper-level interface(s) (e.g. 
+       vlan-sub-interface). 
+
+       In the case of egress, the QOS policy on the upper-level 
+       interface(s) (e.g. vlan-sub-interface) must first be applied 
+       before the one on the lower-level interface(s) (e.g.
+       ethernetCsmacd).";
+
+    leaf ingress-qos-policy-profile {
+      type qos-policy-profile-ref;
+      description
+        "A reference to a QoS policy profile. The profile is to be 
+         applied to incoming packets.";
+    }
+
+    leaf egress-qos-policy-profile {
+      type qos-policy-profile-ref;
+      description
+        "A reference to a QoS policy profile. The profile is to be 
+         applied to outgoing packets.";
+    }
+  }
+}

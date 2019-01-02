@@ -1,0 +1,469 @@
+submodule bbf-ghn-types {
+  yang-version 1.1;
+  belongs-to bbf-ghn {
+    prefix bbf-ghn;
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Marcos Martinez, Marvell Semiconductor Inc.
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This module contains a set of G.hn-related types 
+     used through the yang G.hn model
+
+     Copyright (c) 2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-374; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-374: Yang Modules for Management of G.hn Systems in FTTdp 
+               Architecture <https://www.broadband-forum.org/technical
+                                     /download/TR-374.pdf>";
+  }
+
+  typedef cycle-duration {
+    type union {
+      type uint8 {
+        range "5..100";
+      }
+      type enumeration {
+        enum "powerline" {
+          description
+            "Indicates that the Medium Access Control (MAC) cycle 
+             length is 2 alternate current (AC) cycles.";
+        }
+      }
+    }
+    units "milliseconds";
+    description
+      "Duration in ms of the MAC cycle.";
+    reference
+      "ITU-T G.9961 clause 8.2.2";
+  }
+
+  typedef domain-name {
+    type string {
+      pattern '[0-9a-fA-F]{32}';
+    }
+    description
+      "Domain Name of the G.hn domain connected to this interface.";
+    reference
+      "ITU-T G.9961 clause 8.6.1";
+  }
+
+  typedef device-id {
+    type uint8 {
+      range "0..250";
+    }
+    description
+      "Device ID of a G.hn node.";
+    reference
+      "ITU-T G.9961 clause 8.7.1.1";
+  }
+
+  typedef sub-carrier-grouping {
+    type uint8 {
+      range "1 | 2 | 4 | 8 | 16";
+    }
+    description
+      "Group ID selected for reporting the 
+       Bit Allocation Table (BAT).";
+    reference
+      "ITU-T G.9960 Table 7-13";
+  }
+
+  typedef tid {
+    type uint16 {
+      range "0..4095";
+    }
+    description
+      "Sub-carrier index information.";
+    reference
+      "ITU-T G.9961 clause 8.11";
+  }
+
+  typedef bpc {
+    type binary;
+    description
+      "A binary type where each octet represents data belonging to
+       a sub-carrier group. The first octet represents sub-carrier
+       group 0.";
+  }
+
+  typedef dni {
+    type string {
+      pattern '[0-9a-fA-F]{4}';
+    }
+    description
+      "Domain Name Identifier of the G.hn domain.";
+    reference
+      "ITU-T G.9961 clause 8.6.8.2.1";
+  }
+
+  typedef oui {
+    type yang:hex-string {
+      length "3";
+    }
+    description
+      "Organizationally Unique Identifier (OUI).";
+    reference
+      "IEEE standards association - Registration authority
+       (http://standards.ieee.org/develop/regauth";
+  }
+
+  typedef encryption-mode {
+
+    type enumeration {
+      enum "nn" {
+        description
+          "This parameter represents a Node to Node key (NN).";
+      }
+      enum "nmk" {
+        description
+          "This parameter represents a Network Membership key
+           (NMK).";
+      }
+      enum "none" {
+        description
+          "No data encryption is used.";
+      }
+    }
+    description
+      "Encryption mode of the G.hn domain.";
+    reference
+      "ITU-T G.9961 clause 9";
+  }
+
+  typedef bandplan {
+
+    type enumeration {
+      enum "25-mhz-pb" {
+        description
+          "Node operating in the 25 MHz-PB bandplan.";
+      }
+      enum "50-mhz-pb" {
+        description
+          "Node operating in the 50 MHz-PB bandplan.";
+      }
+      enum "100-mhz-pb" {
+        description
+          "Node operating in the 100 MHz-PB bandplan.";
+      }
+      enum "50-mhz-tb" {
+        description
+          "Node operating in the 50 MHz-TB bandplan.";
+      }
+      enum "100-mhz-tb" {
+        description
+          "Node operating in the 100 MHz-TB bandplan.";
+      }
+      enum "200-mhz-tb" {
+        description
+          "Node operating in the 200 MHz-TB bandplan.";
+      }
+      enum "50-mhz-cb" {
+        description
+          "Node operating in the 50 MHz-CB bandplan.";
+      }
+      enum "100-mhz-cb" {
+        description
+          "Node operating in the 100 MHz-CB bandplan.";
+      }
+      enum "200-mhz-cb" {
+        description
+          "Node operating in the 200 MHz-CB bandplan.";
+      }
+      enum "50-mhz-crf" {
+        description
+          "Node operating in the 50 MHz-CRF bandplan.";
+      }
+      enum "100-mhz-crf" {
+        description
+          "Node operating in the 100 MHz-CRF bandplan.";
+      }
+    }
+    description
+      "Valid bandplan definitions.";
+    reference
+      "ITU-T G.9960 clause 6";
+  }
+
+  typedef medium {
+
+    type enumeration {
+      enum "plc" {
+        description
+          "Powerline-medium.";
+        reference
+          "ITU-T G.9964 clause 6.2";
+      }
+      enum "coaxial" {
+        description
+          "Coaxial-medium.";
+        reference
+          "ITU-T G.9964 clause 6.3";
+      }
+      enum "phoneline" {
+        description
+          "Phone-line-medium.";
+        reference
+          "ITU-T G.9964 clause 6.1";
+      }
+      enum "pof" {
+        description
+          "Plastic-Optical-Fiber.";
+        reference
+          "ITU-T G.9960 annex F";
+      }
+    }
+    description
+      "Medium used by this interface.";
+    reference
+      "ITU-T G.9960 and ITU-T G.9964";
+  }
+  typedef medium-access {
+
+    type enumeration {
+      enum "siso" {
+        description
+          "Single-input; Single output medium access.";
+      }
+      enum "mimo" {
+        description
+          "Multiple-input; Multiple output medium access.";
+      }
+    }
+    description
+      "Medium access used by this interface.";
+    reference
+      "ITU-T G.9963";
+  }
+
+  typedef last-event {
+    type uint32;
+    units "seconds";
+    description
+      "Number of seconds That passed since the last event.";
+  }
+
+  typedef event-counter32-or-unknown {
+    type union {
+      type uint32;
+      type enumeration {
+        enum "unknown" {
+          description
+            "Indicates that the state of this counter is unknown.";
+        }
+      }
+    }
+    description
+      "An event-counter32-or-unknown type represents a 
+       non-negative integer which may increase but shall never
+       exceed a maximum value.  The maximum value can not be 
+       greater than 2^32-1 (4294967295 decimal).
+       The default value for the maximum value is 2^32-1.
+       The value of a event-counter32-or-inactive has its
+       maximum value whenever the information being modeled is
+       greater than or equal to its maximum value.
+       A special value (enum unknown) indicates that the value of 
+       this counter is unknown is not active on the line.";
+  }
+
+  typedef forced-resignation-cause {
+    type enumeration {
+      enum "unknown" {
+        description
+          "Unknown cause of forced resignation.";
+      }
+      enum "sc-failure" {
+        description
+          "Security Controller not found in the domain.";
+      }
+    }
+    description
+      "Cause of a forced resignation.";
+    reference
+      "ITU-T G.9961 clause 8.6.1.1.4.5";
+  }
+
+  typedef unsuccessful-registration-cause {
+    type enumeration {
+      enum "unespecified" {
+        description
+          "No reason specified for unsuccessful registration.";
+      }
+      enum "insufficient-bandwidth" {
+        description
+          "Insufficient bandwidth resources.";
+      }
+      enum "invalid-parameters" {
+        description
+          "Invalid set of registration parameters.";
+      }
+      enum "invalid-regid" {
+        description
+          "Invalid REGID.";
+      }
+      enum "admission-limit-expired" {
+        description
+          "Admission limit expired.";
+      }
+      enum "domain-master-authentication" {
+        description
+          "Domain Master not authenticated.";
+      }
+      enum "invalid-bandplan" {
+        description
+          "Reported bandplan is outside the range indicated
+           by the minimum and maximum bandplan allowed in the
+           domain.";
+      }
+      enum "domain-master-in-t2" {
+        description
+          "Domain Master is in t2 interval.";
+      }
+    }
+    description
+      "Cause of an unsuccessful registration.";
+    reference
+      "ITU-T G.9961 clause 8.6.1.1.1";
+  }
+
+  typedef mac-address {
+
+    type enumeration {
+      enum "regid" {
+        description
+          "The MAC address corresponds to a REGID of a G.hn node.";
+      }
+      enum "client" {
+        description
+          "The MAC address corresponds to a client associated to a
+           G.hn node.";
+      }
+    }
+    description
+      "Type of MAC address.";
+    reference
+      "ITU-T G.9961 clause 8.1.2";
+  }
+
+  typedef percentage-or-inactive {
+    type union {
+      type uint32;
+      type enumeration {
+        enum "inactive" {
+          description
+            "Indicates that this setting shall be ignored.";
+        }
+      }
+    }
+    units "%";
+    description
+      "Describes a parameter that can be set as a percentage.
+       The value inactive is used to indicate that the parameter
+       is not used and shall be ignored.";
+  }
+
+  typedef number-of-sub-carrier-mask {
+    type uint8 {
+      range "0..32";
+    }
+    units "masks";
+    description
+      "Number of sub-carrier masks defined";
+    reference
+      "ITU-T G.9961 clause 8.8.5.5.";
+  }
+
+  typedef number-of-radio-amateur-mask {
+    type uint8 {
+      range "0..10";
+    }
+    units "masks";
+    description
+      "Number of radio-amateur masks defined.";
+    reference
+      "ITU-T G.9961 clause 8.8.5.5";
+  }
+
+  typedef data-rate {
+    type uint32;
+    units "1024 bit/second";
+    description
+      "Data rate in kbps.";
+  }
+
+  typedef group-size {
+    type uint8 {
+      range "0..4";
+    }
+    description
+      "Group size for channel estimation.";
+    reference
+      "ITU-T G.9960 Table 7-13";
+  }
+}

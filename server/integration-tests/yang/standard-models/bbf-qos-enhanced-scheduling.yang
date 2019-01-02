@@ -1,0 +1,340 @@
+module bbf-qos-enhanced-scheduling {
+  yang-version 1.1;
+  namespace "urn:bbf:yang:bbf-qos-enhanced-scheduling";
+
+  prefix bbf-qos-sched;
+
+  import bbf-yang-types {
+    prefix bbf-yang;
+  }
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  import bbf-if-type {
+    prefix bbfift;
+  }
+
+  import bbf-qos-traffic-mngt {
+    prefix bbf-qos-tm;
+  }
+
+  import bbf-qos-shaping {
+    prefix bbf-qos-shap;
+  }
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+
+     Editor:      Ludwig Pauwels, Nokia
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This module contains a collection of YANG definitions for 
+     supporting the Broadband Forum requirements on the management of
+     Quality of Service (QoS) as applicable to access network 
+     equipment. As such, this module is specific to access network 
+     equipment (e.g., BBF-specified Access Nodes and FTTdp DPUs).
+
+     Specifically, this module contains a collection of enhanced 
+     traffic scheduling configuration.
+
+     Copyright (c) 2017-2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383_Amendment-1.pdf>";
+  }
+
+  grouping child-scheduling {
+    description
+      "A grouping that models the method to schedule from child 
+       schedulers.";
+
+    choice scheduling-type {
+      description
+        "Defines the child node's type of a scheduling node in 
+         case of hierachical scheduling.";
+      case inline {
+        uses bbf-qos-tm:scheduling-gen-attr;
+      }
+    }
+  }
+
+  augment '/if:interfaces/if:interface/bbf-qos-tm:tm-root/bbf-qos-'
+        + 'tm:children-type' {
+    description
+      "Extends the traffic management root with a possibility to have 
+       a scheduling hierarchy.";
+
+    case scheduler-node {
+      description
+        "The data to manage a scheduling hierarchy. A scheduling 
+         hierarchy starts with schedulers and ends with schedulers 
+         that contain queues. The schedulers are organized as a flat 
+         list where the hierarchy is managed through references from 
+         'parent' schedulers to 'child' schedulers.";
+
+      list scheduler-node {
+        key "name";
+        description
+          "A list of schedulers. A scheduler will be at a position in 
+           a hierarchy as specified through references. A particular 
+           scheduler will get its input from its childs from which it 
+           merges the traffic into a single output stream. This output
+           can be shaped if a reference to a shaper-profile is 
+           configured.";
+
+        leaf name {
+          type bbf-yang:string-ascii64;
+          description
+            "A name of scheduler-node.";
+        }
+
+        leaf description {
+          type bbf-yang:string-ascii64;
+          description
+            "A free format description assigned to this scheduler.
+             It can be used to identify the purpose of the
+             scheduler instance in the hierarchy. For example, the
+             description could be the name of an interface in the 
+             hierarchy of an interface stack.";
+        }
+
+        leaf scheduling-level {
+          type uint8;
+          mandatory true;
+          description
+            "The level of a scheduler helps in organizing a hierarchy.
+             The requirement is that the scheduling level of a parent 
+             must be lower than the scheduling-level of its referenced
+             children.";
+        }
+
+        uses bbf-qos-shap:shaper-profile-ref;
+
+        choice children-type {
+          description
+            "Defines the child's node type of a scheduling node in 
+             case of hierachical scheduling.";
+          case scheduler-node {
+            description
+              "The children are a list of scheduler-nodes.";
+
+            list child-scheduler-nodes {
+              key "name";
+              description
+                "Provides a child scheduler nodes list and related 
+                 scheduling data.";
+              leaf name {
+                type leafref {
+                  path '../../bbf-qos-sched:name';
+                }
+
+                must
+                  "../../../bbf-qos-sched:scheduler-node
+                   [bbf-qos-sched:name=current()]
+                   /scheduling-level>
+                   current()/../../scheduling-level" {
+
+                  error-message
+                    "The scheduler-level should be bigger than the 
+                     value of parent node.";
+                }
+
+                description
+                  "The name of the referenced scheduling-nodes entry.
+                   The child scheduler nodes must locate on the same 
+                   Traffic Management (TM) root with the parent 
+                   scheduler node. 
+
+                   The scheduling level of the child scheduler node
+                   must be higher than the scheduling level of the 
+                   parent scheduler node.";
+              }
+              uses child-scheduling;
+            }
+          }
+
+          case queue {
+            description
+              "The children are a list of queues.";
+
+            leaf contains-queues {
+              type boolean;
+              default "true";
+              description
+                "Indicates the scheduler contains queues.";
+            }
+
+            uses bbf-qos-tm:queues;
+          }
+        }
+      }
+      list child-scheduler-nodes {
+        key "name";
+        description
+          "Provides the list of direct child scheduler nodes of the 
+           traffic management root.";
+
+        leaf name {
+          type leafref {
+            path '../../bbf-qos-sched:scheduler-node/bbf-qos-sched:'
+               + 'name';
+          }
+
+          description
+            "The first set of schedulers that are scheduled from the 
+             traffic management root.";
+        }
+        uses child-scheduling;
+      }
+    }
+  }
+
+  augment '/if:interfaces/if:interface/bbf-qos-tm:tm-root/bbf-qos-'
+        + 'tm:children-type/bbf-qos-sched:scheduler-node/bbf-qos-'
+        + 'sched:scheduler-node/bbf-qos-sched:children-type/bbf-'
+        + 'qos-sched:queue/bbf-qos-sched:queue/bbf-qos-sched:queue-'
+        + 'scheduling-cfg-type/bbf-qos-sched:inline' {
+    description
+      "Augment a queue defined within a scheduler with extra data.";
+
+    uses bbf-qos-shap:shaper-profile-ref;
+  }
+
+  grouping scheduler-containing-queues-ref {
+    description
+      "An absolute reference to a scheduling node.";
+
+    leaf root-if-name {
+      type leafref {
+        path '/if:interfaces/if:interface/if:name';
+      }
+      description
+        "The name of the referenced interface that is the traffic 
+         management root of a scheduling hierarchy. This interface 
+         must be a lower layer interface of the interface that 
+         contains the reference to it. However, due to interface 
+         stacking it is not necessarily the adjacent lower layer 
+         interface.";
+    }
+
+    leaf scheduler-node-name {
+      type leafref {
+        path '/if:interfaces/if:interface[if:name = current()/../'
+           + 'root-if-name]/bbf-qos-tm:tm-root/bbf-qos-sched:'
+           + 'scheduler-node/bbf-qos-sched:name';
+      }
+
+      must
+        "/if:interfaces/if:interface[if:name =
+         current()/../root-if-name]/bbf-qos-tm:tm-root
+         /bbf-qos-sched:scheduler-node
+         [bbf-qos-sched:name=current()]
+         /bbf-qos-sched:contains-queues = 'true'" {
+
+        error-message
+          "The referenced scheduler must contain queues.";
+      }
+
+      description
+        "The name of the referenced scheduling-nodes entry.";
+    }
+  }
+
+  augment '/if:interfaces/if:interface' {
+    when
+      "derived-from-or-self(if:type, 
+       'bbfift:vlan-sub-interface')" {
+      description
+        "Augments a VLAN sub-interface.";
+    }
+
+    description
+      "Augments a VLAN sub-interface with configuration that links it 
+       to traffic management configuration.";
+
+    container egress-tm-objects {
+      description
+        "Defines the traffic management node(s), to which the 
+         egress traffic of the interface shall be directed to.";
+
+      choice select-tm-objects-method {
+        description
+          "Choice of a type of traffic management node.";
+
+        case scheduler {
+          description
+            "The traffic will be directed to a single scheduler. This 
+             scheduler must contain queues. The queue selection for a 
+             packet is based on a tc-id-2-queue-id-mapping-profile.";
+
+          uses scheduler-containing-queues-ref;
+        }
+      }
+    }
+  }
+}

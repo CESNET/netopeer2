@@ -1,0 +1,249 @@
+module bbf-sub-interfaces {
+  yang-version 1.1;
+  namespace "urn:bbf:yang:bbf-sub-interfaces";
+
+  prefix bbf-subif;
+
+  import iana-if-type {
+    prefix ianaift;
+  }
+
+  import ietf-interfaces {
+    prefix if;
+  }
+
+  import bbf-yang-types {
+    prefix bbf-yang;
+  }
+
+  import bbf-if-type {
+    prefix bbfift;
+  }
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Project Stream";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+                  <mailto:joey.boyd@adtran.com>
+
+     Editor:      Ludwig Pauwels, Nokia
+                  <mailto:ludwig.pauwels@nokia.com>
+
+     PS Leader:   Michael Shaffer, Nokia
+                  <mailto:michael.shaffer@nokia.com>
+
+     PS Leader:   William Lupton, Broadband Forum
+                  <mailto:wlupton@broadband-forum.org>";
+
+  description
+    "This module contains a collection of YANG definitions for 
+     supporting the Broadband Forum requirements on the management of
+     sub-interfaces as applicable to access network equipment. As 
+     such, this module is specific to access network equipment (e.g., 
+     BBF-specified Access Nodes and FTTdp DPUs).
+
+     Copyright (c) 2017, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2017-05-08 {
+    description
+      "Initial revision.
+       * Approval Date:    see revision date above.
+       * Publication Date: 2017-06-02.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383.pdf>";
+  }
+
+  feature tag-rewrites {
+    description
+      "This feature indicates whether the network element supports the
+       flexible rewrite functionality specifying flexible tag 
+       rewrites.";
+  }
+
+
+  augment '/if:interfaces/if:interface' {
+    when "derived-from-or-self (if:type, 'bbfift:sub-interface')" {
+      description
+        "Common data that defines the relationship between the 
+         sub-interface and its lower-layer interface.";
+    }
+    description
+      "Add a reference pointing to a lower-layer interface to those 
+       interfaces that are of the type sub-interface.";
+
+    container subif-lower-layer {
+      description
+        "Links the sub-interface to a lower-layer interface.";
+
+      leaf interface {
+        type if:interface-ref;
+
+        must
+          "derived-from-or-self(
+           /if:interfaces/if:interface[if:name = current()]
+           /if:type,'ianaift:ethernetCsmacd')
+           or
+           derived-from-or-self(
+           /if:interfaces/if:interface[if:name = current()]
+           /if:type,'ianaift:ieee8023adLag')
+           or
+           derived-from-or-self(
+           /if:interfaces/if:interface[if:name = current()]
+           /if:type,'ianaift:ptm')
+           or
+           derived-from-or-self(
+           /if:interfaces/if:interface[if:name = current()]
+           /if:type,'bbfift:sub-interface') ";
+
+        mandatory true;
+
+        description
+          "References the lower-layer interface.";
+      }
+    }
+
+    choice frame-processing {
+      description
+        "Configuration of frame processing.";
+
+      case inline-frame-processing {
+
+        container inline-frame-processing {
+          description
+            "The frame processing refers to both directions:
+             - Ingress, which refers to packets received from the 
+               lower-layer interface.
+             - Egress, which refers to packets received from a higher 
+               layer of the interface stack, or from a forwarder, and 
+               to be transmitted to the lower-layer of the interface 
+               stack.
+             - In the ingress direction classification criteria 
+               identify whether a received packet shall be offered to 
+               this sub-interface.
+             - For both the ingress and egress direction, rewrite = 
+               tag manipulations can be supported.";
+
+          container ingress-rule {
+            description
+              "The match used to classify ingress frames to this 
+               sub-interface, and it allows to specify re-tagging 
+               actions before sending it to higher layers in the 
+               interface stack or to a forwarder.";
+
+            list rule {
+              key "name";
+              min-elements 1;
+
+              description
+                "A rule contains a classification and for packets that
+                 match this classification it specifies an ingress tag
+                 manipulation action.
+
+                 The definition is: first match, then stop searching 
+                 for matches with other rules, then execute the 
+                 ingress-rewrite actions specified in this rule.";
+
+              leaf name {
+                type bbf-yang:string-ascii64;
+                description
+                  "The rule name.";
+              }
+
+              leaf priority {
+                type uint16 {
+                  range "1..max";
+                }
+                mandatory true;
+
+                description
+                  "This field indicates the priority for applying the 
+                   match criteria of this rule against the priority of
+                   match criteria of other rules of this and other 
+                   sub-interfaces on the same parent-interface.
+
+                   The higher the value, the lower the priority, i.e. 
+                   priority 1 is the highest priority.";
+              }
+
+              container flexible-match {
+                description
+                  "This container provides a generic framework to 
+                   specify match criteria for frame fields. Specific 
+                   match criteria shall be provided using augments in 
+                   a context dependent way, e.g. match criteria can be
+                   augmented for VLAN tagged frames, or in another 
+                   context match criteria can be augmented for MPLS 
+                   frames.";
+              }
+
+              container ingress-rewrite {
+                if-feature "tag-rewrites";
+                description
+                  "Ingress rewrite refers to the supported tag 
+                   manipulations before the frame is offered to a 
+                   higher layer interface or to a forwarder.";
+              }
+            }
+          }
+
+          container egress-rewrite {
+            if-feature "tag-rewrites";
+            description
+              "Egress refers to packets sent from the sub-interface 
+               towards the the lower-layer in the interface stack, 
+               i.e. in the direction of the physical interface. 
+               Rewrite refers to the supported tag manipulations.";
+          }
+        }
+      }
+    }
+  }
+}

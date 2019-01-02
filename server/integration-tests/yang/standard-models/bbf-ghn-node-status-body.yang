@@ -1,0 +1,281 @@
+submodule bbf-ghn-node-status-body {
+  yang-version 1.1;
+  belongs-to bbf-ghn {
+    prefix bbf-ghn;
+  }
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+
+  include bbf-ghn-types;
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Marcos Martinez, Marvell Semiconductor Inc.
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This module contains a collection of node status-related
+     state data
+
+     Copyright (c) 2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-374; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-374: Yang Modules for Management of G.hn Systems in FTTdp 
+               Architecture <https://www.broadband-forum.org/technical
+                                     /download/TR-374.pdf>";
+  }
+
+  grouping forced-resignation-event-group {
+
+    description
+      "Event information including time and cause.";
+
+    leaf event-time {
+      type yang:date-and-time;
+      description
+        "Time of the last event.";
+    }
+
+    leaf event-cause {
+      type bbf-ghn:forced-resignation-cause;
+      description
+        "Cause of the last forced resignation of the node.";
+    }
+  }
+
+  grouping unsuccessful-registration-event-group {
+
+    description
+      "Event information including time and cause.";
+
+    leaf event-time {
+      type yang:date-and-time;
+      description
+        "Time of the last event.";
+    }
+
+    leaf event-cause {
+      type bbf-ghn:unsuccessful-registration-cause;
+      description
+        "Cause of the last unsuccessful registration of the node.";
+    }
+  }
+
+  grouping mac-table-entry {
+    description
+      "Entry in a table of Address Association Table (AAT)
+       The table can be locat (LAAT) or Remote (RAAT).";
+
+    leaf mac-entry {
+      type yang:mac-address;
+      description
+        "MAC Address stored in the Address Association Table (AAT) 
+                  table.";
+    }
+    leaf mac-type {
+      type bbf-ghn:mac-address;
+      description
+        "Type of MAC Address stored in the AAT table.";
+    }
+  }
+
+  grouping aat-table-group {
+
+    description
+      "Grouping including a list of Medium Access Control (MAC) 
+       creating a remote ot local G.hn Address Association Table.";
+
+    list laat {
+
+      key "mac-entry";
+      description
+        "Local Address Association Table (LAAT).";
+      reference
+        "ITU-T G.9961 clause 8.5.3";
+
+      uses mac-table-entry;
+    }
+
+    list raat {
+
+      key "mac-entry";
+      description
+        "Local Address Association Table (RAAT).";
+      reference
+        "ITU-T G.9961 clause 8.5.3";
+
+      uses mac-table-entry;
+    }
+  }
+
+  grouping node-status-parameters {
+    description
+      "Node status parameters.";
+
+    leaf is-dm {
+      type boolean;
+      description
+        "True if the node is a Domain Master (DM). 
+         False if it is an End Point (EP).";
+      reference
+        "ITU-T G.9960 clauses 5.1.2.1 and 5.1.2.2";
+    }
+
+    leaf device-id {
+      type bbf-ghn:device-id;
+      description
+        "The DeviceID of the node.";
+      reference
+        "ITU-T G.9961 clause 8.7.1.1";
+    }
+
+    leaf dm-capable {
+      type boolean;
+      description
+        "True if the node is capable of being DM. 
+         False if it is not.";
+      reference
+        "ITU-T G.9960 clauses 5.1.2.1 and 5.1.2.2";
+    }
+
+    leaf sc-capable {
+      type boolean;
+      description
+        "True if the node is capable of being Security 
+         Controller (SC). False if it is not.";
+      reference
+        "ITU-T G.9961 clause 9";
+    }
+
+    leaf bandplan {
+      type bbf-ghn:bandplan;
+      description
+        "Bandplan used by the node operating
+         in the G.hn domain.";
+      reference
+        "ITU-T G.9960 clause 6";
+    }
+
+    leaf is-sc {
+      type boolean;
+      description
+        "True if the node is a SC. False if it is an EP.";
+      reference
+        "ITU-T G.9961 clause 9";
+    }
+
+    leaf medium {
+      type bbf-ghn:medium;
+      description
+        "Medium type of the interface.";
+      reference
+        "ITU-T G.9960 and G.9964";
+    }
+
+    leaf medium-access-type {
+      type bbf-ghn:medium-access;
+      description
+        "Medium access used by this interface.";
+      reference
+        "ITU-T G.9963";
+    }
+
+    leaf up-time {
+      type last-event;
+      description
+        "Number of seconds since the last boot of the interface.";
+    }
+
+    leaf boot-count {
+      type bbf-ghn:event-counter32-or-unknown;
+      description
+        "Number of boots of the node.";
+    }
+
+    container last-forced-resignation {
+
+      description
+        "Last forced resignation event information.";
+
+      uses forced-resignation-event-group;
+    }
+
+    container last-unsuccessful-registration {
+
+      description
+        "Last unsuccessful registration event information.";
+
+      uses unsuccessful-registration-event-group;
+    }
+
+    container aat {
+      description
+        "Unicast routing table - Address Association Table (AAT).";
+      reference
+        "ITU-T G.9961 clause 8.6.4.1.1.1";
+
+      uses aat-table-group;
+    }
+  }
+}

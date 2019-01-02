@@ -1,0 +1,263 @@
+submodule bbf-l2-forwarding-mac-learning-control {
+  yang-version 1.1;
+  belongs-to bbf-l2-forwarding {
+    prefix bbf-l2-fwd;
+  }
+
+  import bbf-yang-types {
+    prefix bbf-yang;
+  }
+
+  import bbf-interface-usage {
+    prefix bbf-if-usg;
+  }
+
+  include bbf-l2-forwarding-base;
+  include bbf-l2-forwarding-forwarders;
+  include bbf-l2-forwarding-forwarding-databases;
+
+  organization
+    "Broadband Forum <https://www.broadband-forum.org>
+     Common YANG Work Area";
+
+  contact
+    "Comments or questions about this Broadband Forum YANG module
+     should be directed to <mailto:help@broadband-forum.org>.
+
+     Editor:      Joey Boyd, ADTRAN
+
+     Editor:      Ludwig Pauwels, Nokia
+
+     PS Leader:   Joey Boyd, ADTRAN
+
+     PS Leader:   Ken Kerpez, ASSIA
+
+     WA Director: Joey Boyd, ADTRAN
+
+     WA Director: Sven Ooghe, Nokia";
+
+  description
+    "This submodule contains a collection of YANG definitions for 
+     managing MAC address learning constraints, i.e. to constrain MAC 
+     learning rules compared with the standard IEEE MAC learning.
+
+     Copyright (c) 2017-2018, Broadband Forum
+
+     Redistribution and use in source and binary forms, with or
+     without modification, are permitted provided that the following
+     conditions are met:
+
+     1. Redistributions of source code must retain the above copyright
+        notice, this list of conditions and the following disclaimer.
+
+     2. Redistributions in binary form must reproduce the above
+        copyright notice, this list of conditions and the following
+        disclaimer in the documentation and/or other materials
+        provided with the distribution.
+
+     3. Neither the name of the copyright holder nor the names of its
+        contributors may be used to endorse or promote products
+        derived from this software without specific prior written
+        permission.
+
+     THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+     CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+     INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+     MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+     DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+     CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+     SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+     NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+     CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+     STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+     ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+     The above license is used as a license under copyright only.
+     Please reference the Forum IPR Policy for patent licensing terms
+     <https://www.broadband-forum.org/ipr-policy>.
+
+     Any moral rights which are necessary to exercise under the above
+     license grant are also deemed granted under this license.
+
+     This version of this YANG module is part of TR-383; see
+     the TR itself for full legal notices.";
+
+  revision 2018-07-13 {
+    description
+      "Initial revision.
+       * Approval Date:    2018-06-04.
+       * Publication Date: see revision date above.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383_Amendment-1.pdf>";
+  }
+  revision 2017-05-08 {
+    description
+      "Initial revision.
+       * Approval Date:    see revision date above.
+       * Publication Date: 2017-06-02.";
+    reference
+      "TR-383: Common YANG Modules
+               <https://www.broadband-forum.org/technical/download/
+                        TR-383.pdf>";
+  }
+
+  feature mac-learning-control-profiles {
+    description
+      "Indicates support for MAC address learning control profiles.";
+  }
+
+  augment '/bbf-l2-fwd:forwarding' {
+    description
+      "Augment the configuration nodes associated with layer 2 
+       forwarding with MAC address learning control profile objects.";
+
+    container mac-learning-control-profiles {
+      if-feature
+        "forwarding-databases and mac-learning and 
+         mac-learning-control-profiles";
+      description
+        "Contains a set of MAC address learning control profiles.";
+
+      list mac-learning-control-profile {
+        key "name";
+
+        description
+          "The configuration of a MAC address learning control 
+           profile.
+
+           A profile controls the MAC address learning behavior that 
+           deviates from the default MAC learning in an IEEE bridge, 
+           i.e. that behavior that deviates from 'learn on the last 
+           port or interface on which a frame with the corresponding 
+           source MAC address is received'. This implies that the 
+           default behavior is that the MAC address is always learned
+           and that MAC movement is allowed from any port or interface
+           to any other port or interface, except if this would be in 
+           conflict with static MAC address configuration.";
+
+        leaf name {
+          type bbf-yang:string-ascii64;
+          description
+            "The name of a MAC address learning control profile.";
+        }
+
+        list mac-learning-rule {
+          key "receiving-interface-usage";
+
+          description
+            "Defines what to do when a frame is received with a 
+             particular source MAC address and this MAC address is not
+             yet stored on that port or interface.";
+
+          leaf receiving-interface-usage {
+            type bbf-if-usg:interface-usage;
+
+            description
+              "Defines MAC address learning rules for frames received
+               on a port for which the interface usage of the 
+               underlying interface is of this value.";
+          }
+          choice mac-learning-action {
+            description
+              "Specifies how to learn a MAC address on a port or 
+               interface that has a usage specified by the leaf 
+               receiving-interface-usage.";
+
+            case learn-and-translate {
+              description
+                "In case this is not in conflict with static MAC 
+                 address configuration, then the (source) MAC address 
+                 will be learned on the port or interface where the 
+                 frame is received, and the system will perform 
+                 (source) MAC address translation before forwarding 
+                 the frame.";
+
+              reference
+                "TR-101i2: Migration to Ethernet-Based DSL Aggregation
+                 R-111";
+            }
+            case learn-but-do-not-move {
+              description
+                "In case the source MAC address is not known in the 
+                 forwarding database on any other port or interface, 
+                 and in case a possible learning is not in conflict 
+                 with any static MAC address configuration
+                 then it is learned on the port or interface on which 
+                 the frame is received (in case other criteria such as
+                 specified by the leaf max-number-mac-addresses 
+                 allow).
+
+                 In case the MAC address was already known in the 
+                 forwarding database, where it was associated to a 
+                 port or interface, and a possible learning is not in
+                 conflict with any static MAC address configuration
+                 then MAC movement is restricted:
+                 the MAC address can not move and the frame will be 
+                 discarded in case the interface usage of the port or 
+                 interface where the frame is received is part of the 
+                 leaf-list mac-can-not-move-to of the list entry 
+                 identified by the interface usage of the port or 
+                 interface where the MAC address was already 
+                 associated to. The MAC address can move in case the 
+                 interface usage of the port or interface where the 
+                 frame is received is not part of this list.";
+
+              reference
+                "TR-101i2: Migration to Ethernet-Based DSL Aggregation
+                 R-112 and R-113";
+
+              leaf-list mac-can-not-move-to {
+                type bbf-if-usg:interface-usage;
+
+                description
+                  "Provides a list of interface-usage values to which
+                   MAC addresses can not move.";
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  augment '/bbf-l2-fwd:forwarding/bbf-l2-fwd:forwarding-databases/'
+        + 'bbf-l2-fwd:forwarding-database' {
+    if-feature "forwarding-databases";
+    description
+      "Augment the forwarder configuration with configuration for MAC
+       address learning control.";
+
+    container mac-learning-control {
+      if-feature "mac-learning and mac-learning-control-profiles";
+      description
+        "The MAC learning control defines how the system shall act
+         when a frame is received for which the source MAC address was
+         not learned before on the port or interface where the frame
+         is received.";
+
+      leaf mac-learning-control-profile {
+        type leafref {
+          path '/bbf-l2-fwd:forwarding/bbf-l2-fwd:mac-learning-'
+             + 'control-profiles/bbf-l2-fwd:mac-learning-control-'
+             + 'profile/bbf-l2-fwd:name';
+        }
+        description
+          "A reference to a MAC address learning control profile.";
+      }
+
+      leaf generate-mac-learning-alarm {
+        type boolean;
+        default "false";
+        description
+          "If true, an alarm shall be generated on an attempt of a not
+           allowed MAC movement. Allowed / not allowed MAC movements 
+           are controlled via the referenced entry in the list
+           mac-learning-control-profile.";
+      }
+    }
+  }
+}
