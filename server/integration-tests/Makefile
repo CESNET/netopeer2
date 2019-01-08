@@ -1,6 +1,6 @@
 DOCKER_NAME := netopeer2-integration-test-env
 INTEGRATION_TEST_DIR ?= $(shell pwd)
-DOCKER_RUN := docker run -it --rm -v $(INTEGRATION_TEST_DIR):/local -v $(INTEGRATION_TEST_DIR)/build/log:/var/log -w /local/tests --privileged $(DOCKER_NAME)
+DOCKER_RUN := if [ -t 1 ] ; then IS_TTY=t ; fi ; docker run -i$$IS_TTY --rm -v $(INTEGRATION_TEST_DIR):/local -v $(INTEGRATION_TEST_DIR)/build/log:/var/log -w /local/tests --privileged $(DOCKER_NAME)
 
 PYTEST_ARGS ?= -x
 
