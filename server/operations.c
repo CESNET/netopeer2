@@ -658,23 +658,31 @@ np2srv_sr_move_item(sr_session_ctx_t *srs, const char *xpath, const sr_move_posi
 }
 
 int
-np2srv_sr_rpc_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *input, const size_t input_cnt,
+np2srv_sr_rpc_send(struct np2_sessions *srs, const char *xpath, const sr_val_t *input, const size_t input_cnt,
         sr_val_t **output, size_t *output_cnt, struct nc_server_reply **ereply)
 {
     int rc = SR_ERR_DISCONNECT;
     struct nc_server_error *e;
 
+    uint32_t netconf_id = 0;
+
+    if (srs->ncs) {
+        netconf_id = nc_session_get_id(srs->ncs);
+    }
+
+    sr_set_netconf_id(srs->srs, netconf_id);
+
     pthread_rwlock_rdlock(&sr_lock);
 
     if (!np2srv.disconnected) {
-        rc = sr_rpc_send(srs, xpath, input, input_cnt, output, output_cnt);
+        rc = sr_rpc_send(srs->srs, xpath, input, input_cnt, output, output_cnt);
     }
 
     if (rc == SR_ERR_DISCONNECT) {
         pthread_rwlock_unlock(&sr_lock);
         pthread_rwlock_wrlock(&sr_lock);
 
-        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+        if ((np2srv.disconnected || (sr_session_check(srs->srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
             pthread_rwlock_unlock(&sr_lock);
 
             if (ereply) {
@@ -707,7 +715,7 @@ np2srv_sr_rpc_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *inp
                 }
                 break;
             default:
-                *ereply = op_build_err_sr(*ereply, srs, rc);
+                *ereply = op_build_err_sr(*ereply, srs->srs, rc);
                 break;
             }
         } else {
@@ -723,23 +731,30 @@ np2srv_sr_rpc_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *inp
 }
 
 int
-np2srv_sr_action_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *input, const size_t input_cnt,
+np2srv_sr_action_send(struct np2_sessions *srs, const char *xpath, const sr_val_t *input, const size_t input_cnt,
         sr_val_t **output, size_t *output_cnt, struct nc_server_reply **ereply)
 {
     int rc = SR_ERR_DISCONNECT;
     struct nc_server_error *e;
+    uint32_t netconf_id = 0;
+
+    if (srs->ncs) {
+        netconf_id = nc_session_get_id(srs->ncs);
+    }
+
+    sr_set_netconf_id(srs->srs, netconf_id);
 
     pthread_rwlock_rdlock(&sr_lock);
 
     if (!np2srv.disconnected) {
-        rc = sr_action_send(srs, xpath, input, input_cnt, output, output_cnt);
+        rc = sr_action_send(srs->srs, xpath, input, input_cnt, output, output_cnt);
     }
 
     if (rc == SR_ERR_DISCONNECT) {
         pthread_rwlock_unlock(&sr_lock);
         pthread_rwlock_wrlock(&sr_lock);
 
-        if ((np2srv.disconnected || (sr_session_check(srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
+        if ((np2srv.disconnected || (sr_session_check(srs->srs) == SR_ERR_DISCONNECT)) && np2srv_sr_reconnect()) {
             pthread_rwlock_unlock(&sr_lock);
 
             if (ereply) {
@@ -772,7 +787,7 @@ np2srv_sr_action_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *
                 }
                 break;
             default:
-                *ereply = op_build_err_sr(*ereply, srs, rc);
+                *ereply = op_build_err_sr(*ereply, srs->srs, rc);
                 break;
             }
         } else {

@@ -76,9 +76,9 @@ int np2srv_sr_get_items_iter(sr_session_ctx_t *srs, const char *xpath, sr_val_it
 int np2srv_sr_get_item_next(sr_session_ctx_t *srs, sr_val_iter_t *iter, sr_val_t **value, struct nc_server_reply **ereply);
 int np2srv_sr_move_item(sr_session_ctx_t *srs, const char *xpath, const sr_move_position_t position,
         const char *relative_item, struct nc_server_reply **ereply);
-int np2srv_sr_rpc_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *input,  const size_t input_cnt,
+int np2srv_sr_rpc_send(struct np2_sessions *srs, const char *xpath, const sr_val_t *input,  const size_t input_cnt,
         sr_val_t **output, size_t *output_cnt, struct nc_server_reply **ereply);
-int np2srv_sr_action_send(sr_session_ctx_t *srs, const char *xpath, const sr_val_t *input,  const size_t input_cnt,
+int np2srv_sr_action_send(struct np2_sessions *srs, const char *xpath, const sr_val_t *input,  const size_t input_cnt,
         sr_val_t **output, size_t *output_cnt, struct nc_server_reply **ereply);
 int np2srv_sr_check_exec_permission(sr_session_ctx_t *srs, const char *xpath, struct nc_server_reply **ereply);
 int np2srv_sr_module_change_subscribe(sr_session_ctx_t *srs, const char *module_name, sr_module_change_cb callback,
