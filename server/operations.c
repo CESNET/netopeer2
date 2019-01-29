@@ -3419,12 +3419,15 @@ op_url_export(const char *url, int printer_options, struct lyd_node *root, struc
     char curl_buffer[CURL_ERROR_SIZE];
     struct nc_server_error *e;
     struct lyd_node *config;
+    struct lyd_node *temp;
+    const struct lys_module *cfgmod;
 
-    config = lyd_new_output_anydata(NULL,
-            ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf", NULL, 0),
-            "config", lyd_dup(root, 1), LYD_ANYDATA_DATATREE);
+    temp = lyd_dup_withsiblings(root, LYD_DUP_OPT_RECURSIVE);
+    cfgmod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf", NULL, 0);
 
+    config = lyd_new_output_anydata(NULL, cfgmod, "config", temp, LYD_ANYDATA_DATATREE);
     if (!config) {
+        free(temp);
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
         nc_err_set_msg(e, np2log_lasterr(np2srv.ly_ctx), "en");
         *ereply = nc_server_reply_err(e);

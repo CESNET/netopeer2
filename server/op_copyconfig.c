@@ -410,7 +410,13 @@ dfs_continue:
                 goto finish;
             }
         }
-        sessions->opts |= SR_SESS_CONFIG_ONLY;
+
+        if ((sessions->opts & SR_SESS_CONFIG_ONLY) == 0) {
+            if (np2srv_sr_session_set_options(sessions->srs, sessions->opts | SR_SESS_CONFIG_ONLY, &ereply)) {
+                goto finish;
+            }
+            sessions->opts |= SR_SESS_CONFIG_ONLY;
+        }
 
         /* create filters */
         if (op_filter_create_allmodules(&filters, &filter_count)) {
@@ -466,7 +472,7 @@ dfs_continue:
         }
         ly_set_free(nodeset);
 
-        if (op_url_export(target_url, LYP_FORMAT | opcopy_wd_nc2ly(nc_wd), root, &ereply) == 0) {
+        if (op_url_export(target_url, LYP_FORMAT | LYP_WITHSIBLINGS | opcopy_wd_nc2ly(nc_wd), root, &ereply) == 0) {
             ereply = nc_server_reply_ok();
         }
 #endif
