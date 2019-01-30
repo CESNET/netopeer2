@@ -230,10 +230,10 @@ if(ENABLE_BUILD_TESTS)
     endif(CMOCKA_FOUND)
 endif(ENABLE_BUILD_TESTS)
 
-add_custom_target(integration-test 
-                  COMMAND make build 
-                  COMMAND make test 
-                  WORKING_DIRECTORY integration-tests/ 
+add_custom_target(integration-test
+                  COMMAND make build
+                  COMMAND make test
+                  WORKING_DIRECTORY integration-tests/
                   COMMENT Running integration-tests)
 
 file(COPY integration-tests DESTINATION ${CMAKE_BINARY_DIR})

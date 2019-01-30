@@ -800,12 +800,13 @@ np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_s
 
     if ((mod = ly_ctx_get_module(np2srv.ly_ctx, "ietf-netconf-notifications", NULL, 1))) {
         /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
-        if (nc_session_get_ti(new_session) != NC_TI_UNIX)
-            host = (char*)nc_session_get_host(new_session);
+        if (nc_session_get_ti(new_session) != NC_TI_UNIX) {
+            host = (char *)nc_session_get_host(new_session);
+        }
         event_data = calloc(host ? 3 : 2, sizeof *event_data);
         event_data[0].xpath = "/ietf-netconf-notifications:netconf-session-start/username";
         event_data[0].type = SR_STRING_T;
-        event_data[0].data.string_val = (char*)nc_session_get_username(new_session);
+        event_data[0].data.string_val = (char *)nc_session_get_username(new_session);
         event_data[1].xpath = "/ietf-netconf-notifications:netconf-session-start/session-id";
         event_data[1].type = SR_UINT32_T;
         event_data[1].data.uint32_val = nc_session_get_id(new_session);
