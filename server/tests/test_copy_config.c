@@ -333,8 +333,7 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
         if (!set) {
             set = lyd_find_path(simplified_melt_data, xpath);
         }
-    }
-    else {
+    } else {
         *value = NULL;
         set = NULL;
         return SR_ERR_NOT_FOUND;
