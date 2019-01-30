@@ -24,7 +24,7 @@ foreach(mock_func IN LISTS test_close_session_mock_funcs ${test}_mock_funcs)
 endforeach()
 
 set(test test_copy_config)
-set(${test}_mock_funcs sr_session_refresh sr_check_exec_permission sr_session_switch_ds sr_set_item sr_delete_item sr_commit sr_get_items_iter sr_get_item_next sr_free_val_iter)
+set(${test}_mock_funcs sr_session_refresh sr_check_exec_permission sr_session_switch_ds sr_set_item sr_delete_item sr_commit sr_get_items_iter sr_get_item_next sr_free_val_iter sr_session_set_options)
 set(${test}_wrap_link_flags "-Wl")
 foreach(mock_func IN LISTS test_close_session_mock_funcs ${test}_mock_funcs)
     set(${test}_wrap_link_flags "${${test}_wrap_link_flags},--wrap=${mock_func}")

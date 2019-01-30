@@ -48,6 +48,8 @@
 
 #undef main
 
+struct lyd_node *ietf_if_data;
+struct lyd_node *simplified_melt_data;
 volatile int initialized;
 int pipes[2][2], p_in, p_out;
 
@@ -315,61 +317,67 @@ int
 __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t **value)
 {
     static struct ly_set *set = NULL;
-    static struct lyd_node *root;
-    char *xpath = (char *)iter;
+    const char *xpath = (const char *)iter;
     char *path;
+    const char *ietf_interfaces_xpath = "/ietf-interfaces:";
+    size_t ietf_interfaces_xpath_len = strlen(ietf_interfaces_xpath);
+    const char *simplified_melt_xpath = "/simplified-melt:";
+    size_t simplified_melt_xpath_len = strlen(simplified_melt_xpath);
     (void)session;
 
-    /* Accept any queries in the ietf-yang-library namespace. */
-    if (!strncmp(xpath, "/ietf-yang-library:", 19)) {
+    if (!strncmp(xpath, ietf_interfaces_xpath, ietf_interfaces_xpath_len)) {
         if (!set) {
-            root = ly_ctx_info(np2srv.ly_ctx);
-            /* Our test data only has information from the yang-library container,
-               so we can only service requests inside that container. But if the caller
-               has specified a more restrictive path inside yang-library, as in the case
-               of the filter tests, then use it. */
-            if (strncmp(xpath, "/ietf-yang-library:yang-library", 31)) {
-                xpath = "/ietf-yang-library:yang-library//.";
-            }
-            set = lyd_find_path(root, xpath);
+            set = lyd_find_path(ietf_if_data, xpath);
         }
-
-        if (!set->number) {
-            ly_set_free(set);
-            set = NULL;
-            lyd_free_withsiblings(root);
-            return SR_ERR_NOT_FOUND;
-        }
-
-        path = lyd_path(set->set.d[0]);
-
-        /* Copied from sysrepo rp_dt_create_xpath_for_node() */
-
-        /* remove leaf-list predicate */
-        if (LYS_LEAFLIST & set->set.d[0]->schema->nodetype) {
-           char *leaf_list_name = strstr(path, "[.='");
-           if (NULL != leaf_list_name) {
-               *leaf_list_name = 0;
-           } else if (NULL != (leaf_list_name = strstr(path, "[.=\""))) {
-               *leaf_list_name = 0;
-           }
-        }
-        /* End copy */
-
-        *value = calloc(1, sizeof **value);
-        op_set_srval(set->set.d[0], path, 1, *value, NULL);
-        (*value)->dflt = set->set.d[0]->dflt;
-        free(path);
-
-        --set->number;
-        if (set->number) {
-            memmove(set->set.d, set->set.d + 1, set->number * sizeof(void *));
+    } else if (!strncmp(xpath, simplified_melt_xpath, simplified_melt_xpath_len)) {
+        if (!set) {
+            set = lyd_find_path(simplified_melt_data, xpath);
         }
     } else {
         *value = NULL;
+        set = NULL;
         return SR_ERR_NOT_FOUND;
     }
 
+    if (!set->number) {
+        ly_set_free(set);
+        set = NULL;
+        return SR_ERR_NOT_FOUND;
+    }
+
+    path = lyd_path(set->set.d[0]);
+
+    /* Copied from sysrepo rp_dt_create_xpath_for_node() */
+
+    /* remove leaf-list predicate */
+    if (LYS_LEAFLIST & set->set.d[0]->schema->nodetype) {
+        char *leaf_list_name = strstr(path, "[.='");
+        if (NULL != leaf_list_name) {
+            *leaf_list_name = 0;
+        } else if (NULL != (leaf_list_name = strstr(path, "[.=\""))) {
+            *leaf_list_name = 0;
+        }
+    }
+    /* End copy */
+
+    *value = calloc(1, sizeof **value);
+    op_set_srval(set->set.d[0], path, 1, *value, NULL);
+    (*value)->dflt = set->set.d[0]->dflt;
+    free(path);
+
+    --set->number;
+    if (set->number) {
+        memmove(set->set.d, set->set.d + 1, set->number * sizeof(void *));
+    }
+
+    return SR_ERR_OK;
+}
+
+int
+__wrap_sr_session_set_options(sr_session_ctx_t *session, const sr_sess_options_t opts)
+{
+    (void)session;
+    (void)opts;
     return SR_ERR_OK;
 }
 
@@ -465,6 +473,56 @@ server_thread(void *arg)
 static int
 np_start(void **state)
 {
+    const char *ietf_if_xml =
+    "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+      "<interface>"
+      "<name>iface1/1</name>"
+      "<description>iface1/1 dsc</description>"
+      "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:ethernetCsmacd</type>"
+      "<enabled>true</enabled>"
+      "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+      "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+        "<enabled>true</enabled>"
+        "<forwarding>true</forwarding>"
+        "<mtu>68</mtu>"
+        "<neighbor>"
+        "<ip>10.0.0.2</ip>"
+        "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
+        "</neighbor>"
+      "</ipv4>"
+      "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+        "<enabled>true</enabled>"
+        "<forwarding>false</forwarding>"
+      "</ipv6>"
+      "</interface>"
+      "<interface>"
+      "<name>'iface1/2'</name>"
+      "<description>iface1/2 dsc</description>"
+      "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:ethernetCsmacd</type>"
+      "<enabled>true</enabled>"
+      "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+      "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+        "<enabled>true</enabled>"
+        "<forwarding>true</forwarding>"
+        "<mtu>68</mtu>"
+        "<neighbor>"
+        "<ip>10.0.0.2</ip>"
+        "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
+        "</neighbor>"
+      "</ipv4>"
+      "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+        "<enabled>true</enabled>"
+        "<forwarding>false</forwarding>"
+      "</ipv6>"
+      "</interface>"
+    "</interfaces>";
+    const char *simplified_melt_xml =
+    "<melt xmlns=\"urn:ietf:params:xml:ns:yang:simplified-melt\">"
+      "<pmd-profile>"
+      "<name>melt-pmd-01</name>"
+      "<measurement-class>melt-cdcr</measurement-class>"
+      "</pmd-profile>"
+    "</melt>";
     (void)state; /* unused */
 
     optind = 1;
@@ -476,6 +534,11 @@ np_start(void **state)
         usleep(100000);
     }
 
+    ietf_if_data = lyd_parse_mem(np2srv.ly_ctx, ietf_if_xml, LYD_XML, LYD_OPT_CONFIG);
+    assert_ptr_not_equal(ietf_if_data, NULL);
+    simplified_melt_data = lyd_parse_mem(np2srv.ly_ctx, simplified_melt_xml, LYD_XML, LYD_OPT_CONFIG);
+    assert_ptr_not_equal(simplified_melt_data, NULL);
+
     return 0;
 }
 
@@ -484,6 +547,9 @@ np_stop(void **state)
 {
     (void)state; /* unused */
     int64_t ret;
+
+    lyd_free_withsiblings(ietf_if_data);
+    lyd_free_withsiblings(simplified_melt_data);
 
     control = LOOP_STOP;
     assert_int_equal(pthread_join(server_tid, (void **)&ret), 0);
@@ -663,153 +729,54 @@ test_copy_config_to_url(void **state)
     "</rpc-reply>";
     const char *copy_data =
     "<config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
-      "<yang-library xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-library\">"
-        "<module-set>"
-          "<name>complete</name>"
-          "<checksum>23</checksum>"
-          "<import-only-module>"
-            "<name>ietf-yang-metadata</name>"
-            "<revision>2016-08-05</revision>"
-            "<namespace>urn:ietf:params:xml:ns:yang:ietf-yang-metadata</namespace>"
-          "</import-only-module>"
-          "<module>"
-            "<name>yang</name>"
-            "<revision>2017-02-20</revision>"
-            "<namespace>urn:ietf:params:xml:ns:yang:1</namespace>"
-          "</module>"
-          "<import-only-module>"
-            "<name>ietf-inet-types</name>"
-            "<revision>2013-07-15</revision>"
-            "<namespace>urn:ietf:params:xml:ns:yang:ietf-inet-types</namespace>"
-          "</import-only-module>"
-          "<import-only-module>"
-            "<name>ietf-yang-types</name>"
-            "<revision>2013-07-15</revision>"
-            "<namespace>urn:ietf:params:xml:ns:yang:ietf-yang-types</namespace>"
-          "</import-only-module>"
-          "<import-only-module>"
-            "<name>ietf-datastores</name>"
-            "<revision>2017-08-17</revision>"
-            "<namespace>urn:ietf:params:xml:ns:yang:ietf-datastores</namespace>"
-          "</import-only-module>"
-          "<module>"
-            "<name>ietf-yang-library</name>"
-            "<revision>2018-01-17</revision>"
-            "<namespace>urn:ietf:params:xml:ns:yang:ietf-yang-library</namespace>"
-          "</module>"
-          "<module>"
-            "<name>ietf-netconf-server</name>"
-            "<namespace>ns</namespace>"
-          "</module>"
-          "<module>"
-            "<name>ietf-netconf</name>"
-            "<revision>2011-06-01</revision>"
-            "<namespace>urn:ietf:params:xml:ns:netconf:base:1.0</namespace>"
-            "<feature>"
-              "<name>writable-running</name>"
-            "</feature>"
-            "<feature>"
-              "<name>candidate</name>"
-            "</feature>"
-            "<feature>"
-              "<name>rollback-on-error</name>"
-            "</feature>"
-            "<feature>"
-              "<name>validate</name>"
-            "</feature>"
-            "<feature>"
-              "<name>startup</name>"
-            "</feature>"
-            "<feature>"
-              "<name>url</name>"
-            "</feature>"
-            "<feature>"
-              "<name>xpath</name>"
-            "</feature>"
-          "</module>"
-          "<module>"
-            "<name>ietf-netconf-notifications</name>"
-            "<revision>2012-02-06</revision>"
-            "<namespace>urn:ietf:params:xml:ns:yang:ietf-netconf-notifications</namespace>"
-          "</module>"
-          "<module>"
-            "<name>notifications</name>"
-            "<revision>2008-07-14</revision>"
-            "<namespace>urn:ietf:params:xml:ns:netconf:notification:1.0</namespace>"
-          "</module>"
-          "<module>"
-            "<name>nc-notifications</name>"
-            "<revision>2008-07-14</revision>"
-            "<namespace>urn:ietf:params:xml:ns:netmod:notification</namespace>"
-          "</module>"
-          "<module>"
-            "<name>test-notif</name>"
-            "<revision>2017-03-22</revision>"
-            "<namespace>urn:libyang:test:notif</namespace>"
-          "</module>"
-          "<module>"
-            "<name>ietf-interfaces</name>"
-            "<revision>2014-05-08</revision>"
-            "<namespace>urn:ietf:params:xml:ns:yang:ietf-interfaces</namespace>"
-            "<feature>"
-              "<name>if-mib</name>"
-            "</feature>"
-          "</module>"
-          "<module>"
-            "<name>ietf-ip</name>"
-            "<revision>2014-06-16</revision>"
-            "<namespace>urn:ietf:params:xml:ns:yang:ietf-ip</namespace>"
-            "<feature>"
-              "<name>ipv4-non-contiguous-netmasks</name>"
-            "</feature>"
-            "<feature>"
-              "<name>ipv6-privacy-autoconf</name>"
-            "</feature>"
-          "</module>"
-          "<module>"
-            "<name>iana-if-type</name>"
-            "<revision>2014-05-08</revision>"
-            "<namespace>urn:ietf:params:xml:ns:yang:iana-if-type</namespace>"
-          "</module>"
-          "<import-only-module>"
-            "<name>test-feature-a</name>"
-            "<revision>2018-05-18</revision>"
-            "<namespace>urn:ietf:params:xml:ns:yang:test-feature-a</namespace>"
-          "</import-only-module>"
-          "<import-only-module>"
-            "<name>test-feature-b</name>"
-            "<revision>2018-05-18</revision>"
-            "<namespace>urn:ietf:params:xml:ns:yang:test-feature-b</namespace>"
-          "</import-only-module>"
-          "<module>"
-            "<name>test-feature-c</name>"
-            "<revision>2018-05-18</revision>"
-            "<namespace>urn:ietf:params:xml:ns:yang:test-feature-c</namespace>"
-            "<feature>"
-              "<name>test-feature-c</name>"
-            "</feature>"
-          "</module>"
-          "<module>"
-            "<name>simplified-melt</name>"
-            "<namespace>urn:ietf:params:xml:ns:yang:simplified-melt</namespace>"
-          "</module>"
-          "<module>"
-            "<name>ietf-netconf-monitoring</name>"
-            "<revision>2010-10-04</revision>"
-            "<namespace>urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring</namespace>"
-          "</module>"
-          "<module>"
-            "<name>ietf-netconf-with-defaults</name>"
-            "<revision>2011-06-01</revision>"
-            "<namespace>urn:ietf:params:xml:ns:yang:ietf-netconf-with-defaults</namespace>"
-          "</module>"
-          "<module>"
-            "<name>custom-op</name>"
-            "<namespace>custom-op</namespace>"
-          "</module>"
-        "</module-set>"
-        "<checksum>23</checksum>"
-      "</yang-library>"
+      "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+        "<interface>"
+        "<name>iface1/1</name>"
+        "<description>iface1/1 dsc</description>"
+        "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:ethernetCsmacd</type>"
+        "<enabled>true</enabled>"
+        "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+        "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+          "<enabled>true</enabled>"
+          "<forwarding>true</forwarding>"
+          "<mtu>68</mtu>"
+          "<neighbor>"
+          "<ip>10.0.0.2</ip>"
+          "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
+          "</neighbor>"
+        "</ipv4>"
+        "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+          "<enabled>true</enabled>"
+          "<forwarding>false</forwarding>"
+        "</ipv6>"
+        "</interface>"
+        "<interface>"
+        "<name>'iface1/2'</name>"
+        "<description>iface1/2 dsc</description>"
+        "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:ethernetCsmacd</type>"
+        "<enabled>true</enabled>"
+        "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+        "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+          "<enabled>true</enabled>"
+          "<forwarding>true</forwarding>"
+          "<mtu>68</mtu>"
+          "<neighbor>"
+          "<ip>10.0.0.2</ip>"
+          "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
+          "</neighbor>"
+        "</ipv4>"
+        "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+          "<enabled>true</enabled>"
+          "<forwarding>false</forwarding>"
+        "</ipv6>"
+        "</interface>"
+      "</interfaces>"
+      "<melt xmlns=\"urn:ietf:params:xml:ns:yang:simplified-melt\">"
+        "<pmd-profile>"
+          "<name>melt-pmd-01</name>"
+          "<measurement-class>melt-cdcr</measurement-class>"
+        "</pmd-profile>"
+      "</melt>"
     "</config>";
 
     set_item_count = 0;
