@@ -84,6 +84,8 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     sr_datastore_t target_ds = 0, source_ds = 0;
     int target_is_ds = 0, source_is_ds = 0;
     struct ly_set *nodeset;
+    const struct lys_module *mod;
+    const struct lys_node *node;
     struct lyd_node *root = NULL, *iter, *next;
     const char *src_dsname, *tgt_dsname;
     char *str, path[1024];
@@ -217,19 +219,19 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
         /* perform operation */
 
-        /* remove all the data from the models mentioned in the source config... */
-        nodeset = ly_set_new();
-        LY_TREE_FOR(root, iter) {
-            if (iter->dflt) {
-                continue;
+        /* remove all data from all the models */
+        i = ly_ctx_internal_modules_count(np2srv.ly_ctx);
+        while ((mod = ly_ctx_get_module_iter(np2srv.ly_ctx, &i))) {
+            if (mod->implemented) {
+                for (node = lys_getnext(NULL, NULL, mod, 0);
+                     node && ((node->nodetype & (LYS_RPC | LYS_NOTIF)) || (node->flags & LYS_CONFIG_R));
+                     node = lys_getnext(node, NULL, mod, 0));
+                if (node) {
+                    snprintf(path, 1024, "/%s:*", mod->name);
+                    np2srv_sr_delete_item(sessions->srs, path, 0, NULL);
+                }
             }
-            ly_set_add(nodeset, lyd_node_module(iter), 0);
         }
-        for (i = 0; i < nodeset->number; i++) {
-            snprintf(path, 1024, "/%s:*", ((struct lys_module *)nodeset->set.g[i])->name);
-            np2srv_sr_delete_item(sessions->srs, path, 0, NULL);
-        }
-        ly_set_free(nodeset);
 
         /* and copy source config's content into sysrepo */
         LY_TREE_DFS_BEGIN(root, next, iter) {
