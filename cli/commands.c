@@ -421,7 +421,7 @@ recv_reply:
             break;
         }
 
-        lyd_print_file(output, data_rpl->data, output_format, LYP_WITHSIBLINGS | ly_wd | output_flag);
+        lyd_print_file(output, data_rpl->data, output_format, LYP_WITHSIBLINGS | LYP_NETCONF | ly_wd | output_flag);
         if (output == stdout) {
             fprintf(output, "\n");
         } else {
