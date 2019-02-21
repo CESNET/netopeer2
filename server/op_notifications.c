@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <unistd.h>
 #include <time.h>
 
 #include <libyang/libyang.h>
@@ -277,6 +278,8 @@ np2srv_subscriber_free(struct np_subscriber *subscriber)
 
     if (subscriber->sr_subscr) {
         np2srv_sr_unsubscribe(np2srv.sr_sess.srs, subscriber->sr_subscr, NULL);
+        /* give a chance for sysrepo to register our unsubscribe request so we can safely free the subscriber */
+        usleep(10000);
     }
     for (i = 0; i < subscriber->filter_count; ++i) {
         free(subscriber->filters[i]);
