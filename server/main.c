@@ -1772,6 +1772,11 @@ cleanup:
         sr_unsubscribe(np2srv.sr_sess.srs, np2srv.sr_subscr);
     }
 
+    /* close all open sessions */
+    while (nc_ps_session_count(np2srv.nc_ps)!=0) {
+        np2srv_del_session_clb(nc_ps_get_session(np2srv.nc_ps,0));
+    }
+
     /* libnetconf2 cleanup */
     if (np2srv.nc_ps) {
         nc_ps_clear(np2srv.nc_ps, 1, free_ds);

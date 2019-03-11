@@ -36,6 +36,7 @@
 
 volatile int initialized;
 int pipes[4][2], p_in, p_out;
+int num_sessions = 0;
 
 /*
  * SYSREPO WRAPPER FUNCTIONS
@@ -64,6 +65,8 @@ int
 __wrap_sr_session_start_user(sr_conn_ctx_t *conn_ctx, const char *user_name, const sr_datastore_t datastore,
                              const sr_sess_options_t opts, sr_session_ctx_t **session)
 {
+    num_sessions++;
+
     (void)conn_ctx;
     (void)user_name;
     (void)datastore;
@@ -75,6 +78,8 @@ __wrap_sr_session_start_user(sr_conn_ctx_t *conn_ctx, const char *user_name, con
 int
 __wrap_sr_session_stop(sr_session_ctx_t *session)
 {
+    num_sessions--;
+
     (void)session;
     return SR_ERR_OK;
 }
@@ -212,6 +217,8 @@ __wrap_nc_session_free(struct nc_session *session, void (*data_free)(void *))
     free(session->opts.server.rpc_cond);
     free((int *)session->opts.server.rpc_inuse);
     free(session);
+
+    num_sessions--;
 }
 
 int
@@ -244,6 +251,7 @@ np_start(void **state)
     optind = 1;
     control = LOOP_CONTINUE;
     initialized = 0;
+    num_sessions =  0;
     assert_int_equal(pthread_create(&server_tid, NULL, server_thread, NULL), 0);
 
     while (initialized < 2) {
@@ -269,18 +277,28 @@ np_stop(void **state)
     close(pipes[2][1]);
     close(pipes[3][0]);
     close(pipes[3][1]);
+
+    assert_int_equal(nc_ps_session_count(np2srv.nc_ps), 0);
+    assert_int_equal(num_sessions, 0);
+
     return ret;
 }
 
 static void
 test_kill(void **state)
 {
+    assert_int_equal(nc_ps_session_count(np2srv.nc_ps), 2);
+    assert_int_equal(num_sessions, 2);
+
     (void)state; /* unused */
     const char *close_session_rpc = "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\"><kill-session><session-id>2</session-id></kill-session></rpc>";
     const char *close_session_rpl = "<rpc-reply msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\"><ok/></rpc-reply>";
 
     test_write(p_out, close_session_rpc, __LINE__);
     test_read(p_in, close_session_rpl, __LINE__);
+
+    assert_int_equal(nc_ps_session_count(np2srv.nc_ps), 1);
+    assert_int_equal(num_sessions, 1);
 }
 
 int
