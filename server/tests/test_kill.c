@@ -34,7 +34,7 @@
 
 #undef main
 
-volatile int initialized;
+ATOMIC_UINT32_T initialized;
 int pipes[4][2], p_in, p_out;
 
 /*
@@ -152,25 +152,26 @@ NC_MSG_TYPE
 __wrap_nc_accept(int timeout, struct nc_session **session)
 {
     NC_MSG_TYPE ret;
+    uint32_t loc_init;
 
-    if (initialized < 2) {
-        pipe(pipes[2 * initialized]);
-        pipe(pipes[2 * initialized + 1]);
+    if ((loc_init = ATOMIC_LOAD(initialized)) < 2) {
+        pipe(pipes[2 * loc_init]);
+        pipe(pipes[2 * loc_init + 1]);
 
-        fcntl(pipes[2 * initialized][0], F_SETFL, O_NONBLOCK);
-        fcntl(pipes[2 * initialized][1], F_SETFL, O_NONBLOCK);
-        fcntl(pipes[2 * initialized + 1][0], F_SETFL, O_NONBLOCK);
-        fcntl(pipes[2 * initialized + 1][1], F_SETFL, O_NONBLOCK);
+        fcntl(pipes[2 * loc_init][0], F_SETFL, O_NONBLOCK);
+        fcntl(pipes[2 * loc_init][1], F_SETFL, O_NONBLOCK);
+        fcntl(pipes[2 * loc_init + 1][0], F_SETFL, O_NONBLOCK);
+        fcntl(pipes[2 * loc_init + 1][1], F_SETFL, O_NONBLOCK);
 
         if (!p_in) {
-            p_in = pipes[2 * initialized][0];
-            p_out = pipes[2 * initialized + 1][1];
+            p_in = pipes[2 * loc_init][0];
+            p_out = pipes[2 * loc_init + 1][1];
         }
 
         *session = calloc(1, sizeof **session);
         (*session)->status = NC_STATUS_RUNNING;
         (*session)->side = 1;
-        (*session)->id = initialized + 1;
+        (*session)->id = loc_init + 1;
         (*session)->io_lock = malloc(sizeof *(*session)->io_lock);
         pthread_mutex_init((*session)->io_lock, NULL);
         (*session)->opts.server.rpc_lock = malloc(sizeof *(*session)->opts.server.rpc_lock);
@@ -180,15 +181,15 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
         (*session)->opts.server.rpc_inuse = malloc(sizeof *(*session)->opts.server.rpc_inuse);
         *(*session)->opts.server.rpc_inuse = 0;
         (*session)->ti_type = NC_TI_FD;
-        (*session)->ti.fd.in = pipes[2 * initialized + 1][0];
-        (*session)->ti.fd.out = pipes[2 * initialized][1];
+        (*session)->ti.fd.in = pipes[2 * loc_init + 1][0];
+        (*session)->ti.fd.out = pipes[2 * loc_init][1];
         (*session)->ctx = np2srv.ly_ctx;
         (*session)->flags = 1; //shared ctx
         (*session)->username = "user1";
         (*session)->host = "localhost";
         (*session)->opts.server.session_start = (*session)->opts.server.last_rpc = time(NULL);
-        printf("test: New session %d\n", initialized + 1);
-        ++initialized;
+        printf("test: New session %d\n", loc_init + 1);
+        ATOMIC_INC(initialized);
         ret = NC_MSG_HELLO;
     } else {
         usleep(timeout * 1000);
@@ -243,10 +244,10 @@ np_start(void **state)
 
     optind = 1;
     control = LOOP_CONTINUE;
-    initialized = 0;
+    ATOMIC_STORE(initialized, 0);
     assert_int_equal(pthread_create(&server_tid, NULL, server_thread, NULL), 0);
 
-    while (initialized < 2) {
+    while (ATOMIC_LOAD(initialized) < 2) {
         usleep(100000);
     }
 

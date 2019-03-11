@@ -50,7 +50,7 @@
 
 struct lyd_node *ietf_if_data;
 struct lyd_node *simplified_melt_data;
-volatile int initialized;
+ATOMIC_UINT32_T initialized;
 int pipes[2][2], p_in, p_out;
 
 /*
@@ -389,7 +389,7 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
 {
     NC_MSG_TYPE ret;
 
-    if (!initialized) {
+    if (!ATOMIC_LOAD(initialized)) {
         pipe(pipes[0]);
         pipe(pipes[1]);
 
@@ -422,7 +422,7 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
         (*session)->host = "localhost";
         (*session)->opts.server.session_start = (*session)->opts.server.last_rpc = time(NULL);
         printf("test: New session 1\n");
-        initialized = 1;
+        ATOMIC_STORE(initialized, 1);
         ret = NC_MSG_HELLO;
     } else {
         usleep(timeout * 1000);
@@ -527,10 +527,10 @@ np_start(void **state)
 
     optind = 1;
     control = LOOP_CONTINUE;
-    initialized = 0;
+    ATOMIC_STORE(initialized, 0);
     assert_int_equal(pthread_create(&server_tid, NULL, server_thread, NULL), 0);
 
-    while (!initialized) {
+    while (!ATOMIC_LOAD(initialized)) {
         usleep(100000);
     }
 

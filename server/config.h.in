@@ -50,6 +50,25 @@
  */
 #cmakedefine HAVE_PTHREAD_RWLOCKATTR_SETKIND_NP 1
 
+/** @brief availability of atomic variables
+ */
+#cmakedefine HAVE_STDATOMIC
+#ifdef HAVE_STDATOMIC
+# include <stdatomic.h>
+
+# define ATOMIC_UINT32_T atomic_uint_fast32_t
+# define ATOMIC_STORE(var, x) atomic_store(&(var), x)
+# define ATOMIC_LOAD(var) atomic_load(&(var))
+# define ATOMIC_INC(var) atomic_fetch_add(&(var), 1)
+# define ATOMIC_DEC(var) atomic_fetch_sub(&(var), 1)
+#else
+# define ATOMIC_UINT32_T uint32_t
+# define ATOMIC_STORE(var, x) ((var) = (x))
+# define ATOMIC_LOAD(var) (var)
+# define ATOMIC_INC(var) __sync_add_and_fetch(&(var), 1)
+# define ATOMIC_DEC(var) __sync_sub_and_fetch(&(var), 1)
+#endif
+
 /** @brief timeout in ms for retrying certain sysrepo operations (subscriptions and commit) in case 2 same operations collide
  */
 #define NP2SRV_SR_LOCKED_TIMEOUT 10
