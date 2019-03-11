@@ -60,7 +60,7 @@ enum LOOPCTRL {
     LOOP_STOP = 1      /**< stop the process */
 };
 /** @brief flag for main loop */
-volatile enum LOOPCTRL control = LOOP_CONTINUE;
+ATOMIC_UINT32_T control = LOOP_CONTINUE;
 
 static void *worker_thread(void *arg);
 static int np2srv_state_data_clb(const char *xpath, sr_val_t **values, size_t *values_cnt, uint64_t request_id,
@@ -152,7 +152,7 @@ finish:
         break;
     default:
         ERR("Failed to connect to sysrepod (%s), exiting.", sr_strerror(rc));
-        control = LOOP_STOP;
+        ATOMIC_STORE(control, LOOP_STOP);
         rc = -1;
         break;
     }
@@ -243,7 +243,7 @@ signal_handler(int sig)
             /* second attempt */
             exit(EXIT_FAILURE);
         }
-        control = LOOP_STOP;
+        ATOMIC_STORE(control, LOOP_STOP);
         break;
 #ifdef DEBUG
     case SIGSEGV:
@@ -1382,7 +1382,7 @@ worker_thread(void *arg)
 
     nc_libssh_thread_verbosity(np2_verbose_level);
 
-    while ((control == LOOP_CONTINUE) && np2srv.workers[idx]) {
+    while ((ATOMIC_LOAD(control) == LOOP_CONTINUE) && np2srv.workers[idx]) {
 
         /* lock for using libyang context */
         pthread_rwlock_rdlock(&np2srv.ly_ctx_lock);
@@ -1390,7 +1390,7 @@ worker_thread(void *arg)
         /* check context that could be destroyed by np2srv_module_install_clb() */
         if (!np2srv.ly_ctx) {
             pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
-            control = LOOP_STOP;
+            ATOMIC_STORE(control, LOOP_STOP);
             break;
         }
 
@@ -1782,6 +1782,7 @@ cleanup:
         nc_ps_clear(np2srv.nc_ps, 1, free_ds);
     }
     nc_ps_free(np2srv.nc_ps);
+    np2srv.nc_ps = NULL;
 
 #ifdef NP2SRV_ENABLED_LY_CTX_INFO_CACHE
     lyd_free_withsiblings(np2srv.ly_ctx_info_cache);

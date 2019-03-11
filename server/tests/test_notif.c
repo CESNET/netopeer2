@@ -38,7 +38,7 @@
 
 #undef main
 
-volatile int initialized;
+ATOMIC_UINT32_T initialized;
 int pipes[2][2], p_in, p_out;
 
 sr_event_notif_cb notif_clb;
@@ -204,7 +204,7 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
     static int no = 1;
     NC_MSG_TYPE ret;
 
-    if (!initialized) {
+    if (!ATOMIC_LOAD(initialized)) {
         pipe(pipes[0]);
         pipe(pipes[1]);
 
@@ -237,7 +237,7 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
         (*session)->host = "localhost";
         (*session)->opts.server.session_start = (*session)->opts.server.last_rpc = time(NULL);
         printf("test: New session %d\n", no++);
-        initialized = 1;
+        ATOMIC_STORE(initialized, 1);
         ret = NC_MSG_HELLO;
     } else {
         usleep(timeout * 1000);
@@ -290,7 +290,7 @@ np_start(void **state)
 {
     (void)state;
     control = LOOP_CONTINUE;
-    initialized = 1;
+    ATOMIC_STORE(initialized, 1);
     assert_int_equal(pthread_create(&server_tid, NULL, server_thread, NULL), 0);
 
     return 0;
@@ -338,8 +338,8 @@ test_basic(void **state)
         "</netconf-session-start>"
     "</notification>";
 
-    initialized = 0;
-    while (!initialized) {
+    ATOMIC_STORE(initialized, 0);
+    while (!ATOMIC_LOAD(initialized)) {
         usleep(100000);
     }
 
@@ -401,8 +401,8 @@ test_config_change(void **state)
         "</netconf-config-change>"
     "</notification>";
 
-    initialized = 0;
-    while (!initialized) {
+    ATOMIC_STORE(initialized, 0);
+    while (!ATOMIC_LOAD(initialized)) {
         usleep(100000);
     }
 
@@ -470,8 +470,8 @@ test_filter_xpath(void **state)
         "</netconf-session-start>"
     "</notification>";
 
-    initialized = 0;
-    while (!initialized) {
+    ATOMIC_STORE(initialized, 0);
+    while (!ATOMIC_LOAD(initialized)) {
         usleep(100000);
     }
 
@@ -543,8 +543,8 @@ test_filter_subtree(void **state)
         "</netconf-session-start>"
     "</notification>";
 
-    initialized = 0;
-    while (!initialized) {
+    ATOMIC_STORE(initialized, 0);
+    while (!ATOMIC_LOAD(initialized)) {
         usleep(100000);
     }
 
@@ -627,8 +627,8 @@ test_replay(void **state)
     "</notification>";
 
     /* new session */
-    initialized = 0;
-    while (!initialized) {
+    ATOMIC_STORE(initialized, 0);
+    while (!ATOMIC_LOAD(initialized)) {
         usleep(100000);
     }
 

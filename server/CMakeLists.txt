@@ -6,6 +6,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../CMakeModules/
 project(netopeer2-server C)
 include(GNUInstallDirs)
 include(CheckFunctionExists)
+include(CheckIncludeFile)
 include(FindCURL)
 
 # check the supported platform
@@ -14,7 +15,7 @@ if(NOT UNIX)
 endif()
 
 # set version
-set(NP2SRV_VERSION 0.7.6)
+set(NP2SRV_VERSION 0.7.7)
 
 # set default build type if not specified by user
 if(NOT CMAKE_BUILD_TYPE)
@@ -136,6 +137,9 @@ target_link_libraries(netopeer2-server ${CMAKE_THREAD_LIBS_INIT})
 
 set(CMAKE_REQUIRED_FLAGS ${CMAKE_THREAD_LIBS_INIT})
 check_function_exists(pthread_rwlockattr_setkind_np HAVE_PTHREAD_RWLOCKATTR_SETKIND_NP)
+
+# dependencies - stdatomic
+check_include_file(stdatomic.h HAVE_STDATOMIC)
 
 # dependencies - libyang
 find_package(LibYANG REQUIRED)
