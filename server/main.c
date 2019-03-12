@@ -60,7 +60,7 @@ enum LOOPCTRL {
     LOOP_STOP = 1      /**< stop the process */
 };
 /** @brief flag for main loop */
-ATOMIC_UINT32_T control = LOOP_CONTINUE;
+ATOMIC_T control = LOOP_CONTINUE;
 
 static void *worker_thread(void *arg);
 static int np2srv_state_data_clb(const char *xpath, sr_val_t **values, size_t *values_cnt, uint64_t request_id,

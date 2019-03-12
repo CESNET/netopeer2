@@ -34,7 +34,7 @@
 
 #undef main
 
-ATOMIC_UINT32_T initialized;
+ATOMIC_T initialized;
 int pipes[4][2], p_in, p_out;
 ATOMIC_UINT32_T num_sessions = 0;
 

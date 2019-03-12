@@ -51,18 +51,19 @@
 #cmakedefine HAVE_PTHREAD_RWLOCKATTR_SETKIND_NP 1
 
 /** @brief availability of atomic variables
+ *  !! can be used only as a standalone flag/counter in different threads because of relaxed memory ordering !!
  */
 #cmakedefine HAVE_STDATOMIC
 #ifdef HAVE_STDATOMIC
 # include <stdatomic.h>
 
-# define ATOMIC_UINT32_T atomic_uint_fast32_t
-# define ATOMIC_STORE(var, x) atomic_store(&(var), x)
-# define ATOMIC_LOAD(var) atomic_load(&(var))
-# define ATOMIC_INC(var) atomic_fetch_add(&(var), 1)
-# define ATOMIC_DEC(var) atomic_fetch_sub(&(var), 1)
+# define ATOMIC_T atomic_uchar
+# define ATOMIC_STORE(var, x) atomic_store_explicit(&(var), x, memory_order_relaxed)
+# define ATOMIC_LOAD(var) atomic_load_explicit(&(var), memory_order_relaxed)
+# define ATOMIC_INC(var) atomic_fetch_add_explicit(&(var), 1, memory_order_relaxed)
+# define ATOMIC_DEC(var) atomic_fetch_sub_explicit(&(var), 1, memory_order_relaxed)
 #else
-# define ATOMIC_UINT32_T uint32_t
+# define ATOMIC_T unsigned char
 # define ATOMIC_STORE(var, x) ((var) = (x))
 # define ATOMIC_LOAD(var) (var)
 # define ATOMIC_INC(var) __sync_add_and_fetch(&(var), 1)

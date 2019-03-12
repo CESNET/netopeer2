@@ -50,7 +50,7 @@
 
 struct lyd_node *ietf_if_data;
 struct lyd_node *simplified_melt_data;
-ATOMIC_UINT32_T initialized;
+ATOMIC_T initialized;
 int pipes[2][2], p_in, p_out;
 
 /*

@@ -49,7 +49,7 @@
 #undef main
 
 struct lyd_node *data = NULL;
-ATOMIC_UINT32_T initialized;
+ATOMIC_T initialized;
 int pipes[2][2], p_in, p_out;
 
 const char *data_xml =
