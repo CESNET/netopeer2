@@ -36,7 +36,7 @@
 
 ATOMIC_T initialized;
 int pipes[4][2], p_in, p_out;
-ATOMIC_UINT32_T num_sessions = 0;
+ATOMIC_T num_sessions = 0;
 
 /*
  * SYSREPO WRAPPER FUNCTIONS
@@ -280,7 +280,7 @@ np_stop(void **state)
     close(pipes[3][1]);
 
     assert_int_equal(nc_ps_session_count(np2srv.nc_ps), 0);
-    assert_int_equal(num_sessions, 0);
+    assert_int_equal(ATOMIC_LOAD(num_sessions), 0);
 
     return ret;
 }
@@ -289,7 +289,7 @@ static void
 test_kill(void **state)
 {
     assert_int_equal(nc_ps_session_count(np2srv.nc_ps), 2);
-    assert_int_equal(num_sessions, 2);
+    assert_int_equal(ATOMIC_LOAD(num_sessions), 2);
 
     (void)state; /* unused */
     const char *close_session_rpc = "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\"><kill-session><session-id>2</session-id></kill-session></rpc>";
@@ -299,7 +299,7 @@ test_kill(void **state)
     test_read(p_in, close_session_rpl, __LINE__);
 
     assert_int_equal(nc_ps_session_count(np2srv.nc_ps), 1);
-    assert_int_equal(num_sessions, 1);
+    assert_int_equal(ATOMIC_LOAD(num_sessions), 1);
 }
 
 int
