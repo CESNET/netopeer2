@@ -35,7 +35,7 @@
 
 #undef main
 
-ATOMIC_T initialized;
+ATOMIC_UINT32_T initialized;
 int pipes[2][2], p_in, p_out;
 
 /*

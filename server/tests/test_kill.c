@@ -34,9 +34,9 @@
 
 #undef main
 
-ATOMIC_T initialized;
+ATOMIC_UINT32_T initialized;
 int pipes[4][2], p_in, p_out;
-ATOMIC_T num_sessions = 0;
+ATOMIC_UINT32_T num_sessions = 0;
 
 /*
  * SYSREPO WRAPPER FUNCTIONS
