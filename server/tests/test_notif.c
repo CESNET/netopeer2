@@ -32,7 +32,7 @@
 
 #define main server_main
 #undef NP2SRV_PIDFILE
-#define NP2SRV_PIDFILE "/tmp/test_np2srv.pid"
+#define NP2SRV_PIDFILE "/tmp/test_np2srv-" TEST_NAME ".pid"
 
 #include "../main.c"
 

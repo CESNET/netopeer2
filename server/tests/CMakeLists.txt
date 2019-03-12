@@ -89,6 +89,7 @@ foreach(test_name IN LISTS tests)
     endif()
     set_target_properties(${test_name} PROPERTIES LINK_FLAGS "${${test_name}_wrap_link_flags}")
     add_test(NAME ${test_name} COMMAND $<TARGET_FILE:${test_name}>)
+    target_compile_definitions(${test_name} PRIVATE TEST_NAME="${test_name}")
 endforeach(test_name)
 
 configure_file("${PROJECT_SOURCE_DIR}/tests/config.h.in" "${PROJECT_BINARY_DIR}/tests/config.h" ESCAPE_QUOTES @ONLY)
