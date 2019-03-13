@@ -204,7 +204,7 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
     static int no = 1;
     NC_MSG_TYPE ret;
 
-    if (!ATOMIC_LOAD(initialized)) {
+    if (!ATOMIC_LOAD_FENCE(initialized)) {
         pipe(pipes[0]);
         pipe(pipes[1]);
 
@@ -215,6 +215,8 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
 
         p_in = pipes[0][0];
         p_out = pipes[1][1];
+
+        ATOMIC_STORE_FENCE(initialized, 1);
 
         *session = calloc(1, sizeof **session);
         (*session)->status = NC_STATUS_RUNNING;
@@ -237,7 +239,6 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
         (*session)->host = "localhost";
         (*session)->opts.server.session_start = (*session)->opts.server.last_rpc = time(NULL);
         printf("test: New session %d\n", no++);
-        ATOMIC_STORE(initialized, 1);
         ret = NC_MSG_HELLO;
     } else {
         usleep(timeout * 1000);
@@ -289,8 +290,8 @@ static int
 np_start(void **state)
 {
     (void)state;
-    control = LOOP_CONTINUE;
-    ATOMIC_STORE(initialized, 1);
+    ATOMIC_STORE_RELAXED(control, LOOP_CONTINUE);
+    ATOMIC_STORE_FENCE(initialized, 1);
     assert_int_equal(pthread_create(&server_tid, NULL, server_thread, NULL), 0);
 
     return 0;
@@ -302,7 +303,7 @@ np_stop(void **state)
     (void)state;
     int64_t ret;
 
-    control = LOOP_STOP;
+    ATOMIC_STORE_RELAXED(control, LOOP_STOP);
     assert_int_equal(pthread_join(server_tid, (void **)&ret), 0);
 
     close(pipes[0][0]);
@@ -338,8 +339,8 @@ test_basic(void **state)
         "</netconf-session-start>"
     "</notification>";
 
-    ATOMIC_STORE(initialized, 0);
-    while (!ATOMIC_LOAD(initialized)) {
+    ATOMIC_STORE_FENCE(initialized, 0);
+    while (!ATOMIC_LOAD_FENCE(initialized)) {
         usleep(100000);
     }
 
@@ -401,8 +402,8 @@ test_config_change(void **state)
         "</netconf-config-change>"
     "</notification>";
 
-    ATOMIC_STORE(initialized, 0);
-    while (!ATOMIC_LOAD(initialized)) {
+    ATOMIC_STORE_FENCE(initialized, 0);
+    while (!ATOMIC_LOAD_FENCE(initialized)) {
         usleep(100000);
     }
 
@@ -470,8 +471,8 @@ test_filter_xpath(void **state)
         "</netconf-session-start>"
     "</notification>";
 
-    ATOMIC_STORE(initialized, 0);
-    while (!ATOMIC_LOAD(initialized)) {
+    ATOMIC_STORE_FENCE(initialized, 0);
+    while (!ATOMIC_LOAD_FENCE(initialized)) {
         usleep(100000);
     }
 
@@ -543,8 +544,8 @@ test_filter_subtree(void **state)
         "</netconf-session-start>"
     "</notification>";
 
-    ATOMIC_STORE(initialized, 0);
-    while (!ATOMIC_LOAD(initialized)) {
+    ATOMIC_STORE_FENCE(initialized, 0);
+    while (!ATOMIC_LOAD_FENCE(initialized)) {
         usleep(100000);
     }
 
@@ -627,8 +628,8 @@ test_replay(void **state)
     "</notification>";
 
     /* new session */
-    ATOMIC_STORE(initialized, 0);
-    while (!ATOMIC_LOAD(initialized)) {
+    ATOMIC_STORE_FENCE(initialized, 0);
+    while (!ATOMIC_LOAD_FENCE(initialized)) {
         usleep(100000);
     }
 

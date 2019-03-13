@@ -34,9 +34,8 @@
 
 #undef main
 
-ATOMIC_T initialized;
+ATOMIC_T initialized, num_sessions;
 int pipes[4][2], p_in, p_out;
-ATOMIC_T num_sessions = 0;
 
 /*
  * SYSREPO WRAPPER FUNCTIONS
@@ -65,7 +64,7 @@ int
 __wrap_sr_session_start_user(sr_conn_ctx_t *conn_ctx, const char *user_name, const sr_datastore_t datastore,
                              const sr_sess_options_t opts, sr_session_ctx_t **session)
 {
-    ATOMIC_INC(num_sessions);
+    ATOMIC_INC_FENCE(num_sessions);
 
     (void)conn_ctx;
     (void)user_name;
@@ -78,7 +77,7 @@ __wrap_sr_session_start_user(sr_conn_ctx_t *conn_ctx, const char *user_name, con
 int
 __wrap_sr_session_stop(sr_session_ctx_t *session)
 {
-    ATOMIC_DEC(num_sessions);
+    ATOMIC_DEC_FENCE(num_sessions);
 
     (void)session;
     return SR_ERR_OK;
@@ -159,7 +158,7 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
     NC_MSG_TYPE ret;
     uint32_t loc_init;
 
-    if ((loc_init = ATOMIC_LOAD(initialized)) < 2) {
+    if ((loc_init = ATOMIC_LOAD_FENCE(initialized)) < 2) {
         pipe(pipes[2 * loc_init]);
         pipe(pipes[2 * loc_init + 1]);
 
@@ -172,6 +171,8 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
             p_in = pipes[2 * loc_init][0];
             p_out = pipes[2 * loc_init + 1][1];
         }
+
+        ATOMIC_INC_FENCE(initialized);
 
         *session = calloc(1, sizeof **session);
         (*session)->status = NC_STATUS_RUNNING;
@@ -194,7 +195,6 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
         (*session)->host = "localhost";
         (*session)->opts.server.session_start = (*session)->opts.server.last_rpc = time(NULL);
         printf("test: New session %d\n", loc_init + 1);
-        ATOMIC_INC(initialized);
         ret = NC_MSG_HELLO;
     } else {
         usleep(timeout * 1000);
@@ -219,7 +219,7 @@ __wrap_nc_session_free(struct nc_session *session, void (*data_free)(void *))
     free((int *)session->opts.server.rpc_inuse);
     free(session);
 
-    ATOMIC_DEC(num_sessions);
+    ATOMIC_DEC_FENCE(num_sessions);
 }
 
 int
@@ -250,12 +250,12 @@ np_start(void **state)
     (void)state; /* unused */
 
     optind = 1;
-    control = LOOP_CONTINUE;
-    ATOMIC_STORE(initialized, 0);
-    ATOMIC_STORE(num_sessions, 0);
+    ATOMIC_STORE_RELAXED(control, LOOP_CONTINUE);
+    ATOMIC_STORE_FENCE(num_sessions, 0);
+    ATOMIC_STORE_FENCE(initialized, 0);
     assert_int_equal(pthread_create(&server_tid, NULL, server_thread, NULL), 0);
 
-    while (ATOMIC_LOAD(initialized) < 2) {
+    while (ATOMIC_LOAD_FENCE(initialized) < 2) {
         usleep(100000);
     }
 
@@ -268,8 +268,12 @@ np_stop(void **state)
     (void)state; /* unused */
     int64_t ret;
 
-    control = LOOP_STOP;
+    ATOMIC_STORE_RELAXED(control, LOOP_STOP);
     assert_int_equal(pthread_join(server_tid, (void **)&ret), 0);
+
+    assert_int_equal(ATOMIC_LOAD_FENCE(num_sessions), 0);
+    assert_int_equal(nc_ps_session_count(np2srv.nc_ps), 0);
+
     close(pipes[0][0]);
     close(pipes[0][1]);
     close(pipes[1][0]);
@@ -279,17 +283,14 @@ np_stop(void **state)
     close(pipes[3][0]);
     close(pipes[3][1]);
 
-    assert_int_equal(nc_ps_session_count(np2srv.nc_ps), 0);
-    assert_int_equal(ATOMIC_LOAD(num_sessions), 0);
-
     return ret;
 }
 
 static void
 test_kill(void **state)
 {
+    assert_int_equal(ATOMIC_LOAD_FENCE(num_sessions), 2);
     assert_int_equal(nc_ps_session_count(np2srv.nc_ps), 2);
-    assert_int_equal(ATOMIC_LOAD(num_sessions), 2);
 
     (void)state; /* unused */
     const char *close_session_rpc = "<rpc msgid=\"1\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\"><kill-session><session-id>2</session-id></kill-session></rpc>";
@@ -298,8 +299,8 @@ test_kill(void **state)
     test_write(p_out, close_session_rpc, __LINE__);
     test_read(p_in, close_session_rpl, __LINE__);
 
+    assert_int_equal(ATOMIC_LOAD_FENCE(num_sessions), 1);
     assert_int_equal(nc_ps_session_count(np2srv.nc_ps), 1);
-    assert_int_equal(ATOMIC_LOAD(num_sessions), 1);
 }
 
 int

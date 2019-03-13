@@ -389,7 +389,7 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
 {
     NC_MSG_TYPE ret;
 
-    if (!ATOMIC_LOAD(initialized)) {
+    if (!ATOMIC_LOAD_FENCE(initialized)) {
         pipe(pipes[0]);
         pipe(pipes[1]);
 
@@ -400,6 +400,8 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
 
         p_in = pipes[0][0];
         p_out = pipes[1][1];
+
+        ATOMIC_STORE_FENCE(initialized, 1);
 
         *session = calloc(1, sizeof **session);
         (*session)->status = NC_STATUS_RUNNING;
@@ -422,7 +424,6 @@ __wrap_nc_accept(int timeout, struct nc_session **session)
         (*session)->host = "localhost";
         (*session)->opts.server.session_start = (*session)->opts.server.last_rpc = time(NULL);
         printf("test: New session 1\n");
-        ATOMIC_STORE(initialized, 1);
         ret = NC_MSG_HELLO;
     } else {
         usleep(timeout * 1000);
@@ -526,11 +527,11 @@ np_start(void **state)
     (void)state; /* unused */
 
     optind = 1;
-    control = LOOP_CONTINUE;
-    ATOMIC_STORE(initialized, 0);
+    ATOMIC_STORE_RELAXED(control, LOOP_CONTINUE);
+    ATOMIC_STORE_FENCE(initialized, 0);
     assert_int_equal(pthread_create(&server_tid, NULL, server_thread, NULL), 0);
 
-    while (!ATOMIC_LOAD(initialized)) {
+    while (!ATOMIC_LOAD_FENCE(initialized)) {
         usleep(100000);
     }
 
@@ -551,7 +552,7 @@ np_stop(void **state)
     lyd_free_withsiblings(ietf_if_data);
     lyd_free_withsiblings(simplified_melt_data);
 
-    control = LOOP_STOP;
+    ATOMIC_STORE_RELAXED(control, LOOP_STOP);
     assert_int_equal(pthread_join(server_tid, (void **)&ret), 0);
 
     close(pipes[0][0]);

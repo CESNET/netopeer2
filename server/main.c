@@ -152,7 +152,7 @@ finish:
         break;
     default:
         ERR("Failed to connect to sysrepod (%s), exiting.", sr_strerror(rc));
-        ATOMIC_STORE(control, LOOP_STOP);
+        ATOMIC_STORE_RELAXED(control, LOOP_STOP);
         rc = -1;
         break;
     }
@@ -243,7 +243,7 @@ signal_handler(int sig)
             /* second attempt */
             exit(EXIT_FAILURE);
         }
-        ATOMIC_STORE(control, LOOP_STOP);
+        ATOMIC_STORE_RELAXED(control, LOOP_STOP);
         break;
 #ifdef DEBUG
     case SIGSEGV:
@@ -1382,7 +1382,7 @@ worker_thread(void *arg)
 
     nc_libssh_thread_verbosity(np2_verbose_level);
 
-    while ((ATOMIC_LOAD(control) == LOOP_CONTINUE) && np2srv.workers[idx]) {
+    while (ATOMIC_LOAD_RELAXED(control) == LOOP_CONTINUE) {
 
         /* lock for using libyang context */
         pthread_rwlock_rdlock(&np2srv.ly_ctx_lock);
@@ -1390,7 +1390,7 @@ worker_thread(void *arg)
         /* check context that could be destroyed by np2srv_module_install_clb() */
         if (!np2srv.ly_ctx) {
             pthread_rwlock_unlock(&np2srv.ly_ctx_lock);
-            ATOMIC_STORE(control, LOOP_STOP);
+            ATOMIC_STORE_RELAXED(control, LOOP_STOP);
             break;
         }
 
@@ -1469,7 +1469,6 @@ worker_thread(void *arg)
     /* cleanup */
     nc_thread_destroy();
     free(arg);
-    np2srv.workers[idx] = 0;
     return NULL;
 }
 
@@ -1541,7 +1540,6 @@ main(int argc, char *argv[])
 #endif
     struct sigaction action;
     sigset_t block_mask;
-    pthread_attr_t thread_attr;
 
     /* until daemonized, write messages to both syslog and stderr */
     openlog("netopeer2-server", LOG_PID, LOG_DAEMON);
@@ -1741,15 +1739,12 @@ main(int argc, char *argv[])
         goto cleanup;
     }
 
-    pthread_attr_init(&thread_attr);
-    pthread_attr_setdetachstate(&thread_attr, PTHREAD_CREATE_DETACHED);
     /* start additional worker threads */
     for (i = 1; i < NP2SRV_THREAD_COUNT; ++i) {
         idx = malloc(sizeof *idx);
         *idx = i;
-        pthread_create(&np2srv.workers[*idx], &thread_attr, worker_thread, idx);
+        pthread_create(&np2srv.workers[*idx], NULL, worker_thread, idx);
     }
-    pthread_attr_destroy(&thread_attr);
 
     /* one worker will use this thread */
     np2srv.workers[0] = pthread_self();
@@ -1757,14 +1752,13 @@ main(int argc, char *argv[])
     *idx = 0;
     worker_thread(idx);
 
-    /* wait for finishing processing thread */
-    do {
-        for (i = 0; i < NP2SRV_THREAD_COUNT; ++i) {
-            if (np2srv.workers[i]) {
-                break;
-            }
+    /* wait for other worker threads to finish */
+    for (i = 1; i < NP2SRV_THREAD_COUNT; ++i) {
+        c = pthread_join(np2srv.workers[i], NULL);
+        if (c) {
+            ERR("Failed to join worker thread %d: %s.", i, strerror(c));
         }
-    } while (i < NP2SRV_THREAD_COUNT);
+    }
 
 cleanup:
     /* disconnect from sysrepo */
