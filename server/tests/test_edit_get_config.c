@@ -34,10 +34,10 @@
 
 #define main server_main
 #undef NP2SRV_PIDFILE
-#define NP2SRV_PIDFILE "/tmp/test_np2srv.pid"
+#define NP2SRV_PIDFILE "/tmp/test_np2srv-" TEST_NAME ".pid"
 
 #ifdef NP2SRV_ENABLED_URL_CAPABILITY
-#define URL_TESTFILE "/tmp/nc2_edit_config.xml"
+#define URL_TESTFILE "/tmp/nc2-" TEST_NAME ".xml"
 #endif
 
 #include "../main.c"
