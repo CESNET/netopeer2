@@ -48,10 +48,59 @@
 
 #undef main
 
-struct lyd_node *ietf_if_data;
-struct lyd_node *simplified_melt_data;
 ATOMIC_T initialized;
 int pipes[2][2], p_in, p_out;
+
+const char *ietf_if_xml =
+    "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
+      "<interface>"
+      "<name>iface1/1</name>"
+      "<description>iface1/1 dsc</description>"
+      "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:ethernetCsmacd</type>"
+      "<enabled>true</enabled>"
+      "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+      "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+        "<enabled>true</enabled>"
+        "<forwarding>true</forwarding>"
+        "<mtu>68</mtu>"
+        "<neighbor>"
+        "<ip>10.0.0.2</ip>"
+        "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
+        "</neighbor>"
+      "</ipv4>"
+      "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+        "<enabled>true</enabled>"
+        "<forwarding>false</forwarding>"
+      "</ipv6>"
+      "</interface>"
+      "<interface>"
+      "<name>'iface1/2'</name>"
+      "<description>iface1/2 dsc</description>"
+      "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:ethernetCsmacd</type>"
+      "<enabled>true</enabled>"
+      "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
+      "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+        "<enabled>true</enabled>"
+        "<forwarding>true</forwarding>"
+        "<mtu>68</mtu>"
+        "<neighbor>"
+        "<ip>10.0.0.2</ip>"
+        "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
+        "</neighbor>"
+      "</ipv4>"
+      "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
+        "<enabled>true</enabled>"
+        "<forwarding>false</forwarding>"
+      "</ipv6>"
+      "</interface>"
+    "</interfaces>";
+const char *simplified_melt_xml =
+    "<melt xmlns=\"urn:ietf:params:xml:ns:yang:simplified-melt\">"
+      "<pmd-profile>"
+      "<name>melt-pmd-01</name>"
+      "<measurement-class>melt-cdcr</measurement-class>"
+      "</pmd-profile>"
+    "</melt>";
 
 /*
  * SYSREPO WRAPPER FUNCTIONS
@@ -317,6 +366,9 @@ int
 __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t **value)
 {
     static struct ly_set *set = NULL;
+    static struct lyd_node *ietf_if_data = NULL;
+    static struct lyd_node *simplified_melt_data = NULL;
+
     const char *xpath = (const char *)iter;
     char *path;
     const char *ietf_interfaces_xpath = "/ietf-interfaces:";
@@ -327,10 +379,14 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
 
     if (!strncmp(xpath, ietf_interfaces_xpath, ietf_interfaces_xpath_len)) {
         if (!set) {
+            ietf_if_data = lyd_parse_mem(np2srv.ly_ctx, ietf_if_xml, LYD_XML, LYD_OPT_CONFIG);
+            assert_ptr_not_equal(ietf_if_data, NULL);
             set = lyd_find_path(ietf_if_data, xpath);
         }
     } else if (!strncmp(xpath, simplified_melt_xpath, simplified_melt_xpath_len)) {
         if (!set) {
+            simplified_melt_data = lyd_parse_mem(np2srv.ly_ctx, simplified_melt_xml, LYD_XML, LYD_OPT_CONFIG);
+            assert_ptr_not_equal(simplified_melt_data, NULL);
             set = lyd_find_path(simplified_melt_data, xpath);
         }
     } else {
@@ -342,6 +398,10 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
     if (!set->number) {
         ly_set_free(set);
         set = NULL;
+        lyd_free_withsiblings(ietf_if_data);
+        ietf_if_data = NULL;
+        lyd_free_withsiblings(simplified_melt_data);
+        simplified_melt_data = NULL;
         return SR_ERR_NOT_FOUND;
     }
 
@@ -474,56 +534,6 @@ server_thread(void *arg)
 static int
 np_start(void **state)
 {
-    const char *ietf_if_xml =
-    "<interfaces xmlns=\"urn:ietf:params:xml:ns:yang:ietf-interfaces\">"
-      "<interface>"
-      "<name>iface1/1</name>"
-      "<description>iface1/1 dsc</description>"
-      "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:ethernetCsmacd</type>"
-      "<enabled>true</enabled>"
-      "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
-      "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
-        "<enabled>true</enabled>"
-        "<forwarding>true</forwarding>"
-        "<mtu>68</mtu>"
-        "<neighbor>"
-        "<ip>10.0.0.2</ip>"
-        "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
-        "</neighbor>"
-      "</ipv4>"
-      "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
-        "<enabled>true</enabled>"
-        "<forwarding>false</forwarding>"
-      "</ipv6>"
-      "</interface>"
-      "<interface>"
-      "<name>'iface1/2'</name>"
-      "<description>iface1/2 dsc</description>"
-      "<type xmlns:ianaift=\"urn:ietf:params:xml:ns:yang:iana-if-type\">ianaift:ethernetCsmacd</type>"
-      "<enabled>true</enabled>"
-      "<link-up-down-trap-enable>disabled</link-up-down-trap-enable>"
-      "<ipv4 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
-        "<enabled>true</enabled>"
-        "<forwarding>true</forwarding>"
-        "<mtu>68</mtu>"
-        "<neighbor>"
-        "<ip>10.0.0.2</ip>"
-        "<link-layer-address>01:34:56:78:9a:bc:de:f0</link-layer-address>"
-        "</neighbor>"
-      "</ipv4>"
-      "<ipv6 xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ip\">"
-        "<enabled>true</enabled>"
-        "<forwarding>false</forwarding>"
-      "</ipv6>"
-      "</interface>"
-    "</interfaces>";
-    const char *simplified_melt_xml =
-    "<melt xmlns=\"urn:ietf:params:xml:ns:yang:simplified-melt\">"
-      "<pmd-profile>"
-      "<name>melt-pmd-01</name>"
-      "<measurement-class>melt-cdcr</measurement-class>"
-      "</pmd-profile>"
-    "</melt>";
     (void)state; /* unused */
 
     optind = 1;
@@ -535,11 +545,6 @@ np_start(void **state)
         usleep(100000);
     }
 
-    ietf_if_data = lyd_parse_mem(np2srv.ly_ctx, ietf_if_xml, LYD_XML, LYD_OPT_CONFIG);
-    assert_ptr_not_equal(ietf_if_data, NULL);
-    simplified_melt_data = lyd_parse_mem(np2srv.ly_ctx, simplified_melt_xml, LYD_XML, LYD_OPT_CONFIG);
-    assert_ptr_not_equal(simplified_melt_data, NULL);
-
     return 0;
 }
 
@@ -548,9 +553,6 @@ np_stop(void **state)
 {
     (void)state; /* unused */
     int64_t ret;
-
-    lyd_free_withsiblings(ietf_if_data);
-    lyd_free_withsiblings(simplified_melt_data);
 
     ATOMIC_STORE_RELAXED(control, LOOP_STOP);
     assert_int_equal(pthread_join(server_tid, (void **)&ret), 0);

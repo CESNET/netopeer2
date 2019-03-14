@@ -26,6 +26,7 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
 
@@ -44,6 +45,7 @@
 
 #undef main
 
+pthread_mutex_t data_lock = PTHREAD_MUTEX_INITIALIZER;
 struct lyd_node *data;
 ATOMIC_T initialized;
 int pipes[2][2], p_in, p_out;
@@ -179,7 +181,9 @@ __wrap_sr_get_item_next(sr_session_ctx_t *session, sr_val_iter_t *iter, sr_val_t
         !strncmp(xpath, test_feature_c_xpath, test_feature_c_xpath_len) ||
         !strncmp(xpath, simplified_melt_xpath, simplified_melt_xpath_len)) {
         if (!ietf_if_set) {
+            pthread_mutex_lock(&data_lock);
             ietf_if_set = lyd_find_path(data, xpath);
+            pthread_mutex_unlock(&data_lock);
         }
 
         if (!ietf_if_set->number) {
@@ -248,7 +252,9 @@ __wrap_sr_set_item(sr_session_ctx_t *session, const char *xpath, const sr_val_t 
     case SR_CONTAINER_PRESENCE_T:
     case SR_LEAF_EMPTY_T:
         ly_errno = LY_SUCCESS;
+        pthread_mutex_lock(&data_lock);
         lyd_new_path(data, np2srv.ly_ctx, xpath, NULL, 0, opt);
+        pthread_mutex_unlock(&data_lock);
         if ((ly_errno == LY_EVALID) && (ly_vecode(np2srv.ly_ctx) == LYVE_PATH_EXISTS)) {
             return SR_ERR_DATA_EXISTS;
         }
@@ -256,7 +262,9 @@ __wrap_sr_set_item(sr_session_ctx_t *session, const char *xpath, const sr_val_t 
         break;
     default:
         ly_errno = LY_SUCCESS;
+        pthread_mutex_lock(&data_lock);
         lyd_new_path(data, np2srv.ly_ctx, xpath, op_get_srval(np2srv.ly_ctx, (sr_val_t *)value, buf), 0, opt);
+        pthread_mutex_unlock(&data_lock);
         if ((ly_errno == LY_EVALID) && (ly_vecode(np2srv.ly_ctx) == LYVE_PATH_EXISTS)) {
             return SR_ERR_DATA_EXISTS;
         }
@@ -274,7 +282,9 @@ __wrap_sr_delete_item(sr_session_ctx_t *session, const char *xpath, const sr_edi
     struct ly_set *set;
     uint32_t i;
 
+    pthread_mutex_lock(&data_lock);
     set = lyd_find_path(data, xpath);
+    pthread_mutex_unlock(&data_lock);
     assert_ptr_not_equal(set, NULL);
 
     if ((opts & SR_EDIT_STRICT) && !set->number) {
@@ -301,20 +311,26 @@ __wrap_sr_move_item(sr_session_ctx_t *session, const char *xpath, const sr_move_
     struct ly_set *set, *set2 = NULL;
     struct lyd_node *node;
 
+    pthread_mutex_lock(&data_lock);
     set = lyd_find_path(data, xpath);
+    pthread_mutex_unlock(&data_lock);
     assert_ptr_not_equal(set, NULL);
     assert_int_equal(set->number, 1);
 
     switch (position) {
     case SR_MOVE_BEFORE:
+        pthread_mutex_lock(&data_lock);
         set2 = lyd_find_path(data, relative_item);
+        pthread_mutex_unlock(&data_lock);
         assert_ptr_not_equal(set2, NULL);
         assert_int_equal(set2->number, 1);
 
         assert_int_equal(lyd_insert_before(set2->set.d[0], set->set.d[0]), 0);
         break;
     case SR_MOVE_AFTER:
+        pthread_mutex_lock(&data_lock);
         set2 = lyd_find_path(data, relative_item);
+        pthread_mutex_unlock(&data_lock);
         assert_ptr_not_equal(set2, NULL);
         assert_int_equal(set2->number, 1);
 
@@ -563,7 +579,9 @@ np_start(void **state)
         usleep(100000);
     }
 
+    pthread_mutex_lock(&data_lock);
     data = lyd_parse_mem(np2srv.ly_ctx, ietf_if_data, LYD_XML, LYD_OPT_CONFIG);
+    pthread_mutex_unlock(&data_lock);
     assert_ptr_not_equal(data, NULL);
 
     return 0;
@@ -575,7 +593,9 @@ np_stop(void **state)
     (void)state; /* unused */
     int64_t ret;
 
+    pthread_mutex_lock(&data_lock);
     lyd_free_withsiblings(data);
+    pthread_mutex_unlock(&data_lock);
 
     ATOMIC_STORE_RELAXED(control, LOOP_STOP);
     assert_int_equal(pthread_join(server_tid, (void **)&ret), 0);
