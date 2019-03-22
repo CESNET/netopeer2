@@ -325,7 +325,7 @@ static void freeCompletions(linenoiseCompletions *lc) {
         free(lc->cvec);
 }
 
-/* This is an helper function for linenoiseEdit() and is called when the
+/* This is a helper function for linenoiseEdit() and is called when the
  * user types the <tab> key in order to complete the string currently in the
  * input.
  *
@@ -549,7 +549,7 @@ void linenoiseAddCompletion(linenoiseCompletions *lc, const char *str) {
 
 /* =========================== Line editing ================================= */
 
-/* We define a very simple "append buffer" structure, that is an heap
+/* We define a very simple "append buffer" structure, that is a heap
  * allocated string where we can append to. This is useful in order to
  * write all the escape sequences in a buffer and flush them to the standard
  * output in a single call, to avoid flickering effects. */
@@ -1153,14 +1153,10 @@ int linenoiseHistoryAdd(const char *line, void *data) {
 
     /* Don't add duplicated lines. */
     if (ls.history_len && !strcmp(ls.history[ls.history_len-1].line, line)) {
-        if (ls.hist_data_free) {
-            ls.hist_data_free(ls.history[ls.history_len-1].data);
-        }
-        ls.history[ls.history_len-1].data = data;
         return 0;
     }
 
-    /* Add an heap allocated copy of the line in the history.
+    /* Add a heap allocated copy of the line in the history.
      * If we reached the max length, remove the older line. */
     linecopy = strdup(line);
     if (!linecopy) return 0;
