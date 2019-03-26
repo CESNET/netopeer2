@@ -133,7 +133,7 @@ static int history_max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
 /* The linenoiseState structure represents the state during line editing.
  * We pass this state to functions implementing specific editing
  * functionalities. */
-struct linenoiseState ls;
+struct linenoiseState ls = {0};
 
 enum KEY_ACTION{
 	KEY_NULL = 0,	    /* NULL */
@@ -1146,9 +1146,8 @@ int linenoiseHistoryAdd(const char *line, void *data) {
 
     /* Initialization on first call. */
     if (ls.history == NULL) {
-        ls.history = malloc(history_max_len*sizeof *ls.history);
+        ls.history = calloc(history_max_len, sizeof *ls.history);
         if (ls.history == NULL) return 0;
-        memset(ls.history,0,(history_max_len*sizeof *ls.history));
     }
 
     /* Don't add duplicated lines. */
