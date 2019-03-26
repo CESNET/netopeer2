@@ -194,7 +194,9 @@ main(void)
                     printf("%s\n", commands[i].helpstring);
                 }
             } else {
-                tmp_config_file = (char *)ls.history[ls.history_len - ls.history_index].data;
+                if (ls.history_index) {
+                    tmp_config_file = (char *)ls.history[ls.history_len - ls.history_index].data;
+                }
                 commands[i].func((const char *)cmdstart, &tmp_config_file);
             }
         } else {
