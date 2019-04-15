@@ -2307,7 +2307,7 @@ filter_xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const 
 {
     const struct lys_module *module;
     int new_size;
-    char *buf_new, *content;
+    char *buf_new, *content, quot;
 
     if (!elem_module_name && elem->ns && (elem->ns->value != *last_ns)
             && strcmp(elem->ns->value, "urn:ietf:params:xml:ns:netconf:base:1.0")) {
@@ -2349,10 +2349,15 @@ filter_xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const 
         return -1;
     }
     *buf = buf_new;
-    sprintf((*buf) + (size - 1), "='%s']", content);
+
+    if (strchr(content, '\'')) {
+        quot = '\"';
+    } else {
+        quot = '\'';
+    }
+    sprintf((*buf) + (size - 1), "=%c%s%c]", quot, content, quot);
 
     free(content);
-
     return new_size;
 }
 
