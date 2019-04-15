@@ -48,30 +48,30 @@ RUN cd /tmp && \
 
 # Build the stack
 COPY repo/libyang /tmp/repo/libyang
-RUN cd /tmp/repo/libyang && \
-    cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Debug -DENABLE_BUILD_TESTS=Off -DENABLE_VALGRIND_TESTS=Off . && \
+RUN cd /tmp/repo/libyang && mkdir build && cd build && \
+    cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Debug -DENABLE_BUILD_TESTS=Off -DENABLE_VALGRIND_TESTS=Off .. && \
     make -j4 && \
     make install
 
 COPY repo/libnetconf2 /tmp/repo/libnetconf2
-RUN cd /tmp/repo/libnetconf2 && \
-    cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Debug -DENABLE_BUILD_TESTS=Off -DENABLE_VALGRIND_TESTS=Off . && \
+RUN cd /tmp/repo/libnetconf2 && mkdir build && cd build && \
+    cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Debug -DENABLE_BUILD_TESTS=Off -DENABLE_VALGRIND_TESTS=Off .. && \
     make -j4 && \
     make install
 
 COPY repo/sysrepo /tmp/repo/sysrepo
-RUN cd /tmp/repo/sysrepo && \
-    cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Debug -DENABLE_TESTS=0 -DBUILD_EXAMPLES=0 . && \
+RUN cd /tmp/repo/sysrepo && mkdir build && cd build && \
+    cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Debug -DENABLE_TESTS=0 -DBUILD_EXAMPLES=0 .. && \
     make -j4 && \
     make install
 
 COPY repo/Netopeer2 /tmp/repo/Netopeer2
-RUN cd /tmp/repo/Netopeer2/keystored && \
-    cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Debug -DKEYSTORED_KEYS_DIR=/etc/keystored/keys && \
+RUN cd /tmp/repo/Netopeer2/keystored && mkdir build && cd build && \
+    cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Debug -DKEYSTORED_KEYS_DIR=/etc/keystored/keys .. && \
     make -j4 && \
     make install && \
-    cd /tmp/repo/Netopeer2/server && \
-    cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Debug -DENABLE_BUILD_TESTS=Off -DENABLE_VALGRIND_TESTS=Off -DKEYSTORED_KEYS_DIR=/etc/keystored/keys . && \
+    cd /tmp/repo/Netopeer2/server && mkdir build && cd build && \
+    cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Debug -DENABLE_BUILD_TESTS=Off -DENABLE_VALGRIND_TESTS=Off -DKEYSTORED_KEYS_DIR=/etc/keystored/keys .. && \
     make -j4 && \
     make install
 
@@ -79,8 +79,8 @@ COPY yang /tmp/yang
 RUN cd /tmp/yang && python3 install.py
 
 COPY test-service /tmp/test-service
-RUN cd /tmp/test-service && \
-    cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Debug . && \
+RUN cd /tmp/test-service && mkdir build && cd build && \
+    cmake -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Debug .. && \
     make -j4 && \
     make install
 
