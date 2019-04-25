@@ -792,7 +792,7 @@ np2srv_sr_check_exec_permission(sr_session_ctx_t *srs, const char *xpath, struct
 {
     int rc = SR_ERR_DISCONNECT;
     struct nc_server_error *e;
-    bool permitted;
+    bool permitted = 1;
 
     pthread_rwlock_rdlock(&sr_lock);
 
