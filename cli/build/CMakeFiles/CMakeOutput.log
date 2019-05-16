@@ -1,0 +1,905 @@
+The system is: Linux - 4.17.13-1-default - x86_64
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /usr/bin/cc 
+Build flags: 
+Id flags:  
+
+The output was:
+0
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
+
+The C compiler identification is GNU, found in "/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/3.12.0/CompilerIdC/a.out"
+
+Determining if the C compiler works passed with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_6e79a/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_6e79a.dir/build.make CMakeFiles/cmTC_6e79a.dir/build
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_6e79a.dir/testCCompiler.c.o
+/usr/bin/cc    -o CMakeFiles/cmTC_6e79a.dir/testCCompiler.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp/testCCompiler.c
+Linking C executable cmTC_6e79a
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_6e79a.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_6e79a.dir/testCCompiler.c.o  -o cmTC_6e79a 
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+Detecting C compiler ABI info compiled with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_832de/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_832de.dir/build.make CMakeFiles/cmTC_832de.dir/build
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_832de.dir/CMakeCCompilerABI.c.o
+/usr/bin/cc    -o CMakeFiles/cmTC_832de.dir/CMakeCCompilerABI.c.o   -c /usr/share/cmake/Modules/CMakeCCompilerABI.c
+Linking C executable cmTC_832de
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_832de.dir/link.txt --verbose=1
+/usr/bin/cc     -v -rdynamic CMakeFiles/cmTC_832de.dir/CMakeCCompilerABI.c.o  -o cmTC_832de 
+Using built-in specs.
+COLLECT_GCC=/usr/bin/cc
+COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper
+OFFLOAD_TARGET_NAMES=hsa:nvptx-none
+Target: x86_64-suse-linux
+Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,ada,go --enable-offload-targets=hsa,nvptx-none=/usr/nvptx-none, --without-cuda-driver --enable-checking=release --disable-werror --with-gxx-include-dir=/usr/include/c++/8 --enable-ssp --disable-libssp --disable-libvtv --disable-cet --disable-libcc1 --enable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --with-slibdir=/lib64 --with-system-zlib --enable-__cxa_atexit --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --with-gcc-major-version-only --enable-linker-build-id --enable-linux-futex --enable-gnu-indirect-function --program-suffix=-8 --without-system-libunwind --enable-multilib --with-arch-32=x86-64 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux
+Thread model: posix
+gcc version 8.1.1 20180719 [gcc-8-branch revision 262874] (SUSE Linux) 
+COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/bin/
+LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_832de' '-mtune=generic' '-march=x86-64'
+ /usr/lib64/gcc/x86_64-suse-linux/8/collect2 -plugin /usr/lib64/gcc/x86_64-suse-linux/8/liblto_plugin.so -plugin-opt=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper -plugin-opt=-fresolution=/tmp/ccYXsRuk.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_832de /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/8/crtbegin.o -L/usr/lib64/gcc/x86_64-suse-linux/8 -L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/8/../../.. CMakeFiles/cmTC_832de.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib64/gcc/x86_64-suse-linux/8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crtn.o
+COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_832de' '-mtune=generic' '-march=x86-64'
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+Parsed C implicit link information from above output:
+  link line regex: [^( *|.*[/\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
+  ignore line: [Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp]
+  ignore line: []
+  ignore line: [Run Build Command:"/usr/bin/gmake" "cmTC_832de/fast"]
+  ignore line: [/usr/bin/gmake -f CMakeFiles/cmTC_832de.dir/build.make CMakeFiles/cmTC_832de.dir/build]
+  ignore line: [gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp']
+  ignore line: [Building C object CMakeFiles/cmTC_832de.dir/CMakeCCompilerABI.c.o]
+  ignore line: [/usr/bin/cc    -o CMakeFiles/cmTC_832de.dir/CMakeCCompilerABI.c.o   -c /usr/share/cmake/Modules/CMakeCCompilerABI.c]
+  ignore line: [Linking C executable cmTC_832de]
+  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_832de.dir/link.txt --verbose=1]
+  ignore line: [/usr/bin/cc     -v -rdynamic CMakeFiles/cmTC_832de.dir/CMakeCCompilerABI.c.o  -o cmTC_832de ]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=/usr/bin/cc]
+  ignore line: [COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper]
+  ignore line: [OFFLOAD_TARGET_NAMES=hsa:nvptx-none]
+  ignore line: [Target: x86_64-suse-linux]
+  ignore line: [Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,ada,go --enable-offload-targets=hsa,nvptx-none=/usr/nvptx-none, --without-cuda-driver --enable-checking=release --disable-werror --with-gxx-include-dir=/usr/include/c++/8 --enable-ssp --disable-libssp --disable-libvtv --disable-cet --disable-libcc1 --enable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --with-slibdir=/lib64 --with-system-zlib --enable-__cxa_atexit --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --with-gcc-major-version-only --enable-linker-build-id --enable-linux-futex --enable-gnu-indirect-function --program-suffix=-8 --without-system-libunwind --enable-multilib --with-arch-32=x86-64 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux]
+  ignore line: [Thread model: posix]
+  ignore line: [gcc version 8.1.1 20180719 [gcc-8-branch revision 262874] (SUSE Linux) ]
+  ignore line: [COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/bin/]
+  ignore line: [LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_832de' '-mtune=generic' '-march=x86-64']
+  link line: [ /usr/lib64/gcc/x86_64-suse-linux/8/collect2 -plugin /usr/lib64/gcc/x86_64-suse-linux/8/liblto_plugin.so -plugin-opt=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper -plugin-opt=-fresolution=/tmp/ccYXsRuk.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_832de /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/8/crtbegin.o -L/usr/lib64/gcc/x86_64-suse-linux/8 -L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/8/../../.. CMakeFiles/cmTC_832de.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib64/gcc/x86_64-suse-linux/8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crtn.o]
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/collect2] ==> ignore
+    arg [-plugin] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/liblto_plugin.so] ==> ignore
+    arg [-plugin-opt=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper] ==> ignore
+    arg [-plugin-opt=-fresolution=/tmp/ccYXsRuk.res] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [--build-id] ==> ignore
+    arg [--eh-frame-hdr] ==> ignore
+    arg [-m] ==> ignore
+    arg [elf_x86_64] ==> ignore
+    arg [-export-dynamic] ==> ignore
+    arg [-dynamic-linker] ==> ignore
+    arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+    arg [-o] ==> ignore
+    arg [cmTC_832de] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crt1.o] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crti.o] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/crtbegin.o] ==> ignore
+    arg [-L/usr/lib64/gcc/x86_64-suse-linux/8] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/8]
+    arg [-L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64]
+    arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
+    arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
+    arg [-L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib]
+    arg [-L/usr/lib64/gcc/x86_64-suse-linux/8/../../..] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../..]
+    arg [CMakeFiles/cmTC_832de.dir/CMakeCCompilerABI.c.o] ==> ignore
+    arg [-lgcc] ==> lib [gcc]
+    arg [--as-needed] ==> ignore
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [--no-as-needed] ==> ignore
+    arg [-lc] ==> lib [c]
+    arg [-lgcc] ==> lib [gcc]
+    arg [--as-needed] ==> ignore
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [--no-as-needed] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/crtend.o] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crtn.o] ==> ignore
+  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/8] ==> [/usr/lib64/gcc/x86_64-suse-linux/8]
+  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64] ==> [/usr/lib64]
+  collapse library dir [/lib/../lib64] ==> [/lib64]
+  collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
+  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib] ==> [/usr/x86_64-suse-linux/lib]
+  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../..] ==> [/usr/lib64]
+  implicit libs: [gcc;gcc_s;c;gcc;gcc_s]
+  implicit dirs: [/usr/lib64/gcc/x86_64-suse-linux/8;/usr/lib64;/lib64;/usr/x86_64-suse-linux/lib]
+  implicit fwks: []
+
+
+
+
+Detecting C [-std=c11] compiler features compiled with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_078a8/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_078a8.dir/build.make CMakeFiles/cmTC_078a8.dir/build
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_078a8.dir/feature_tests.c.o
+/usr/bin/cc   -std=c11 -o CMakeFiles/cmTC_078a8.dir/feature_tests.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_078a8
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_078a8.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_078a8.dir/feature_tests.c.o  -o cmTC_078a8 
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+    Feature record: C_FEATURE:1c_function_prototypes
+    Feature record: C_FEATURE:1c_restrict
+    Feature record: C_FEATURE:1c_static_assert
+    Feature record: C_FEATURE:1c_variadic_macros
+
+
+Detecting C [-std=c99] compiler features compiled with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_ac40a/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_ac40a.dir/build.make CMakeFiles/cmTC_ac40a.dir/build
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_ac40a.dir/feature_tests.c.o
+/usr/bin/cc   -std=c99 -o CMakeFiles/cmTC_ac40a.dir/feature_tests.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_ac40a
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ac40a.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_ac40a.dir/feature_tests.c.o  -o cmTC_ac40a 
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+    Feature record: C_FEATURE:1c_function_prototypes
+    Feature record: C_FEATURE:1c_restrict
+    Feature record: C_FEATURE:0c_static_assert
+    Feature record: C_FEATURE:1c_variadic_macros
+
+
+Detecting C [-std=c90] compiler features compiled with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_800a7/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_800a7.dir/build.make CMakeFiles/cmTC_800a7.dir/build
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_800a7.dir/feature_tests.c.o
+/usr/bin/cc   -std=c90 -o CMakeFiles/cmTC_800a7.dir/feature_tests.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_800a7
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_800a7.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_800a7.dir/feature_tests.c.o  -o cmTC_800a7 
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+    Feature record: C_FEATURE:1c_function_prototypes
+    Feature record: C_FEATURE:0c_restrict
+    Feature record: C_FEATURE:0c_static_assert
+    Feature record: C_FEATURE:0c_variadic_macros
+Determining if the include file pthread.h exists passed with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_05773/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_05773.dir/build.make CMakeFiles/cmTC_05773.dir/build
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_05773.dir/CheckIncludeFile.c.o
+/usr/bin/cc   -Wall -Wextra    -o CMakeFiles/cmTC_05773.dir/CheckIncludeFile.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp/CheckIncludeFile.c
+Linking C executable cmTC_05773
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_05773.dir/link.txt --verbose=1
+/usr/bin/cc  -Wall -Wextra     -rdynamic CMakeFiles/cmTC_05773.dir/CheckIncludeFile.c.o  -o cmTC_05773 
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+Determining if the function pthread_create exists in the pthread passed with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_8f3b0/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_8f3b0.dir/build.make CMakeFiles/cmTC_8f3b0.dir/build
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_8f3b0.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -Wall -Wextra -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTC_8f3b0.dir/CheckFunctionExists.c.o   -c /usr/share/cmake/Modules/CheckFunctionExists.c
+Linking C executable cmTC_8f3b0
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_8f3b0.dir/link.txt --verbose=1
+/usr/bin/cc  -Wall -Wextra -DCHECK_FUNCTION_EXISTS=pthread_create    -rdynamic CMakeFiles/cmTC_8f3b0.dir/CheckFunctionExists.c.o  -o cmTC_8f3b0 -lpthread 
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+Determining if the NC_ENABLED_SSH exist passed with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_4b84b/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_4b84b.dir/build.make CMakeFiles/cmTC_4b84b.dir/build
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_4b84b.dir/CheckSymbolExists.c.o
+/usr/bin/cc  -I/usr/local/include  -Wall -Wextra    -o CMakeFiles/cmTC_4b84b.dir/CheckSymbolExists.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_4b84b
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_4b84b.dir/link.txt --verbose=1
+/usr/bin/cc  -Wall -Wextra     -rdynamic CMakeFiles/cmTC_4b84b.dir/CheckSymbolExists.c.o  -o cmTC_4b84b 
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+File /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <nc_client.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef NC_ENABLED_SSH
+  return ((int*)(&NC_ENABLED_SSH))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the NC_ENABLED_TLS exist passed with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_14b73/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_14b73.dir/build.make CMakeFiles/cmTC_14b73.dir/build
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_14b73.dir/CheckSymbolExists.c.o
+/usr/bin/cc  -I/usr/local/include  -Wall -Wextra    -o CMakeFiles/cmTC_14b73.dir/CheckSymbolExists.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_14b73
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_14b73.dir/link.txt --verbose=1
+/usr/bin/cc  -Wall -Wextra     -rdynamic CMakeFiles/cmTC_14b73.dir/CheckSymbolExists.c.o  -o cmTC_14b73 
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+File /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <nc_client.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef NC_ENABLED_TLS
+  return ((int*)(&NC_ENABLED_TLS))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the function eaccess exists passed with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_44cec/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_44cec.dir/build.make CMakeFiles/cmTC_44cec.dir/build
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_44cec.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -Wall -Wextra -DCHECK_FUNCTION_EXISTS=eaccess   -o CMakeFiles/cmTC_44cec.dir/CheckFunctionExists.c.o   -c /usr/share/cmake/Modules/CheckFunctionExists.c
+Linking C executable cmTC_44cec
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_44cec.dir/link.txt --verbose=1
+/usr/bin/cc  -Wall -Wextra -DCHECK_FUNCTION_EXISTS=eaccess    -rdynamic CMakeFiles/cmTC_44cec.dir/CheckFunctionExists.c.o  -o cmTC_44cec 
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+Determining if the function mkstemps exists passed with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_efa31/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_efa31.dir/build.make CMakeFiles/cmTC_efa31.dir/build
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_efa31.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -Wall -Wextra -DCHECK_FUNCTION_EXISTS=mkstemps   -o CMakeFiles/cmTC_efa31.dir/CheckFunctionExists.c.o   -c /usr/share/cmake/Modules/CheckFunctionExists.c
+Linking C executable cmTC_efa31
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_efa31.dir/link.txt --verbose=1
+/usr/bin/cc  -Wall -Wextra -DCHECK_FUNCTION_EXISTS=mkstemps    -rdynamic CMakeFiles/cmTC_efa31.dir/CheckFunctionExists.c.o  -o cmTC_efa31 
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+The system is: Linux - 4.19.4-1-default - x86_64
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /usr/bin/cc 
+Build flags: 
+Id flags:  
+
+The output was:
+0
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
+
+The C compiler identification is GNU, found in "/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/3.13.0/CompilerIdC/a.out"
+
+Determining if the C compiler works passed with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_d98cd/fast"
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+/usr/bin/gmake -f CMakeFiles/cmTC_d98cd.dir/build.make CMakeFiles/cmTC_d98cd.dir/build
+gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_d98cd.dir/testCCompiler.c.o
+/usr/bin/cc    -o CMakeFiles/cmTC_d98cd.dir/testCCompiler.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp/testCCompiler.c
+Linking C executable cmTC_d98cd
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d98cd.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_d98cd.dir/testCCompiler.c.o  -o cmTC_d98cd 
+gmake[2]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+Detecting C compiler ABI info compiled with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_85e34/fast"
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+/usr/bin/gmake -f CMakeFiles/cmTC_85e34.dir/build.make CMakeFiles/cmTC_85e34.dir/build
+gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_85e34.dir/CMakeCCompilerABI.c.o
+/usr/bin/cc    -o CMakeFiles/cmTC_85e34.dir/CMakeCCompilerABI.c.o   -c /usr/share/cmake/Modules/CMakeCCompilerABI.c
+Linking C executable cmTC_85e34
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_85e34.dir/link.txt --verbose=1
+/usr/bin/cc     -v -rdynamic CMakeFiles/cmTC_85e34.dir/CMakeCCompilerABI.c.o  -o cmTC_85e34 
+Using built-in specs.
+COLLECT_GCC=/usr/bin/cc
+COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper
+OFFLOAD_TARGET_NAMES=hsa:nvptx-none
+Target: x86_64-suse-linux
+Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,ada,go --enable-offload-targets=hsa,nvptx-none=/usr/nvptx-none, --without-cuda-driver --enable-checking=release --disable-werror --with-gxx-include-dir=/usr/include/c++/8 --enable-ssp --disable-libssp --disable-libvtv --disable-cet --disable-libcc1 --enable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --with-slibdir=/lib64 --with-system-zlib --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --with-gcc-major-version-only --enable-linker-build-id --enable-linux-futex --enable-gnu-indirect-function --program-suffix=-8 --without-system-libunwind --enable-multilib --with-arch-32=x86-64 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux
+Thread model: posix
+gcc version 8.2.1 20181108 [gcc-8-branch revision 265914] (SUSE Linux) 
+COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/bin/
+LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_85e34' '-mtune=generic' '-march=x86-64'
+ /usr/lib64/gcc/x86_64-suse-linux/8/collect2 -plugin /usr/lib64/gcc/x86_64-suse-linux/8/liblto_plugin.so -plugin-opt=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper -plugin-opt=-fresolution=/tmp/cc0i92KO.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_85e34 /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/8/crtbegin.o -L/usr/lib64/gcc/x86_64-suse-linux/8 -L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/8/../../.. CMakeFiles/cmTC_85e34.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib64/gcc/x86_64-suse-linux/8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crtn.o
+COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_85e34' '-mtune=generic' '-march=x86-64'
+gmake[2]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+Parsed C implicit link information from above output:
+  link line regex: [^( *|.*[/\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
+  ignore line: [Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp]
+  ignore line: []
+  ignore line: [Run Build Command:"/usr/bin/gmake" "cmTC_85e34/fast"]
+  ignore line: [gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp']
+  ignore line: [/usr/bin/gmake -f CMakeFiles/cmTC_85e34.dir/build.make CMakeFiles/cmTC_85e34.dir/build]
+  ignore line: [gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp']
+  ignore line: [Building C object CMakeFiles/cmTC_85e34.dir/CMakeCCompilerABI.c.o]
+  ignore line: [/usr/bin/cc    -o CMakeFiles/cmTC_85e34.dir/CMakeCCompilerABI.c.o   -c /usr/share/cmake/Modules/CMakeCCompilerABI.c]
+  ignore line: [Linking C executable cmTC_85e34]
+  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_85e34.dir/link.txt --verbose=1]
+  ignore line: [/usr/bin/cc     -v -rdynamic CMakeFiles/cmTC_85e34.dir/CMakeCCompilerABI.c.o  -o cmTC_85e34 ]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=/usr/bin/cc]
+  ignore line: [COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper]
+  ignore line: [OFFLOAD_TARGET_NAMES=hsa:nvptx-none]
+  ignore line: [Target: x86_64-suse-linux]
+  ignore line: [Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,ada,go --enable-offload-targets=hsa,nvptx-none=/usr/nvptx-none, --without-cuda-driver --enable-checking=release --disable-werror --with-gxx-include-dir=/usr/include/c++/8 --enable-ssp --disable-libssp --disable-libvtv --disable-cet --disable-libcc1 --enable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --with-slibdir=/lib64 --with-system-zlib --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --with-gcc-major-version-only --enable-linker-build-id --enable-linux-futex --enable-gnu-indirect-function --program-suffix=-8 --without-system-libunwind --enable-multilib --with-arch-32=x86-64 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux]
+  ignore line: [Thread model: posix]
+  ignore line: [gcc version 8.2.1 20181108 [gcc-8-branch revision 265914] (SUSE Linux) ]
+  ignore line: [COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/bin/]
+  ignore line: [LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_85e34' '-mtune=generic' '-march=x86-64']
+  link line: [ /usr/lib64/gcc/x86_64-suse-linux/8/collect2 -plugin /usr/lib64/gcc/x86_64-suse-linux/8/liblto_plugin.so -plugin-opt=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper -plugin-opt=-fresolution=/tmp/cc0i92KO.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_85e34 /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/8/crtbegin.o -L/usr/lib64/gcc/x86_64-suse-linux/8 -L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/8/../../.. CMakeFiles/cmTC_85e34.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib64/gcc/x86_64-suse-linux/8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crtn.o]
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/collect2] ==> ignore
+    arg [-plugin] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/liblto_plugin.so] ==> ignore
+    arg [-plugin-opt=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper] ==> ignore
+    arg [-plugin-opt=-fresolution=/tmp/cc0i92KO.res] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [--build-id] ==> ignore
+    arg [--eh-frame-hdr] ==> ignore
+    arg [-m] ==> ignore
+    arg [elf_x86_64] ==> ignore
+    arg [-export-dynamic] ==> ignore
+    arg [-dynamic-linker] ==> ignore
+    arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+    arg [-o] ==> ignore
+    arg [cmTC_85e34] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crt1.o] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crti.o] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/crtbegin.o] ==> ignore
+    arg [-L/usr/lib64/gcc/x86_64-suse-linux/8] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/8]
+    arg [-L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64]
+    arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
+    arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
+    arg [-L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib]
+    arg [-L/usr/lib64/gcc/x86_64-suse-linux/8/../../..] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../..]
+    arg [CMakeFiles/cmTC_85e34.dir/CMakeCCompilerABI.c.o] ==> ignore
+    arg [-lgcc] ==> lib [gcc]
+    arg [--as-needed] ==> ignore
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [--no-as-needed] ==> ignore
+    arg [-lc] ==> lib [c]
+    arg [-lgcc] ==> lib [gcc]
+    arg [--as-needed] ==> ignore
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [--no-as-needed] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/crtend.o] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crtn.o] ==> ignore
+  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/8] ==> [/usr/lib64/gcc/x86_64-suse-linux/8]
+  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64] ==> [/usr/lib64]
+  collapse library dir [/lib/../lib64] ==> [/lib64]
+  collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
+  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib] ==> [/usr/x86_64-suse-linux/lib]
+  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../..] ==> [/usr/lib64]
+  implicit libs: [gcc;gcc_s;c;gcc;gcc_s]
+  implicit dirs: [/usr/lib64/gcc/x86_64-suse-linux/8;/usr/lib64;/lib64;/usr/x86_64-suse-linux/lib]
+  implicit fwks: []
+
+
+
+
+Detecting C [-std=c11] compiler features compiled with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_a6758/fast"
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+/usr/bin/gmake -f CMakeFiles/cmTC_a6758.dir/build.make CMakeFiles/cmTC_a6758.dir/build
+gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_a6758.dir/feature_tests.c.o
+/usr/bin/cc   -std=c11 -o CMakeFiles/cmTC_a6758.dir/feature_tests.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_a6758
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_a6758.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_a6758.dir/feature_tests.c.o  -o cmTC_a6758 
+gmake[2]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+    Feature record: C_FEATURE:1c_function_prototypes
+    Feature record: C_FEATURE:1c_restrict
+    Feature record: C_FEATURE:1c_static_assert
+    Feature record: C_FEATURE:1c_variadic_macros
+
+
+Detecting C [-std=c99] compiler features compiled with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_f9fe4/fast"
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+/usr/bin/gmake -f CMakeFiles/cmTC_f9fe4.dir/build.make CMakeFiles/cmTC_f9fe4.dir/build
+gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_f9fe4.dir/feature_tests.c.o
+/usr/bin/cc   -std=c99 -o CMakeFiles/cmTC_f9fe4.dir/feature_tests.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_f9fe4
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_f9fe4.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_f9fe4.dir/feature_tests.c.o  -o cmTC_f9fe4 
+gmake[2]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+    Feature record: C_FEATURE:1c_function_prototypes
+    Feature record: C_FEATURE:1c_restrict
+    Feature record: C_FEATURE:0c_static_assert
+    Feature record: C_FEATURE:1c_variadic_macros
+
+
+Detecting C [-std=c90] compiler features compiled with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_537ee/fast"
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+/usr/bin/gmake -f CMakeFiles/cmTC_537ee.dir/build.make CMakeFiles/cmTC_537ee.dir/build
+gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_537ee.dir/feature_tests.c.o
+/usr/bin/cc   -std=c90 -o CMakeFiles/cmTC_537ee.dir/feature_tests.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_537ee
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_537ee.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_537ee.dir/feature_tests.c.o  -o cmTC_537ee 
+gmake[2]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+    Feature record: C_FEATURE:1c_function_prototypes
+    Feature record: C_FEATURE:0c_restrict
+    Feature record: C_FEATURE:0c_static_assert
+    Feature record: C_FEATURE:0c_variadic_macros
+The system is: Linux - 4.20.2-1-default - x86_64
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /usr/bin/cc 
+Build flags: 
+Id flags:  
+
+The output was:
+0
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
+
+The C compiler identification is GNU, found in "/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/3.13.2/CompilerIdC/a.out"
+
+Determining if the C compiler works passed with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_989c6/fast"
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+/usr/bin/gmake -f CMakeFiles/cmTC_989c6.dir/build.make CMakeFiles/cmTC_989c6.dir/build
+gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_989c6.dir/testCCompiler.c.o
+/usr/bin/cc    -o CMakeFiles/cmTC_989c6.dir/testCCompiler.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp/testCCompiler.c
+Linking C executable cmTC_989c6
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_989c6.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_989c6.dir/testCCompiler.c.o  -o cmTC_989c6 
+gmake[2]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+Detecting C compiler ABI info compiled with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_6cfe0/fast"
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+/usr/bin/gmake -f CMakeFiles/cmTC_6cfe0.dir/build.make CMakeFiles/cmTC_6cfe0.dir/build
+gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_6cfe0.dir/CMakeCCompilerABI.c.o
+/usr/bin/cc    -o CMakeFiles/cmTC_6cfe0.dir/CMakeCCompilerABI.c.o   -c /usr/share/cmake/Modules/CMakeCCompilerABI.c
+Linking C executable cmTC_6cfe0
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_6cfe0.dir/link.txt --verbose=1
+/usr/bin/cc     -v -rdynamic CMakeFiles/cmTC_6cfe0.dir/CMakeCCompilerABI.c.o  -o cmTC_6cfe0 
+Using built-in specs.
+COLLECT_GCC=/usr/bin/cc
+COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper
+OFFLOAD_TARGET_NAMES=hsa:nvptx-none
+Target: x86_64-suse-linux
+Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,ada,go --enable-offload-targets=hsa,nvptx-none=/usr/nvptx-none, --without-cuda-driver --enable-checking=release --disable-werror --with-gxx-include-dir=/usr/include/c++/8 --enable-ssp --disable-libssp --disable-libvtv --disable-cet --disable-libcc1 --enable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --with-slibdir=/lib64 --with-system-zlib --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --with-gcc-major-version-only --enable-linker-build-id --enable-linux-futex --enable-gnu-indirect-function --program-suffix=-8 --without-system-libunwind --enable-multilib --with-arch-32=x86-64 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux
+Thread model: posix
+gcc version 8.2.1 20190103 [gcc-8-branch revision 267549] (SUSE Linux) 
+COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/bin/
+LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_6cfe0' '-mtune=generic' '-march=x86-64'
+ /usr/lib64/gcc/x86_64-suse-linux/8/collect2 -plugin /usr/lib64/gcc/x86_64-suse-linux/8/liblto_plugin.so -plugin-opt=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper -plugin-opt=-fresolution=/tmp/ccoEA0yc.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_6cfe0 /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/8/crtbegin.o -L/usr/lib64/gcc/x86_64-suse-linux/8 -L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/8/../../.. CMakeFiles/cmTC_6cfe0.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib64/gcc/x86_64-suse-linux/8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crtn.o
+COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_6cfe0' '-mtune=generic' '-march=x86-64'
+gmake[2]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+Parsed C implicit link information from above output:
+  link line regex: [^( *|.*[/\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
+  ignore line: [Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp]
+  ignore line: []
+  ignore line: [Run Build Command:"/usr/bin/gmake" "cmTC_6cfe0/fast"]
+  ignore line: [gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp']
+  ignore line: [/usr/bin/gmake -f CMakeFiles/cmTC_6cfe0.dir/build.make CMakeFiles/cmTC_6cfe0.dir/build]
+  ignore line: [gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp']
+  ignore line: [Building C object CMakeFiles/cmTC_6cfe0.dir/CMakeCCompilerABI.c.o]
+  ignore line: [/usr/bin/cc    -o CMakeFiles/cmTC_6cfe0.dir/CMakeCCompilerABI.c.o   -c /usr/share/cmake/Modules/CMakeCCompilerABI.c]
+  ignore line: [Linking C executable cmTC_6cfe0]
+  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_6cfe0.dir/link.txt --verbose=1]
+  ignore line: [/usr/bin/cc     -v -rdynamic CMakeFiles/cmTC_6cfe0.dir/CMakeCCompilerABI.c.o  -o cmTC_6cfe0 ]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=/usr/bin/cc]
+  ignore line: [COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper]
+  ignore line: [OFFLOAD_TARGET_NAMES=hsa:nvptx-none]
+  ignore line: [Target: x86_64-suse-linux]
+  ignore line: [Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,ada,go --enable-offload-targets=hsa,nvptx-none=/usr/nvptx-none, --without-cuda-driver --enable-checking=release --disable-werror --with-gxx-include-dir=/usr/include/c++/8 --enable-ssp --disable-libssp --disable-libvtv --disable-cet --disable-libcc1 --enable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --with-slibdir=/lib64 --with-system-zlib --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --with-gcc-major-version-only --enable-linker-build-id --enable-linux-futex --enable-gnu-indirect-function --program-suffix=-8 --without-system-libunwind --enable-multilib --with-arch-32=x86-64 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux]
+  ignore line: [Thread model: posix]
+  ignore line: [gcc version 8.2.1 20190103 [gcc-8-branch revision 267549] (SUSE Linux) ]
+  ignore line: [COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/bin/]
+  ignore line: [LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_6cfe0' '-mtune=generic' '-march=x86-64']
+  link line: [ /usr/lib64/gcc/x86_64-suse-linux/8/collect2 -plugin /usr/lib64/gcc/x86_64-suse-linux/8/liblto_plugin.so -plugin-opt=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper -plugin-opt=-fresolution=/tmp/ccoEA0yc.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_6cfe0 /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/8/crtbegin.o -L/usr/lib64/gcc/x86_64-suse-linux/8 -L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/8/../../.. CMakeFiles/cmTC_6cfe0.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib64/gcc/x86_64-suse-linux/8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crtn.o]
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/collect2] ==> ignore
+    arg [-plugin] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/liblto_plugin.so] ==> ignore
+    arg [-plugin-opt=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper] ==> ignore
+    arg [-plugin-opt=-fresolution=/tmp/ccoEA0yc.res] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [--build-id] ==> ignore
+    arg [--eh-frame-hdr] ==> ignore
+    arg [-m] ==> ignore
+    arg [elf_x86_64] ==> ignore
+    arg [-export-dynamic] ==> ignore
+    arg [-dynamic-linker] ==> ignore
+    arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+    arg [-o] ==> ignore
+    arg [cmTC_6cfe0] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crt1.o] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crti.o] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/crtbegin.o] ==> ignore
+    arg [-L/usr/lib64/gcc/x86_64-suse-linux/8] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/8]
+    arg [-L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64]
+    arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
+    arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
+    arg [-L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib]
+    arg [-L/usr/lib64/gcc/x86_64-suse-linux/8/../../..] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../..]
+    arg [CMakeFiles/cmTC_6cfe0.dir/CMakeCCompilerABI.c.o] ==> ignore
+    arg [-lgcc] ==> lib [gcc]
+    arg [--as-needed] ==> ignore
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [--no-as-needed] ==> ignore
+    arg [-lc] ==> lib [c]
+    arg [-lgcc] ==> lib [gcc]
+    arg [--as-needed] ==> ignore
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [--no-as-needed] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/crtend.o] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crtn.o] ==> ignore
+  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/8] ==> [/usr/lib64/gcc/x86_64-suse-linux/8]
+  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64] ==> [/usr/lib64]
+  collapse library dir [/lib/../lib64] ==> [/lib64]
+  collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
+  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib] ==> [/usr/x86_64-suse-linux/lib]
+  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../..] ==> [/usr/lib64]
+  implicit libs: [gcc;gcc_s;c;gcc;gcc_s]
+  implicit dirs: [/usr/lib64/gcc/x86_64-suse-linux/8;/usr/lib64;/lib64;/usr/x86_64-suse-linux/lib]
+  implicit fwks: []
+
+
+
+
+Detecting C [-std=c11] compiler features compiled with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_8dbb6/fast"
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+/usr/bin/gmake -f CMakeFiles/cmTC_8dbb6.dir/build.make CMakeFiles/cmTC_8dbb6.dir/build
+gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_8dbb6.dir/feature_tests.c.o
+/usr/bin/cc   -std=c11 -o CMakeFiles/cmTC_8dbb6.dir/feature_tests.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_8dbb6
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_8dbb6.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_8dbb6.dir/feature_tests.c.o  -o cmTC_8dbb6 
+gmake[2]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+    Feature record: C_FEATURE:1c_function_prototypes
+    Feature record: C_FEATURE:1c_restrict
+    Feature record: C_FEATURE:1c_static_assert
+    Feature record: C_FEATURE:1c_variadic_macros
+
+
+Detecting C [-std=c99] compiler features compiled with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_93410/fast"
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+/usr/bin/gmake -f CMakeFiles/cmTC_93410.dir/build.make CMakeFiles/cmTC_93410.dir/build
+gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_93410.dir/feature_tests.c.o
+/usr/bin/cc   -std=c99 -o CMakeFiles/cmTC_93410.dir/feature_tests.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_93410
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_93410.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_93410.dir/feature_tests.c.o  -o cmTC_93410 
+gmake[2]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+    Feature record: C_FEATURE:1c_function_prototypes
+    Feature record: C_FEATURE:1c_restrict
+    Feature record: C_FEATURE:0c_static_assert
+    Feature record: C_FEATURE:1c_variadic_macros
+
+
+Detecting C [-std=c90] compiler features compiled with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_cfe96/fast"
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+/usr/bin/gmake -f CMakeFiles/cmTC_cfe96.dir/build.make CMakeFiles/cmTC_cfe96.dir/build
+gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_cfe96.dir/feature_tests.c.o
+/usr/bin/cc   -std=c90 -o CMakeFiles/cmTC_cfe96.dir/feature_tests.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_cfe96
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_cfe96.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_cfe96.dir/feature_tests.c.o  -o cmTC_cfe96 
+gmake[2]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+    Feature record: C_FEATURE:1c_function_prototypes
+    Feature record: C_FEATURE:0c_restrict
+    Feature record: C_FEATURE:0c_static_assert
+    Feature record: C_FEATURE:0c_variadic_macros
+The system is: Linux - 5.0.2-1-default - x86_64
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /usr/bin/cc 
+Build flags: 
+Id flags:  
+
+The output was:
+0
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
+
+The C compiler identification is GNU, found in "/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/3.13.4/CompilerIdC/a.out"
+
+Determining if the C compiler works passed with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_55bfe/fast"
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+/usr/bin/gmake -f CMakeFiles/cmTC_55bfe.dir/build.make CMakeFiles/cmTC_55bfe.dir/build
+gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_55bfe.dir/testCCompiler.c.o
+/usr/bin/cc    -o CMakeFiles/cmTC_55bfe.dir/testCCompiler.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp/testCCompiler.c
+Linking C executable cmTC_55bfe
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_55bfe.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_55bfe.dir/testCCompiler.c.o  -o cmTC_55bfe 
+gmake[2]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+Detecting C compiler ABI info compiled with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_db3ac/fast"
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+/usr/bin/gmake -f CMakeFiles/cmTC_db3ac.dir/build.make CMakeFiles/cmTC_db3ac.dir/build
+gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_db3ac.dir/CMakeCCompilerABI.c.o
+/usr/bin/cc    -o CMakeFiles/cmTC_db3ac.dir/CMakeCCompilerABI.c.o   -c /usr/share/cmake/Modules/CMakeCCompilerABI.c
+Linking C executable cmTC_db3ac
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_db3ac.dir/link.txt --verbose=1
+/usr/bin/cc     -v -rdynamic CMakeFiles/cmTC_db3ac.dir/CMakeCCompilerABI.c.o  -o cmTC_db3ac 
+Using built-in specs.
+COLLECT_GCC=/usr/bin/cc
+COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper
+OFFLOAD_TARGET_NAMES=hsa:nvptx-none
+Target: x86_64-suse-linux
+Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,ada,go --enable-offload-targets=hsa,nvptx-none=/usr/nvptx-none, --without-cuda-driver --enable-checking=release --disable-werror --with-gxx-include-dir=/usr/include/c++/8 --enable-ssp --disable-libssp --disable-libvtv --disable-cet --disable-libcc1 --enable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --with-slibdir=/lib64 --with-system-zlib --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --with-gcc-major-version-only --enable-linker-build-id --enable-linux-futex --enable-gnu-indirect-function --program-suffix=-8 --without-system-libunwind --enable-multilib --with-arch-32=x86-64 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux
+Thread model: posix
+gcc version 8.3.1 20190226 [gcc-8-branch revision 269204] (SUSE Linux) 
+COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/bin/
+LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_db3ac' '-mtune=generic' '-march=x86-64'
+ /usr/lib64/gcc/x86_64-suse-linux/8/collect2 -plugin /usr/lib64/gcc/x86_64-suse-linux/8/liblto_plugin.so -plugin-opt=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper -plugin-opt=-fresolution=/tmp/ccAjKCVV.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_db3ac /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/8/crtbegin.o -L/usr/lib64/gcc/x86_64-suse-linux/8 -L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/8/../../.. CMakeFiles/cmTC_db3ac.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib64/gcc/x86_64-suse-linux/8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crtn.o
+COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_db3ac' '-mtune=generic' '-march=x86-64'
+gmake[2]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+Parsed C implicit link information from above output:
+  link line regex: [^( *|.*[/\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
+  ignore line: [Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp]
+  ignore line: []
+  ignore line: [Run Build Command:"/usr/bin/gmake" "cmTC_db3ac/fast"]
+  ignore line: [gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp']
+  ignore line: [/usr/bin/gmake -f CMakeFiles/cmTC_db3ac.dir/build.make CMakeFiles/cmTC_db3ac.dir/build]
+  ignore line: [gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp']
+  ignore line: [Building C object CMakeFiles/cmTC_db3ac.dir/CMakeCCompilerABI.c.o]
+  ignore line: [/usr/bin/cc    -o CMakeFiles/cmTC_db3ac.dir/CMakeCCompilerABI.c.o   -c /usr/share/cmake/Modules/CMakeCCompilerABI.c]
+  ignore line: [Linking C executable cmTC_db3ac]
+  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_db3ac.dir/link.txt --verbose=1]
+  ignore line: [/usr/bin/cc     -v -rdynamic CMakeFiles/cmTC_db3ac.dir/CMakeCCompilerABI.c.o  -o cmTC_db3ac ]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=/usr/bin/cc]
+  ignore line: [COLLECT_LTO_WRAPPER=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper]
+  ignore line: [OFFLOAD_TARGET_NAMES=hsa:nvptx-none]
+  ignore line: [Target: x86_64-suse-linux]
+  ignore line: [Configured with: ../configure --prefix=/usr --infodir=/usr/share/info --mandir=/usr/share/man --libdir=/usr/lib64 --libexecdir=/usr/lib64 --enable-languages=c,c++,objc,fortran,obj-c++,ada,go --enable-offload-targets=hsa,nvptx-none=/usr/nvptx-none, --without-cuda-driver --enable-checking=release --disable-werror --with-gxx-include-dir=/usr/include/c++/8 --enable-ssp --disable-libssp --disable-libvtv --disable-cet --disable-libcc1 --enable-plugin --with-bugurl=http://bugs.opensuse.org/ --with-pkgversion='SUSE Linux' --with-slibdir=/lib64 --with-system-zlib --enable-libstdcxx-allocator=new --disable-libstdcxx-pch --enable-version-specific-runtime-libs --with-gcc-major-version-only --enable-linker-build-id --enable-linux-futex --enable-gnu-indirect-function --program-suffix=-8 --without-system-libunwind --enable-multilib --with-arch-32=x86-64 --with-tune=generic --build=x86_64-suse-linux --host=x86_64-suse-linux]
+  ignore line: [Thread model: posix]
+  ignore line: [gcc version 8.3.1 20190226 [gcc-8-branch revision 269204] (SUSE Linux) ]
+  ignore line: [COMPILER_PATH=/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/bin/]
+  ignore line: [LIBRARY_PATH=/usr/lib64/gcc/x86_64-suse-linux/8/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/:/lib/../lib64/:/usr/lib/../lib64/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib/:/usr/lib64/gcc/x86_64-suse-linux/8/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-rdynamic' '-o' 'cmTC_db3ac' '-mtune=generic' '-march=x86-64']
+  link line: [ /usr/lib64/gcc/x86_64-suse-linux/8/collect2 -plugin /usr/lib64/gcc/x86_64-suse-linux/8/liblto_plugin.so -plugin-opt=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper -plugin-opt=-fresolution=/tmp/ccAjKCVV.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr -m elf_x86_64 -export-dynamic -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o cmTC_db3ac /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crt1.o /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crti.o /usr/lib64/gcc/x86_64-suse-linux/8/crtbegin.o -L/usr/lib64/gcc/x86_64-suse-linux/8 -L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64 -L/lib/../lib64 -L/usr/lib/../lib64 -L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib -L/usr/lib64/gcc/x86_64-suse-linux/8/../../.. CMakeFiles/cmTC_db3ac.dir/CMakeCCompilerABI.c.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib64/gcc/x86_64-suse-linux/8/crtend.o /usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crtn.o]
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/collect2] ==> ignore
+    arg [-plugin] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/liblto_plugin.so] ==> ignore
+    arg [-plugin-opt=/usr/lib64/gcc/x86_64-suse-linux/8/lto-wrapper] ==> ignore
+    arg [-plugin-opt=-fresolution=/tmp/ccAjKCVV.res] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [--build-id] ==> ignore
+    arg [--eh-frame-hdr] ==> ignore
+    arg [-m] ==> ignore
+    arg [elf_x86_64] ==> ignore
+    arg [-export-dynamic] ==> ignore
+    arg [-dynamic-linker] ==> ignore
+    arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+    arg [-o] ==> ignore
+    arg [cmTC_db3ac] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crt1.o] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crti.o] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/crtbegin.o] ==> ignore
+    arg [-L/usr/lib64/gcc/x86_64-suse-linux/8] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/8]
+    arg [-L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64]
+    arg [-L/lib/../lib64] ==> dir [/lib/../lib64]
+    arg [-L/usr/lib/../lib64] ==> dir [/usr/lib/../lib64]
+    arg [-L/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib]
+    arg [-L/usr/lib64/gcc/x86_64-suse-linux/8/../../..] ==> dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../..]
+    arg [CMakeFiles/cmTC_db3ac.dir/CMakeCCompilerABI.c.o] ==> ignore
+    arg [-lgcc] ==> lib [gcc]
+    arg [--as-needed] ==> ignore
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [--no-as-needed] ==> ignore
+    arg [-lc] ==> lib [c]
+    arg [-lgcc] ==> lib [gcc]
+    arg [--as-needed] ==> ignore
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [--no-as-needed] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/crtend.o] ==> ignore
+    arg [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64/crtn.o] ==> ignore
+  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/8] ==> [/usr/lib64/gcc/x86_64-suse-linux/8]
+  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../lib64] ==> [/usr/lib64]
+  collapse library dir [/lib/../lib64] ==> [/lib64]
+  collapse library dir [/usr/lib/../lib64] ==> [/usr/lib64]
+  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/lib] ==> [/usr/x86_64-suse-linux/lib]
+  collapse library dir [/usr/lib64/gcc/x86_64-suse-linux/8/../../..] ==> [/usr/lib64]
+  implicit libs: [gcc;gcc_s;c;gcc;gcc_s]
+  implicit dirs: [/usr/lib64/gcc/x86_64-suse-linux/8;/usr/lib64;/lib64;/usr/x86_64-suse-linux/lib]
+  implicit fwks: []
+
+
+
+
+Detecting C [-std=c11] compiler features compiled with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_fed20/fast"
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+/usr/bin/gmake -f CMakeFiles/cmTC_fed20.dir/build.make CMakeFiles/cmTC_fed20.dir/build
+gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_fed20.dir/feature_tests.c.o
+/usr/bin/cc   -std=c11 -o CMakeFiles/cmTC_fed20.dir/feature_tests.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_fed20
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_fed20.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_fed20.dir/feature_tests.c.o  -o cmTC_fed20 
+gmake[2]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+    Feature record: C_FEATURE:1c_function_prototypes
+    Feature record: C_FEATURE:1c_restrict
+    Feature record: C_FEATURE:1c_static_assert
+    Feature record: C_FEATURE:1c_variadic_macros
+
+
+Detecting C [-std=c99] compiler features compiled with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_cfd2f/fast"
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+/usr/bin/gmake -f CMakeFiles/cmTC_cfd2f.dir/build.make CMakeFiles/cmTC_cfd2f.dir/build
+gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_cfd2f.dir/feature_tests.c.o
+/usr/bin/cc   -std=c99 -o CMakeFiles/cmTC_cfd2f.dir/feature_tests.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_cfd2f
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_cfd2f.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_cfd2f.dir/feature_tests.c.o  -o cmTC_cfd2f 
+gmake[2]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+    Feature record: C_FEATURE:1c_function_prototypes
+    Feature record: C_FEATURE:1c_restrict
+    Feature record: C_FEATURE:0c_static_assert
+    Feature record: C_FEATURE:1c_variadic_macros
+
+
+Detecting C [-std=c90] compiler features compiled with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_0680b/fast"
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+/usr/bin/gmake -f CMakeFiles/cmTC_0680b.dir/build.make CMakeFiles/cmTC_0680b.dir/build
+gmake[2]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_0680b.dir/feature_tests.c.o
+/usr/bin/cc   -std=c90 -o CMakeFiles/cmTC_0680b.dir/feature_tests.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/feature_tests.c
+Linking C executable cmTC_0680b
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_0680b.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_0680b.dir/feature_tests.c.o  -o cmTC_0680b 
+gmake[2]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+
+
+    Feature record: C_FEATURE:1c_function_prototypes
+    Feature record: C_FEATURE:0c_restrict
+    Feature record: C_FEATURE:0c_static_assert
+    Feature record: C_FEATURE:0c_variadic_macros

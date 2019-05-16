@@ -1,0 +1,78 @@
+/**
+ * @file config.h
+ * @author Michal Vasko <mvasko@cesnet.cz>
+ * @brief Various configuration constants for netopeer2-server
+ *
+ * Copyright (c) 2019 CESNET, z.s.p.o.
+ *
+ * This source code is licensed under BSD 3-Clause License (the "License").
+ * You may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://opensource.org/licenses/BSD-3-Clause
+ */
+
+#ifndef NP2SRV_CONFIG_H_
+#define NP2SRV_CONFIG_H_
+
+/** @brief Netopeer2 Server version */
+#define NP2SRV_VERSION "@NP2SRV_VERSION@"
+
+/** @brief Netopeer2 Server PID file path
+ * The default path /var/run/netopeer2-server.pid follows
+ * the Filesystem Hierarchy Standard
+ */
+#define NP2SRV_PIDFILE "@PIDFILE_PREFIX@/netopeer2-server.pid"
+
+/** @brief Netopeer2 Server UNIX socket file path
+ * The default path /var/run/netopeer2-server.sock follows
+ * the Filesystem Hierarchy Standard
+ */
+#define NP2SRV_UNIX_SOCKFILE "@PIDFILE_PREFIX@/netopeer2-server.sock"
+
+/** @brief Netopeer2 Server SSH default RSA host key path
+ */
+#define NP2SRV_HOST_KEY "@DEFAULT_HOST_KEY@"
+
+/** @brief Maximum number of threads handling session requests
+ */
+#ifndef NP2SRV_THREAD_COUNT
+#   define NP2SRV_THREAD_COUNT @THREAD_COUNT@
+#endif
+
+/** @brief Starting allocated length for a message
+ */
+#define NP2SRV_MSG_LEN_START 128
+
+/** @brief URL capability support
+ */
+#cmakedefine NP2SRV_URL_CAPAB
+
+/** @brief availability of atomic variables
+ */
+#cmakedefine HAVE_STDATOMIC
+#ifdef HAVE_STDATOMIC
+# include <stdatomic.h>
+
+# define ATOMIC_T atomic_uchar
+
+# define ATOMIC_STORE_FENCE(var, x) atomic_store_explicit(&(var), x, memory_order_release)
+# define ATOMIC_INC_FENCE(var) atomic_fetch_add_explicit(&(var), 1, memory_order_release)
+# define ATOMIC_DEC_FENCE(var) atomic_fetch_sub_explicit(&(var), 1, memory_order_release)
+# define ATOMIC_LOAD_FENCE(var) atomic_load_explicit(&(var), memory_order_acquire)
+
+# define ATOMIC_STORE_RELAXED(var, x) atomic_store_explicit(&(var), x, memory_order_relaxed)
+# define ATOMIC_LOAD_RELAXED(var) atomic_load_explicit(&(var), memory_order_relaxed)
+#else
+# define ATOMIC_T unsigned char
+
+# define ATOMIC_STORE_FENCE(var, x) ((var) = (x))
+# define ATOMIC_INC_FENCE(var) __sync_add_and_fetch(&(var), 1)
+# define ATOMIC_DEC_FENCE(var) __sync_sub_and_fetch(&(var), 1)
+# define ATOMIC_LOAD_FENCE(var) (var)
+
+# define ATOMIC_STORE_RELAXED(var, x) ATOMIC_STORE_FENCE(var, x)
+# define ATOMIC_LOAD_RELAXED(var) ATOMIC_LOAD_FENCE(var)
+#endif
+
+#endif /* NP2SRV_CONFIG_H_ */

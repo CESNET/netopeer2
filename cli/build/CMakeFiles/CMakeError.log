@@ -1,0 +1,51 @@
+Determining if the pthread_create exist failed with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_d5fdc/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_d5fdc.dir/build.make CMakeFiles/cmTC_d5fdc.dir/build
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_d5fdc.dir/CheckSymbolExists.c.o
+/usr/bin/cc   -Wall -Wextra    -o CMakeFiles/cmTC_d5fdc.dir/CheckSymbolExists.c.o   -c /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_d5fdc
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d5fdc.dir/link.txt --verbose=1
+/usr/bin/cc  -Wall -Wextra     -rdynamic CMakeFiles/cmTC_d5fdc.dir/CheckSymbolExists.c.o  -o cmTC_d5fdc 
+CMakeFiles/cmTC_d5fdc.dir/CheckSymbolExists.c.o: In function `main':
+CheckSymbolExists.c:(.text+0x16): undefined reference to `pthread_create'
+collect2: error: ld returned 1 exit status
+gmake[1]: *** [CMakeFiles/cmTC_d5fdc.dir/build.make:87: cmTC_d5fdc] Error 1
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:121: cmTC_d5fdc/fast] Error 2
+
+File /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <pthread.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef pthread_create
+  return ((int*)(&pthread_create))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the function pthread_create exists in the pthreads failed with the following output:
+Change Dir: /home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/gmake" "cmTC_55f8c/fast"
+/usr/bin/gmake -f CMakeFiles/cmTC_55f8c.dir/build.make CMakeFiles/cmTC_55f8c.dir/build
+gmake[1]: Entering directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_55f8c.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -Wall -Wextra -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTC_55f8c.dir/CheckFunctionExists.c.o   -c /usr/share/cmake/Modules/CheckFunctionExists.c
+Linking C executable cmTC_55f8c
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_55f8c.dir/link.txt --verbose=1
+/usr/bin/cc  -Wall -Wextra -DCHECK_FUNCTION_EXISTS=pthread_create    -rdynamic CMakeFiles/cmTC_55f8c.dir/CheckFunctionExists.c.o  -o cmTC_55f8c -lpthreads 
+/usr/lib64/gcc/x86_64-suse-linux/8/../../../../x86_64-suse-linux/bin/ld: cannot find -lpthreads
+collect2: error: ld returned 1 exit status
+gmake[1]: *** [CMakeFiles/cmTC_55f8c.dir/build.make:87: cmTC_55f8c] Error 1
+gmake[1]: Leaving directory '/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:121: cmTC_55f8c/fast] Error 2
+
+

@@ -1,0 +1,1020 @@
+/**
+ * @file main.c
+ * @author Michal Vasko <mvasko@cesnet.cz>
+ * @brief netopeer2-server - NETCONF server
+ *
+ * Copyright (c) 2019 CESNET, z.s.p.o.
+ *
+ * This source code is licensed under BSD 3-Clause License (the "License").
+ * You may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://opensource.org/licenses/BSD-3-Clause
+ */
+#define _POSIX_C_SOUCRE 199309L
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <string.h>
+#include <signal.h>
+#include <syslog.h>
+#include <errno.h>
+#include <pwd.h>
+
+#include <libyang/libyang.h>
+#include <nc_server.h>
+#include <sysrepo.h>
+
+#include "common.h"
+
+#ifdef NP2SRV_URL_CAPAB
+# include <curl/curl.h>
+#endif
+
+struct np2srv np2srv;
+
+/** @brief flag for main loop */
+ATOMIC_T loop_continue = 1;
+
+static void *worker_thread(void *arg);
+static int np2srv_state_data_clb(sr_session_ctx_t *session, const char *module_name, const char *path,
+        struct lyd_node **parent, void *private_data);
+
+int
+np_sleep(unsigned int miliseconds)
+{
+    struct timespec ts;
+
+    ts.tv_sec = miliseconds / 1000;
+    ts.tv_nsec = (miliseconds % 1000) * 1000000;
+    return nanosleep(&ts, NULL);
+}
+
+/**
+ * @brief Signal handler to control the process
+ */
+void
+signal_handler(int sig)
+{
+    static int quit = 0;
+
+    switch (sig) {
+    case SIGINT:
+    case SIGTERM:
+    case SIGQUIT:
+    case SIGABRT:
+    case SIGHUP:
+        /* stop the process */
+        if (quit == 0) {
+            /* first attempt */
+            quit = 1;
+        } else {
+            /* second attempt */
+            exit(EXIT_FAILURE);
+        }
+        ATOMIC_STORE_RELAXED(loop_continue, 0);
+        break;
+    default:
+        exit(EXIT_FAILURE);
+    }
+}
+
+static void
+np2srv_node_assign_clbs(struct lys_node *start)
+{
+    struct lys_node *snode, *next;
+
+    /* set RPC and notification callbacks */
+    LY_TREE_DFS_BEGIN(start, next, snode) {
+        if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
+            nc_set_rpc_callback(snode, op_generic);
+            goto dfs_nextsibling;
+        }
+
+        /* modified LY_TREE_DFS_END() */
+        next = snode->child;
+        /* child exception for leafs, leaflists and anyxml without children */
+        if (snode->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYDATA)) {
+            next = NULL;
+        }
+        if (!next) {
+            /* no children */
+dfs_nextsibling:
+            /* try siblings */
+            next = snode->next;
+        }
+        while (!next) {
+            /* parent is already processed, go to its sibling */
+            snode = lys_parent(snode);
+            if (!snode) {
+                /* we are done, no next element to process */
+                break;
+            }
+            next = snode->next;
+        }
+    }
+}
+
+static int
+np2srv_module_assign_clbs(const struct lys_module *mod)
+{
+    if (!strcmp(mod->name, "ietf-netconf-monitoring") || !strcmp(mod->name, "ietf-netconf")) {
+        /* skip it, use internal implementations from libnetconf2 */
+        return EXIT_SUCCESS;
+    }
+    np2srv_node_assign_clbs(mod->data);
+    for (uint8_t i = 0; i < mod->augment_size; ++i) {
+        struct lys_node *target = mod->augment[i].target;
+        if (!strcmp(target->module->name, "ietf-netconf-monitoring") || !strcmp(target->module->name, "ietf-netconf")) {
+            continue;
+        }
+        np2srv_node_assign_clbs(target);
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int
+np2srv_verify_clb(const struct nc_session *session)
+{
+    char buf[256];
+    const char *user;
+    size_t buflen = 256;
+    struct passwd pwd, *ret;
+    int rc;
+
+    user = nc_session_get_username(session);
+
+    errno = 0;
+    rc = getpwnam_r(user, &pwd, buf, buflen, &ret);
+    if (!ret) {
+        if (!rc) {
+            ERR("Username \"%s\" resolved by TLS authentication does not exist on the system.", user);
+        } else {
+            ERR("Getting system passwd entry for \"%s\" failed (%s).", user, strerror(rc));
+        }
+        return 0;
+    }
+
+    return 1;
+}
+
+static int
+np2srv_state_data_clb(sr_session_ctx_t *UNUSED(session), const char *module_name, const char *path, struct lyd_node **parent,
+        void *UNUSED(private_data))
+{
+    struct lyd_node *data = NULL, *node;
+    struct ly_set *set = NULL;
+    struct ly_ctx *ly_ctx;
+    int ret = SR_ERR_OK;
+
+    ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
+
+    /* get the full module state data tree */
+    if (!strcmp(module_name, "ietf-netconf-monitoring")) {
+        data = ncm_get_data(np2srv.sr_conn);
+    } else if (!strcmp(module_name, "ietf-yang-library")) {
+        /* TODO cache this somehow when both subtrees are requested */
+        data = ly_ctx_info(ly_ctx);
+    } else {
+        EINT;
+        ret = SR_ERR_OPERATION_FAILED;
+        goto cleanup;
+    }
+
+    /* find the requested top-level subtree */
+    set = lyd_find_path(data, path);
+    if (!set || !set->number) {
+        ret = SR_ERR_OPERATION_FAILED;
+        goto cleanup;
+    }
+    node = set->set.d[0];
+
+    if (!node->parent && !*parent) {
+        EINT;
+        ret = SR_ERR_OPERATION_FAILED;
+        goto cleanup;
+    }
+
+    /* return the subtree */
+    if (node == data) {
+        data = data->next;
+    }
+    *parent = node;
+
+    /* success */
+
+cleanup:
+    ly_set_free(set);
+    lyd_free_withsiblings(data);
+    return ret;
+}
+
+void
+np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_session)
+{
+    int c, monitored = 0;
+    sr_val_t *event_data;
+    const struct lys_module *mod;
+    char *host = NULL;
+
+    switch (nc_session_get_ti(new_session)) {
+#ifdef NC_ENABLED_SSH
+    case NC_TI_LIBSSH:
+#endif
+#ifdef NC_ENABLED_TLS
+    case NC_TI_OPENSSL:
+#endif
+#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+        ncm_session_add(new_session);
+        monitored = 1;
+        break;
+#endif
+    default:
+        WRN("Session %d uses a transport protocol not supported by ietf-netconf-monitoring, will not be monitored.",
+                nc_session_get_id(new_session));
+        break;
+    }
+
+    c = 0;
+    while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, new_session)) {
+        /* presumably timeout, give it a shot 2 times */
+        np_sleep(10);
+        ++c;
+    }
+
+    if (c == 3) {
+        /* there is some serious problem in synchronization/system planner */
+        EINT;
+        goto error;
+    }
+
+    if ((mod = ly_ctx_get_module(sr_get_context(np2srv.sr_conn), "ietf-netconf-notifications", NULL, 1))) {
+        /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
+        if (nc_session_get_ti(new_session) != NC_TI_UNIX) {
+            host = (char *)nc_session_get_host(new_session);
+        }
+        event_data = calloc(3, sizeof *event_data);
+        event_data[0].xpath = "/ietf-netconf-notifications:netconf-session-start/username";
+        event_data[0].type = SR_STRING_T;
+        event_data[0].data.string_val = (char *)nc_session_get_username(new_session);
+        event_data[1].xpath = "/ietf-netconf-notifications:netconf-session-start/session-id";
+        event_data[1].type = SR_UINT32_T;
+        event_data[1].data.uint32_val = nc_session_get_id(new_session);
+        if (host) {
+            event_data[2].xpath = "/ietf-netconf-notifications:netconf-session-start/source-host";
+            event_data[2].type = SR_STRING_T;
+            event_data[2].data.string_val = host;
+        }
+        c = sr_event_notif_send(np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-start", event_data, host ? 3 : 2);
+        if (c != SR_ERR_OK) {
+            WRN("Failed to send a notification (%s).", sr_strerror(c));
+        } else {
+            VRB("Generated new event (netconf-session-start).");
+        }
+        free(event_data);
+    }
+
+    return;
+
+error:
+    if (monitored) {
+        ncm_session_del(new_session);
+    }
+    nc_session_free(new_session, NULL);
+}
+
+static void
+np2srv_del_session_clb(struct nc_session *session)
+{
+    int i, rc;
+    char *host = NULL;
+    sr_val_t *event_data;
+    const struct lys_module *mod;
+
+    if (nc_ps_del_session(np2srv.nc_ps, session)) {
+        ERR("Removing session from ps failed.");
+    }
+
+    switch (nc_session_get_ti(session)) {
+#ifdef NC_ENABLED_SSH
+    case NC_TI_LIBSSH:
+#endif
+#ifdef NC_ENABLED_TLS
+    case NC_TI_OPENSSL:
+#endif
+#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+        ncm_session_del(session);
+        break;
+#endif
+    default:
+        break;
+    }
+
+    if ((mod = ly_ctx_get_module(sr_get_context(np2srv.sr_conn), "ietf-netconf-notifications", NULL, 1))) {
+        /* generate ietf-netconf-notification's netconf-session-end event for sysrepo */
+        if (nc_session_get_ti(session) != NC_TI_UNIX) {
+            host = (char *)nc_session_get_host(session);
+        }
+        event_data = calloc(5, sizeof *event_data);
+        i = 0;
+
+        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/username";
+        event_data[i].type = SR_STRING_T;
+        event_data[i++].data.string_val = (char*)nc_session_get_username(session);
+        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/session-id";
+        event_data[i].type = SR_UINT32_T;
+        event_data[i++].data.uint32_val = nc_session_get_id(session);
+        if (host) {
+            event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/source-host";
+            event_data[i].type = SR_STRING_T;
+            event_data[i++].data.string_val = host;
+        }
+        if (nc_session_get_killed_by(session)) {
+            event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/killed-by";
+            event_data[i].type = SR_UINT32_T;
+            event_data[i++].data.uint32_val = nc_session_get_killed_by(session);
+        }
+        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/termination-reason";
+        event_data[i].type = SR_ENUM_T;
+        switch (nc_session_get_term_reason(session)) {
+        case NC_SESSION_TERM_CLOSED:
+            event_data[i++].data.enum_val = "closed";
+            break;
+        case NC_SESSION_TERM_KILLED:
+            event_data[i++].data.enum_val = "killed";
+            break;
+        case NC_SESSION_TERM_DROPPED:
+            event_data[i++].data.enum_val = "dropped";
+            break;
+        case NC_SESSION_TERM_TIMEOUT:
+            event_data[i++].data.enum_val = "timeout";
+            break;
+        default:
+            event_data[i++].data.enum_val = "other";
+            break;
+        }
+        rc = sr_event_notif_send(np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-end", event_data, i);
+        if (rc != SR_ERR_OK) {
+            WRN("Failed to send a notification (%s).", sr_strerror(rc));
+        } else {
+            VRB("Generated new event (netconf-session-end).");
+        }
+        free(event_data);
+    }
+
+    nc_session_free(session, NULL);
+}
+
+static int
+np2srv_init_schemas(sr_session_ctx_t *sr_sess)
+{
+    const char *mod_name;
+    const struct lys_module *mod;
+    const struct ly_ctx *ly_ctx;
+    uint32_t i;
+
+    ly_ctx = sr_get_context(sr_session_get_connection(sr_sess));
+
+    i = 0;
+    while ((mod = ly_ctx_get_module_iter(ly_ctx, &i))) {
+        /* set RPC and Notifications callbacks */
+        if (mod->implemented) {
+            np2srv_module_assign_clbs(mod);
+        }
+    }
+
+    /* check that internally used schemas are implemented and with required features: ietf-netconf, ... */
+    mod_name = "ietf-netconf";
+    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
+    if (!mod || !mod->implemented) {
+        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
+        return -1;
+    }
+
+    if (lys_features_state(mod, "writable-running") != 1) {
+        ERR("Module \"%s\" feature \"writable-running\" not enabled in sysrepo.", mod_name);
+        return -1;
+    }
+    if (lys_features_state(mod, "candidate") != 1) {
+        ERR("Module \"%s\" feature \"candidate\" not enabled in sysrepo.", mod_name);
+        return -1;
+    }
+    if (lys_features_state(mod, "rollback-on-error") != 1) {
+        ERR("Module \"%s\" feature \"rollback-on-error\" not enabled in sysrepo.", mod_name);
+        return -1;
+    }
+    if (lys_features_state(mod, "validate") != 1) {
+        ERR("Module \"%s\" feature \"validate\" not enabled in sysrepo.", mod_name);
+        return -1;
+    }
+    if (lys_features_state(mod, "startup") != 1) {
+        ERR("Module \"%s\" feature \"startup\" not enabled in sysrepo.", mod_name);
+        return -1;
+    }
+#ifdef NP2SRV_URL_CAPAB
+    if (lys_features_state(mod, "url") != 1) {
+        ERR("Module \"%s\" feature \"url\" not enabled in sysrepo.", mod_name);
+        return -1;
+    }
+#endif
+    if (lys_features_state(mod, "xpath") != 1) {
+        ERR("Module \"%s\" feature \"xpath\" not enabled in sysrepo.", mod_name);
+        return -1;
+    }
+
+    /* ... ietf-netconf-monitoring (leave get-schema RPC empty, libnetconf2 will use its callback), */
+    mod_name = "ietf-netconf-monitoring";
+    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
+    if (!mod || !mod->implemented) {
+        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
+        return -1;
+    }
+
+    /* ... ietf-netconf-with-defaults */
+    mod_name = "ietf-netconf-with-defaults";
+    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
+    if (!mod || !mod->implemented) {
+        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
+        return -1;
+    }
+
+    /* ... ietf-netconf-notifications (must be implemented in sysrepo) */
+    mod_name = "ietf-netconf-notifications";
+    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
+    if (!mod || !mod->implemented) {
+        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
+        return -1;
+    }
+    mod_name = "nc-notifications";
+    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
+    if (!mod || !mod->implemented) {
+        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
+        return -1;
+    }
+    mod_name = "notifications";
+    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
+    if (!mod || !mod->implemented) {
+        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
+        return -1;
+    }
+
+    mod_name = "ietf-yang-library";
+    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
+    if (!mod || !mod->implemented) {
+        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
+        return -1;
+    }
+
+    return 0;
+}
+
+static int
+np2srv_default_hostkey_clb(const char *name, void *UNUSED(user_data), char **privkey_path, char **UNUSED(privkey_data),
+        int *UNUSED(privkey_data_rsa))
+{
+    if (!strcmp(name, "default")) {
+        *privkey_path = strdup(NP2SRV_HOST_KEY);
+        return 0;
+    }
+
+    EINT;
+    return 1;
+}
+
+#ifdef NP2SRV_URL_CAPAB
+
+static char *
+np2srv_url_getcap(void)
+{
+    uint32_t i, j;
+    char *cpblt;
+    int first = 1, cur_prot, sup_prot = 0;
+    curl_version_info_data *curl_data;
+    const char *url_protocol_str[] = {"scp", "http", "https", "ftp", "sftp", "ftps", "file", NULL};
+    const char *main_cpblt = "urn:ietf:params:netconf:capability:url:1.0?scheme=";
+
+    curl_data = curl_version_info(CURLVERSION_NOW);
+    for (i = 0; curl_data->protocols[i]; ++i) {
+        for (j = 0; url_protocol_str[j]; ++j) {
+            if (!strcmp(curl_data->protocols[i], url_protocol_str[j])) {
+                sup_prot |= (1 << j);
+                break;
+            }
+        }
+    }
+    if (!sup_prot) {
+        /* no protocols supported */
+        return NULL;
+    }
+
+    /* get max capab string size and allocate it */
+    j = strlen(main_cpblt) + 1;
+    for (i = 0; url_protocol_str[i]; ++i) {
+        j += strlen(url_protocol_str[i]) + 1;
+    }
+    cpblt = malloc(j);
+    if (!cpblt) {
+        EMEM;
+        return NULL;
+    }
+
+    /* main capability */
+    strcpy(cpblt, main_cpblt);
+
+    /* supported protocols */
+    for (i = 0, cur_prot = 1; i < (sizeof url_protocol_str / sizeof *url_protocol_str); ++i, cur_prot <<= 1) {
+        if (cur_prot & sup_prot) {
+            sprintf(cpblt + strlen(cpblt), "%s%s", first ? "" : ",", url_protocol_str[i]);
+            first = 0;
+        }
+    }
+
+    return cpblt;
+}
+
+#endif
+
+static int
+server_init(void)
+{
+    const struct lys_node *snode;
+    const struct ly_ctx *ly_ctx;
+    const char *mod_name;
+    int rc;
+
+    /* connect to the sysrepo */
+    rc = sr_connect(SR_CONN_CACHE_RUNNING, &np2srv.sr_conn);
+    if (rc != SR_ERR_OK) {
+        ERR("Connecting to sysrepo failed (%s).", sr_strerror(rc));
+        goto error;
+    }
+
+    ly_ctx = sr_get_context(np2srv.sr_conn);
+
+    /* server session */
+    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &np2srv.sr_sess);
+    if (rc != SR_ERR_OK) {
+        ERR("Creating sysrepo session failed (%s).", sr_strerror(rc));
+        goto error;
+    }
+
+    /* init libyang context with schemas */
+    if (np2srv_init_schemas(np2srv.sr_sess)) {
+        goto error;
+    }
+
+    /* subscribe for providing state data */
+    mod_name = "ietf-netconf-monitoring";
+    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, "/ietf-netconf-monitoring:netconf-state",
+            np2srv_state_data_clb, NULL, 0, &np2srv.sr_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+    mod_name = "ietf-yang-library";
+    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, "/ietf-yang-library:yang-library",
+            np2srv_state_data_clb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, "/ietf-yang-library:modules-state",
+            np2srv_state_data_clb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    /* init monitoring */
+    ncm_init();
+
+    /* init libnetconf2 (it modifies only the dictionary) */
+    if (nc_server_init((struct ly_ctx *)ly_ctx)) {
+        goto error;
+    }
+
+    /* prepare poll session structure for libnetconf2 */
+    np2srv.nc_ps = nc_ps_new();
+
+    /* set with-defaults capability basic-mode */
+    nc_server_set_capab_withdefaults(NC_WD_EXPLICIT, NC_WD_ALL | NC_WD_ALL_TAG | NC_WD_TRIM | NC_WD_EXPLICIT);
+
+    /* set capabilities for the NETCONF Notifications */
+    nc_server_set_capability("urn:ietf:params:netconf:capability:notification:1.0");
+    nc_server_set_capability("urn:ietf:params:netconf:capability:interleave:1.0");
+
+#ifdef NP2SRV_URL_CAPAB
+    /* set URL capability */
+    char *url_cap = np2srv_url_getcap();
+    if (url_cap) {
+        nc_server_set_capability(url_cap);
+        free(url_cap);
+    }
+#endif
+
+    /* set NETCONF operations callbacks */
+    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:get-config", 0);
+    nc_set_rpc_callback(snode, op_get);
+
+    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:edit-config", 0);
+    nc_set_rpc_callback(snode, op_editconfig);
+
+    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:copy-config", 0);
+    nc_set_rpc_callback(snode, op_copyconfig);
+
+    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:delete-config", 0);
+    nc_set_rpc_callback(snode, op_deleteconfig);
+
+    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:lock", 0);
+    nc_set_rpc_callback(snode, op_un_lock);
+
+    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:unlock", 0);
+    nc_set_rpc_callback(snode, op_un_lock);
+
+    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:get", 0);
+    nc_set_rpc_callback(snode, op_get);
+
+    /* leave close-session RPC empty, libnetconf2 will use its callback */
+
+    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:commit", 0);
+    nc_set_rpc_callback(snode, op_commit);
+
+    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:discard-changes", 0);
+    nc_set_rpc_callback(snode, op_discardchanges);
+
+    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:validate", 0);
+    nc_set_rpc_callback(snode, op_validate);
+
+    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:kill-session", 0);
+    nc_set_rpc_callback(snode, op_kill);
+
+    /* TODO set notification subscription callback */
+    /*snode = ly_ctx_get_node(ly_ctx, NULL, "/notifications:create-subscription", 0);
+    nc_set_rpc_callback(snode, op_ntf_subscribe);*/
+
+    /* set server options */
+    WRN("Sysrepo does not have the \"ietf-netconf-server\" module or keystored keys dir unknown, using default NETCONF server options.");
+    nc_server_ssh_set_hostkey_clb(np2srv_default_hostkey_clb, NULL, NULL);
+    if (nc_server_add_endpt("main", NC_TI_LIBSSH)) {
+        goto error;
+    }
+    if (nc_server_endpt_set_address("main", "0.0.0.0")) {
+        goto error;
+    }
+    if (nc_server_endpt_set_port("main", 830)) {
+        goto error;
+    }
+    if (nc_server_ssh_endpt_add_hostkey("main", "default", -1)) {
+        goto error;
+    }
+
+    return 0;
+
+error:
+    ERR("Server init failed.");
+    return -1;
+}
+
+static void *
+worker_thread(void *arg)
+{
+    NC_MSG_TYPE msgtype;
+    int rc, idx = *((int *)arg), monitored;
+    struct nc_session *ncs;
+
+    nc_libssh_thread_verbosity(np2_verbose_level);
+
+    while (ATOMIC_LOAD_RELAXED(loop_continue)) {
+        /* try to accept new NETCONF sessions */
+        if (nc_server_endpt_count()
+                && (!np2srv.nc_max_sessions || (nc_ps_session_count(np2srv.nc_ps) < np2srv.nc_max_sessions))) {
+            msgtype = nc_accept(0, &ncs);
+            if (msgtype == NC_MSG_HELLO) {
+                np2srv_new_session_clb(NULL, ncs);
+            }
+        }
+
+        /* listen for incoming requests on active NETCONF sessions */
+        rc = nc_ps_poll(np2srv.nc_ps, 0, &ncs);
+
+        if ((rc & (NC_PSPOLL_NOSESSIONS | NC_PSPOLL_TIMEOUT | NC_PSPOLL_ERROR)) && !(rc & NC_PSPOLL_SESSION_TERM)) {
+            /* if there is no active session, timeout, or an error, rest for a while */
+            np_sleep(10);
+            continue;
+        }
+
+        switch (nc_session_get_ti(ncs)) {
+#ifdef NC_ENABLED_SSH
+        case NC_TI_LIBSSH:
+#endif
+#ifdef NC_ENABLED_TLS
+        case NC_TI_OPENSSL:
+#endif
+#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+            monitored = 1;
+            break;
+#endif
+        default:
+            monitored = 0;
+            break;
+        }
+
+        /* process the result of nc_ps_poll(), increase counters */
+        if (rc & NC_PSPOLL_BAD_RPC) {
+            if (monitored) {
+                ncm_session_bad_rpc(ncs);
+            }
+            VRB("Session %d: thread %d event bad RPC.", nc_session_get_id(ncs), idx);
+        }
+        if (rc & NC_PSPOLL_RPC) {
+            if (monitored) {
+                ncm_session_rpc(ncs);
+            }
+            VRB("Session %d: thread %d event new RPC.", nc_session_get_id(ncs), idx);
+        }
+        if (rc & NC_PSPOLL_REPLY_ERROR) {
+            if (monitored) {
+                ncm_session_rpc_reply_error(ncs);
+            }
+            VRB("Session %d: thread %d event reply error.", nc_session_get_id(ncs), idx);
+        }
+        if (rc & NC_PSPOLL_SESSION_TERM) {
+            VRB("Session %d: thread %d event session terminated.", nc_session_get_id(ncs), idx);
+            np2srv_del_session_clb(ncs);
+        } else if (rc & NC_PSPOLL_SSH_CHANNEL) {
+            /* a new SSH channel on existing session was created */
+            VRB("Session %d: thread %d event new SSH channel.", nc_session_get_id(ncs), idx);
+            msgtype = nc_session_accept_ssh_channel(ncs, &ncs);
+            if (msgtype == NC_MSG_HELLO) {
+                np2srv_new_session_clb(NULL, ncs);
+            } else if (msgtype == NC_MSG_BAD_HELLO) {
+                if (monitored) {
+                    ncm_bad_hello();
+                }
+            }
+        }
+    }
+
+    /* cleanup */
+    nc_thread_destroy();
+    free(arg);
+    return NULL;
+}
+
+static void
+print_version(void)
+{
+    fprintf(stdout, "netopeer2-server %s\n", NP2SRV_VERSION);
+    fprintf(stdout, "compile time: %s, %s\n", __DATE__, __TIME__);
+}
+
+static void
+print_usage(char* progname)
+{
+    fprintf(stdout, "Usage: %s [-dhVU] [-v level] [-c category]\n", progname);
+    fprintf(stdout, " -d                  debug mode (do not daemonize and print\n");
+    fprintf(stdout, "                     verbose messages to stderr instead of syslog)\n");
+    fprintf(stdout, " -h                  display help\n");
+    fprintf(stdout, " -V                  show program version\n");
+    fprintf(stdout, " -v level            verbose output level:\n");
+    fprintf(stdout, "                         0 - errors\n");
+    fprintf(stdout, "                         1 - errors and warnings\n");
+    fprintf(stdout, "                         2 - errors, warnings and verbose messages\n");
+#ifndef NDEBUG
+    fprintf(stdout, " -c category[,category]*  verbose debug level, print only these debug message categories\n");
+    fprintf(stdout, " categories: DICT, YANG, YIN, XPATH, DIFF, MSG, EDIT_CONFIG, SSH, SYSREPO\n");
+#else
+    fprintf(stdout, " -c category[,category]*  verbose debug level, NOT SUPPORTED in release build type\n");
+#endif
+    fprintf(stdout, "\n");
+}
+
+int
+main(int argc, char *argv[])
+{
+    int ret = EXIT_SUCCESS;
+    int c, *idx, i;
+    int daemonize = 1, verb = 0;
+    int pidfd;
+    char pid[8];
+#ifndef NDEBUG
+    char *ptr;
+#endif
+    struct sigaction action;
+    sigset_t block_mask;
+
+    /* until daemonized, write messages to both syslog and stderr */
+    openlog("netopeer2-server", LOG_PID, LOG_DAEMON);
+    np2_stderr_log = 1;
+
+    /* process command line options */
+    while ((c = getopt(argc, argv, "dhVv:c:")) != -1) {
+        switch (c) {
+        case 'd':
+            daemonize = 0;
+            break;
+        case 'h':
+            print_usage(argv[0]);
+            return EXIT_SUCCESS;
+        case 'v':
+            if (verb) {
+                ERR("Do not combine -v and -c parameters.");
+                return EXIT_FAILURE;
+            }
+            verb = 1;
+
+            c = atoi(optarg);
+            /* normalize verbose level */
+            np2_verbose_level = (c > NC_VERB_ERROR) ? ((c > NC_VERB_VERBOSE) ? NC_VERB_VERBOSE : c) : NC_VERB_ERROR;
+            switch (np2_verbose_level) {
+            case NC_VERB_ERROR:
+                np2_libssh_verbose_level = 0;
+                np2_sr_verbose_level = SR_LL_ERR;
+                break;
+            case NC_VERB_WARNING:
+                np2_sr_verbose_level = SR_LL_WRN;
+                np2_libssh_verbose_level = 1;
+                break;
+            case NC_VERB_VERBOSE:
+                np2_sr_verbose_level = SR_LL_INF;
+                np2_libssh_verbose_level = 1;
+                break;
+            }
+
+            nc_verbosity(np2_verbose_level);
+            nc_libssh_thread_verbosity(np2_libssh_verbose_level);
+            break;
+        case 'V':
+            print_version();
+            return EXIT_SUCCESS;
+        case 'c':
+#ifndef NDEBUG
+            if (verb) {
+                ERR("Do not combine -v and -c parameters.");
+                return EXIT_FAILURE;
+            }
+
+            /* set verbose for all, we change to debug later if requested */
+            np2_verbose_level = NC_VERB_VERBOSE;
+            nc_verbosity(np2_verbose_level);
+            np2_libssh_verbose_level = 1;
+
+            ptr = strtok(optarg, ",");
+            do {
+                if (!strcmp(ptr, "DICT")) {
+                    verb |= LY_LDGDICT;
+                } else if (!strcmp(ptr, "YANG")) {
+                    verb |= LY_LDGYANG;
+                } else if (!strcmp(ptr, "YIN")) {
+                    verb |= LY_LDGYIN;
+                } else if (!strcmp(ptr, "XPATH")) {
+                    verb |= LY_LDGXPATH;
+                } else if (!strcmp(ptr, "DIFF")) {
+                    verb |= LY_LDGDIFF;
+                } else if (!strcmp(ptr, "MSG")) {
+                    /* NETCONF messages - only lnc2 debug verbosity */
+                    nc_verbosity(NC_VERB_DEBUG);
+                } else if (!strcmp(ptr, "EDIT_CONFIG")) {
+                    /* edit-config operations - only netopeer2 debug verbosity */
+                    np2_verbose_level = NC_VERB_DEBUG;
+                } else if (!strcmp(ptr, "SSH")) {
+                    /* 2 should be always enough, 3 is too much useless info */
+                    np2_libssh_verbose_level = 2;
+                } else if (!strcmp(ptr, "SYSREPO")) {
+                    np2_sr_verbose_level = SR_LL_DBG;
+                } else {
+                    ERR("Unknown debug message category \"%s\", use -h.", ptr);
+                    return EXIT_FAILURE;
+                }
+            } while ((ptr = strtok(NULL, ",")));
+            /* set final verbosity of libssh and libyang */
+            nc_libssh_thread_verbosity(np2_libssh_verbose_level);
+            if (verb) {
+                ly_verb(LY_LLDBG);
+                ly_verb_dbg(verb);
+            }
+
+            verb = 1;
+            break;
+#else
+            WRN("-c parameter not supported in release build type.");
+            break;
+#endif
+
+        default:
+            print_usage(argv[0]);
+            return EXIT_SUCCESS;
+        }
+    }
+
+    /* daemonize */
+    if (daemonize == 1) {
+        if (daemon(0, 0) != 0) {
+            ERR("Daemonizing netopeer2-server failed (%s)", strerror(errno));
+            return EXIT_FAILURE;
+        }
+
+        /* from now print only to syslog, not stderr */
+        np2_stderr_log = 0;
+    }
+
+    /* make sure we are the only instance - lock the PID file and write the PID */
+    pidfd = open(NP2SRV_PIDFILE, O_RDWR | O_CREAT, 0640);
+    if (pidfd < 0) {
+        ERR("Unable to open Netopeer2 PID file '%s': %s.", NP2SRV_PIDFILE, strerror(errno));
+        return EXIT_FAILURE;
+    }
+    if (lockf(pidfd, F_TLOCK, 0) < 0) {
+        close(pidfd);
+        if (errno == EACCES || errno == EAGAIN) {
+            ERR("Another instance of the Netopeer2 server is running.");
+        } else {
+            ERR("Unable to lock Netopeer2 PID file '%s': %s.", NP2SRV_PIDFILE, strerror(errno));
+        }
+        return EXIT_FAILURE;
+    }
+    ftruncate(pidfd, 0);
+    c = snprintf(pid, sizeof(pid), "%d\n", getpid());
+    if (write(pidfd, pid, c) < c) {
+        ERR("Failed to write into PID file.");
+        close(pidfd);
+        return EXIT_FAILURE;
+    }
+    close(pidfd);
+
+    /* set the signal handler */
+    sigfillset (&block_mask);
+    action.sa_handler = signal_handler;
+    action.sa_mask = block_mask;
+    action.sa_flags = 0;
+    sigaction(SIGINT, &action, NULL);
+    sigaction(SIGQUIT, &action, NULL);
+    sigaction(SIGABRT, &action, NULL);
+    sigaction(SIGTERM, &action, NULL);
+    sigaction(SIGHUP, &action, NULL);
+
+    /* ignore SIGPIPE */
+    action.sa_handler = SIG_IGN;
+    sigaction(SIGPIPE, &action, NULL);
+
+    /* set printer callbacks for the used libraries and set proper log levels */
+    nc_set_print_clb(np2log_clb_nc2); /* libnetconf2 */
+    ly_set_log_clb(np2log_clb_ly, 1); /* libyang */
+    sr_log_set_cb(np2log_clb_sr); /* sysrepo, log level is checked by callback */
+
+    /* initiate NETCONF server */
+    if (server_init()) {
+        ret = EXIT_FAILURE;
+        goto cleanup;
+    }
+
+    /* start additional worker threads */
+    for (i = 1; i < NP2SRV_THREAD_COUNT; ++i) {
+        idx = malloc(sizeof *idx);
+        *idx = i;
+        pthread_create(&np2srv.workers[*idx], NULL, worker_thread, idx);
+    }
+
+    /* one worker will use this thread */
+    np2srv.workers[0] = pthread_self();
+    idx = malloc(sizeof *idx);
+    *idx = 0;
+    worker_thread(idx);
+
+    /* wait for other worker threads to finish */
+    for (i = 1; i < NP2SRV_THREAD_COUNT; ++i) {
+        c = pthread_join(np2srv.workers[i], NULL);
+        if (c) {
+            ERR("Failed to join worker thread %d: %s.", i, strerror(c));
+        }
+    }
+
+cleanup:
+    VRB("Server terminated.");
+
+    /* disconnect from sysrepo */
+    if (np2srv.sr_sub) {
+        sr_unsubscribe(np2srv.sr_sub);
+    }
+
+    /* close all open sessions */
+    if (np2srv.nc_ps) {
+        while (nc_ps_session_count(np2srv.nc_ps)) {
+            np2srv_del_session_clb(nc_ps_get_session(np2srv.nc_ps, 0));
+        }
+        nc_ps_free(np2srv.nc_ps);
+    }
+
+    /* libnetconf2 cleanup */
+    nc_server_destroy();
+
+    /* monitoring cleanup */
+    ncm_destroy();
+
+    /* removes the context and clears all the sessions */
+    sr_disconnect(np2srv.sr_conn);
+
+    return ret;
+}
