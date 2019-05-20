@@ -44,6 +44,12 @@
  */
 #define NP2SRV_MSG_LEN_START 128
 
+/** @brief Timeout for sending notifications (ms)
+ * Should never be needed to be increased, libnetconf2
+ * handles concurrency well.
+ */
+#define NP2SRV_NOTIF_SEND_TIMEOUT 1000
+
 /** @brief URL capability support
  */
 #cmakedefine NP2SRV_URL_CAPAB

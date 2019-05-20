@@ -787,17 +787,7 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     struct nc_server_reply *reply = NULL;
     NC_WD_MODE nc_wd;
 
-    /* create temporary session */
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to start a new SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
-    rc = sr_session_set_user(sr_sess, nc_session_get_username(ncs));
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to set user of a SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
+    sr_sess = nc_session_get_data(ncs);
 
     /* get default value for with-defaults */
     nc_server_get_capab_withdefaults(&nc_wd, NULL);
@@ -884,9 +874,7 @@ get_sr_data:
         }
     }
 
-    if (!strcmp(rpc->schema->name, "get")) {
-        assert(ds == SR_DS_RUNNING);
-
+    if (!strcmp(rpc->schema->name, "get") && (ds == SR_DS_RUNNING)) {
         /* we have running data, now append state data */
         ds = SR_DS_STATE;
         goto get_sr_data;
@@ -923,7 +911,6 @@ cleanup:
 
     lyd_free_withsiblings(rpl_rpc);
     lyd_free_withsiblings(root);
-    sr_session_stop(sr_sess);
     return reply;
 }
 
@@ -936,17 +923,7 @@ op_un_lock(struct lyd_node *rpc, struct nc_session *ncs)
     struct nc_server_reply *reply = NULL;
     int rc;
 
-    /* create temporary session */
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to start a new SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
-    rc = sr_session_set_user(sr_sess, nc_session_get_username(ncs));
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to set user of a SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
+    sr_sess = nc_session_get_data(ncs);
 
     /* get know which datastore is being affected */
     nodeset = lyd_find_path(rpc, "target/*");
@@ -978,7 +955,6 @@ op_un_lock(struct lyd_node *rpc, struct nc_session *ncs)
     reply = nc_server_reply_ok();
 
 cleanup:
-    sr_session_stop(sr_sess);
     return reply;
 }
 
@@ -993,17 +969,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     const char *str, *defop = "merge", *testop = "test-then-set";
     int rc;
 
-    /* create temporary session */
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to start a new SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
-    rc = sr_session_set_user(sr_sess, nc_session_get_username(ncs));
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to set user of a SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
+    sr_sess = nc_session_get_data(ncs);
 
     /* get know which datastore is being affected */
     nodeset = lyd_find_path(rpc, "target/*");
@@ -1096,7 +1062,6 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
 cleanup:
     lyd_free_withsiblings(config);
-    sr_session_stop(sr_sess);
     return reply;
 }
 
@@ -1115,17 +1080,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
     int lyp_wd_flag;
 #endif
 
-    /* create temporary session */
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to start a new SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
-    rc = sr_session_set_user(sr_sess, nc_session_get_username(ncs));
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to set user of a SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
+    sr_sess = nc_session_get_data(ncs);
 
     /* get know which datastores are affected */
     nodeset = lyd_find_path(rpc, "target/*");
@@ -1239,7 +1194,6 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
 cleanup:
     lyd_free_withsiblings(config);
-    sr_session_stop(sr_sess);
     return reply;
 }
 
@@ -1256,17 +1210,7 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
     const char *trg_url = NULL;
 #endif
 
-    /* create temporary session */
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to start a new SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
-    rc = sr_session_set_user(sr_sess, nc_session_get_username(ncs));
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to set user of a SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
+    sr_sess = nc_session_get_data(ncs);
 
     /* get know which datastore is affected */
     nodeset = lyd_find_path(rpc, "target/*");
@@ -1319,7 +1263,6 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
     reply = nc_server_reply_ok();
 
 cleanup:
-    sr_session_stop(sr_sess);
     return reply;
 }
 
@@ -1333,17 +1276,7 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
     struct nc_server_reply *reply = NULL;
     int rc;
 
-    /* create temporary session */
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to start a new SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
-    rc = sr_session_set_user(sr_sess, nc_session_get_username(ncs));
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to set user of a SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
+    sr_sess = nc_session_get_data(ncs);
 
     /* get know which datastore is affected */
     nodeset = lyd_find_path(rpc, "source/*");
@@ -1399,7 +1332,6 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
 
 cleanup:
     lyd_free_withsiblings(config);
-    sr_session_stop(sr_sess);
     return reply;
 }
 
@@ -1454,17 +1386,7 @@ op_commit(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
     struct nc_server_reply *reply = NULL;
     int rc;
 
-    /* create temporary session */
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to start a new SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
-    rc = sr_session_set_user(sr_sess, nc_session_get_username(ncs));
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to set user of a SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
+    sr_sess = nc_session_get_data(ncs);
 
     /* sysrepo API */
     rc = sr_copy_config(sr_sess, NULL, SR_DS_CANDIDATE, SR_DS_RUNNING);
@@ -1477,7 +1399,6 @@ op_commit(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
     reply = nc_server_reply_ok();
 
 cleanup:
-    sr_session_stop(sr_sess);
     return reply;
 }
 
@@ -1488,17 +1409,7 @@ op_discardchanges(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
     struct nc_server_reply *reply = NULL;
     int rc;
 
-    /* create temporary session */
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to start a new SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
-    rc = sr_session_set_user(sr_sess, nc_session_get_username(ncs));
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to set user of a SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
+    sr_sess = nc_session_get_data(ncs);
 
     /* sysrepo API */
     rc = sr_copy_config(sr_sess, NULL, SR_DS_RUNNING, SR_DS_CANDIDATE);
@@ -1511,10 +1422,120 @@ op_discardchanges(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
     reply = nc_server_reply_ok();
 
 cleanup:
-    sr_session_stop(sr_sess);
     return reply;
 }
 
+struct nc_server_reply *
+op_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
+{
+    struct ly_set *nodeset;
+    struct nc_server_reply *reply = NULL;
+    const struct lys_module *ly_mod;
+    struct lys_node *root, *next, *elem;
+    sr_session_ctx_t *sr_sess;
+    const char *stream;
+    char **filters = NULL, *xpath = NULL, *mem;
+    time_t start = 0, stop = 0;
+    int rc, i, len, filter_count = 0;
+    uint32_t idx;
+
+    sr_sess = nc_session_get_data(ncs);
+
+    /* learn stream */
+    nodeset = lyd_find_path(rpc, "stream");
+    stream = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
+    ly_set_free(nodeset);
+
+    /* filter */
+    nodeset = lyd_find_path(rpc, "filter");
+    if (nodeset->number) {
+        if (op_filter_create(nodeset->set.d[0], &filters, &filter_count)) {
+            goto cleanup;
+        }
+
+        /* join all filters into one xpath */
+        for (i = 0; i < filter_count; ++i) {
+            if (!xpath) {
+                xpath = strdup(filters[0]);
+                if (!xpath) {
+                    EMEM;
+                    goto cleanup;
+                }
+            } else {
+                len = strlen(xpath);
+                mem = realloc(xpath, len + 5 + strlen(filters[i]) + 1);
+                if (!mem) {
+                    EMEM;
+                    goto cleanup;
+                }
+                xpath = mem;
+                sprintf(xpath + len, " and %s", filters[i]);
+            }
+        }
+    }
+    ly_set_free(nodeset);
+
+    /* start time */
+    nodeset = lyd_find_path(rpc, "startTime");
+    if (nodeset->number) {
+        start = nc_datetime2time(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str);
+    }
+    ly_set_free(nodeset);
+
+    /* stop time */
+    nodeset = lyd_find_path(rpc, "stopTime");
+    if (nodeset->number) {
+        stop = nc_datetime2time(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str);
+    }
+    ly_set_free(nodeset);
+
+    /* sysrepo API */
+    if (!strcmp(stream, "NETCONF")) {
+        /* subscribe to all modules with notifications */
+        idx = 0;
+        while ((ly_mod = ly_ctx_get_module_iter(lyd_node_module(rpc)->ctx, &idx))) {
+            rc = SR_ERR_OK;
+            LY_TREE_FOR(ly_mod->data, root) {
+                LY_TREE_DFS_BEGIN(root, next, elem) {
+                    if (elem->nodetype == LYS_NOTIF) {
+                        rc = sr_event_notif_subscribe_tree(sr_sess, ly_mod->name, xpath, start, stop, np2srv_ntf_new_clb,
+                                ncs, np2srv.sr_notif_sub ? SR_SUBSCR_CTX_REUSE : 0, &np2srv.sr_notif_sub);
+                        break;
+                    }
+                    LY_TREE_DFS_END(root, next, elem);
+                }
+                if (elem && (elem->nodetype == LYS_NOTIF)) {
+                    break;
+                }
+            }
+            if (rc != SR_ERR_OK) {
+                reply = op_sr_err_reply(reply, sr_sess);
+                goto cleanup;
+            }
+        }
+    } else {
+        rc = sr_event_notif_subscribe_tree(sr_sess, stream, xpath, start, stop, np2srv_ntf_new_clb, ncs,
+                np2srv.sr_notif_sub ? SR_SUBSCR_CTX_REUSE : 0, &np2srv.sr_notif_sub);
+    }
+    if (rc != SR_ERR_OK) {
+        reply = op_sr_err_reply(reply, sr_sess);
+        goto cleanup;
+    }
+
+    /* set ongoing notifications flag */
+    nc_session_set_notif_status(ncs, 1);
+
+    /* build positive RPC Reply */
+    reply = nc_server_reply_ok();
+
+cleanup:
+    for (i = 0; i < filter_count; ++i) {
+        free(filters[i]);
+    }
+    free(filters);
+    free(xpath);
+    return reply;
+}
 
 struct nc_server_reply *
 op_generic(struct lyd_node *rpc, struct nc_session *ncs)
@@ -1525,17 +1546,7 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     NC_WD_MODE nc_wd;
     int rc;
 
-    /* create temporary session */
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to start a new SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
-    rc = sr_session_set_user(sr_sess, nc_session_get_username(ncs));
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to set user of a SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
+    sr_sess = nc_session_get_data(ncs);
 
     /* sysrepo API */
     rc = sr_rpc_send_tree(sr_sess, rpc, &output);
@@ -1561,6 +1572,5 @@ op_generic(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
 cleanup:
-    sr_session_stop(sr_sess);
     return reply;
 }

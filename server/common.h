@@ -32,12 +32,16 @@
 struct np2srv {
     sr_conn_ctx_t *sr_conn;        /**< sysrepo connection */
     sr_session_ctx_t *sr_sess;     /**< sysrepo server session */
-    sr_subscription_ctx_t *sr_sub; /**< sysrepo subscription context */
+    sr_subscription_ctx_t *sr_data_sub; /**< sysrepo data subscription context */
+    sr_subscription_ctx_t *sr_notif_sub; /**< sysrepo notification sunscription context */
 
     struct nc_pollsession *nc_ps;  /**< libnetconf2 pollsession structure */
     uint16_t nc_max_sessions;      /**< maximum number of running sessions */
     pthread_t workers[NP2SRV_THREAD_COUNT]; /**< worker threads handling sessions */
 };
 extern struct np2srv np2srv;
+
+void np2srv_ntf_new_clb(sr_session_ctx_t *session, const sr_ev_notif_type_t notif_type, const struct lyd_node *notif,
+        time_t timestamp, void *private_data);
 
 #endif /* NP2SRV_COMMON_H_ */

@@ -54,7 +54,7 @@ np_sleep(unsigned int miliseconds)
 /**
  * @brief Signal handler to control the process
  */
-void
+static void
 signal_handler(int sig)
 {
     static int quit = 0;
@@ -160,6 +160,130 @@ np2srv_verify_clb(const struct nc_session *session)
     return 1;
 }
 
+void
+np2srv_ntf_new_clb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t notif_type, const struct lyd_node *notif,
+        time_t timestamp, void *private_data)
+{
+    struct nc_server_notif *nc_ntf;
+    struct nc_session *ncs = (struct nc_session *)private_data;
+    struct lyd_node *ly_ntf = NULL;
+    NC_MSG_TYPE msg_type;
+    char buf[26], *datetime;
+
+    /* create these notifications, sysrepo only emulates them */
+    if (notif_type == SR_EV_NOTIF_REPLAY_COMPLETE) {
+        ly_ntf = lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/nc-notifications:replayComplete", NULL, 0, 0);
+        notif = ly_ntf;
+    } else if (notif_type == SR_EV_NOTIF_STOP) {
+        ly_ntf = lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/nc-notifications:notificationComplete", NULL, 0, 0);
+        notif = ly_ntf;
+    }
+
+    /* create the notification object */
+    datetime = nc_time2datetime(timestamp, NULL, buf);
+    nc_ntf = nc_server_notif_new((struct lyd_node *)notif, datetime, NC_PARAMTYPE_CONST);
+
+    /* send the notification */
+    msg_type = nc_server_notif_send(ncs, nc_ntf, NP2SRV_NOTIF_SEND_TIMEOUT);
+    if ((msg_type == NC_MSG_ERROR) || (msg_type == NC_MSG_WOULDBLOCK)) {
+        ERR("Sending a notification to session %d %s.", nc_session_get_id(ncs), msg_type == NC_MSG_ERROR ? "failed" : "timed out");
+        goto cleanup;
+    }
+    ncm_session_notification(ncs);
+
+    if (notif_type == SR_EV_NOTIF_STOP) {
+        /* subscription finished */
+        nc_session_set_notif_status(ncs, 0);
+    }
+
+cleanup:
+    nc_server_notif_free(nc_ntf);
+    lyd_free_withsiblings(ly_ntf);
+}
+
+static struct lyd_node *
+np2srv_ntf_get_data(sr_conn_ctx_t *sr_conn)
+{
+    struct lyd_node *root, *stream, *sr_data = NULL, *sr_mod, *rep_sup;
+    struct ly_set *set;
+    const struct ly_ctx *ly_ctx;
+    const char *mod_name;
+    char buf[26];
+    int rc;
+
+    ly_ctx = sr_get_context(sr_conn);
+
+    root = lyd_new_path(NULL, ly_ctx, "/nc-notifications:netconf/streams", NULL, 0, 0);
+    if (!root || !root->child) {
+        goto error;
+    }
+
+    /* generic stream */
+    stream = lyd_new_path(root, ly_ctx, "/nc-notifications:netconf/streams/stream[name='NETCONF']", NULL, 0, 0);
+    if (!stream) {
+        goto error;
+    }
+    if (!lyd_new_leaf(stream, stream->schema->module, "description",
+                "Default NETCONF stream containing notifications from all the modules.")) {
+        goto error;
+    }
+    if (!lyd_new_leaf(stream, stream->schema->module, "replaySupport", "true")) {
+        goto error;
+    }
+
+    /* go through all the sysrepo modules */
+    rc = sr_get_module_info(sr_conn, &sr_data);
+    if (rc != SR_ERR_OK) {
+        ERR("Failed to get sysrepo module info data (%s).", sr_strerror(rc));
+        goto error;
+    }
+    LY_TREE_FOR(sr_data->child, sr_mod) {
+        mod_name = ((struct lyd_node_leaf_list *)sr_mod->child)->value_str;
+
+        /* generate information about the stream/module */
+        stream = lyd_new(root->child, NULL, "stream");
+        if (!stream) {
+            goto error;
+        }
+        if (!lyd_new_leaf(stream, NULL, "name", mod_name)) {
+            goto error;
+        }
+        if (!lyd_new_leaf(stream, NULL, "description", "Stream with all notifications of a module.")) {
+            goto error;
+        }
+
+        set = lyd_find_path(sr_mod, "replay-support");
+        if (!set) {
+            EINT;
+            goto error;
+        }
+        if (set->number == 1) {
+            rep_sup = set->set.d[0];
+        } else {
+            rep_sup = NULL;
+        }
+        ly_set_free(set);
+
+        if (!lyd_new_leaf(stream, NULL, "replaySupport", rep_sup ? "true" : "false")) {
+            goto error;
+        }
+        if (rep_sup) {
+            nc_time2datetime(((struct lyd_node_leaf_list *)rep_sup)->value.uint64, NULL, buf);
+            if (!lyd_new_leaf(stream, NULL, "replayLogCreationTime", buf)) {
+                goto error;
+            }
+        }
+    }
+
+    lyd_free_withsiblings(sr_data);
+    return root;
+
+error:
+    lyd_free(root);
+    lyd_free_withsiblings(sr_data);
+    return NULL;
+}
+
 static int
 np2srv_state_data_clb(sr_session_ctx_t *UNUSED(session), const char *module_name, const char *path, struct lyd_node **parent,
         void *UNUSED(private_data))
@@ -177,6 +301,8 @@ np2srv_state_data_clb(sr_session_ctx_t *UNUSED(session), const char *module_name
     } else if (!strcmp(module_name, "ietf-yang-library")) {
         /* TODO cache this somehow when both subtrees are requested */
         data = ly_ctx_info(ly_ctx);
+    } else if (!strcmp(module_name, "nc-notifications")) {
+        data = np2srv_ntf_get_data(np2srv.sr_conn);
     } else {
         EINT;
         ret = SR_ERR_OPERATION_FAILED;
@@ -191,7 +317,7 @@ np2srv_state_data_clb(sr_session_ctx_t *UNUSED(session), const char *module_name
     }
     node = set->set.d[0];
 
-    if (!node->parent && !*parent) {
+    if (node->parent || *parent) {
         EINT;
         ret = SR_ERR_OPERATION_FAILED;
         goto cleanup;
@@ -201,6 +327,7 @@ np2srv_state_data_clb(sr_session_ctx_t *UNUSED(session), const char *module_name
     if (node == data) {
         data = data->next;
     }
+    lyd_unlink(node);
     *parent = node;
 
     /* success */
@@ -211,13 +338,28 @@ cleanup:
     return ret;
 }
 
-void
-np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_session)
+static void
+np2srv_new_session_clb(struct nc_session *new_session)
 {
     int c, monitored = 0;
+    sr_session_ctx_t *sr_sess = NULL;
     sr_val_t *event_data;
     const struct lys_module *mod;
     char *host = NULL;
+
+    /* create sysrepo session with correct user */
+    c = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
+    if (c != SR_ERR_OK) {
+        ERR("Failed to start a new SR session (%s).", sr_strerror(c));
+        goto error;
+    }
+    c = sr_session_set_user(sr_sess, nc_session_get_username(new_session));
+    if (c != SR_ERR_OK) {
+        ERR("Failed to set user of a SR session (%s).", sr_strerror(c));
+        goto error;
+    }
+    sr_session_set_nc_id(sr_sess, nc_session_get_id(new_session));
+    nc_session_set_data(new_session, sr_sess);
 
     switch (nc_session_get_ti(new_session)) {
 #ifdef NC_ENABLED_SSH
@@ -282,6 +424,7 @@ error:
     if (monitored) {
         ncm_session_del(new_session);
     }
+    sr_session_stop(sr_sess);
     nc_session_free(new_session, NULL);
 }
 
@@ -291,11 +434,16 @@ np2srv_del_session_clb(struct nc_session *session)
     int i, rc;
     char *host = NULL;
     sr_val_t *event_data;
+    sr_session_ctx_t *sr_sess;
     const struct lys_module *mod;
 
     if (nc_ps_del_session(np2srv.nc_ps, session)) {
         ERR("Removing session from ps failed.");
     }
+
+    /* stop sysrepo session */
+    sr_sess = nc_session_get_data(session);
+    sr_session_stop(sr_sess);
 
     switch (nc_session_get_ti(session)) {
 #ifdef NC_ENABLED_SSH
@@ -566,22 +714,33 @@ server_init(void)
     }
 
     /* subscribe for providing state data */
+    if (np2srv.sr_data_sub) {
+        EINT;
+        goto error;
+    }
     mod_name = "ietf-netconf-monitoring";
     rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, "/ietf-netconf-monitoring:netconf-state",
-            np2srv_state_data_clb, NULL, 0, &np2srv.sr_sub);
+            np2srv_state_data_clb, NULL, 0, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
         goto error;
     }
     mod_name = "ietf-yang-library";
     rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, "/ietf-yang-library:yang-library",
-            np2srv_state_data_clb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_sub);
+            np2srv_state_data_clb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
         goto error;
     }
     rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, "/ietf-yang-library:modules-state",
-            np2srv_state_data_clb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_sub);
+            np2srv_state_data_clb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+    mod_name = "nc-notifications";
+    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, "/nc-notifications:netconf",
+            np2srv_state_data_clb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
         goto error;
@@ -650,9 +809,9 @@ server_init(void)
     snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:kill-session", 0);
     nc_set_rpc_callback(snode, op_kill);
 
-    /* TODO set notification subscription callback */
-    /*snode = ly_ctx_get_node(ly_ctx, NULL, "/notifications:create-subscription", 0);
-    nc_set_rpc_callback(snode, op_ntf_subscribe);*/
+    /* set notification subscription callback */
+    snode = ly_ctx_get_node(ly_ctx, NULL, "/notifications:create-subscription", 0);
+    nc_set_rpc_callback(snode, op_subscribe);
 
     /* set server options */
     WRN("Sysrepo does not have the \"ietf-netconf-server\" module or keystored keys dir unknown, using default NETCONF server options.");
@@ -692,7 +851,7 @@ worker_thread(void *arg)
                 && (!np2srv.nc_max_sessions || (nc_ps_session_count(np2srv.nc_ps) < np2srv.nc_max_sessions))) {
             msgtype = nc_accept(0, &ncs);
             if (msgtype == NC_MSG_HELLO) {
-                np2srv_new_session_clb(NULL, ncs);
+                np2srv_new_session_clb(ncs);
             }
         }
 
@@ -748,7 +907,7 @@ worker_thread(void *arg)
             VRB("Session %d: thread %d event new SSH channel.", nc_session_get_id(ncs), idx);
             msgtype = nc_session_accept_ssh_channel(ncs, &ncs);
             if (msgtype == NC_MSG_HELLO) {
-                np2srv_new_session_clb(NULL, ncs);
+                np2srv_new_session_clb(ncs);
             } else if (msgtype == NC_MSG_BAD_HELLO) {
                 if (monitored) {
                     ncm_bad_hello();
@@ -802,6 +961,7 @@ main(int argc, char *argv[])
 #ifndef NDEBUG
     char *ptr;
 #endif
+    struct nc_session *sess;
     struct sigaction action;
     sigset_t block_mask;
 
@@ -994,15 +1154,20 @@ main(int argc, char *argv[])
 cleanup:
     VRB("Server terminated.");
 
-    /* disconnect from sysrepo */
-    if (np2srv.sr_sub) {
-        sr_unsubscribe(np2srv.sr_sub);
+    /* stop subscriptions */
+    if (np2srv.sr_data_sub) {
+        sr_unsubscribe(np2srv.sr_data_sub);
+    }
+    if (np2srv.sr_notif_sub) {
+        sr_unsubscribe(np2srv.sr_notif_sub);
     }
 
     /* close all open sessions */
     if (np2srv.nc_ps) {
         while (nc_ps_session_count(np2srv.nc_ps)) {
-            np2srv_del_session_clb(nc_ps_get_session(np2srv.nc_ps, 0));
+            sess = nc_ps_get_session(np2srv.nc_ps, 0);
+            nc_session_set_term_reason(sess, NC_SESSION_TERM_OTHER);
+            np2srv_del_session_clb(sess);
         }
         nc_ps_free(np2srv.nc_ps);
     }

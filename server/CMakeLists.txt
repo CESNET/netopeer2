@@ -124,7 +124,7 @@ endif()
 install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(CODE "
     message(STATUS \"Installing netopeer2 modules...\")
-    execute_process(COMMAND ${CMAKE_SOURCE_DIR}/module_install.sh ${SYSREPOCTL} ${CMAKE_SOURCE_DIR}/../modules ${MODULES_OWNER})
+    execute_process(COMMAND ${PROJECT_SOURCE_DIR}/module_install.sh ${SYSREPOCTL} ${PROJECT_SOURCE_DIR}/../modules ${MODULES_OWNER})
 ")
 
 configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_BINARY_DIR}/config.h" ESCAPE_QUOTES @ONLY)

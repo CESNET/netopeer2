@@ -158,6 +158,9 @@ np2log_printf(NC_VERB_LEVEL level, const char *format, ...)
         return;
     }
 
+    va_start(ap, format);
+    va_copy(ap2, ap);
+
     /* initial length */
     msg = malloc(msg_len);
     if (!msg) {
