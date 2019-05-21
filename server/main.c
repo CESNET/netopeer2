@@ -21,6 +21,7 @@
 #include <syslog.h>
 #include <errno.h>
 #include <pwd.h>
+#include <grp.h>
 
 #include <libyang/libyang.h>
 #include <nc_server.h>
@@ -32,7 +33,7 @@
 # include <curl/curl.h>
 #endif
 
-struct np2srv np2srv;
+struct np2srv np2srv = {.unix_mode = -1, .unix_uid = -1, .unix_gid = -1};
 
 /** @brief flag for main loop */
 ATOMIC_T loop_continue = 1;
@@ -829,6 +830,21 @@ server_init(void)
         goto error;
     }
 
+    /* UNIX socket */
+    if (np2srv.unix_path) {
+        if (nc_server_add_endpt("unix", NC_TI_UNIX)) {
+            goto error;
+        }
+
+        if (nc_server_endpt_set_perms("unix", np2srv.unix_mode, np2srv.unix_uid, np2srv.unix_gid)) {
+            goto error;
+        }
+
+        if (nc_server_endpt_set_address("unix", np2srv.unix_path)) {
+            goto error;
+        }
+    }
+
     return 0;
 
 error:
@@ -932,20 +948,25 @@ print_version(void)
 static void
 print_usage(char* progname)
 {
-    fprintf(stdout, "Usage: %s [-dhVU] [-v level] [-c category]\n", progname);
-    fprintf(stdout, " -d                  debug mode (do not daemonize and print\n");
-    fprintf(stdout, "                     verbose messages to stderr instead of syslog)\n");
-    fprintf(stdout, " -h                  display help\n");
-    fprintf(stdout, " -V                  show program version\n");
-    fprintf(stdout, " -v level            verbose output level:\n");
-    fprintf(stdout, "                         0 - errors\n");
-    fprintf(stdout, "                         1 - errors and warnings\n");
-    fprintf(stdout, "                         2 - errors, warnings and verbose messages\n");
+    fprintf(stdout, "Usage: %s [-dhV] [-U (path)] [-m mode] [-u uid] [-g gid] [-v level] [-c category]\n", progname);
+    fprintf(stdout, " -d        debug mode (do not daemonize and print verbose messages to stderr instead of syslog)\n");
+    fprintf(stdout, " -h        display help\n");
+    fprintf(stdout, " -V        show program version\n");
+    fprintf(stdout, " -U (path) listen on a local UNIX socket (specific path, default is \"%s\")\n", NP2SRV_UNIX_SOCK_PATH);
+    fprintf(stdout, " -m mode   set mode for the listening UNIX socket\n");
+    fprintf(stdout, " -u uid    set UID/user for the listening UNIX socket\n");
+    fprintf(stdout, " -g gid    set GID/group for the listening UNIX socket\n");
+    fprintf(stdout, " -v level  verbose output level:\n");
+    fprintf(stdout, "               0 - errors\n");
+    fprintf(stdout, "               1 - errors and warnings\n");
+    fprintf(stdout, "               2 - errors, warnings, and verbose messages\n");
 #ifndef NDEBUG
-    fprintf(stdout, " -c category[,category]*  verbose debug level, print only these debug message categories\n");
-    fprintf(stdout, " categories: DICT, YANG, YIN, XPATH, DIFF, MSG, EDIT_CONFIG, SSH, SYSREPO\n");
+    fprintf(stdout, " -c category[,category]*\n");
+    fprintf(stdout, "           verbose debug level, print only these debug message categories\n");
+    fprintf(stdout, "           categories: DICT, YANG, YIN, XPATH, DIFF, MSG, EDIT_CONFIG, SSH, SYSREPO\n");
 #else
-    fprintf(stdout, " -c category[,category]*  verbose debug level, NOT SUPPORTED in release build type\n");
+    fprintf(stdout, " -c category[,category]*\n");
+    fprintf(stdout, "           verbose debug level, NOT SUPPORTED in release build type\n");
 #endif
     fprintf(stdout, "\n");
 }
@@ -958,9 +979,9 @@ main(int argc, char *argv[])
     int daemonize = 1, verb = 0;
     int pidfd;
     char pid[8];
-#ifndef NDEBUG
     char *ptr;
-#endif
+    struct passwd *pwd;
+    struct group *grp;
     struct nc_session *sess;
     struct sigaction action;
     sigset_t block_mask;
@@ -970,7 +991,7 @@ main(int argc, char *argv[])
     np2_stderr_log = 1;
 
     /* process command line options */
-    while ((c = getopt(argc, argv, "dhVv:c:")) != -1) {
+    while ((c = getopt(argc, argv, "dhVU::m:u:g:v:c:")) != -1) {
         switch (c) {
         case 'd':
             daemonize = 0;
@@ -1009,6 +1030,38 @@ main(int argc, char *argv[])
         case 'V':
             print_version();
             return EXIT_SUCCESS;
+        case 'U':
+            np2srv.unix_path = optarg ? optarg : NP2SRV_UNIX_SOCK_PATH;
+            break;
+        case 'm':
+            np2srv.unix_mode = strtoul(optarg, &ptr, 8);
+            if (*ptr || (np2srv.unix_mode > 0777)) {
+                ERR("Invalid UNIX socket mode \"%s\".", optarg);
+                return EXIT_FAILURE;
+            }
+            break;
+        case 'u':
+            np2srv.unix_uid = strtoul(optarg, &ptr, 10);
+            if (*ptr) {
+                pwd = getpwnam(optarg);
+                if (!pwd) {
+                    ERR("Invalid UNIX socket UID/user \"%s\".", optarg);
+                    return EXIT_FAILURE;
+                }
+                np2srv.unix_uid = pwd->pw_uid;
+            }
+            break;
+        case 'g':
+            np2srv.unix_gid = strtoul(optarg, &ptr, 10);
+            if (*ptr) {
+                grp = getgrnam(optarg);
+                if (!grp) {
+                    ERR("Invalid UNIX socket GID/group \"%s\".", optarg);
+                    return EXIT_FAILURE;
+                }
+                np2srv.unix_gid = grp->gr_gid;
+            }
+            break;
         case 'c':
 #ifndef NDEBUG
             if (verb) {
@@ -1072,7 +1125,7 @@ main(int argc, char *argv[])
     /* daemonize */
     if (daemonize == 1) {
         if (daemon(0, 0) != 0) {
-            ERR("Daemonizing netopeer2-server failed (%s)", strerror(errno));
+            ERR("Daemonizing the server failed (%s).", strerror(errno));
             return EXIT_FAILURE;
         }
 
@@ -1081,9 +1134,9 @@ main(int argc, char *argv[])
     }
 
     /* make sure we are the only instance - lock the PID file and write the PID */
-    pidfd = open(NP2SRV_PIDFILE, O_RDWR | O_CREAT, 0640);
+    pidfd = open(NP2SRV_PID_FILE_PATH, O_RDWR | O_CREAT, 0640);
     if (pidfd < 0) {
-        ERR("Unable to open Netopeer2 PID file '%s': %s.", NP2SRV_PIDFILE, strerror(errno));
+        ERR("Unable to open the PID file \"%s\" (%s).", NP2SRV_PID_FILE_PATH, strerror(errno));
         return EXIT_FAILURE;
     }
     if (lockf(pidfd, F_TLOCK, 0) < 0) {
@@ -1091,7 +1144,7 @@ main(int argc, char *argv[])
         if (errno == EACCES || errno == EAGAIN) {
             ERR("Another instance of the Netopeer2 server is running.");
         } else {
-            ERR("Unable to lock Netopeer2 PID file '%s': %s.", NP2SRV_PIDFILE, strerror(errno));
+            ERR("Unable to lock the PID file \"%s\" (%s).", NP2SRV_PID_FILE_PATH, strerror(errno));
         }
         return EXIT_FAILURE;
     }
@@ -1147,7 +1200,7 @@ main(int argc, char *argv[])
     for (i = 1; i < NP2SRV_THREAD_COUNT; ++i) {
         c = pthread_join(np2srv.workers[i], NULL);
         if (c) {
-            ERR("Failed to join worker thread %d: %s.", i, strerror(c));
+            ERR("Failed to join worker thread %d (%s).", i, strerror(c));
         }
     }
 

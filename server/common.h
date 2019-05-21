@@ -22,21 +22,22 @@
 #include "log.h"
 #include "netconf_monitoring.h"
 
-#ifdef __GNUC__
-#  define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
-#else
-#  define UNUSED(x) UNUSED_ ## x
-#endif
+#define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
 
-/* Netopeer server internal data */
+/* server internal data */
 struct np2srv {
-    sr_conn_ctx_t *sr_conn;        /**< sysrepo connection */
-    sr_session_ctx_t *sr_sess;     /**< sysrepo server session */
+    sr_conn_ctx_t *sr_conn;         /**< sysrepo connection */
+    sr_session_ctx_t *sr_sess;      /**< sysrepo server session */
     sr_subscription_ctx_t *sr_data_sub; /**< sysrepo data subscription context */
-    sr_subscription_ctx_t *sr_notif_sub; /**< sysrepo notification sunscription context */
+    sr_subscription_ctx_t *sr_notif_sub;    /**< sysrepo notification sunscription context */
 
-    struct nc_pollsession *nc_ps;  /**< libnetconf2 pollsession structure */
-    uint16_t nc_max_sessions;      /**< maximum number of running sessions */
+    const char *unix_path;          /**< path to the UNIX socket to listen on, if any */
+    mode_t unix_mode;               /**< UNIX socket mode */
+    uid_t unix_uid;                 /**< UNIX socket UID */
+    gid_t unix_gid;                 /**< UNIX socket GID */
+
+    struct nc_pollsession *nc_ps;   /**< libnetconf2 pollsession structure */
+    uint16_t nc_max_sessions;       /**< maximum number of running sessions */
     pthread_t workers[NP2SRV_THREAD_COUNT]; /**< worker threads handling sessions */
 };
 extern struct np2srv np2srv;
