@@ -25,7 +25,7 @@
 #include <libyang/libyang.h>
 #include <sysrepo.h>
 
-#include "config.h"
+#include "common.h"
 
 volatile uint8_t np2_verbose_level;
 uint8_t np2_libssh_verbose_level;
@@ -33,7 +33,7 @@ uint8_t np2_sr_verbose_level;
 uint8_t np2_stderr_log;
 
 static void
-np2log(int priority, const char *fmt, ...)
+np2log(int priority, const char *src, const char *fmt, ...)
 {
     char *format;
     va_list ap;
@@ -45,25 +45,25 @@ np2log(int priority, const char *fmt, ...)
     if (np2_stderr_log) {
         format = malloc(11 + strlen(fmt) + 2);
         if (!format) {
-            fprintf(stderr, "ERROR: Memory allocation failed (%s:%d)", __FILE__, __LINE__);
+            fprintf(stderr, "[ERR]: Memory allocation failed (%s:%d)", __FILE__, __LINE__);
             return;
         }
 
         switch (priority) {
         case LOG_ERR:
-            sprintf(format, "[ERR]: %s\n", fmt);
+            sprintf(format, "[ERR]: %s: %s\n", src, fmt);
             break;
         case LOG_WARNING:
-            sprintf(format, "[WRN]: %s\n", fmt);
+            sprintf(format, "[WRN]: %s: %s\n", src, fmt);
             break;
         case LOG_INFO:
-            sprintf(format, "[INF]: %s\n", fmt);
+            sprintf(format, "[INF]: %s: %s\n", src, fmt);
             break;
         case LOG_DEBUG:
-            sprintf(format, "[DBG]: %s\n", fmt);
+            sprintf(format, "[DBG]: %s: %s\n", src, fmt);
             break;
         default:
-            sprintf(format, "[UNKNOWN]: %s\n", fmt);
+            sprintf(format, "[UNKNOWN]: %s: %s\n", src, fmt);
             break;
         }
 
@@ -98,7 +98,7 @@ np2log_clb_nc2(NC_VERB_LEVEL level, const char *msg)
         break;
     }
 
-    np2log(priority, msg);
+    np2log(priority, "LN", msg);
 }
 
 /**
@@ -128,18 +128,35 @@ np2log_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
     }
 
     if (path) {
-        np2log(priority, "%s (%s)", msg, path);
+        np2log(priority, "LY", "%s (%s)", msg, path);
     } else {
-        np2log(priority, msg);
+        np2log(priority, "LY", msg);
     }
 }
 
 void
 np2log_clb_sr(sr_log_level_t level, const char *msg)
 {
-    if (np2_sr_verbose_level >= level) {
-        np2log_clb_nc2((NC_VERB_LEVEL)(level - 1), msg);
+    int priority = LOG_ERR;
+
+    switch (level) {
+    case SR_LL_ERR:
+        priority = LOG_ERR;
+        break;
+    case SR_LL_WRN:
+        priority = LOG_WARNING;
+        break;
+    case SR_LL_INF:
+        priority = LOG_INFO;
+        break;
+    case SR_LL_DBG:
+        priority = LOG_DEBUG;
+        break;
+    case SR_LL_NONE:
+        return;
     }
+
+    np2log(priority, "SR", msg);
 }
 
 /**
@@ -153,6 +170,7 @@ np2log_printf(NC_VERB_LEVEL level, const char *format, ...)
     va_list ap, ap2;
     ssize_t msg_len = NP2SRV_MSG_LEN_START, req_len;
     char *msg, *mem;
+    int priority = LOG_ERR;
 
     if (np2_verbose_level < level) {
         return;
@@ -188,7 +206,21 @@ np2log_printf(NC_VERB_LEVEL level, const char *format, ...)
         }
     }
 
-    np2log_clb_nc2(level, msg);
+    switch (level) {
+    case NC_VERB_ERROR:
+        priority = LOG_ERR;;
+        break;
+    case NC_VERB_WARNING:
+        priority = LOG_WARNING;
+        break;
+    case NC_VERB_VERBOSE:
+        priority = LOG_INFO;
+        break;
+    case NC_VERB_DEBUG:
+        priority = LOG_DEBUG;
+        break;
+    }
+    np2log(priority, "NP", msg);
 
 cleanup:
     free(msg);

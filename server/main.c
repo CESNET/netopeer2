@@ -581,7 +581,7 @@ np2srv_init_schemas(sr_session_ctx_t *sr_sess)
         return -1;
     }
 
-    /* ... ietf-netconf-with-defaults */
+    /* ... ietf-netconf-with-defaults, */
     mod_name = "ietf-netconf-with-defaults";
     mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
     if (!mod || !mod->implemented) {
@@ -589,7 +589,7 @@ np2srv_init_schemas(sr_session_ctx_t *sr_sess)
         return -1;
     }
 
-    /* ... ietf-netconf-notifications (must be implemented in sysrepo) */
+    /* ... ietf-netconf-notifications (must be implemented in sysrepo), */
     mod_name = "ietf-netconf-notifications";
     mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
     if (!mod || !mod->implemented) {
@@ -616,20 +616,19 @@ np2srv_init_schemas(sr_session_ctx_t *sr_sess)
         return -1;
     }
 
-    return 0;
-}
-
-static int
-np2srv_default_hostkey_clb(const char *name, void *UNUSED(user_data), char **privkey_path, char **UNUSED(privkey_data),
-        int *UNUSED(privkey_data_rsa))
-{
-    if (!strcmp(name, "default")) {
-        *privkey_path = strdup(NP2SRV_HOST_KEY);
-        return 0;
+    /* .. ietf-netconf-server */
+    mod_name = "ietf-netconf-server";
+    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
+    if (!mod || !mod->implemented) {
+        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
+        return -1;
+    }
+    if (lys_features_state(mod, "ssh-listen") != 1) {
+        ERR("Module \"%s\" feature \"ssh-listen\" not enabled in sysrepo.", mod_name);
+        return -1;
     }
 
-    EINT;
-    return 1;
+    return 0;
 }
 
 #ifdef NP2SRV_URL_CAPAB
@@ -690,7 +689,7 @@ server_init(void)
 {
     const struct lys_node *snode;
     const struct ly_ctx *ly_ctx;
-    const char *mod_name;
+    const char *mod_name, *xpath;
     int rc;
 
     /* connect to the sysrepo */
@@ -814,19 +813,57 @@ server_init(void)
     snode = ly_ctx_get_node(ly_ctx, NULL, "/notifications:create-subscription", 0);
     nc_set_rpc_callback(snode, op_subscribe);
 
-    /* set server options */
-    WRN("Sysrepo does not have the \"ietf-netconf-server\" module or keystored keys dir unknown, using default NETCONF server options.");
-    nc_server_ssh_set_hostkey_clb(np2srv_default_hostkey_clb, NULL, NULL);
-    if (nc_server_add_endpt("main", NC_TI_LIBSSH)) {
+    /* set libnetconf2 callbacks */
+    nc_server_ssh_set_hostkey_clb(np2srv_hostkey_cb, NULL, NULL);
+
+    /* subscribe for server configuration changes */
+    mod_name = "ietf-netconf-server";
+    xpath = "/ietf-netconf-server:netconf-server/listen/idle-timeout";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_idle_timeout_cb, NULL, 0,
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
         goto error;
     }
-    if (nc_server_endpt_set_address("main", "0.0.0.0")) {
+
+    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_ssh_cb, NULL, 0,
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
         goto error;
     }
-    if (nc_server_endpt_set_port("main", 830)) {
+
+    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/tcp-server-parameters";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_tcp_params_cb, NULL, 0,
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
         goto error;
     }
-    if (nc_server_ssh_endpt_add_hostkey("main", "default", -1)) {
+
+    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/server-identity/host-key";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_ssh_hostkey_cb, NULL, 0,
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/client-authentication/"
+            "supported-authentication-methods";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_ssh_auth_methods_cb, NULL, 0,
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/client-authentication/users";
+    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_ssh_auth_users_oper_cb, NULL,
+            SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for providing \"%s\" data failed (%s).", mod_name, sr_strerror(rc));
         goto error;
     }
 
@@ -963,7 +1000,7 @@ print_usage(char* progname)
 #ifndef NDEBUG
     fprintf(stdout, " -c category[,category]*\n");
     fprintf(stdout, "           verbose debug level, print only these debug message categories\n");
-    fprintf(stdout, "           categories: DICT, YANG, YIN, XPATH, DIFF, MSG, EDIT_CONFIG, SSH, SYSREPO\n");
+    fprintf(stdout, "           categories: DICT, YANG, YIN, XPATH, DIFF, MSG, SSH, SYSREPO\n");
 #else
     fprintf(stdout, " -c category[,category]*\n");
     fprintf(stdout, "           verbose debug level, NOT SUPPORTED in release build type\n");
@@ -1089,9 +1126,6 @@ main(int argc, char *argv[])
                 } else if (!strcmp(ptr, "MSG")) {
                     /* NETCONF messages - only lnc2 debug verbosity */
                     nc_verbosity(NC_VERB_DEBUG);
-                } else if (!strcmp(ptr, "EDIT_CONFIG")) {
-                    /* edit-config operations - only netopeer2 debug verbosity */
-                    np2_verbose_level = NC_VERB_DEBUG;
                 } else if (!strcmp(ptr, "SSH")) {
                     /* 2 should be always enough, 3 is too much useless info */
                     np2_libssh_verbose_level = 2;

@@ -1,9 +1,9 @@
 /**
  * @file netconf_monitoring.c
  * @author Michal Vasko <mvasko@cesnet.cz>
- * @brief netopeer2-server ietf-netconf-monitoring statistics and counters
+ * @brief ietf-netconf-monitoring statistics and counters
  *
- * Copyright (c) 2016 CESNET, z.s.p.o.
+ * Copyright (c) 2019 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -20,8 +20,7 @@
 #include <libyang/libyang.h>
 #include <nc_server.h>
 
-#include "netconf_monitoring.h"
-#include "log.h"
+#include "common.h"
 
 #define NCM_TIMEZONE "CET"
 

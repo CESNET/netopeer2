@@ -21,6 +21,7 @@
 #include "operations.h"
 #include "log.h"
 #include "netconf_monitoring.h"
+#include "netconf_server.h"
 
 #define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
 

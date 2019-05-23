@@ -34,8 +34,9 @@ else()
     option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" OFF)
 endif()
 option(ENABLE_URL "Enable URL capability" ON)
+option(GENERATE_HOSTKEY "Generate a new RSA host key for the server" ON)
+option(ENABLE_SYSREPO_SETUP "Setup sysrepo for the server (install required modules and import default configuration)" ON)
 set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
-set(DEFAULT_HOST_KEY "/etc/ssh/ssh_host_rsa_key" CACHE STRING "Default server host key (used only if configuration is disabled)")
 set(MODULES_OWNER "$ENV{USER}" CACHE STRING "User that will become the owner of server modules")
 
 # set prefix for the PID file
@@ -68,6 +69,7 @@ endif()
 set(srcs
     operations.c
     netconf_monitoring.c
+    netconf_server.c
     log.c)
 
 # object library to build source codes only once for the main binary
@@ -85,7 +87,7 @@ if (ENABLE_URL)
         set(NP2SRV_URL_CAPAB 1)
     else()
         message(STATUS "libcurl not found, url capability will not be supported")
-        set(ENABLE_URL OFF)
+        unset(NP2SRV_URL_CAPAB)
     endif()
 endif()
 
@@ -119,20 +121,54 @@ find_program(SYSREPOCTL "sysrepoctl")
 if (SYSREPOCTL-NOTFOUND)
     message(FATAL_ERROR "sysrepoctl utility not found.")
 endif()
+find_program(SYSREPOCFG "sysrepocfg")
+if (SYSREPOCFG-NOTFOUND)
+    message(FATAL_ERROR "sysrepocfg utility not found.")
+endif()
 
-# install the binary and required modules
+# dependencies - openssl
+if (GENERATE_HOSTKEY)
+    find_program(OPENSSL "openssl")
+    if (OPENSSL-NOTFOUND)
+        message(FATAL_ERROR "openssl utility not found.")
+    endif()
+endif()
+
+# install the binary, required modules, and default configuration
 install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(CODE "
-    message(STATUS \"Installing netopeer2 modules...\")
-    execute_process(COMMAND ${PROJECT_SOURCE_DIR}/module_install.sh ${SYSREPOCTL} ${PROJECT_SOURCE_DIR}/../modules ${MODULES_OWNER})
-")
+if (ENABLE_SYSREPO_SETUP)
+    install(CODE "
+        message(STATUS \"Setting up sysrepo...\")
+        execute_process(COMMAND ${PROJECT_SOURCE_DIR}/setup.sh ${SYSREPOCTL} ${SYSREPOCFG} ${PROJECT_SOURCE_DIR}/../modules
+                ${MODULES_OWNER})
+    ")
+else()
+    message(WARNING "Server will refuse to start if the setup is not performed!")
+endif()
+if (GENERATE_HOSTKEY)
+    install(CODE "
+        message(STATUS \"Generating a new RSA host key...\")
+        execute_process(COMMAND ${PROJECT_SOURCE_DIR}/gen_hostkey.sh ${SYSREPOCFG} ${OPENSSL})
+    ")
+else()
+    message(WARNING "Server will not accept connections if there is no hostkey set!")
+endif()
+if (ENABLE_SYSREPO_SETUP OR GENERATE_HOSTKEY)
+    install(CODE "
+        message(STATUS)
+        message(STATUS \"No sysrepo clients can be running because its shared memory was reset!\")
+        message(STATUS)
+        file(REMOVE /dev/shm/sr_ext_main /dev/shm/sr_main)
+    ")
+endif()
 
 configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_BINARY_DIR}/config.h" ESCAPE_QUOTES @ONLY)
 include_directories(${PROJECT_BINARY_DIR})
 
 # clean cmake cache
 add_custom_target(cleancache
-                  COMMAND make clean
-                  COMMAND find . -iname '*cmake*' -not -name CMakeLists.txt -exec rm -rf {} +
-                  COMMAND rm -rf Makefile Doxyfile
-                  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    COMMAND make clean
+    COMMAND find . -iname '*cmake*' -not -name CMakeLists.txt -exec rm -rf {} +
+    COMMAND rm -rf Makefile Doxyfile
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)

@@ -13,32 +13,32 @@ module ietf-netconf-monitoring {
   contact
     "WG Web:   <http://tools.ietf.org/wg/netconf/>
      WG List:  <mailto:netconf@ietf.org>
-     
+
      WG Chair: Mehmet Ersue
                <mailto:mehmet.ersue@nsn.com>
-     
+
      WG Chair: Bert Wijnen
                <mailto:bertietf@bwijnen.net>
-     
+
      Editor:   Mark Scott
                <mailto:mark.scott@ericsson.com>
-     
+
      Editor:   Martin Bjorklund
                <mailto:mbj@tail-f.com>";
   description
     "NETCONF Monitoring Module.
      All elements in this module are read-only.
-     
+
      Copyright (c) 2010 IETF Trust and the persons identified as
      authors of the code. All rights reserved.
-     
+
      Redistribution and use in source and binary forms, with or
      without modification, is permitted pursuant to, and subject
      to the license terms contained in, the Simplified BSD
      License set forth in Section 4.c of the IETF Trust's
      Legal Provisions Relating to IETF Documents
      (http://trustee.ietf.org/license-info).
-     
+
      This version of this YANG module is part of RFC 6022; see
      the RFC itself for full legal notices.";
 
@@ -222,7 +222,7 @@ module ietf-netconf-monitoring {
              NETCONF server will prevent changes to the locked
              resources by all sessions except the one that acquired
              the lock(s).
-             
+
              Monitoring information is provided for each datastore
              entry including details such as the session that acquired
              the lock, the type of lock (global or partial) and the
@@ -240,7 +240,7 @@ module ietf-netconf-monitoring {
                 "The session ID of the session that has locked
                  this resource.  Both a global lock and a partial
                  lock MUST contain the NETCONF session-id.
-                 
+
                  If the lock is held by a session that is not managed
                  by the NETCONF server (e.g., a CLI session), a session
                  id of 0 (zero) is reported.";
@@ -290,7 +290,7 @@ module ietf-netconf-monitoring {
                 description
                   "The list of instance-identifiers (i.e., the
                    locked nodes).
-                   
+
                    The scope of the partial lock is defined by the list
                    of locked nodes.";
               }
@@ -313,7 +313,7 @@ module ietf-netconf-monitoring {
             "Identifier to uniquely reference the schema.  The
              identifier is used in the <get-schema> operation and may
              be used for other purposes such as file retrieval.
-             
+
              For modeling languages that support or require a data
              model name (e.g., YANG module name) the identifier MUST
              match that name.  For YANG data models, the identifier is
@@ -328,7 +328,7 @@ module ietf-netconf-monitoring {
              version MUST be reported individually in the schema list,
              i.e., with same identifier, possibly different location,
              but different version.
-             
+
              For YANG data models, version is the value of the most
              recent YANG 'revision' statement in the module or
              submodule, or the empty string if no 'revision' statement
@@ -349,7 +349,7 @@ module ietf-netconf-monitoring {
           mandatory true;
           description
             "The XML namespace defined by the data model.
-             
+
              For YANG data models, this is the module's namespace.
              If the list entry describes a submodule, this field
              contains the namespace of the module to which the
@@ -366,7 +366,7 @@ module ietf-netconf-monitoring {
             "One or more locations from which the schema can be
              retrieved.  This list SHOULD contain at least one
              entry per schema.
-             
+
              A schema entry may be located on a remote file system
              (e.g., reference to file system for ftp retrieval) or
              retrieved directly from a server supporting the
@@ -456,7 +456,7 @@ module ietf-netconf-monitoring {
         description
           "Number of sessions started.  This counter is incremented
            when a <hello> message with a <session-id> is sent.
-           
+
            'in-sessions' - 'in-bad-hellos' =
               'number of correctly started netconf sessions'";
       }
@@ -482,14 +482,14 @@ module ietf-netconf-monitoring {
     description
       "This operation is used to retrieve a schema from the
        NETCONF server.
-       
+
        Positive Response:
          The NETCONF server returns the requested schema.
-       
+
        Negative Response:
          If requested schema does not exist, the <error-tag> is
          'invalid-value'.
-       
+
          If more than one schema matches the requested parameters, the
          <error-tag> is 'operation-failed', and <error-app-tag> is
          'data-not-unique'.";
