@@ -55,6 +55,6 @@ CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\
 TMPFILE=`mktemp -u`
 printf -- "${CONFIG}" > ${TMPFILE}
 # apply it
-${SYSREPOCFG} -d startup -f xml -g ${TMPFILE}
+${SYSREPOCFG} -E${TMPFILE} -d startup -f xml
 # remove the tmp file
 rm ${TMPFILE}

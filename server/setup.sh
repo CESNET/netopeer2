@@ -31,4 +31,4 @@ $SYSREPOCTL -i $MODDIR/ietf-keystore@2019-04-29.yang -e local-keys-supported -s 
 $SYSREPOCTL -i $MODDIR/ietf-ssh-server@2019-04-29.yang -e local-client-auth-supported -s $MODDIR
 $SYSREPOCTL -i $MODDIR/ietf-netconf-server@2019-04-29.yang -e ssh-listen -s $MODDIR
 # import default config
-$SYSREPOCFG -d startup -i$MODDIR/default_config.xml
+$SYSREPOCFG -I$MODDIR/default_config.xml -d startup
