@@ -23,6 +23,7 @@
 #include <sys/types.h>
 #include <pwd.h>
 
+#include <libssh/libssh.h>
 #include <nc_server.h>
 #include <libyang/libyang.h>
 #include <sysrepo.h>
@@ -31,7 +32,7 @@
 
 int
 np2srv_hostkey_cb(const char *name, void *UNUSED(user_data), char **UNUSED(privkey_path), char **privkey_data,
-        NC_SSH_KEY *privkey_type)
+        NC_SSH_KEY_TYPE *privkey_type)
 {
     sr_session_ctx_t *sr_sess;
     char *xpath;
@@ -45,7 +46,7 @@ np2srv_hostkey_cb(const char *name, void *UNUSED(user_data), char **UNUSED(privk
     }
 
     /* get hostkey data from sysrepo */
-    if (asprintf(&xpath, "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/"
+    if (asprintf(&xpath, "/ietf-netconf-server:netconf-server//endpoint/ssh/ssh-server-parameters/"
                 "server-identity/host-key[name='%s']/public-key/local-definition", name) == -1) {
         EMEM;
         goto cleanup;
@@ -74,9 +75,9 @@ np2srv_hostkey_cb(const char *name, void *UNUSED(user_data), char **UNUSED(privk
 
     /* set algorithm */
     if (!strncmp(alg->value.ident->name, "rsa", 3)) {
-        *privkey_type = NC_SSH_RSA;
+        *privkey_type = NC_SSH_KEY_RSA;
     } else if (!strncmp(alg->value.ident->name, "secp", 4)) {
-        *privkey_type = NC_SSH_ECDSA;
+        *privkey_type = NC_SSH_KEY_ECDSA;
     } else {
         ERR("Unknown private key algorithm \"%s\".", alg->value_str);
         goto cleanup;
@@ -101,6 +102,58 @@ cleanup:
     return rc;
 }
 
+int
+np2srv_pubkey_auth_cb(const struct nc_session *session, ssh_key key, void *UNUSED(user_data))
+{
+    struct passwd *pwd;
+    ssh_key pub_key;
+    const char *username;
+    char *path;
+    int ret;
+
+    username = nc_session_get_username(session);
+
+    errno = 0;
+    pwd = getpwnam(username);
+    if (!pwd) {
+        ERR("Failed to find user entry for \"%s\" (%s).", username, errno ? strerror(errno) : "User not found");
+        return 1;
+    }
+
+    /* check any authorized keys */
+    if (asprintf(&path, "%s/.ssh/authorized_keys", pwd->pw_dir) == -1) {
+        EMEM;
+        return 1;
+    }
+
+    ret = ssh_pki_import_pubkey_file(path, &pub_key);
+    free(path);
+    if (ret != SSH_OK) {
+        WRN("Failed to import authorized keys of \"%s\" (%s).", username, ret == SSH_EOF ? "Unexpected end-of-file" : "SSH error");
+        return 1;
+    }
+
+        /*case NC_SSH_KEY_DSA:
+            ret = ssh_pki_import_pubkey_base64(server_opts.authkeys[i].base64, SSH_KEYTYPE_DSS, &pub_key);
+            break;
+        case NC_SSH_KEY_RSA:
+            ret = ssh_pki_import_pubkey_base64(server_opts.authkeys[i].base64, SSH_KEYTYPE_RSA, &pub_key);
+            break;
+        case NC_SSH_KEY_ECDSA:
+            ret = ssh_pki_import_pubkey_base64(server_opts.authkeys[i].base64, SSH_KEYTYPE_ECDSA, &pub_key);
+            break;
+        }*/
+
+    if (!ssh_key_cmp(key, pub_key, SSH_KEY_CMP_PUBLIC)) {
+        ssh_key_free(pub_key);
+        return 0;
+    }
+
+    ssh_key_free(pub_key);
+    return 1;
+}
+
+/* /ietf-netconf-server:netconf-server/listen/idle-timeout */
 int
 np2srv_idle_timeout_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
         sr_notif_event_t UNUSED(event), void *UNUSED(private_data))
@@ -133,6 +186,7 @@ np2srv_idle_timeout_cb(sr_session_ctx_t *session, const char *UNUSED(module_name
     return SR_ERR_OK;
 }
 
+/* /ietf-netconf-server:netconf-server/listen/endpoint/ssh */
 int
 np2srv_endpt_ssh_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
         sr_notif_event_t UNUSED(event), void *UNUSED(private_data))
@@ -176,6 +230,7 @@ np2srv_endpt_ssh_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), 
     return SR_ERR_OK;
 }
 
+/* /ietf-netconf-server:netconf-server/listen/endpoint/ssh/tcp-server-parameters */
 int
 np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
         sr_notif_event_t UNUSED(event), void *UNUSED(private_data))
@@ -231,6 +286,7 @@ np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_
     return SR_ERR_OK;
 }
 
+/* /ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/server-identity/host-key */
 int
 np2srv_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
         sr_notif_event_t UNUSED(event), void *UNUSED(private_data))
@@ -276,6 +332,8 @@ np2srv_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, const char *UNUSED(module
     return SR_ERR_OK;
 }
 
+/* /ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/client-authentication/
+ * supported-authentication-methods */
 int
 np2srv_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
         sr_notif_event_t UNUSED(event), void *UNUSED(private_data))
@@ -390,6 +448,7 @@ np2srv_user_add_auth_key(const char *alg, size_t alg_len, const char *key, size_
     return 0;
 }
 
+/* /ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/client-authentication/users */
 int
 np2srv_endpt_ssh_auth_users_oper_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name),
         const char *UNUSED(path), struct lyd_node **parent, void *UNUSED(private_data))

@@ -15,9 +15,13 @@
 #ifndef NP2SRV_NETCONF_SERVER_H_
 #define NP2SRV_NETCONF_SERVER_H_
 
+#include <libssh/libssh.h>
 #include <sysrepo.h>
 
-int np2srv_hostkey_cb(const char *name, void *user_data, char **privkey_path, char **privkey_data, NC_SSH_KEY *privkey_type);
+int np2srv_hostkey_cb(const char *name, void *user_data, char **privkey_path, char **privkey_data,
+        NC_SSH_KEY_TYPE *privkey_type);
+
+int np2srv_pubkey_auth_cb(const struct nc_session *session, ssh_key key, void *user_data);
 
 int np2srv_idle_timeout_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_notif_event_t event,
         void *private_data);

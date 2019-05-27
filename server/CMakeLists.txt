@@ -126,6 +126,16 @@ if (SYSREPOCFG-NOTFOUND)
     message(FATAL_ERROR "sysrepocfg utility not found.")
 endif()
 
+# dependencies - libssh
+find_package(LibSSH 0.7.0 REQUIRED)
+if(LibSSH_VERSION VERSION_LESS 0.8.0)
+    target_link_libraries(netopeer2-server "-L${LIBSSH_LIBRARY_DIR}" -lssh -lssh_threads -lcrypt)
+else()
+    target_link_libraries(netopeer2-server "-L${LIBSSH_LIBRARY_DIR}" -lssh -lcrypt)
+    set(CMAKE_REQUIRED_LIBRARIES "ssh;crypt")
+endif()
+include_directories(${LIBSSH_INCLUDE_DIRS})
+
 # dependencies - openssl
 if (GENERATE_HOSTKEY)
     find_program(OPENSSL "openssl")

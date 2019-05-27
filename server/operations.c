@@ -1319,7 +1319,6 @@ op_validate(struct lyd_node *rpc, struct nc_session *ncs)
         /* update sysrepo session datastore */
         sr_session_switch_ds(sr_sess, ds);
 
-        /* does not do anything, it is always valid, but whatever */
         rc = sr_validate(sr_sess);
         if (rc != SR_ERR_OK) {
             reply = op_sr_err_reply(reply, sr_sess);

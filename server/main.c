@@ -815,6 +815,7 @@ server_init(void)
 
     /* set libnetconf2 callbacks */
     nc_server_ssh_set_hostkey_clb(np2srv_hostkey_cb, NULL, NULL);
+    nc_server_ssh_set_pubkey_auth_clb(np2srv_pubkey_auth_cb, NULL, NULL);
 
     /* subscribe for server configuration changes */
     mod_name = "ietf-netconf-server";
