@@ -2773,6 +2773,8 @@ static const char *
 op_sr2ly_parse_node(const char *xpath, const char **mod, int *mod_len, const char **name, int *name_len,
                     const char **pred, int *pred_len)
 {
+    const char *quot_mark;
+
     if (xpath[0] != '/') {
         return NULL;
     }
@@ -2802,12 +2804,25 @@ op_sr2ly_parse_node(const char *xpath, const char **mod, int *mod_len, const cha
     /* parse all predicates */
     if ((*name)[*name_len] == '[') {
         *pred = *name + *name_len;
-        *pred_len = 0;
+        *pred_len = 1;
+        quot_mark = NULL;
         do {
-            while ((*pred)[*pred_len] != ']') {
+            while ((*pred)[*pred_len]) {
+                if (!quot_mark) {
+                    if ((*pred)[*pred_len] == ']') {
+                        /* end of the predicate */
+                        ++(*pred_len);
+                        break;
+                    } else if ((*pred)[*pred_len] == '\'' || (*pred)[*pred_len] == '\"') {
+                        /* start of the quoted string */
+                        quot_mark = &(*pred)[*pred_len];
+                    }
+                } else if (*quot_mark == (*pred)[*pred_len] && (*pred)[*pred_len - 1] != '\\') {
+                    /* end of the quoted string */
+                    quot_mark = NULL;
+                }
                 ++(*pred_len);
             }
-            ++(*pred_len);
         } while ((*pred)[*pred_len] == '[');
 
         xpath = *pred + *pred_len;
