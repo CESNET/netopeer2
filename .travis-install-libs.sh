@@ -15,19 +15,19 @@ if [ ! -d "cmocka-1.1.1/build" ]; then
     wget https://cmocka.org/files/1.1/cmocka-1.1.1.tar.xz
     tar -xJvf cmocka-1.1.1.tar.xz
     cd cmocka-1.1.1 && mkdir build && cd build
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr .. && make -j2 && sudo make install
+    (cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr .. && make -j2 && sudo make install) > /dev/null
     cd ../..
 else
     echo "Using cmocka from cache."
     cd cmocka-1.1.1/build
-    sudo make install
+    sudo make install > /dev/null
     cd ../..
 fi
 
 git clone -b $BRANCH https://github.com/CESNET/libyang.git
 cd libyang; mkdir build; cd build
-cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
-make -j2 && sudo make install
+cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release .. > /dev/null
+(make -j2 && sudo make install) > /dev/null
 cd ../..
 
 if [ ! -d "libssh-0.8.5/build" ]; then
@@ -35,19 +35,19 @@ if [ ! -d "libssh-0.8.5/build" ]; then
     wget https://www.libssh.org/files/0.8/libssh-0.8.5.tar.xz
     tar -xJf libssh-0.8.5.tar.xz
     mkdir libssh-0.8.5/build && cd libssh-0.8.5/build
-    cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr .. && make -j2 && sudo make install
+    (cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr .. && make -j2 && sudo make install) > /dev/null
     cd ../..
 else
     echo "Using libssh from cache."
     cd libssh-0.8.5/build
-    sudo make install
+    sudo make install > /dev/null
     cd ../..
 fi
 
 git clone -b $BRANCH https://github.com/CESNET/libnetconf2.git
 cd libnetconf2; mkdir build; cd build
-cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release ..
-make -j2 && sudo make install
+cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_BUILD_TYPE=Release .. > /dev/null
+(make -j2 && sudo make install) > /dev/null
 cd ../..
 
 if [ ! -f "protobuf/Makefile" ]; then
@@ -55,12 +55,12 @@ if [ ! -f "protobuf/Makefile" ]; then
     wget https://github.com/google/protobuf/archive/v3.2.0.tar.gz
     tar -xzf v3.2.0.tar.gz
     cd protobuf-3.2.0
-    ./autogen.sh && ./configure --prefix=/usr && make -j2 && sudo make install
+    (./autogen.sh && ./configure --prefix=/usr && make -j2 && sudo make install) > /dev/null
     cd ..
 else
     echo "Using protobuf from cache."
     cd protobuf
-    sudo make install
+    sudo make install > /dev/null
     cd ..
 fi
 
@@ -69,19 +69,19 @@ if [ ! -f "protobuf-c/Makefile" ]; then
     wget https://github.com/protobuf-c/protobuf-c/archive/v1.2.1.tar.gz
     tar -xzf v1.2.1.tar.gz
     cd protobuf-c-1.2.1
-    ./autogen.sh && ./configure --prefix=/usr && make -j2 && sudo make install
+    (./autogen.sh && ./configure --prefix=/usr && make -j2 && sudo make install) > /dev/null
     cd ..
 else
     echo "Using protobuf-c from cache."
     cd protobuf-c
-    sudo make install
+    sudo make install > /dev/null
     cd ..
 fi
 
 git clone -b $BRANCH https://github.com/sysrepo/sysrepo.git
 cd sysrepo; mkdir build; cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=/usr -DBUILD_EXAMPLES=False -DENABLE_TESTS=False -DGEN_LANGUAGE_BINDINGS=0 -DREPOSITORY_LOC:PATH=/ets/sysrepo ..
-make -j2 && sudo make install
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=/usr -DBUILD_EXAMPLES=False -DENABLE_TESTS=False -DGEN_LANGUAGE_BINDINGS=0 -DREPOSITORY_LOC:PATH=/ets/sysrepo .. > /dev/null
+(make -j2 && sudo make install) > /dev/null
 cd ../..
 
 if [ "${CC}" = "gcc" ]; then pip install --user codecov; export CFLAGS="-coverage"; fi

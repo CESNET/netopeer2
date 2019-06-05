@@ -30,8 +30,7 @@ cache:
 
 before_install:
   - eval "${MATRIX_EVAL}"
-  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then bash .travis-install-libs.sh > /dev/null ; fi
-  - if [ "$TRAVIS_OS_NAME" = "linux" -a "$CC" = "gcc" ]; then pip install --user codecov; export CFLAGS="-coverage"; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then bash .travis-install-libs.sh; fi
 
 script:
   - mkdir build-cli && cd build-cli && cmake ../cli && make -j2
