@@ -339,8 +339,8 @@ cleanup:
     return ret;
 }
 
-static void
-np2srv_new_session_clb(struct nc_session *new_session)
+void
+np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_session)
 {
     int c, monitored = 0;
     sr_session_ctx_t *sr_sess = NULL;
@@ -912,6 +912,23 @@ server_init(void)
         goto error;
     }
 
+    /* subscribe for generic Call Home configuration changes */
+    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/connection-type";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_ch_connection_type_cb, NULL, 0,
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/reconnect-strategy";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_ch_reconnect_strategy_cb, NULL, 0,
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
     /* UNIX socket */
     if (np2srv.unix_path) {
         if (nc_server_add_endpt("unix", NC_TI_UNIX)) {
@@ -949,7 +966,7 @@ worker_thread(void *arg)
                 && (!np2srv.nc_max_sessions || (nc_ps_session_count(np2srv.nc_ps) < np2srv.nc_max_sessions))) {
             msgtype = nc_accept(0, &ncs);
             if (msgtype == NC_MSG_HELLO) {
-                np2srv_new_session_clb(ncs);
+                np2srv_new_session_clb(NULL, ncs);
             }
         }
 
@@ -1005,7 +1022,7 @@ worker_thread(void *arg)
             VRB("Session %d: thread %d event new SSH channel.", nc_session_get_id(ncs), idx);
             msgtype = nc_session_accept_ssh_channel(ncs, &ncs);
             if (msgtype == NC_MSG_HELLO) {
-                np2srv_new_session_clb(ncs);
+                np2srv_new_session_clb(NULL, ncs);
             } else if (msgtype == NC_MSG_BAD_HELLO) {
                 if (monitored) {
                     ncm_bad_hello();
@@ -1093,8 +1110,8 @@ main(int argc, char *argv[])
             np2_verbose_level = (c > NC_VERB_ERROR) ? ((c > NC_VERB_VERBOSE) ? NC_VERB_VERBOSE : c) : NC_VERB_ERROR;
             switch (np2_verbose_level) {
             case NC_VERB_ERROR:
-                np2_libssh_verbose_level = 0;
                 np2_sr_verbose_level = SR_LL_ERR;
+                np2_libssh_verbose_level = 0;
                 break;
             case NC_VERB_WARNING:
                 np2_sr_verbose_level = SR_LL_WRN;
@@ -1237,7 +1254,7 @@ main(int argc, char *argv[])
     close(pidfd);
 
     /* set the signal handler */
-    sigfillset (&block_mask);
+    sigfillset(&block_mask);
     action.sa_handler = signal_handler;
     action.sa_mask = block_mask;
     action.sa_flags = 0;

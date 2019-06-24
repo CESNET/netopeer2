@@ -29,6 +29,6 @@ $SYSREPOCTL -i $MODDIR/ietf-x509-cert-to-name@2014-12-10.yang
 $SYSREPOCTL -i $MODDIR/ietf-crypto-types@2019-04-29.yang
 $SYSREPOCTL -i $MODDIR/ietf-keystore@2019-04-29.yang -e local-keys-supported -s $MODDIR
 $SYSREPOCTL -i $MODDIR/ietf-ssh-server@2019-04-29.yang -e local-client-auth-supported -s $MODDIR
-$SYSREPOCTL -i $MODDIR/ietf-netconf-server@2019-04-29.yang -e ssh-listen -s $MODDIR
+$SYSREPOCTL -i $MODDIR/ietf-netconf-server@2019-04-29.yang -e ssh-listen -e ssh-call-home -s $MODDIR
 # import default config
 $SYSREPOCFG -I$MODDIR/default_config.xml -d startup

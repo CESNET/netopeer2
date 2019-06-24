@@ -56,4 +56,10 @@ int np2srv_ch_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, const char *module
 int np2srv_ch_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath,
         sr_notif_event_t event, void *private_data);
 
+int np2srv_ch_connection_type_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath,
+        sr_notif_event_t event, void *private_data);
+
+int np2srv_ch_reconnect_strategy_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath,
+        sr_notif_event_t event, void *private_data);
+
 #endif /* NP2SRV_NETCONF_SERVER_H_ */

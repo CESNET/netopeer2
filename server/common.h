@@ -46,4 +46,6 @@ extern struct np2srv np2srv;
 void np2srv_ntf_new_clb(sr_session_ctx_t *session, const sr_ev_notif_type_t notif_type, const struct lyd_node *notif,
         time_t timestamp, void *private_data);
 
+void np2srv_new_session_clb(const char *client_name, struct nc_session *new_session);
+
 #endif /* NP2SRV_COMMON_H_ */
