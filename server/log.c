@@ -139,6 +139,10 @@ np2log_clb_sr(sr_log_level_t level, const char *msg)
 {
     int priority = LOG_ERR;
 
+    if (level > np2_sr_verbose_level) {
+        return;
+    }
+
     switch (level) {
     case SR_LL_ERR:
         priority = LOG_ERR;
