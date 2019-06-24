@@ -1,9 +1,0 @@
-/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/install.dir
-/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/install/strip.dir
-/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/doc.dir
-/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/install/local.dir
-/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/cleancache.dir
-/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/netopeer2-cli.dir
-/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/edit_cache.dir
-/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/rebuild_cache.dir
-/home/vasko/Documents/netopeer2/cli/build/CMakeFiles/list_install_components.dir
