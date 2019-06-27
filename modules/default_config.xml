@@ -23,6 +23,7 @@
                         </supported-authentication-methods>
                         <users/>
                     </client-authentication>
+                    <keepalives/>
                 </ssh-server-parameters>
             </ssh>
         </endpoint>

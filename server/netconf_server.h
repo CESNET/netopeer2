@@ -38,6 +38,9 @@ int np2srv_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, const char *module_na
 int np2srv_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath,
         sr_notif_event_t event, void *private_data);
 
+int np2srv_endpt_ssh_keepalives_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath,
+        sr_notif_event_t event, void *private_data);
+
 int np2srv_endpt_ssh_auth_users_oper_cb(sr_session_ctx_t *session, const char *module_name, const char *path,
         struct lyd_node **parent, void *private_data);
 
@@ -54,6 +57,9 @@ int np2srv_ch_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, const char *module
         sr_notif_event_t event, void *private_data);
 
 int np2srv_ch_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath,
+        sr_notif_event_t event, void *private_data);
+
+int np2srv_ch_endpt_ssh_keepalives_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath,
         sr_notif_event_t event, void *private_data);
 
 int np2srv_ch_connection_type_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath,
