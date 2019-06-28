@@ -81,61 +81,6 @@ signal_handler(int sig)
     }
 }
 
-static void
-np2srv_node_assign_clbs(struct lys_node *start)
-{
-    struct lys_node *snode, *next;
-
-    /* set RPC and notification callbacks */
-    LY_TREE_DFS_BEGIN(start, next, snode) {
-        if (snode->nodetype & (LYS_RPC | LYS_ACTION)) {
-            nc_set_rpc_callback(snode, op_generic);
-            goto dfs_nextsibling;
-        }
-
-        /* modified LY_TREE_DFS_END() */
-        next = snode->child;
-        /* child exception for leafs, leaflists and anyxml without children */
-        if (snode->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYDATA)) {
-            next = NULL;
-        }
-        if (!next) {
-            /* no children */
-dfs_nextsibling:
-            /* try siblings */
-            next = snode->next;
-        }
-        while (!next) {
-            /* parent is already processed, go to its sibling */
-            snode = lys_parent(snode);
-            if (!snode) {
-                /* we are done, no next element to process */
-                break;
-            }
-            next = snode->next;
-        }
-    }
-}
-
-static int
-np2srv_module_assign_clbs(const struct lys_module *mod)
-{
-    if (!strcmp(mod->name, "ietf-netconf-monitoring") || !strcmp(mod->name, "ietf-netconf")) {
-        /* skip it, use internal implementations from libnetconf2 */
-        return EXIT_SUCCESS;
-    }
-    np2srv_node_assign_clbs(mod->data);
-    for (uint8_t i = 0; i < mod->augment_size; ++i) {
-        struct lys_node *target = mod->augment[i].target;
-        if (!strcmp(target->module->name, "ietf-netconf-monitoring") || !strcmp(target->module->name, "ietf-netconf")) {
-            continue;
-        }
-        np2srv_node_assign_clbs(target);
-    }
-
-    return EXIT_SUCCESS;
-}
-
 int
 np2srv_verify_clb(const struct nc_session *session)
 {
@@ -343,24 +288,9 @@ void
 np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_session)
 {
     int c, monitored = 0;
-    sr_session_ctx_t *sr_sess = NULL;
     sr_val_t *event_data;
     const struct lys_module *mod;
     char *host = NULL;
-
-    /* create sysrepo session with correct user */
-    c = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
-    if (c != SR_ERR_OK) {
-        ERR("Failed to start a new SR session (%s).", sr_strerror(c));
-        goto error;
-    }
-    c = sr_session_set_user(sr_sess, nc_session_get_username(new_session));
-    if (c != SR_ERR_OK) {
-        ERR("Failed to set user of a SR session (%s).", sr_strerror(c));
-        goto error;
-    }
-    sr_session_set_nc_id(sr_sess, nc_session_get_id(new_session));
-    nc_session_set_data(new_session, sr_sess);
 
     switch (nc_session_get_ti(new_session)) {
 #ifdef NC_ENABLED_SSH
@@ -425,7 +355,6 @@ error:
     if (monitored) {
         ncm_session_del(new_session);
     }
-    sr_session_stop(sr_sess);
     nc_session_free(new_session, NULL);
 }
 
@@ -516,23 +445,146 @@ np2srv_del_session_clb(struct nc_session *session)
     nc_session_free(session, NULL);
 }
 
+static struct nc_server_error *
+np2srv_err_sr(int err_code, const char *message, const char *xpath)
+{
+    struct nc_server_error *e;
+    const char *ptr;
+
+    switch (err_code) {
+    case SR_ERR_LOCKED:
+        ptr = strstr(message, "NC SID ");
+        if (!ptr) {
+            EINT;
+            return NULL;
+        }
+        ptr += 7;
+        e = nc_err(NC_ERR_LOCK_DENIED, atoi(ptr));
+        nc_err_set_msg(e, message, "en");
+        break;
+    case SR_ERR_UNAUTHORIZED:
+        e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
+        nc_err_set_msg(e, message, "en");
+        if (xpath) {
+            nc_err_set_path(e, xpath);
+        }
+        break;
+    case SR_ERR_VALIDATION_FAILED:
+        if (!strncmp(message, "When condition", 14)) {
+            if (xpath) {
+                EINT;
+                return NULL;
+            }
+            e = nc_err(NC_ERR_UNKNOWN_ELEM, NC_ERR_TYPE_APP, xpath);
+            nc_err_set_msg(e, message, "en");
+            break;
+        }
+        /* fallthrough */
+    default:
+        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        nc_err_set_msg(e, message, "en");
+        if (xpath) {
+            nc_err_set_path(e, xpath);
+        }
+        break;
+    }
+
+    return e;
+}
+
+static struct nc_server_reply *
+np2srv_err_reply_sr(const sr_error_info_t *err_info)
+{
+    struct nc_server_reply *reply = NULL;
+    struct nc_server_error *e;
+    size_t i;
+
+    for (i = 0; i < err_info->err_count; ++i) {
+        e = np2srv_err_sr(err_info->err_code, err_info->err[i].message, err_info->err[i].xpath);
+        if (!e) {
+            nc_server_reply_free(reply);
+            return NULL;
+        }
+
+        if (reply) {
+            nc_server_reply_add_err(reply, e);
+        } else {
+            reply = nc_server_reply_err(e);
+        }
+        e = NULL;
+    }
+
+    return reply;
+}
+
+static struct nc_server_reply *
+np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
+{
+    sr_session_ctx_t *sr_sess = NULL;
+    const sr_error_info_t *err_info;
+    struct nc_server_reply *reply = NULL;
+    struct lyd_node *output, *child = NULL;
+    NC_WD_MODE nc_wd;
+    struct nc_server_error *e;
+    int rc;
+
+    /* create sysrepo session with correct user */
+    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
+    if (rc != SR_ERR_OK) {
+        ERR("Failed to start a new SR session (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+    rc = sr_session_set_user(sr_sess, nc_session_get_username(ncs));
+    if (rc != SR_ERR_OK) {
+        ERR("Failed to set user of a SR session (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+    sr_session_set_nc_id(sr_sess, nc_session_get_id(ncs));
+
+    /* sysrepo API */
+    rc = sr_rpc_send_tree(sr_sess, rpc, &output);
+    if (rc != SR_ERR_OK) {
+        ERR("Failed to send an RPC (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+
+    /* build RPC Reply */
+    if (output) {
+        LY_TREE_FOR(output->child, child) {
+            if (!child->dflt) {
+                break;
+            }
+        }
+    }
+    if (child) {
+        nc_server_get_capab_withdefaults(&nc_wd, NULL);
+        reply = nc_server_reply_data(output, nc_wd, NC_PARAMTYPE_FREE);
+    } else {
+        lyd_free_withsiblings(output);
+        reply = nc_server_reply_ok();
+    }
+
+cleanup:
+    if (!reply) {
+        if (sr_sess) {
+            sr_get_error(sr_sess, &err_info);
+            reply = np2srv_err_reply_sr(err_info);
+        } else {
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            reply = nc_server_reply_err(e);
+        }
+    }
+    return reply;
+}
+
 static int
-np2srv_init_schemas(sr_session_ctx_t *sr_sess)
+np2srv_check_schemas(sr_session_ctx_t *sr_sess)
 {
     const char *mod_name;
     const struct lys_module *mod;
     const struct ly_ctx *ly_ctx;
-    uint32_t i;
 
     ly_ctx = sr_get_context(sr_session_get_connection(sr_sess));
-
-    i = 0;
-    while ((mod = ly_ctx_get_module_iter(ly_ctx, &i))) {
-        /* set RPC and Notifications callbacks */
-        if (mod->implemented) {
-            np2srv_module_assign_clbs(mod);
-        }
-    }
 
     /* check that internally used schemas are implemented and with required features: ietf-netconf, ... */
     mod_name = "ietf-netconf";
@@ -627,6 +679,10 @@ np2srv_init_schemas(sr_session_ctx_t *sr_sess)
         ERR("Module \"%s\" feature \"ssh-listen\" not enabled in sysrepo.", mod_name);
         return -1;
     }
+    if (lys_features_state(mod, "ssh-call-home") != 1) {
+        ERR("Module \"%s\" feature \"ssh-call-home\" not enabled in sysrepo.", mod_name);
+        return -1;
+    }
 
     return 0;
 }
@@ -687,7 +743,6 @@ np2srv_url_getcap(void)
 static int
 server_init(void)
 {
-    const struct lys_node *snode;
     const struct ly_ctx *ly_ctx;
     const char *mod_name, *xpath;
     int rc;
@@ -708,10 +763,44 @@ server_init(void)
         goto error;
     }
 
-    /* init libyang context with schemas */
-    if (np2srv_init_schemas(np2srv.sr_sess)) {
+    /* check libyang context */
+    if (np2srv_check_schemas(np2srv.sr_sess)) {
         goto error;
     }
+
+    /* init monitoring */
+    ncm_init();
+
+    /* init libnetconf2 (it modifies only the dictionary) */
+    if (nc_server_init((struct ly_ctx *)ly_ctx)) {
+        goto error;
+    }
+
+    /* prepare poll session structure for libnetconf2 */
+    np2srv.nc_ps = nc_ps_new();
+
+    /* set with-defaults capability basic-mode */
+    nc_server_set_capab_withdefaults(NC_WD_EXPLICIT, NC_WD_ALL | NC_WD_ALL_TAG | NC_WD_TRIM | NC_WD_EXPLICIT);
+
+    /* set capabilities for the NETCONF Notifications */
+    nc_server_set_capability("urn:ietf:params:netconf:capability:notification:1.0");
+    nc_server_set_capability("urn:ietf:params:netconf:capability:interleave:1.0");
+
+#ifdef NP2SRV_URL_CAPAB
+    /* set URL capability */
+    char *url_cap = np2srv_url_getcap();
+    if (url_cap) {
+        nc_server_set_capability(url_cap);
+        free(url_cap);
+    }
+#endif
+
+    /* set libnetconf2 global PRC callback */
+    nc_set_global_rpc_clb(np2srv_rpc_cb);
+
+    /* set libnetconf2 callbacks */
+    nc_server_ssh_set_hostkey_clb(np2srv_hostkey_cb, NULL, NULL);
+    nc_server_ssh_set_pubkey_auth_clb(np2srv_pubkey_auth_cb, NULL, NULL);
 
     /* subscribe for providing state data */
     if (np2srv.sr_data_sub) {
@@ -746,76 +835,92 @@ server_init(void)
         goto error;
     }
 
-    /* init monitoring */
-    ncm_init();
-
-    /* init libnetconf2 (it modifies only the dictionary) */
-    if (nc_server_init((struct ly_ctx *)ly_ctx)) {
+    /* subscribe to standard supported RPCs */
+    xpath = "/ietf-netconf:get-config";
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_get_cb, NULL, 0, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
         goto error;
     }
 
-    /* prepare poll session structure for libnetconf2 */
-    np2srv.nc_ps = nc_ps_new();
-
-    /* set with-defaults capability basic-mode */
-    nc_server_set_capab_withdefaults(NC_WD_EXPLICIT, NC_WD_ALL | NC_WD_ALL_TAG | NC_WD_TRIM | NC_WD_EXPLICIT);
-
-    /* set capabilities for the NETCONF Notifications */
-    nc_server_set_capability("urn:ietf:params:netconf:capability:notification:1.0");
-    nc_server_set_capability("urn:ietf:params:netconf:capability:interleave:1.0");
-
-#ifdef NP2SRV_URL_CAPAB
-    /* set URL capability */
-    char *url_cap = np2srv_url_getcap();
-    if (url_cap) {
-        nc_server_set_capability(url_cap);
-        free(url_cap);
+    xpath = "/ietf-netconf:edit-config";
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_editconfig_cb, NULL, 0, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
+        goto error;
     }
-#endif
 
-    /* set NETCONF operations callbacks */
-    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:get-config", 0);
-    nc_set_rpc_callback(snode, op_get);
+    xpath = "/ietf-netconf:copy-config";
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_copyconfig_cb, NULL, 0, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
+        goto error;
+    }
 
-    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:edit-config", 0);
-    nc_set_rpc_callback(snode, op_editconfig);
+    xpath = "/ietf-netconf:delete-config";
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_deleteconfig_cb, NULL, 0, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
+        goto error;
+    }
 
-    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:copy-config", 0);
-    nc_set_rpc_callback(snode, op_copyconfig);
+    xpath = "/ietf-netconf:lock";
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_un_lock_cb, NULL, 0, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
+        goto error;
+    }
 
-    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:delete-config", 0);
-    nc_set_rpc_callback(snode, op_deleteconfig);
+    xpath = "/ietf-netconf:unlock";
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_un_lock_cb, NULL, 0, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
+        goto error;
+    }
 
-    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:lock", 0);
-    nc_set_rpc_callback(snode, op_un_lock);
+    xpath = "/ietf-netconf:get";
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_get_cb, NULL, 0, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
+        goto error;
+    }
 
-    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:unlock", 0);
-    nc_set_rpc_callback(snode, op_un_lock);
+    /* keep close-session empty so that internal lnc2 callback is used */
 
-    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:get", 0);
-    nc_set_rpc_callback(snode, op_get);
+    xpath = "/ietf-netconf:kill-session";
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_kill_cb, NULL, 0, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
+        goto error;
+    }
 
-    /* leave close-session RPC empty, libnetconf2 will use its callback */
+    xpath = "/ietf-netconf:commit";
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_commit_cb, NULL, 0, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
+        goto error;
+    }
 
-    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:commit", 0);
-    nc_set_rpc_callback(snode, op_commit);
+    xpath = "/ietf-netconf:discard-changes";
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_discard_cb, NULL, 0, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
+        goto error;
+    }
 
-    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:discard-changes", 0);
-    nc_set_rpc_callback(snode, op_discardchanges);
+    xpath = "/ietf-netconf:validate";
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_validate_cb, NULL, 0, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
+        goto error;
+    }
 
-    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:validate", 0);
-    nc_set_rpc_callback(snode, op_validate);
-
-    snode = ly_ctx_get_node(ly_ctx, NULL, "/ietf-netconf:kill-session", 0);
-    nc_set_rpc_callback(snode, op_kill);
-
-    /* set notification subscription callback */
-    snode = ly_ctx_get_node(ly_ctx, NULL, "/notifications:create-subscription", 0);
-    nc_set_rpc_callback(snode, op_subscribe);
-
-    /* set libnetconf2 callbacks */
-    nc_server_ssh_set_hostkey_clb(np2srv_hostkey_cb, NULL, NULL);
-    nc_server_ssh_set_pubkey_auth_clb(np2srv_pubkey_auth_cb, NULL, NULL);
+    xpath = "/notifications:create-subscription";
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_subscribe_cb, NULL, 0, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
+        goto error;
+    }
 
     /* subscribe for server SSH listen configuration changes */
     mod_name = "ietf-netconf-server";
@@ -868,7 +973,7 @@ server_init(void)
         goto error;
     }
 
-    /* subscribe for providing operational data */
+    /* subscribe for providing SSH operational data */
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/client-authentication/users";
     rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_ssh_auth_users_oper_cb, NULL,
             SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);

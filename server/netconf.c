@@ -1,7 +1,7 @@
 /**
- * @file operations.c
+ * @file netconf.c
  * @author Michal Vasko <mvasko@cesnet.cz>
- * @brief Basic NETCONF operations
+ * @brief ietf-netconf callbacks
  *
  * Copyright (c) 2019 CESNET, z.s.p.o.
  *
@@ -513,9 +513,8 @@ op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_coun
 }
 
 static struct lyd_node *
-op_parse_config(struct lyd_node_anydata *config, int options, struct nc_server_reply **ereply)
+op_parse_config(struct lyd_node_anydata *config, int options, int *rc, sr_session_ctx_t *sr_sess)
 {
-    struct nc_server_error *e;
     struct ly_ctx *ly_ctx;
     struct lyd_node *root = NULL;
 
@@ -541,69 +540,15 @@ op_parse_config(struct lyd_node_anydata *config, int options, struct nc_server_r
     case LYD_ANYDATA_SXMLD:
     case LYD_ANYDATA_LYBD:
         EINT;
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        *ereply = nc_server_reply_err(e);
+        *rc = SR_ERR_INTERNAL;
         return NULL;
     }
     if (ly_errno != LY_SUCCESS) {
-        *ereply = nc_server_reply_err(nc_err_libyang(ly_ctx));
+        *rc = SR_ERR_LY;
+        sr_set_error(sr_sess, ly_errmsg(ly_ctx), ly_errpath(ly_ctx));
     }
 
     return root;
-}
-
-static struct nc_server_reply *
-op_sr_err_reply(struct nc_server_reply *reply, sr_session_ctx_t *session)
-{
-    const sr_error_info_t *err_info;
-    struct nc_server_error *e = NULL;
-    const char *ptr;
-    size_t i;
-
-    /* get all sysrepo errors connected with the last sysrepo operation */
-    sr_get_error(session, &err_info);
-    for (i = 0; i < err_info->err_count; ++i) {
-        switch (err_info->err_code) {
-        case SR_ERR_LOCKED:
-            ptr = strstr(err_info->err[i].message, "NC SID ");
-            assert(ptr);
-            ptr += 7;
-            e = nc_err(NC_ERR_LOCK_DENIED, atoi(ptr));
-            nc_err_set_msg(e, err_info->err[i].message, "en");
-            break;
-        case SR_ERR_UNAUTHORIZED:
-            e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
-            nc_err_set_msg(e, err_info->err[i].message, "en");
-            if (err_info->err[i].xpath) {
-                nc_err_set_path(e, err_info->err[i].xpath);
-            }
-            break;
-        case SR_ERR_VALIDATION_FAILED:
-            if (!strncmp(err_info->err[i].message, "When condition", 14)) {
-                assert(err_info->err[i].xpath);
-                e = nc_err(NC_ERR_UNKNOWN_ELEM, NC_ERR_TYPE_APP, err_info->err[i].xpath);
-                nc_err_set_msg(e, err_info->err[i].message, "en");
-                break;
-            }
-            /* fallthrough */
-        default:
-            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, err_info->err[i].message, "en");
-            if (err_info->err[i].xpath) {
-                nc_err_set_path(e, err_info->err[i].xpath);
-            }
-            break;
-        }
-
-        if (reply) {
-            nc_server_reply_add_err(reply, e);
-        } else {
-            reply = nc_server_reply_err(e);
-        }
-        e = NULL;
-    }
-
-    return reply;
 }
 
 #ifdef NP2SRV_URL_CAPAB
@@ -683,10 +628,9 @@ url_open(const char *url)
 }
 
 static struct lyd_node *
-op_parse_url(const char *url, int options, struct nc_server_reply **ereply)
+op_parse_url(const char *url, int options, int *rc, sr_session_ctx_t *sr_sess)
 {
     struct lyd_node *config, *data;
-    struct nc_server_error *e;
     struct ly_ctx *ly_ctx;
     int fd;
 
@@ -694,33 +638,30 @@ op_parse_url(const char *url, int options, struct nc_server_reply **ereply)
 
     fd = url_open(url);
     if (fd == -1) {
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, "Could not open URL.", "en");
-        *ereply = nc_server_reply_err(e);
+        *rc = SR_ERR_INVAL_ARG;
+        sr_set_error(sr_sess, "Could not open URL.", NULL);
         return NULL;
     }
 
     config = lyd_parse_fd(ly_ctx, fd, LYD_XML, options);
     if (ly_errno) {
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, ly_errmsg(ly_ctx), "en");
-        *ereply = nc_server_reply_err(e);
+        *rc = SR_ERR_LY;
+        sr_set_error(sr_sess, ly_errmsg(ly_ctx), ly_errpath(ly_ctx));
         return NULL;
     }
 
-    data = op_parse_config((struct lyd_node_anydata *)config, options, ereply);
+    data = op_parse_config((struct lyd_node_anydata *)config, options, rc, sr_sess);
     lyd_free_withsiblings(config);
     return data;
 }
 
 static int
-op_export_url(const char *url, struct lyd_node *data, int options, struct nc_server_reply **ereply)
+op_export_url(const char *url, struct lyd_node *data, int options, int *rc, sr_session_ctx_t *sr_sess)
 {
     CURL *curl;
     CURLcode res;
     struct np2srv_url_mem mem_data;
     char curl_buffer[CURL_ERROR_SIZE], *str_data;
-    struct nc_server_error *e;
     struct lyd_node *config;
     struct ly_ctx *ly_ctx;
 
@@ -728,9 +669,8 @@ op_export_url(const char *url, struct lyd_node *data, int options, struct nc_ser
 
     config = lyd_new_path(NULL, ly_ctx, "/ietf-netconf:config", data, data ? LYD_ANYDATA_DATATREE : 0, 0);
     if (!config) {
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, ly_errmsg(ly_ctx), "en");
-        *ereply = nc_server_reply_err(e);
+        *rc = SR_ERR_LY;
+        sr_set_error(sr_sess, ly_errmsg(ly_ctx), ly_errpath(ly_ctx));
         return -1;
     }
 
@@ -759,9 +699,8 @@ op_export_url(const char *url, struct lyd_node *data, int options, struct nc_ser
 
     if (res != CURLE_OK) {
         ERR("Failed to upload data (curl: %s).", curl_buffer);
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, curl_buffer, "en");
-        *ereply = nc_server_reply_err(e);
+        *rc = SR_ERR_SYS;
+        sr_set_error(sr_sess, curl_buffer, NULL);
         return -1;
     }
 
@@ -773,31 +712,27 @@ op_export_url(const char *url, struct lyd_node *data, int options, struct nc_ser
 
 #endif
 
-struct nc_server_reply *
-op_get(struct lyd_node *rpc, struct nc_session *ncs)
+int
+np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *xpath, const struct lyd_node *input, struct lyd_node *output,
+        void *UNUSED(private_data))
 {
     struct lyd_node_leaf_list *leaf;
-    struct lyd_node *root = NULL, *node, *rpl_rpc = NULL;
+    struct lyd_node *node;
     char **filters = NULL;
-    int filter_count = 0, i, rc;
-    sr_session_ctx_t *sr_sess;
+    int filter_count = 0, i, rc = SR_ERR_OK;
     struct ly_set *nodeset;
     sr_datastore_t ds = 0;
-    struct nc_server_error *e;
-    struct nc_server_reply *reply = NULL;
     NC_WD_MODE nc_wd;
-
-    sr_sess = nc_session_get_data(ncs);
 
     /* get default value for with-defaults */
     nc_server_get_capab_withdefaults(&nc_wd, NULL);
 
     /* get know which datastore is being affected */
-    if (!strcmp(rpc->schema->name, "get")) {
+    if (!strcmp(xpath, "/ietf-netconf:get")) {
         /* get running data first */
         ds = SR_DS_RUNNING;
     } else { /* get-config */
-        nodeset = lyd_find_path(rpc, "source/*");
+        nodeset = lyd_find_path(input, "source/*");
         if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
             ds = SR_DS_RUNNING;
         } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
@@ -811,11 +746,12 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* create filters */
-    nodeset = lyd_find_path(rpc, "filter");
+    nodeset = lyd_find_path(input, "filter");
     if (nodeset->number) {
         node = nodeset->set.d[0];
         ly_set_free(nodeset);
         if (op_filter_create(node, &filters, &filter_count)) {
+            rc = SR_ERR_INTERNAL;
             goto cleanup;
         }
     } else {
@@ -824,18 +760,20 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
         filters = malloc(sizeof *filters);
         if (!filters) {
             EMEM;
+            rc = SR_ERR_NOMEM;
             goto cleanup;
         }
         filter_count = 1;
         filters[0] = strdup("/*");
         if (!filters[0]) {
             EMEM;
+            rc = SR_ERR_NOMEM;
             goto cleanup;
         }
     }
 
     /* get with-defaults mode */
-    nodeset = lyd_find_path(rpc, "ietf-netconf-with-defaults:with-defaults");
+    nodeset = lyd_find_path(input, "ietf-netconf-with-defaults:with-defaults");
     if (nodeset->number) {
         leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
         if (!strcmp(leaf->value_str, "report-all")) {
@@ -853,126 +791,53 @@ op_get(struct lyd_node *rpc, struct nc_session *ncs)
 
 get_sr_data:
     /* update sysrepo session datastore */
-    sr_session_switch_ds(sr_sess, ds);
+    sr_session_switch_ds(session, ds);
 
     /*
      * create the data tree for the data reply
      */
     for (i = 0; i < filter_count; i++) {
-        rc = sr_get_data(sr_sess, filters[i], &node);
+        rc = sr_get_data(session, filters[i], &node);
         if (rc != SR_ERR_OK) {
             ERR("Getting data \"%s\" from sysrepo failed (%s).", filters[i], sr_strerror(rc));
             goto cleanup;
         }
 
-        if (!root) {
-            root = node;
-        } else {
-            if (lyd_merge(root, node, LYD_OPT_DESTRUCT | LYD_OPT_EXPLICIT)) {
-                goto cleanup;
-            }
+        if (lyd_merge(output, node, LYD_OPT_DESTRUCT | LYD_OPT_EXPLICIT)) {
+            rc = SR_ERR_LY;
+            goto cleanup;
         }
     }
 
-    if (!strcmp(rpc->schema->name, "get") && (ds == SR_DS_RUNNING)) {
+    if (!strcmp(xpath, "/ietf-netconf:get") && (ds == SR_DS_RUNNING)) {
         /* we have running data, now append state data */
         ds = SR_DS_STATE;
         goto get_sr_data;
     }
 
-    /* build RPC Reply */
-    rpl_rpc = lyd_dup(rpc, 0);
-    if (!rpl_rpc) {
-        goto cleanup;
-    }
-    if (!lyd_new_output_anydata(rpl_rpc, NULL, "data", root, LYD_ANYDATA_DATATREE)) {
-        goto cleanup;
-    }
-    root = NULL;
-    if (lyd_validate(&rpl_rpc, LYD_OPT_RPCREPLY, NULL)) {
-        EINT;
-        goto cleanup;
-    }
-
     /* success */
-    reply = nc_server_reply_data(rpl_rpc, nc_wd, NC_PARAMTYPE_FREE);
-    rpl_rpc = NULL;
 
 cleanup:
-    if (!reply) {
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        reply = nc_server_reply_err(e);
-    }
-
     for (i = 0; i < filter_count; ++i) {
         free(filters[i]);
     }
     free(filters);
 
-    lyd_free_withsiblings(rpl_rpc);
-    lyd_free_withsiblings(root);
-    return reply;
+    return rc;
 }
 
-struct nc_server_reply *
-op_un_lock(struct lyd_node *rpc, struct nc_session *ncs)
+int
+np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
+        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
-    sr_session_ctx_t *sr_sess;
-    sr_datastore_t ds = 0;
-    struct ly_set *nodeset;
-    struct nc_server_reply *reply = NULL;
-    int rc;
-
-    sr_sess = nc_session_get_data(ncs);
-
-    /* get know which datastore is being affected */
-    nodeset = lyd_find_path(rpc, "target/*");
-    if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
-        ds = SR_DS_RUNNING;
-    } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
-        ds = SR_DS_STARTUP;
-    } else {
-        assert(!strcmp(nodeset->set.d[0]->schema->name, "candidate"));
-        ds = SR_DS_CANDIDATE;
-    }
-    ly_set_free(nodeset);
-
-    /* update sysrepo session datastore */
-    sr_session_switch_ds(sr_sess, ds);
-
-    /* sysrepo API */
-    if (!strcmp(rpc->schema->name, "lock")) {
-        rc = sr_lock(sr_sess, NULL);
-    } else if (!strcmp(rpc->schema->name, "unlock")) {
-        rc = sr_unlock(sr_sess, NULL);
-    }
-    if (rc != SR_ERR_OK) {
-        reply = op_sr_err_reply(reply, sr_sess);
-        goto cleanup;
-    }
-
-    /* build positive RPC Reply */
-    reply = nc_server_reply_ok();
-
-cleanup:
-    return reply;
-}
-
-struct nc_server_reply *
-op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
-{
-    sr_session_ctx_t *sr_sess;
     sr_datastore_t ds = 0;
     struct ly_set *nodeset;
     struct lyd_node *config = NULL;
-    struct nc_server_reply *reply = NULL;
     const char *str, *defop = "merge", *testop = "test-then-set";
-    int rc;
-
-    sr_sess = nc_session_get_data(ncs);
+    int rc = SR_ERR_OK;
 
     /* get know which datastore is being affected */
-    nodeset = lyd_find_path(rpc, "target/*");
+    nodeset = lyd_find_path(input, "target/*");
     if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
         ds = SR_DS_RUNNING;
     } else {
@@ -982,14 +847,14 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     ly_set_free(nodeset);
 
     /* default-operation */
-    nodeset = lyd_find_path(rpc, "default-operation");
+    nodeset = lyd_find_path(input, "default-operation");
     if (nodeset->number) {
         defop = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
     }
     ly_set_free(nodeset);
 
     /* test-option */
-    nodeset = lyd_find_path(rpc, "test-option");
+    nodeset = lyd_find_path(input, "test-option");
     if (nodeset->number) {
         testop = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
         if (!strcmp(testop, "set")) {
@@ -1000,7 +865,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     ly_set_free(nodeset);
 
     /* error-option */
-    nodeset = lyd_find_path(rpc, "error-option");
+    nodeset = lyd_find_path(input, "error-option");
     if (nodeset->number) {
         str = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
         if (strcmp(str, "rollback-on-error")) {
@@ -1010,10 +875,10 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     ly_set_free(nodeset);
 
     /* config */
-    nodeset = lyd_find_path(rpc, "config | url");
+    nodeset = lyd_find_path(input, "config | url");
     if (!strcmp(nodeset->set.d[0]->schema->name, "config")) {
-        config = op_parse_config((struct lyd_node_anydata *)nodeset->set.d[0], LYD_OPT_EDIT | LYD_OPT_STRICT, &reply);
-        if (reply) {
+        config = op_parse_config((struct lyd_node_anydata *)nodeset->set.d[0], LYD_OPT_EDIT | LYD_OPT_STRICT, &rc, session);
+        if (rc) {
             ly_set_free(nodeset);
             goto cleanup;
         }
@@ -1021,69 +886,62 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
         assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
         config = op_parse_url(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str,
-                LYD_OPT_EDIT | LYD_OPT_STRICT, &reply);
-        if (reply) {
+                LYD_OPT_EDIT | LYD_OPT_STRICT, &rc, session);
+        if (rc) {
             ly_set_free(nodeset);
             goto cleanup;
         }
 #else
         ly_set_free(nodeset);
-        struct nc_server_error *e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, "URL not supported.", "en");
-        reply = nc_server_reply_err(e);
+        rc = SR_ERR_UNSUPPORTED;
+        sr_set_error(session, "URL not supported.", NULL);
         goto cleanup;
 #endif
     }
     ly_set_free(nodeset);
 
     /* update sysrepo session datastore */
-    sr_session_switch_ds(sr_sess, ds);
+    sr_session_switch_ds(session, ds);
 
     /* sysrepo API */
-    rc = sr_edit_batch(sr_sess, config, defop);
+    rc = sr_edit_batch(session, config, defop);
     if (rc != SR_ERR_OK) {
-        reply = op_sr_err_reply(reply, sr_sess);
         goto cleanup;
     }
 
     if (!strcmp(testop, "test-then-set")) {
-        rc = sr_apply_changes(sr_sess);
+        rc = sr_apply_changes(session);
     } else {
         assert(!strcmp(testop, "test-only"));
-        rc = sr_validate(sr_sess);
+        rc = sr_validate(session);
     }
     if (rc != SR_ERR_OK) {
-        reply = op_sr_err_reply(reply, sr_sess);
         goto cleanup;
     }
 
-    /* build positive RPC Reply */
-    reply = nc_server_reply_ok();
+    /* success */
 
 cleanup:
     lyd_free_withsiblings(config);
-    return reply;
+    return rc;
 }
 
-struct nc_server_reply *
-op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
+int
+np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
+        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
-    sr_session_ctx_t *sr_sess;
     sr_datastore_t tds, sds;
     struct ly_set *nodeset;
     struct lyd_node *config = NULL;
-    struct nc_server_reply *reply = NULL;
-    int rc;
+    int rc = SR_ERR_OK;
 #ifdef NP2SRV_URL_CAPAB
     struct lyd_node_leaf_list *leaf;
     const char *trg_url = NULL;
     int lyp_wd_flag;
 #endif
 
-    sr_sess = nc_session_get_data(ncs);
-
     /* get know which datastores are affected */
-    nodeset = lyd_find_path(rpc, "target/*");
+    nodeset = lyd_find_path(input, "target/*");
     if (nodeset->number) {
         if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
             tds = SR_DS_RUNNING;
@@ -1097,16 +955,15 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
             trg_url = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
 #else
             ly_set_free(nodeset);
-            struct nc_server_error *e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, "URL not supported.", "en");
-            reply = nc_server_reply_err(e);
+            rc = SR_ERR_UNSUPPORTED;
+            sr_set_error(session, "URL not supported.", NULL);
             goto cleanup;
 #endif
         }
     }
     ly_set_free(nodeset);
 
-    nodeset = lyd_find_path(rpc, "source/*");
+    nodeset = lyd_find_path(input, "source/*");
     /* invalid DS */
     sds = SR_DS_OPERATIONAL;
     if (nodeset->number) {
@@ -1117,8 +974,8 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
         } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
             sds = SR_DS_CANDIDATE;
         } else if (!strcmp(nodeset->set.d[0]->schema->name, "config")) {
-            config = op_parse_config((struct lyd_node_anydata *)nodeset->set.d[0], LYD_OPT_CONFIG | LYD_OPT_STRICT, &reply);
-            if (reply) {
+            config = op_parse_config((struct lyd_node_anydata *)nodeset->set.d[0], LYD_OPT_CONFIG | LYD_OPT_STRICT, &rc, session);
+            if (rc) {
                 ly_set_free(nodeset);
                 goto cleanup;
             }
@@ -1126,16 +983,15 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
             assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
             config = op_parse_url(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str,
-                    LYD_OPT_CONFIG | LYD_OPT_STRICT, &reply);
-            if (reply) {
+                    LYD_OPT_CONFIG | LYD_OPT_STRICT, &rc, session);
+            if (rc) {
                 ly_set_free(nodeset);
                 goto cleanup;
             }
 #else
             ly_set_free(nodeset);
-            struct nc_server_error *e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, "URL not supported.", "en");
-            reply = nc_server_reply_err(e);
+            rc = SR_ERR_UNSUPPORTED;
+            sr_set_error(session, "URL not supported.", NULL);
             goto cleanup;
 #endif
         }
@@ -1146,7 +1002,7 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 #ifdef NP2SRV_URL_CAPAB
     if (trg_url) {
         /* we need with-defaults flag in this case */
-        nodeset = lyd_find_path(rpc, "ietf-netconf-with-defaults:with-defaults");
+        nodeset = lyd_find_path(input, "ietf-netconf-with-defaults:with-defaults");
         lyp_wd_flag = 0;
         if (nodeset->number) {
             leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
@@ -1165,55 +1021,49 @@ op_copyconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
         if (sds != SR_DS_OPERATIONAL) {
             /* get this datastore content from sysrepo */
-            sr_session_switch_ds(sr_sess, sds);
-            rc = sr_get_data(sr_sess, "/*", &config);
+            sr_session_switch_ds(session, sds);
+            rc = sr_get_data(session, "/*", &config);
             if (rc != SR_ERR_OK) {
-                reply = op_sr_err_reply(reply, sr_sess);
                 goto cleanup;
             }
         }
-        if (op_export_url(trg_url, config, LYP_FORMAT | LYP_WITHSIBLINGS | lyp_wd_flag, &reply)) {
+        if (op_export_url(trg_url, config, LYP_FORMAT | LYP_WITHSIBLINGS | lyp_wd_flag, &rc, session)) {
             goto cleanup;
         }
     } else
 #endif
     {
         if (sds == SR_DS_OPERATIONAL) {
-            rc = sr_replace_config(sr_sess, NULL, config, tds);
+            rc = sr_replace_config(session, NULL, config, tds);
         } else {
-            rc = sr_copy_config(sr_sess, NULL, sds, tds);
+            rc = sr_copy_config(session, NULL, sds, tds);
         }
         if (rc != SR_ERR_OK) {
-            reply = op_sr_err_reply(reply, sr_sess);
             goto cleanup;
         }
     }
 
-    /* build positive RPC Reply */
-    reply = nc_server_reply_ok();
+    /* success */
 
 cleanup:
     lyd_free_withsiblings(config);
-    return reply;
+    return rc;
 }
 
-struct nc_server_reply *
-op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
+int
+np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
+        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
-    sr_session_ctx_t *sr_sess;
     sr_datastore_t ds;
     struct ly_set *nodeset;
-    struct nc_server_reply *reply = NULL;
-    int rc;
+    int rc = SR_ERR_OK;
 #ifdef NP2SRV_URL_CAPAB
     struct lyd_node *config;
     const char *trg_url = NULL;
 #endif
 
-    sr_sess = nc_session_get_data(ncs);
-
     /* get know which datastore is affected */
-    nodeset = lyd_find_path(rpc, "target/*");
+    nodeset = lyd_find_path(input, "target/*");
     if (nodeset->number) {
         if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
             ds = SR_DS_STARTUP;
@@ -1223,9 +1073,8 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
             trg_url = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
 #else
             ly_set_free(nodeset);
-            struct nc_server_error *e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, "URL not supported.", "en");
-            reply = nc_server_reply_err(e);
+            rc = SR_ERR_UNSUPPORTED;
+            sr_set_error(session, "URL not supported.", NULL);
             goto cleanup;
 #endif
         }
@@ -1236,121 +1085,86 @@ op_deleteconfig(struct lyd_node *rpc, struct nc_session *ncs)
 #ifdef NP2SRV_URL_CAPAB
     if (trg_url) {
         /* import URL to check its validity */
-        config = op_parse_url(trg_url, LYD_OPT_CONFIG | LYD_OPT_STRICT, &reply);
-        if (reply) {
-            struct nc_server_error *e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, "URL does not appear to contain a valid config.", "en");
-            nc_server_reply_add_err(reply, e);
+        config = op_parse_url(trg_url, LYD_OPT_CONFIG | LYD_OPT_STRICT, &rc, session);
+        if (rc) {
             goto cleanup;
         }
         lyd_free_withsiblings(config);
 
         /* upload empty config */
-        if (op_export_url(trg_url, NULL, 0, &reply)) {
+        if (op_export_url(trg_url, NULL, 0, &rc, session)) {
             goto cleanup;
         }
     } else
 #endif
     {
-        rc = sr_replace_config(sr_sess, NULL, NULL, ds);
+        rc = sr_replace_config(session, NULL, NULL, ds);
         if (rc != SR_ERR_OK) {
-            reply = op_sr_err_reply(reply, sr_sess);
             goto cleanup;
         }
     }
 
-    /* build positive RPC Reply */
-    reply = nc_server_reply_ok();
+    /* success */
 
 cleanup:
-    return reply;
+    return rc;
 }
 
-struct nc_server_reply *
-op_validate(struct lyd_node *rpc, struct nc_session *ncs)
+int
+np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
+        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
-    sr_session_ctx_t *sr_sess;
-    sr_datastore_t ds;
-    struct lyd_node *config = NULL;
+    sr_datastore_t ds = 0;
     struct ly_set *nodeset;
-    struct nc_server_reply *reply = NULL;
-    int rc;
+    int rc = SR_ERR_OK;
 
-    sr_sess = nc_session_get_data(ncs);
-
-    /* get know which datastore is affected */
-    nodeset = lyd_find_path(rpc, "source/*");
-    if (nodeset->number) {
-        if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
-            ds = SR_DS_RUNNING;
-        } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
-            ds = SR_DS_STARTUP;
-        } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
-            ds = SR_DS_CANDIDATE;
-        } else if (!strcmp(nodeset->set.d[0]->schema->name, "config")) {
-            /* config is also validated now */
-            config = op_parse_config((struct lyd_node_anydata *)nodeset->set.d[0], LYD_OPT_CONFIG | LYD_OPT_STRICT, &reply);
-            if (reply) {
-                ly_set_free(nodeset);
-                goto cleanup;
-            }
-        } else {
-            assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
-#ifdef NP2SRV_URL_CAPAB
-            /* config is also validated now */
-            config = op_parse_url(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str,
-                    LYD_OPT_CONFIG | LYD_OPT_STRICT, &reply);
-            if (reply) {
-                ly_set_free(nodeset);
-                goto cleanup;
-            }
-#else
-            ly_set_free(nodeset);
-            struct nc_server_error *e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-            nc_err_set_msg(e, "URL not supported.", "en");
-            reply = nc_server_reply_err(e);
-            goto cleanup;
-#endif
-        }
+    /* get know which datastore is being affected */
+    nodeset = lyd_find_path(input, "target/*");
+    if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
+        ds = SR_DS_RUNNING;
+    } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
+        ds = SR_DS_STARTUP;
+    } else {
+        assert(!strcmp(nodeset->set.d[0]->schema->name, "candidate"));
+        ds = SR_DS_CANDIDATE;
     }
     ly_set_free(nodeset);
 
-    if (!config) {
-        /* update sysrepo session datastore */
-        sr_session_switch_ds(sr_sess, ds);
+    /* update sysrepo session datastore */
+    sr_session_switch_ds(session, ds);
 
-        rc = sr_validate(sr_sess);
-        if (rc != SR_ERR_OK) {
-            reply = op_sr_err_reply(reply, sr_sess);
-            goto cleanup;
-        }
+    /* sysrepo API */
+    if (!strcmp(input->schema->name, "lock")) {
+        rc = sr_lock(session, NULL);
+    } else if (!strcmp(input->schema->name, "unlock")) {
+        rc = sr_unlock(session, NULL);
+    }
+    if (rc != SR_ERR_OK) {
+        goto cleanup;
     }
 
-    /* build positive RPC Reply */
-    reply = nc_server_reply_ok();
+    /* success */
 
 cleanup:
-    lyd_free_withsiblings(config);
-    return reply;
+    return rc;
 }
 
-struct nc_server_reply *
-op_kill(struct lyd_node *rpc, struct nc_session *ncs)
+int
+np2srv_rpc_kill_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
+        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     struct nc_session *kill_sess;
     struct ly_set *nodeset;
-    struct nc_server_error *e;
-    struct nc_server_reply *reply = NULL;
     uint32_t kill_sid, i;
+    int rc = SR_ERR_OK;
 
-    nodeset = lyd_find_path(rpc, "session-id");
+    nodeset = lyd_find_path(input, "session-id");
     kill_sid = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value.uint32;
     ly_set_free(nodeset);
 
-    if (kill_sid == nc_session_get_id(ncs)) {
-        e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
-        nc_err_set_msg(e, "It is forbidden to kill own session.", "en");
-        reply = nc_server_reply_err(e);
+    if (kill_sid == sr_session_get_nc_id(session)) {
+        rc = SR_ERR_INVAL_ARG;
+        sr_set_error(session, "It is forbidden to kill own session.", NULL);
         goto cleanup;
     }
 
@@ -1360,129 +1174,188 @@ op_kill(struct lyd_node *rpc, struct nc_session *ncs)
         }
     }
     if (!kill_sess) {
-        e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
-        nc_err_set_msg(e, "Session with the specified \"session-id\" not found.", "en");
-        reply = nc_server_reply_err(e);
+        rc = SR_ERR_INVAL_ARG;
+        sr_set_error(session, "Session with the specified \"session-id\" not found.", NULL);
         goto cleanup;
     }
 
     /* kill the session */
     nc_session_set_status(kill_sess, NC_STATUS_INVALID);
     nc_session_set_term_reason(kill_sess, NC_SESSION_TERM_KILLED);
-    nc_session_set_killed_by(kill_sess, nc_session_get_id(ncs));
+    nc_session_set_killed_by(kill_sess, sr_session_get_nc_id(session));
 
-    /* build positive RPC Reply */
-    reply = nc_server_reply_ok();
+    /* success */
 
 cleanup:
-    return reply;
+    return rc;
 }
 
-struct nc_server_reply *
-op_commit(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
+int
+np2srv_rpc_commit_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *UNUSED(input),
+        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
-    sr_session_ctx_t *sr_sess;
-    struct nc_server_reply *reply = NULL;
-    int rc;
-
-    sr_sess = nc_session_get_data(ncs);
+    int rc = SR_ERR_OK;;
 
     /* sysrepo API */
-    rc = sr_copy_config(sr_sess, NULL, SR_DS_CANDIDATE, SR_DS_RUNNING);
+    rc = sr_copy_config(session, NULL, SR_DS_CANDIDATE, SR_DS_RUNNING);
     if (rc != SR_ERR_OK) {
-        reply = op_sr_err_reply(reply, sr_sess);
         goto cleanup;
     }
 
-    /* build positive RPC Reply */
-    reply = nc_server_reply_ok();
+    /* success */
 
 cleanup:
-    return reply;
+    return rc;
 }
 
-struct nc_server_reply *
-op_discardchanges(struct lyd_node *UNUSED(rpc), struct nc_session *ncs)
+int
+np2srv_rpc_discard_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *UNUSED(input),
+        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
-    sr_session_ctx_t *sr_sess;
-    struct nc_server_reply *reply = NULL;
-    int rc;
-
-    sr_sess = nc_session_get_data(ncs);
+    int rc = SR_ERR_OK;
 
     /* sysrepo API */
-    rc = sr_copy_config(sr_sess, NULL, SR_DS_RUNNING, SR_DS_CANDIDATE);
+    rc = sr_copy_config(session, NULL, SR_DS_RUNNING, SR_DS_CANDIDATE);
     if (rc != SR_ERR_OK) {
-        reply = op_sr_err_reply(reply, sr_sess);
         goto cleanup;
     }
 
-    /* build positive RPC Reply */
-    reply = nc_server_reply_ok();
+    /* success */
 
 cleanup:
-    return reply;
+    return rc;
 }
 
-struct nc_server_reply *
-op_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
+int
+np2srv_rpc_validate_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
+        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+{
+    sr_datastore_t ds;
+    struct lyd_node *config = NULL;
+    struct ly_set *nodeset;
+    int rc = SR_ERR_OK;
+
+    /* get know which datastore is affected */
+    nodeset = lyd_find_path(input, "source/*");
+    if (nodeset->number) {
+        if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
+            ds = SR_DS_RUNNING;
+        } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
+            ds = SR_DS_STARTUP;
+        } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
+            ds = SR_DS_CANDIDATE;
+        } else if (!strcmp(nodeset->set.d[0]->schema->name, "config")) {
+            /* config is also validated now */
+            config = op_parse_config((struct lyd_node_anydata *)nodeset->set.d[0], LYD_OPT_CONFIG | LYD_OPT_STRICT, &rc, session);
+            if (rc) {
+                ly_set_free(nodeset);
+                goto cleanup;
+            }
+        } else {
+            assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
+#ifdef NP2SRV_URL_CAPAB
+            /* config is also validated now */
+            config = op_parse_url(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str,
+                    LYD_OPT_CONFIG | LYD_OPT_STRICT, &rc, session);
+            if (rc) {
+                ly_set_free(nodeset);
+                goto cleanup;
+            }
+#else
+            ly_set_free(nodeset);
+            rc = SR_ERR_UNSUPPORTED;
+            sr_set_error(session, "URL not supported.", NULL);
+            goto cleanup;
+#endif
+        }
+    }
+    ly_set_free(nodeset);
+
+    if (!config) {
+        /* update sysrepo session datastore */
+        sr_session_switch_ds(session, ds);
+
+        rc = sr_validate(session);
+        if (rc != SR_ERR_OK) {
+            goto cleanup;
+        }
+    }
+
+    /* success */
+
+cleanup:
+    lyd_free_withsiblings(config);
+    return rc;
+}
+
+int
+np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
+        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     struct ly_set *nodeset;
-    struct nc_server_reply *reply = NULL;
     const struct lys_module *ly_mod;
     struct lys_node *root, *next, *elem;
-    sr_session_ctx_t *sr_sess;
+    struct nc_session *ncs;
     const char *stream;
-    char **filters = NULL, *xpath = NULL, *mem;
+    char **filters = NULL, *xp = NULL, *mem;
     time_t start = 0, stop = 0;
-    int rc, i, len, filter_count = 0;
+    int rc = SR_ERR_OK, i, len, filter_count = 0;
     uint32_t idx;
 
-    sr_sess = nc_session_get_data(ncs);
+    /* find this NETCONF session */
+    ncs = nc_ps_get_session(np2srv.nc_ps, sr_session_get_nc_id(session));
+    if (!ncs) {
+        ERR("Failed to find NETCONF session SID %u.", sr_session_get_nc_id(session));
+        rc = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
 
     /* learn stream */
-    nodeset = lyd_find_path(rpc, "stream");
+    nodeset = lyd_find_path(input, "stream");
     stream = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
     ly_set_free(nodeset);
 
     /* filter */
-    nodeset = lyd_find_path(rpc, "filter");
+    nodeset = lyd_find_path(input, "filter");
     if (nodeset->number) {
         if (op_filter_create(nodeset->set.d[0], &filters, &filter_count)) {
+            rc = SR_ERR_INTERNAL;
             goto cleanup;
         }
 
         /* join all filters into one xpath */
         for (i = 0; i < filter_count; ++i) {
-            if (!xpath) {
-                xpath = strdup(filters[0]);
-                if (!xpath) {
+            if (!xp) {
+                xp = strdup(filters[0]);
+                if (!xp) {
                     EMEM;
+                    rc = SR_ERR_NOMEM;
                     goto cleanup;
                 }
             } else {
-                len = strlen(xpath);
-                mem = realloc(xpath, len + 5 + strlen(filters[i]) + 1);
+                len = strlen(xp);
+                mem = realloc(xp, len + 5 + strlen(filters[i]) + 1);
                 if (!mem) {
                     EMEM;
+                    rc = SR_ERR_NOMEM;
                     goto cleanup;
                 }
-                xpath = mem;
-                sprintf(xpath + len, " and %s", filters[i]);
+                xp = mem;
+                sprintf(xp + len, " and %s", filters[i]);
             }
         }
     }
     ly_set_free(nodeset);
 
     /* start time */
-    nodeset = lyd_find_path(rpc, "startTime");
+    nodeset = lyd_find_path(input, "startTime");
     if (nodeset->number) {
         start = nc_datetime2time(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str);
     }
     ly_set_free(nodeset);
 
     /* stop time */
-    nodeset = lyd_find_path(rpc, "stopTime");
+    nodeset = lyd_find_path(input, "stopTime");
     if (nodeset->number) {
         stop = nc_datetime2time(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str);
     }
@@ -1492,12 +1365,12 @@ op_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
     if (!strcmp(stream, "NETCONF")) {
         /* subscribe to all modules with notifications */
         idx = 0;
-        while ((ly_mod = ly_ctx_get_module_iter(lyd_node_module(rpc)->ctx, &idx))) {
+        while ((ly_mod = ly_ctx_get_module_iter(lyd_node_module(input)->ctx, &idx))) {
             rc = SR_ERR_OK;
             LY_TREE_FOR(ly_mod->data, root) {
                 LY_TREE_DFS_BEGIN(root, next, elem) {
                     if (elem->nodetype == LYS_NOTIF) {
-                        rc = sr_event_notif_subscribe_tree(sr_sess, ly_mod->name, xpath, start, stop, np2srv_ntf_new_clb,
+                        rc = sr_event_notif_subscribe_tree(session, ly_mod->name, xp, start, stop, np2srv_ntf_new_clb,
                                 ncs, np2srv.sr_notif_sub ? SR_SUBSCR_CTX_REUSE : 0, &np2srv.sr_notif_sub);
                         break;
                     }
@@ -1508,68 +1381,27 @@ op_subscribe(struct lyd_node *rpc, struct nc_session *ncs)
                 }
             }
             if (rc != SR_ERR_OK) {
-                reply = op_sr_err_reply(reply, sr_sess);
                 goto cleanup;
             }
         }
     } else {
-        rc = sr_event_notif_subscribe_tree(sr_sess, stream, xpath, start, stop, np2srv_ntf_new_clb, ncs,
+        rc = sr_event_notif_subscribe_tree(session, stream, xp, start, stop, np2srv_ntf_new_clb, ncs,
                 np2srv.sr_notif_sub ? SR_SUBSCR_CTX_REUSE : 0, &np2srv.sr_notif_sub);
     }
     if (rc != SR_ERR_OK) {
-        reply = op_sr_err_reply(reply, sr_sess);
         goto cleanup;
     }
 
     /* set ongoing notifications flag */
     nc_session_set_notif_status(ncs, 1);
 
-    /* build positive RPC Reply */
-    reply = nc_server_reply_ok();
+    /* success */
 
 cleanup:
     for (i = 0; i < filter_count; ++i) {
         free(filters[i]);
     }
     free(filters);
-    free(xpath);
-    return reply;
-}
-
-struct nc_server_reply *
-op_generic(struct lyd_node *rpc, struct nc_session *ncs)
-{
-    sr_session_ctx_t *sr_sess;
-    struct nc_server_reply *reply = NULL;
-    struct lyd_node *output, *child = NULL;
-    NC_WD_MODE nc_wd;
-    int rc;
-
-    sr_sess = nc_session_get_data(ncs);
-
-    /* sysrepo API */
-    rc = sr_rpc_send_tree(sr_sess, rpc, &output);
-    if (rc != SR_ERR_OK) {
-        reply = op_sr_err_reply(reply, sr_sess);
-        goto cleanup;
-    }
-
-    /* build RPC Reply */
-    if (output) {
-        LY_TREE_FOR(output->child, child) {
-            if (!child->dflt) {
-                break;
-            }
-        }
-    }
-    if (child) {
-        nc_server_get_capab_withdefaults(&nc_wd, NULL);
-        reply = nc_server_reply_data(output, nc_wd, NC_PARAMTYPE_FREE);
-    } else {
-        lyd_free_withsiblings(output);
-        reply = nc_server_reply_ok();
-    }
-
-cleanup:
-    return reply;
+    free(xp);
+    return rc;
 }

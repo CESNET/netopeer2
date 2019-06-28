@@ -18,8 +18,8 @@
 #include <pthread.h>
 
 #include "config.h"
-#include "operations.h"
 #include "log.h"
+#include "netconf.h"
 #include "netconf_monitoring.h"
 #include "netconf_server.h"
 

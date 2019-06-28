@@ -67,7 +67,7 @@ endif()
 
 # source files
 set(srcs
-    operations.c
+    netconf.c
     netconf_monitoring.c
     netconf_server.c
     log.c)
