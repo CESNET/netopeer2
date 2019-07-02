@@ -837,49 +837,49 @@ server_init(void)
 
     /* subscribe to standard supported RPCs */
     xpath = "/ietf-netconf:get-config";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_get_cb, NULL, 0, &np2srv.sr_data_sub);
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_get_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
         goto error;
     }
 
     xpath = "/ietf-netconf:edit-config";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_editconfig_cb, NULL, 0, &np2srv.sr_data_sub);
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_editconfig_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
         goto error;
     }
 
     xpath = "/ietf-netconf:copy-config";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_copyconfig_cb, NULL, 0, &np2srv.sr_data_sub);
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_copyconfig_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
         goto error;
     }
 
     xpath = "/ietf-netconf:delete-config";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_deleteconfig_cb, NULL, 0, &np2srv.sr_data_sub);
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_deleteconfig_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
         goto error;
     }
 
     xpath = "/ietf-netconf:lock";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_un_lock_cb, NULL, 0, &np2srv.sr_data_sub);
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_un_lock_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
         goto error;
     }
 
     xpath = "/ietf-netconf:unlock";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_un_lock_cb, NULL, 0, &np2srv.sr_data_sub);
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_un_lock_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
         goto error;
     }
 
     xpath = "/ietf-netconf:get";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_get_cb, NULL, 0, &np2srv.sr_data_sub);
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_get_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
         goto error;
@@ -888,35 +888,35 @@ server_init(void)
     /* keep close-session empty so that internal lnc2 callback is used */
 
     xpath = "/ietf-netconf:kill-session";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_kill_cb, NULL, 0, &np2srv.sr_data_sub);
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_kill_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
         goto error;
     }
 
     xpath = "/ietf-netconf:commit";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_commit_cb, NULL, 0, &np2srv.sr_data_sub);
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_commit_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
         goto error;
     }
 
     xpath = "/ietf-netconf:discard-changes";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_discard_cb, NULL, 0, &np2srv.sr_data_sub);
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_discard_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
         goto error;
     }
 
     xpath = "/ietf-netconf:validate";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_validate_cb, NULL, 0, &np2srv.sr_data_sub);
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_validate_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
         goto error;
     }
 
     xpath = "/notifications:create-subscription";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_subscribe_cb, NULL, 0, &np2srv.sr_data_sub);
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_subscribe_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
         goto error;
