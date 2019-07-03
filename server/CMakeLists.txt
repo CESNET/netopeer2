@@ -40,7 +40,7 @@ set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and ha
 set(MODULES_OWNER "$ENV{USER}" CACHE STRING "User that will become the owner of server modules")
 
 # set prefix for the PID file
-if (NOT PIDFILE_PREFIX)
+if(NOT PIDFILE_PREFIX)
     set(PIDFILE_PREFIX "/var/run")
 endif()
 
@@ -49,11 +49,11 @@ message(STATUS "Server configuration off, default SSH host key will be used: \"$
 
 # check that lnc2 supports np2srv thread count
 find_package(PkgConfig)
-if (PKG_CONFIG_FOUND)
+if(PKG_CONFIG_FOUND)
     execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} "--variable=LNC2_MAX_THREAD_COUNT" "libnetconf2" OUTPUT_VARIABLE LNC2_THREAD_COUNT)
-    if (LNC2_THREAD_COUNT)
+    if(LNC2_THREAD_COUNT)
         string(STRIP ${LNC2_THREAD_COUNT} LNC2_THREAD_COUNT)
-        if (LNC2_THREAD_COUNT LESS THREAD_COUNT)
+        if(LNC2_THREAD_COUNT LESS THREAD_COUNT)
             message(FATAL_ERROR "libnetconf2 was compiled with support up to ${LNC2_THREAD_COUNT} threads, server is configured with ${THREAD_COUNT}.")
         else()
             message(STATUS "libnetconf2 was compiled with support of up to ${LNC2_THREAD_COUNT} threads")
@@ -79,9 +79,9 @@ add_library(serverobj OBJECT ${srcs})
 add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> main.c)
 
 # dependencies - libcurl
-if (ENABLE_URL)
+if(ENABLE_URL)
     find_package(CURL)
-    if (CURL_FOUND)
+    if(CURL_FOUND)
         include_directories(${CURL_INCLUDE_DIRS})
         target_link_libraries(netopeer2-server ${CURL_LIBRARIES})
         set(NP2SRV_URL_CAPAB 1)
@@ -107,7 +107,7 @@ include_directories(${LIBYANG_INCLUDE_DIRS})
 
 # dependencies - libnetconf2
 find_package(LibNETCONF2 REQUIRED)
-if (NOT LIBNETCONF2_ENABLED_SSH)
+if(NOT LIBNETCONF2_ENABLED_SSH)
     message(FATAL_ERROR "Missing SSH support in libnetconf2, server requires SSH to be supported.")
 endif()
 target_link_libraries(netopeer2-server ${LIBNETCONF2_LIBRARIES})
@@ -118,11 +118,11 @@ find_package(SYSREPO REQUIRED)
 target_link_libraries(netopeer2-server ${SYSREPO_LIBRARIES})
 include_directories(${SYSREPO_INCLUDE_DIRS})
 find_program(SYSREPOCTL "sysrepoctl")
-if (SYSREPOCTL-NOTFOUND)
+if(SYSREPOCTL-NOTFOUND)
     message(FATAL_ERROR "sysrepoctl utility not found.")
 endif()
 find_program(SYSREPOCFG "sysrepocfg")
-if (SYSREPOCFG-NOTFOUND)
+if(SYSREPOCFG-NOTFOUND)
     message(FATAL_ERROR "sysrepocfg utility not found.")
 endif()
 
@@ -137,16 +137,16 @@ endif()
 include_directories(${LIBSSH_INCLUDE_DIRS})
 
 # dependencies - openssl
-if (GENERATE_HOSTKEY)
+if(GENERATE_HOSTKEY)
     find_program(OPENSSL "openssl")
-    if (OPENSSL-NOTFOUND)
+    if(OPENSSL-NOTFOUND)
         message(FATAL_ERROR "openssl utility not found.")
     endif()
 endif()
 
 # install the binary, required modules, and default configuration
 install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
-if (ENABLE_SYSREPO_SETUP)
+if(ENABLE_SYSREPO_SETUP)
     install(CODE "
         message(STATUS \"Setting up sysrepo...\")
         execute_process(COMMAND ${PROJECT_SOURCE_DIR}/setup.sh ${SYSREPOCTL} ${SYSREPOCFG} ${PROJECT_SOURCE_DIR}/../modules
@@ -155,7 +155,7 @@ if (ENABLE_SYSREPO_SETUP)
 else()
     message(WARNING "Server will refuse to start if the setup is not performed!")
 endif()
-if (GENERATE_HOSTKEY)
+if(GENERATE_HOSTKEY)
     install(CODE "
         message(STATUS \"Generating a new RSA host key...\")
         execute_process(COMMAND ${PROJECT_SOURCE_DIR}/gen_hostkey.sh ${SYSREPOCFG} ${OPENSSL})
@@ -163,12 +163,15 @@ if (GENERATE_HOSTKEY)
 else()
     message(WARNING "Server will not accept connections if there is no hostkey set!")
 endif()
-if (ENABLE_SYSREPO_SETUP OR GENERATE_HOSTKEY)
+if(ENABLE_SYSREPO_SETUP OR GENERATE_HOSTKEY)
     install(CODE "
-        message(STATUS)
-        message(STATUS \"No sysrepo clients can be running because its shared memory was reset!\")
-        message(STATUS)
-        file(REMOVE /dev/shm/sr_ext_main /dev/shm/sr_main)
+        execute_process(COMMAND ${SYSREPOCTL} -C RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR
+                OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_STRIP_TRAILING_WHITESPACE)
+        if(\${RET})
+            message(FATAL_ERROR \"sysrepoctl failed: \${ERR}\")
+        elseif(\${OUT} GREATER \"0\")
+            message(WARNING \"There are some sysrepo connections, module changes could not be applied now!\")
+        endif()
     ")
 endif()
 
