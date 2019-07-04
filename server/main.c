@@ -744,7 +744,6 @@ static int
 server_init(void)
 {
     const struct ly_ctx *ly_ctx;
-    const char *mod_name, *xpath;
     int rc;
 
     /* connect to the sysrepo */
@@ -801,6 +800,34 @@ server_init(void)
     /* set libnetconf2 callbacks */
     nc_server_ssh_set_hostkey_clb(np2srv_hostkey_cb, NULL, NULL);
     nc_server_ssh_set_pubkey_auth_clb(np2srv_pubkey_auth_cb, NULL, NULL);
+
+    /* UNIX socket */
+    if (np2srv.unix_path) {
+        if (nc_server_add_endpt("unix", NC_TI_UNIX)) {
+            goto error;
+        }
+
+        if (nc_server_endpt_set_perms("unix", np2srv.unix_mode, np2srv.unix_uid, np2srv.unix_gid)) {
+            goto error;
+        }
+
+        if (nc_server_endpt_set_address("unix", np2srv.unix_path)) {
+            goto error;
+        }
+    }
+
+    return 0;
+
+error:
+    ERR("Server init failed.");
+    return -1;
+}
+
+static int
+server_subscribe(void)
+{
+    const char *mod_name, *xpath;
+    int rc;
 
     /* subscribe for providing state data */
     if (np2srv.sr_data_sub) {
@@ -1051,25 +1078,10 @@ server_init(void)
         goto error;
     }
 
-    /* UNIX socket */
-    if (np2srv.unix_path) {
-        if (nc_server_add_endpt("unix", NC_TI_UNIX)) {
-            goto error;
-        }
-
-        if (nc_server_endpt_set_perms("unix", np2srv.unix_mode, np2srv.unix_uid, np2srv.unix_gid)) {
-            goto error;
-        }
-
-        if (nc_server_endpt_set_address("unix", np2srv.unix_path)) {
-            goto error;
-        }
-    }
-
     return 0;
 
 error:
-    ERR("Server init failed.");
+    ERR("Server subscribe failed.");
     return -1;
 }
 
@@ -1399,6 +1411,20 @@ main(int argc, char *argv[])
     if (server_init()) {
         ret = EXIT_FAILURE;
         goto cleanup;
+    }
+
+    /* subscribe to sysrepo */
+    if (server_subscribe()) {
+        /* try to recover sysrepo */
+        c = sr_connection_recover();
+        if (c != SR_ERR_OK) {
+            ERR("Sysrepo recover failed (%s).", sr_strerror(c));
+            ret = EXIT_FAILURE;
+            goto cleanup;
+        } else if (server_subscribe()) {
+            ret = EXIT_FAILURE;
+            goto cleanup;
+        }
     }
 
     /* start additional worker threads */
