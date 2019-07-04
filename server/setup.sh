@@ -32,3 +32,4 @@ $SYSREPOCTL -i $MODDIR/ietf-ssh-server@2019-04-29.yang -e local-client-auth-supp
 $SYSREPOCTL -i $MODDIR/ietf-netconf-server@2019-04-29.yang -e ssh-listen -e ssh-call-home -s $MODDIR
 # import default config
 $SYSREPOCFG -I$MODDIR/default_config.xml -d startup
+$SYSREPOCFG -C startup -m ietf-netconf-server
