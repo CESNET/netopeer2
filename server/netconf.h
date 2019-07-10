@@ -18,24 +18,24 @@
 #include <nc_server.h>
 
 int np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *xpath, const struct lyd_node *input,
-        struct lyd_node *output, void *private_data);
+        sr_event_t event, struct lyd_node *output, void *private_data);
 int np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *xpath, const struct lyd_node *input,
-        struct lyd_node *output, void *private_data);
+        sr_event_t event, struct lyd_node *output, void *private_data);
 int np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *xpath, const struct lyd_node *input,
-        struct lyd_node *output, void *private_data);
+        sr_event_t event, struct lyd_node *output, void *private_data);
 int np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *xpath, const struct lyd_node *input,
-        struct lyd_node *output, void *private_data);
+        sr_event_t event, struct lyd_node *output, void *private_data);
 int np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, const char *xpath, const struct lyd_node *input,
-        struct lyd_node *output, void *private_data);
+        sr_event_t event, struct lyd_node *output, void *private_data);
 int np2srv_rpc_kill_cb(sr_session_ctx_t *session, const char *xpath, const struct lyd_node *input,
-        struct lyd_node *output, void *private_data);
+        sr_event_t event, struct lyd_node *output, void *private_data);
 int np2srv_rpc_commit_cb(sr_session_ctx_t *session, const char *xpath, const struct lyd_node *input,
-        struct lyd_node *output, void *private_data);
+        sr_event_t event, struct lyd_node *output, void *private_data);
 int np2srv_rpc_discard_cb(sr_session_ctx_t *session, const char *xpath, const struct lyd_node *input,
-        struct lyd_node *output, void *private_data);
+        sr_event_t event, struct lyd_node *output, void *private_data);
 int np2srv_rpc_validate_cb(sr_session_ctx_t *session, const char *xpath, const struct lyd_node *input,
-        struct lyd_node *output, void *private_data);
+        sr_event_t event, struct lyd_node *output, void *private_data);
 int np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *xpath, const struct lyd_node *input,
-        struct lyd_node *output, void *private_data);
+        sr_event_t event, struct lyd_node *output, void *private_data);
 
 #endif /* NP2SRV_NETCONF_H_ */

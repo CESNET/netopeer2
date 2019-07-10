@@ -713,8 +713,8 @@ op_export_url(const char *url, struct lyd_node *data, int options, int *rc, sr_s
 #endif
 
 int
-np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *xpath, const struct lyd_node *input, struct lyd_node *output,
-        void *UNUSED(private_data))
+np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *xpath, const struct lyd_node *input, sr_event_t UNUSED(event),
+        struct lyd_node *output, void *UNUSED(private_data))
 {
     struct lyd_node_leaf_list *leaf;
     struct lyd_node *node;
@@ -803,7 +803,8 @@ get_sr_data:
             goto cleanup;
         }
 
-        if (lyd_merge(output, node, LYD_OPT_DESTRUCT | LYD_OPT_EXPLICIT)) {
+        if (node && lyd_merge(output, node, LYD_OPT_DESTRUCT | LYD_OPT_EXPLICIT)) {
+            lyd_free_withsiblings(node);
             rc = SR_ERR_LY;
             goto cleanup;
         }
@@ -828,7 +829,7 @@ cleanup:
 
 int
 np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
-        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds = 0;
     struct ly_set *nodeset;
@@ -928,7 +929,7 @@ cleanup:
 
 int
 np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
-        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t tds, sds;
     struct ly_set *nodeset;
@@ -1052,7 +1053,7 @@ cleanup:
 
 int
 np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
-        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds;
     struct ly_set *nodeset;
@@ -1112,7 +1113,7 @@ cleanup:
 
 int
 np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
-        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds = 0;
     struct ly_set *nodeset;
@@ -1151,7 +1152,7 @@ cleanup:
 
 int
 np2srv_rpc_kill_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
-        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     struct nc_session *kill_sess;
     struct ly_set *nodeset;
@@ -1192,7 +1193,7 @@ cleanup:
 
 int
 np2srv_rpc_commit_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *UNUSED(input),
-        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     int rc = SR_ERR_OK;;
 
@@ -1210,7 +1211,7 @@ cleanup:
 
 int
 np2srv_rpc_discard_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *UNUSED(input),
-        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     int rc = SR_ERR_OK;
 
@@ -1228,7 +1229,7 @@ cleanup:
 
 int
 np2srv_rpc_validate_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
-        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds;
     struct lyd_node *config = NULL;
@@ -1290,7 +1291,7 @@ cleanup:
 
 int
 np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
-        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     struct ly_set *nodeset;
     const struct lys_module *ly_mod;
