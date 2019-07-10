@@ -13,9 +13,6 @@ if(NOT UNIX)
     message(FATAL_ERROR "Only *nix like systems are supported.")
 endif()
 
-# set version
-set(NP2SRV_VERSION 1.0.0)
-
 # set default build type if not specified by user
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE debug)
@@ -24,6 +21,12 @@ endif()
 set(CMAKE_C_FLAGS         "${CMAKE_C_FLAGS} -Wall -Wextra -std=gnu11")
 set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
 set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -DDEBUG")
+
+# Version of the project
+# Generic version of not only the library. Major version is reserved for really big changes of the project,
+# minor version changes with added functionality (new tool, functionality of the tool or library, ...) and
+# micro version is changed with a set of small changes or bugfixes anywhere in the project.
+set(NP2SRV_VERSION 1.0.0)
 
 # build options
 if(CMAKE_BUILD_TYPE STREQUAL debug)
@@ -43,9 +46,6 @@ set(MODULES_OWNER "$ENV{USER}" CACHE STRING "User that will become the owner of 
 if(NOT PIDFILE_PREFIX)
     set(PIDFILE_PREFIX "/var/run")
 endif()
-
-# set default SSH key
-message(STATUS "Server configuration off, default SSH host key will be used: \"${DEFAULT_HOST_KEY}\".")
 
 # check that lnc2 supports np2srv thread count
 find_package(PkgConfig)

@@ -11,18 +11,18 @@ SYSREPOCFG=$1
 OPENSSL=$2
 
 # generate a new key
-PRIVPEM=`${OPENSSL} genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform PEM 2>/dev/null`
+PRIVPEM=`$OPENSSL genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform PEM 2>/dev/null`
 # remove header/footer
 PRIVKEY=`grep -v -- "-----" - <<STDIN
-${PRIVPEM}
+$PRIVPEM
 STDIN`
 # get public key
 PUBPEM=`openssl rsa -pubout 2>/dev/null <<STDIN
-${PRIVPEM}
+$PRIVPEM
 STDIN`
 # remove header/footer
 PUBKEY=`grep -v -- "-----" - <<STDIN
-${PUBPEM}
+$PUBPEM
 STDIN`
 
 # generate edit config
@@ -41,8 +41,8 @@ CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\
                             <public-key>
                                 <local-definition>
                                     <algorithm xmlns:ct=\"urn:ietf:params:xml:ns:yang:ietf-crypto-types\">ct:rsa2048</algorithm>
-                                    <public-key>${PUBKEY}</public-key>
-                                    <private-key>${PRIVKEY}</private-key>
+                                    <public-key>$PUBKEY</public-key>
+                                    <private-key>$PRIVKEY</private-key>
                                 </local-definition>
                             </public-key>
                         </host-key>
@@ -53,8 +53,9 @@ CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\
     </listen>
 </netconf-server>"
 TMPFILE=`mktemp -u`
-printf -- "${CONFIG}" > ${TMPFILE}
-# apply it
-${SYSREPOCFG} -E${TMPFILE} -d startup -f xml
+printf -- "$CONFIG" > $TMPFILE
+# apply it to startup and running
+$SYSREPOCFG --edit=$TMPFILE -d startup -f xml
+$SYSREPOCFG -C startup -m ietf-netconf-server
 # remove the tmp file
-rm ${TMPFILE}
+rm $TMPFILE

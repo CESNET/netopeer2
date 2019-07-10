@@ -30,6 +30,43 @@ $SYSREPOCTL -i $MODDIR/ietf-crypto-types@2019-04-29.yang
 $SYSREPOCTL -i $MODDIR/ietf-keystore@2019-04-29.yang -e local-keys-supported -s $MODDIR
 $SYSREPOCTL -i $MODDIR/ietf-ssh-server@2019-04-29.yang -e local-client-auth-supported -e ssh-server-keepalives -s $MODDIR
 $SYSREPOCTL -i $MODDIR/ietf-netconf-server@2019-04-29.yang -e ssh-listen -e ssh-call-home -s $MODDIR
+
 # import default config
-$SYSREPOCFG -I$MODDIR/default_config.xml -d startup
+CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\">
+    <listen>
+        <endpoint>
+            <name>default</name>
+            <ssh>
+                <tcp-server-parameters>
+                    <local-address>0.0.0.0</local-address>
+                </tcp-server-parameters>
+                <ssh-server-parameters>
+                    <server-identity>
+                        <host-key>
+                            <name>none</name>
+                            <public-key>
+                                <local-definition/>
+                            </public-key>
+                        </host-key>
+                    </server-identity>
+                    <client-authentication>
+                        <supported-authentication-methods>
+                            <publickey/>
+                            <passsword/>
+                            <other>interactive</other>
+                        </supported-authentication-methods>
+                        <users/>
+                    </client-authentication>
+                    <keepalives/>
+                </ssh-server-parameters>
+            </ssh>
+        </endpoint>
+    </listen>
+</netconf-server>"
+TMPFILE=`mktemp -u`
+printf -- "$CONFIG" > $TMPFILE
+# apply it to startup and running
+$SYSREPOCFG --import=$TMPFILE -d startup -f xml
 $SYSREPOCFG -C startup -m ietf-netconf-server
+# remove the tmp file
+rm $TMPFILE
