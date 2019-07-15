@@ -302,7 +302,7 @@ np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return -1;
+        return SR_ERR_NOMEM;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -343,7 +343,7 @@ np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_
             /* set specific parameters */
             if (asprintf(&xpath2, "%s/keepalives/*", xpath) == -1) {
                 EMEM;
-                return -1;
+                return SR_ERR_NOMEM;
             }
             rc = np2srv_tcp_keepalives(NULL, endpt_name, session, xpath2);
             free(xpath2);
@@ -460,7 +460,7 @@ np2srv_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, const char *UNUSED(m
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return -1;
+        return SR_ERR_NOMEM;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -508,7 +508,7 @@ np2srv_endpt_ssh_keepalives_cb(sr_session_ctx_t *session, const char *UNUSED(mod
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return -1;
+        return SR_ERR_NOMEM;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -798,7 +798,7 @@ np2srv_ch_client_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *UNUS
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return -1;
+        return SR_ERR_NOMEM;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -840,7 +840,7 @@ np2srv_ch_client_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *UNUS
             /* set specific parameters */
             if (asprintf(&xpath2, "%s/keepalives/*", xpath) == -1) {
                 EMEM;
-                return -1;
+                return SR_ERR_NOMEM;
             }
             rc = np2srv_tcp_keepalives(client_name, endpt_name, session, xpath2);
             free(xpath2);
@@ -924,7 +924,7 @@ np2srv_ch_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, const char *UNUSE
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return -1;
+        return SR_ERR_NOMEM;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -973,7 +973,7 @@ np2srv_ch_endpt_ssh_keepalives_cb(sr_session_ctx_t *session, const char *UNUSED(
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return -1;
+        return SR_ERR_NOMEM;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -1089,7 +1089,7 @@ np2srv_ch_connection_type_cb(sr_session_ctx_t *session, const char *UNUSED(modul
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return -1;
+        return SR_ERR_NOMEM;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -1122,7 +1122,7 @@ np2srv_ch_connection_type_cb(sr_session_ctx_t *session, const char *UNUSED(modul
 
             if (asprintf(&xpath2, "%s/periodic/*", xpath) == -1) {
                 EMEM;
-                return -1;
+                return SR_ERR_NOMEM;
             }
             rc = np2srv_ch_periodic_connection_params(client_name, session, xpath2);
             free(xpath2);
@@ -1155,7 +1155,7 @@ np2srv_ch_reconnect_strategy_cb(sr_session_ctx_t *session, const char *UNUSED(mo
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return -1;
+        return SR_ERR_NOMEM;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
