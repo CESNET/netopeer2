@@ -15,8 +15,31 @@
 #ifndef NP2SRV_NETCONF_MONITORING_H_
 #define NP2SRV_NETCONF_MONITORING_H_
 
+#include <pthread.h>
+
 #include <nc_server.h>
 #include <sysrepo.h>
+
+struct ncm_session_stats {
+    uint32_t in_rpcs;
+    uint32_t in_bad_rpcs;
+    uint32_t out_rpc_errors;
+    uint32_t out_notifications;
+};
+
+struct ncm {
+    struct nc_session **sessions;
+    struct ncm_session_stats *session_stats;
+    uint32_t session_count;
+
+    time_t netconf_start_time;
+    uint32_t in_bad_hellos;
+    uint32_t in_sessions;
+    uint32_t dropped_sessions;
+    struct ncm_session_stats global_stats;
+
+    pthread_mutex_t lock;
+};
 
 void ncm_init(void);
 void ncm_destroy(void);

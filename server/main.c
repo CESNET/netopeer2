@@ -966,8 +966,12 @@ server_data_subscribe(void)
         goto error;
     }
 
-    /* subscribe for server SSH listen configuration changes */
+    /*
+     * ietf-netconf-server
+     */
     mod_name = "ietf-netconf-server";
+
+    /* subscribe for server SSH listen configuration changes */
     xpath = "/ietf-netconf-server:netconf-server/listen/idle-timeout";
     rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_idle_timeout_cb, NULL, 0,
             SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);

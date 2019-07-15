@@ -24,26 +24,7 @@
 
 #define NCM_TIMEZONE "CET"
 
-struct np_session_stats {
-    uint32_t in_rpcs;
-    uint32_t in_bad_rpcs;
-    uint32_t out_rpc_errors;
-    uint32_t out_notifications;
-};
-
-static struct {
-    struct nc_session **sessions;
-    struct np_session_stats *session_stats;
-    uint32_t session_count;
-
-    time_t netconf_start_time;
-    uint32_t in_bad_hellos;
-    uint32_t in_sessions;
-    uint32_t dropped_sessions;
-    struct np_session_stats global_stats;
-
-    pthread_mutex_t lock;
-} stats;
+struct ncm stats;
 
 void
 ncm_init(void)
