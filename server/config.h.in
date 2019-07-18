@@ -30,10 +30,6 @@
  */
 #define NP2SRV_UNIX_SOCK_PATH "@PIDFILE_PREFIX@/netopeer2-server.sock"
 
-/** @brief Netopeer2 Server SSH default RSA host key path
- */
-#define NP2SRV_HOST_KEY "@DEFAULT_HOST_KEY@"
-
 /** @brief Maximum number of threads handling session requests
  */
 #ifndef NP2SRV_THREAD_COUNT
