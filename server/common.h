@@ -22,6 +22,7 @@
 #include "netconf.h"
 #include "netconf_monitoring.h"
 #include "netconf_server.h"
+#include "netconf_acm.h"
 
 #define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
 

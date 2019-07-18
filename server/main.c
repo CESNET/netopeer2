@@ -110,7 +110,7 @@ void
 np2srv_ntf_new_clb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t notif_type, const struct lyd_node *notif,
         time_t timestamp, void *private_data)
 {
-    struct nc_server_notif *nc_ntf;
+    struct nc_server_notif *nc_ntf = NULL;
     struct nc_session *ncs = (struct nc_session *)private_data;
     struct lyd_node *ly_ntf = NULL;
     NC_MSG_TYPE msg_type;
@@ -123,6 +123,11 @@ np2srv_ntf_new_clb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t n
     } else if (notif_type == SR_EV_NOTIF_STOP) {
         ly_ntf = lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/nc-notifications:notificationComplete", NULL, 0, 0);
         notif = ly_ntf;
+    }
+
+    /* check NACM */
+    if (ncac_check_operation(notif, nc_session_get_username(ncs))) {
+        goto cleanup;
     }
 
     /* create the notification object */
@@ -463,6 +468,7 @@ np2srv_err_sr(int err_code, const char *message, const char *xpath)
         nc_err_set_msg(e, message, "en");
         break;
     case SR_ERR_UNAUTHORIZED:
+err_access_denied:
         e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
         nc_err_set_msg(e, message, "en");
         if (xpath) {
@@ -481,6 +487,9 @@ np2srv_err_sr(int err_code, const char *message, const char *xpath)
         }
         /* fallthrough */
     default:
+        if (strstr(message, "authorization failed")) {
+            goto err_access_denied;
+        }
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
         nc_err_set_msg(e, message, "en");
         if (xpath) {
@@ -521,12 +530,24 @@ static struct nc_server_reply *
 np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
 {
     sr_session_ctx_t *sr_sess = NULL;
+    const struct lyd_node *node;
     const sr_error_info_t *err_info;
     struct nc_server_reply *reply = NULL;
     struct lyd_node *output, *child = NULL;
     NC_WD_MODE nc_wd;
     struct nc_server_error *e;
+    char *path;
     int rc;
+
+    /* check NACM */
+    if ((node = ncac_check_operation(rpc, nc_session_get_username(ncs)))) {
+        e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_APP);
+        path = lys_data_path(node->schema);
+        nc_err_set_path(e, path);
+        free(path);
+        reply = nc_server_reply_err(e);
+        goto cleanup;
+    }
 
     /* create sysrepo session with correct user */
     rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
@@ -578,6 +599,23 @@ cleanup:
 }
 
 static int
+np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
+{
+    const struct lyd_node *node;
+    char *path;
+
+    if ((node = ncac_check_diff(diff, sr_session_get_user(session)))) {
+        /* access denied */
+        path = lys_data_path(node->schema);
+        sr_set_error(session, "Access to the requested data model is denied because authorization failed.", path);
+        free(path);
+        return SR_ERR_UNAUTHORIZED;
+    }
+
+    return SR_ERR_OK;
+}
+
+static int
 np2srv_check_schemas(sr_session_ctx_t *sr_sess)
 {
     const char *mod_name;
@@ -622,6 +660,14 @@ np2srv_check_schemas(sr_session_ctx_t *sr_sess)
 #endif
     if (lys_features_state(mod, "xpath") != 1) {
         ERR("Module \"%s\" feature \"xpath\" not enabled in sysrepo.", mod_name);
+        return -1;
+    }
+
+    /* ... ietf-netconf-acm, */
+    mod_name = "ietf-netconf-acm";
+    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
+    if (!mod || !mod->implemented) {
+        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
         return -1;
     }
 
@@ -746,12 +792,13 @@ server_init(void)
     const struct ly_ctx *ly_ctx;
     int rc;
 
-    /* connect to the sysrepo */
+    /* connect to the sysrepo and set edit-config NACM diff check callback */
     rc = sr_connect(SR_CONN_CACHE_RUNNING, &np2srv.sr_conn);
     if (rc != SR_ERR_OK) {
         ERR("Connecting to sysrepo failed (%s).", sr_strerror(rc));
         goto error;
     }
+    sr_set_diff_check_callback(np2srv.sr_conn, np2srv_diff_check_cb);
 
     ly_ctx = sr_get_context(np2srv.sr_conn);
 
@@ -769,6 +816,9 @@ server_init(void)
 
     /* init monitoring */
     ncm_init();
+
+    /* init NACM */
+    ncac_init();
 
     /* init libnetconf2 (it modifies only the dictionary) */
     if (nc_server_init((struct ly_ctx *)ly_ctx)) {
@@ -1096,6 +1146,68 @@ server_data_subscribe(void)
             SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    /*
+     * ietf-netconf-acm
+     */
+    mod_name = "ietf-netconf-acm";
+
+    xpath = "/ietf-netconf-acm:nacm";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_nacm_params_cb, NULL, 0,
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    xpath = "/ietf-netconf-acm:nacm/groups/group";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_group_cb, NULL, 0,
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    xpath = "/ietf-netconf-acm:nacm/rule-list";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_rule_list_cb, NULL, 0,
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    xpath = "/ietf-netconf-acm:nacm/rule-list/rule";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_rule_cb, NULL, 0,
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    /* state data */
+    xpath = "/ietf-netconf-acm:nacm/denied-operations";
+    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_state_data_clb, NULL,
+            SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    xpath = "/ietf-netconf-acm:nacm/denied-data-writes";
+    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_state_data_clb, NULL,
+            SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    xpath = "/ietf-netconf-acm:nacm/denied-notifications";
+    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_state_data_clb, NULL,
+            SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
         goto error;
     }
 
@@ -1497,6 +1609,9 @@ cleanup:
 
     /* monitoring cleanup */
     ncm_destroy();
+
+    /* NACM cleanup */
+    ncac_destroy();
 
     /* removes the context and clears all the sessions */
     sr_disconnect(np2srv.sr_conn);

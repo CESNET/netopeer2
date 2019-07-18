@@ -41,6 +41,7 @@ option(GENERATE_HOSTKEY "Generate a new RSA host key for the server" ON)
 option(ENABLE_SYSREPO_SETUP "Setup sysrepo for the server (install required modules and import default configuration)" ON)
 set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
 set(MODULES_OWNER "$ENV{USER}" CACHE STRING "User that will become the owner of server modules")
+set(NACM_RECOVERY_UID 0 CACHE STRING "NACM recovery session UID that has unrestricted access")
 
 # set prefix for the PID file
 if(NOT PIDFILE_PREFIX)
@@ -70,6 +71,7 @@ set(srcs
     netconf.c
     netconf_monitoring.c
     netconf_server.c
+    netconf_acm.c
     log.c)
 
 # object library to build source codes only once for the main binary

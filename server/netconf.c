@@ -818,6 +818,9 @@ get_sr_data:
         goto get_sr_data;
     }
 
+    /* perform correct NACM filtering */
+    ncac_check_data_read_filter(&data_get, sr_session_get_user(session));
+
     /* add output */
     node = lyd_new_output_anydata(output, NULL, "data", data_get, LYD_ANYDATA_DATATREE);
     if (!node) {
@@ -843,6 +846,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), c
     sr_datastore_t ds = 0;
     struct ly_set *nodeset;
     struct lyd_node *config = NULL;
+    const sr_error_info_t *err_info;
     const char *str, *defop = "merge", *testop = "test-then-set";
     int rc = SR_ERR_OK;
 
@@ -926,6 +930,8 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), c
         rc = sr_validate(session);
     }
     if (rc != SR_ERR_OK) {
+        sr_get_error(session, &err_info);
+        sr_set_error(session, err_info->err[0].message, err_info->err[0].xpath);
         goto cleanup;
     }
 
@@ -974,8 +980,6 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), c
     ly_set_free(nodeset);
 
     nodeset = lyd_find_path(input, "source/*");
-    /* invalid DS */
-    sds = SR_DS_OPERATIONAL;
     if (nodeset->number) {
         if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
             sds = SR_DS_RUNNING;
@@ -1008,6 +1012,17 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), c
     }
     ly_set_free(nodeset);
 
+    /* NACM checks */
+    if (!config && (tds != SR_DS_STARTUP) && (sds != SR_DS_RUNNING)) {
+        /* get source datastore data and filter them */
+        sr_session_switch_ds(session, sds);
+        rc = sr_get_data(session, "/*", &config);
+        if (rc != SR_ERR_OK) {
+            goto cleanup;
+        }
+        ncac_check_data_read_filter(&config, sr_session_get_user(session));
+    }
+
     /* sysrepo API/URL handling */
 #ifdef NP2SRV_URL_CAPAB
     if (trg_url) {
@@ -1029,25 +1044,13 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), c
         }
         ly_set_free(nodeset);
 
-        if (sds != SR_DS_OPERATIONAL) {
-            /* get this datastore content from sysrepo */
-            sr_session_switch_ds(session, sds);
-            rc = sr_get_data(session, "/*", &config);
-            if (rc != SR_ERR_OK) {
-                goto cleanup;
-            }
-        }
         if (op_export_url(trg_url, config, LYP_FORMAT | LYP_WITHSIBLINGS | lyp_wd_flag, &rc, session)) {
             goto cleanup;
         }
     } else
 #endif
     {
-        if (sds == SR_DS_OPERATIONAL) {
-            rc = sr_replace_config(session, NULL, config, tds);
-        } else {
-            rc = sr_copy_config(session, NULL, sds, tds);
-        }
+        rc = sr_replace_config(session, NULL, config, tds);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }

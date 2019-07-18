@@ -36,6 +36,10 @@
 #   define NP2SRV_THREAD_COUNT @THREAD_COUNT@
 #endif
 
+/** @brief NACM recovery session UID
+ */
+#define NP2SRV_NACM_RECOVERY_UID @NACM_RECOVERY_UID@
+
 /** @brief Starting allocated length for a message
  */
 #define NP2SRV_MSG_LEN_START 128

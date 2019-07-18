@@ -13,6 +13,8 @@ MODDIR=$3
 OWNER=${4:-`id -un`}
 GROUP=`id -gn $OWNER`
 
+# ietf-netconf-acm
+$SYSREPOCTL -i $MODDIR/ietf-netconf-acm@2018-02-14.yang
 # ietf-netconf
 $SYSREPOCTL -U $MODDIR/ietf-netconf@2013-09-29.yang -s $MODDIR
 $SYSREPOCTL -c ietf-netconf -e writable-running -e candidate -e rollback-on-error -e validate -e startup -e url -e xpath -o $OWNER -g $GROUP
