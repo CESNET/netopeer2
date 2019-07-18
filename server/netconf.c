@@ -717,7 +717,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *xpath, const struct lyd
         struct lyd_node *output, void *UNUSED(private_data))
 {
     struct lyd_node_leaf_list *leaf;
-    struct lyd_node *node;
+    struct lyd_node *node, *data_get = NULL;
     char **filters = NULL;
     int filter_count = 0, i, rc = SR_ERR_OK;
     struct ly_set *nodeset;
@@ -803,7 +803,9 @@ get_sr_data:
             goto cleanup;
         }
 
-        if (node && lyd_merge(output, node, LYD_OPT_DESTRUCT | LYD_OPT_EXPLICIT)) {
+        if (!data_get) {
+            data_get = node;
+        } else if (node && lyd_merge(data_get, node, LYD_OPT_DESTRUCT | LYD_OPT_EXPLICIT)) {
             lyd_free_withsiblings(node);
             rc = SR_ERR_LY;
             goto cleanup;
@@ -816,6 +818,13 @@ get_sr_data:
         goto get_sr_data;
     }
 
+    /* add output */
+    node = lyd_new_output_anydata(output, NULL, "data", data_get, LYD_ANYDATA_DATATREE);
+    if (!node) {
+        goto cleanup;
+    }
+    data_get = NULL;
+
     /* success */
 
 cleanup:
@@ -823,7 +832,7 @@ cleanup:
         free(filters[i]);
     }
     free(filters);
-
+    lyd_free_withsiblings(data_get);
     return rc;
 }
 
