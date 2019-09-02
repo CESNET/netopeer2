@@ -157,7 +157,7 @@ np2srv_pubkey_auth_cb(const struct nc_session *session, ssh_key key, void *UNUSE
 /* /ietf-netconf-server:netconf-server/listen/idle-timeout */
 int
 np2srv_idle_timeout_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -190,7 +190,7 @@ np2srv_idle_timeout_cb(sr_session_ctx_t *session, const char *UNUSED(module_name
 /* /ietf-netconf-server:netconf-server/listen/endpoint/ssh */
 int
 np2srv_endpt_ssh_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -290,7 +290,7 @@ np2srv_tcp_keepalives(const char *client_name, const char *endpt_name, sr_sessio
 /* /ietf-netconf-server:netconf-server/listen/endpoint/ssh/tcp-server-parameters */
 int
 np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -365,7 +365,7 @@ np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_
 /* /ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/server-identity/host-key */
 int
 np2srv_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -448,7 +448,7 @@ np2srv_ssh_update_auth_method(const struct lyd_node *node, sr_change_oper_t op, 
  * supported-authentication-methods */
 int
 np2srv_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -496,7 +496,7 @@ np2srv_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, const char *UNUSED(m
 /* /ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/keepalives */
 int
 np2srv_endpt_ssh_keepalives_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -595,7 +595,8 @@ np2srv_user_add_auth_key(const char *alg, size_t alg_len, const char *key, size_
  * client-authentication/users */
 int
 np2srv_endpt_ssh_auth_users_oper_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name),
-        const char *UNUSED(path), struct lyd_node **parent, void *UNUSED(private_data))
+        const char *UNUSED(path), const char *UNUSED(request_xpath), uint32_t UNUSED(request_id), struct lyd_node **parent,
+        void *UNUSED(private_data))
 {
     struct passwd *pwd;
     struct lyd_node *users, *user;
@@ -696,7 +697,7 @@ cleanup:
 /* /ietf-netconf-server:netconf-server/call-home/netconf-client */
 int
 np2srv_ch_client_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -719,7 +720,7 @@ np2srv_ch_client_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), 
         if (op == SR_OP_CREATED) {
             rc = nc_server_ch_add_client(client_name);
             if (!rc) {
-                rc = nc_connect_ch_client_dispatch(client_name, np2srv_new_session_clb);
+                rc = nc_connect_ch_client_dispatch(client_name, np2srv_new_session_cb);
             }
         } else if (op == SR_OP_DELETED) {
             rc = nc_server_ch_del_client(client_name);
@@ -741,7 +742,7 @@ np2srv_ch_client_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), 
 /* /ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh */
 int
 np2srv_ch_client_endpt_ssh_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -786,7 +787,7 @@ np2srv_ch_client_endpt_ssh_cb(sr_session_ctx_t *session, const char *UNUSED(modu
 /* /ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh/tcp-client-parameters */
 int
 np2srv_ch_client_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -863,7 +864,7 @@ np2srv_ch_client_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *UNUS
  * server-identity/host-key */
 int
 np2srv_ch_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -912,7 +913,7 @@ np2srv_ch_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, const char *UNUSED(mod
  * client-authentication/supported-authentication-methods */
 int
 np2srv_ch_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -961,7 +962,7 @@ np2srv_ch_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, const char *UNUSE
 /* /ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh/ssh-server-parameters/keepalives */
 int
 np2srv_ch_endpt_ssh_keepalives_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -1077,7 +1078,7 @@ np2srv_ch_periodic_connection_params(const char *client_name, sr_session_ctx_t *
 /* /ietf-netconf-server:netconf-server/call-home/netconf-client/connection-type */
 int
 np2srv_ch_connection_type_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -1143,7 +1144,7 @@ np2srv_ch_connection_type_cb(sr_session_ctx_t *session, const char *UNUSED(modul
 /* /ietf-netconf-server:netconf-server/call-home/netconf-client/reconnect-strategy */
 int
 np2srv_ch_reconnect_strategy_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;

@@ -79,7 +79,7 @@ np2log(int priority, const char *src, const char *fmt, ...)
  * @brief printer callback for libnetconf2
  */
 void
-np2log_clb_nc2(NC_VERB_LEVEL level, const char *msg)
+np2log_cb_nc2(NC_VERB_LEVEL level, const char *msg)
 {
     int priority = LOG_ERR;
 
@@ -105,7 +105,7 @@ np2log_clb_nc2(NC_VERB_LEVEL level, const char *msg)
  * @brief printer callback for libyang
  */
 void
-np2log_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
+np2log_cb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
 {
     int priority;
 
@@ -135,7 +135,7 @@ np2log_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
 }
 
 void
-np2log_clb_sr(sr_log_level_t level, const char *msg)
+np2log_cb_sr(sr_log_level_t level, const char *msg)
 {
     int priority = LOG_ERR;
 

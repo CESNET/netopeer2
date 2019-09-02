@@ -31,7 +31,7 @@ struct ncac nacm;
 /* /ietf-netconf-acm:nacm */
 int
 ncac_nacm_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -111,8 +111,8 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), 
 
 /* /ietf-netconf-acm:nacm/denied-* */
 int
-ncac_state_data_clb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name), const char *path,
-        struct lyd_node **parent, void *UNUSED(private_data))
+ncac_state_data_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name), const char *path,
+        const char *UNUSED(request_xpath), uint32_t UNUSED(request_id), struct lyd_node **parent, void *UNUSED(private_data))
 {
     struct lyd_node *node;
     char num_str[11];
@@ -145,7 +145,7 @@ ncac_state_data_clb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module
 /* /ietf-netconf-acm:nacm/groups/group */
 int
 ncac_group_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -318,7 +318,7 @@ ncac_remove_rules(struct ncac_rule_list *list)
 /* /ietf-netconf-acm:nacm/rule-list */
 int
 ncac_rule_list_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), void *UNUSED(private_data))
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -496,7 +496,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), co
 /* /ietf-netconf-acm:nacm/rule-list/rule */
 int
 ncac_rule_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath, sr_event_t UNUSED(event),
-        void *UNUSED(private_data))
+        uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;

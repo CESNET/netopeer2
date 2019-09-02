@@ -90,19 +90,19 @@ struct ncac {
 };
 
 int ncac_nacm_params_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event,
-        void *private_data);
+        uint32_t request_id, void *private_data);
 
-int ncac_state_data_clb(sr_session_ctx_t *session, const char *module_name, const char *path, struct lyd_node **parent,
-        void *private_data);
+int ncac_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath,
+        uint32_t request_id, struct lyd_node **parent, void *private_data);
 
 int ncac_group_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event,
-        void *private_data);
+        uint32_t request_id, void *private_data);
 
 int ncac_rule_list_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event,
-        void *private_data);
+        uint32_t request_id, void *private_data);
 
 int ncac_rule_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event,
-        void *private_data);
+        uint32_t request_id, void *private_data);
 
 void ncac_init(void);
 void ncac_destroy(void);

@@ -713,8 +713,8 @@ op_export_url(const char *url, struct lyd_node *data, int options, int *rc, sr_s
 #endif
 
 int
-np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *xpath, const struct lyd_node *input, sr_event_t UNUSED(event),
-        struct lyd_node *output, void *UNUSED(private_data))
+np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct lyd_node *input, sr_event_t UNUSED(event),
+        uint32_t UNUSED(request_id), struct lyd_node *output, void *UNUSED(private_data))
 {
     struct lyd_node_leaf_list *leaf;
     struct lyd_node *node, *data_get = NULL;
@@ -728,7 +728,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *xpath, const struct lyd
     nc_server_get_capab_withdefaults(&nc_wd, NULL);
 
     /* get know which datastore is being affected */
-    if (!strcmp(xpath, "/ietf-netconf:get")) {
+    if (!strcmp(op_path, "/ietf-netconf:get")) {
         /* get running data first */
         ds = SR_DS_RUNNING;
     } else { /* get-config */
@@ -812,7 +812,7 @@ get_sr_data:
         }
     }
 
-    if (!strcmp(xpath, "/ietf-netconf:get") && (ds == SR_DS_RUNNING)) {
+    if (!strcmp(op_path, "/ietf-netconf:get") && (ds == SR_DS_RUNNING)) {
         /* we have running data, now append state data */
         ds = SR_DS_STATE;
         goto get_sr_data;
@@ -840,8 +840,8 @@ cleanup:
 }
 
 int
-np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
-        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds = 0;
     struct ly_set *nodeset;
@@ -943,8 +943,8 @@ cleanup:
 }
 
 int
-np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
-        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t tds, sds;
     struct ly_set *nodeset;
@@ -1064,8 +1064,8 @@ cleanup:
 }
 
 int
-np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
-        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds;
     struct ly_set *nodeset;
@@ -1124,8 +1124,8 @@ cleanup:
 }
 
 int
-np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
-        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds = 0;
     struct ly_set *nodeset;
@@ -1163,8 +1163,8 @@ cleanup:
 }
 
 int
-np2srv_rpc_kill_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
-        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_kill_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     struct nc_session *kill_sess;
     struct ly_set *nodeset;
@@ -1204,8 +1204,8 @@ cleanup:
 }
 
 int
-np2srv_rpc_commit_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *UNUSED(input),
-        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_commit_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *UNUSED(input),
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     int rc = SR_ERR_OK;;
 
@@ -1222,8 +1222,8 @@ cleanup:
 }
 
 int
-np2srv_rpc_discard_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *UNUSED(input),
-        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_discard_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *UNUSED(input),
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     int rc = SR_ERR_OK;
 
@@ -1240,8 +1240,8 @@ cleanup:
 }
 
 int
-np2srv_rpc_validate_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
-        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_validate_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds;
     struct lyd_node *config = NULL;
@@ -1302,8 +1302,8 @@ cleanup:
 }
 
 int
-np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), const struct lyd_node *input,
-        sr_event_t UNUSED(event), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     struct ly_set *nodeset;
     const struct lys_module *ly_mod;
@@ -1383,7 +1383,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), co
             LY_TREE_FOR(ly_mod->data, root) {
                 LY_TREE_DFS_BEGIN(root, next, elem) {
                     if (elem->nodetype == LYS_NOTIF) {
-                        rc = sr_event_notif_subscribe_tree(session, ly_mod->name, xp, start, stop, np2srv_ntf_new_clb,
+                        rc = sr_event_notif_subscribe_tree(session, ly_mod->name, xp, start, stop, np2srv_ntf_new_cb,
                                 ncs, np2srv.sr_notif_sub ? SR_SUBSCR_CTX_REUSE : 0, &np2srv.sr_notif_sub);
                         break;
                     }
@@ -1398,7 +1398,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(xpath), co
             }
         }
     } else {
-        rc = sr_event_notif_subscribe_tree(session, stream, xp, start, stop, np2srv_ntf_new_clb, ncs,
+        rc = sr_event_notif_subscribe_tree(session, stream, xp, start, stop, np2srv_ntf_new_cb, ncs,
                 np2srv.sr_notif_sub ? SR_SUBSCR_CTX_REUSE : 0, &np2srv.sr_notif_sub);
     }
     if (rc != SR_ERR_OK) {

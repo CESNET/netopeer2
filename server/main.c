@@ -39,8 +39,8 @@ struct np2srv np2srv = {.unix_mode = -1, .unix_uid = -1, .unix_gid = -1};
 ATOMIC_T loop_continue = 1;
 
 static void *worker_thread(void *arg);
-static int np2srv_state_data_clb(sr_session_ctx_t *session, const char *module_name, const char *path,
-        struct lyd_node **parent, void *private_data);
+static int np2srv_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path,
+        const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
 int
 np_sleep(unsigned int miliseconds)
@@ -82,7 +82,7 @@ signal_handler(int sig)
 }
 
 int
-np2srv_verify_clb(const struct nc_session *session)
+np2srv_verify_cb(const struct nc_session *session)
 {
     char buf[256];
     const char *user;
@@ -107,7 +107,7 @@ np2srv_verify_clb(const struct nc_session *session)
 }
 
 void
-np2srv_ntf_new_clb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t notif_type, const struct lyd_node *notif,
+np2srv_ntf_new_cb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t notif_type, const struct lyd_node *notif,
         time_t timestamp, void *private_data)
 {
     struct nc_server_notif *nc_ntf = NULL;
@@ -236,8 +236,8 @@ error:
 }
 
 static int
-np2srv_state_data_clb(sr_session_ctx_t *UNUSED(session), const char *module_name, const char *path, struct lyd_node **parent,
-        void *UNUSED(private_data))
+np2srv_state_data_cb(sr_session_ctx_t *UNUSED(session), const char *module_name, const char *path,
+        const char *UNUSED(request_xpath), uint32_t UNUSED(request_id), struct lyd_node **parent, void *UNUSED(private_data))
 {
     struct lyd_node *data = NULL, *node;
     struct ly_set *set = NULL;
@@ -290,7 +290,7 @@ cleanup:
 }
 
 void
-np2srv_new_session_clb(const char *UNUSED(client_name), struct nc_session *new_session)
+np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_session)
 {
     int c, monitored = 0;
     sr_val_t *event_data;
@@ -364,7 +364,7 @@ error:
 }
 
 static void
-np2srv_del_session_clb(struct nc_session *session)
+np2srv_del_session_cb(struct nc_session *session)
 {
     int i, rc;
     char *host = NULL;
@@ -990,27 +990,27 @@ server_data_subscribe(void)
     }
     mod_name = "ietf-netconf-monitoring";
     rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, "/ietf-netconf-monitoring:netconf-state",
-            np2srv_state_data_clb, NULL, 0, &np2srv.sr_data_sub);
+            np2srv_state_data_cb, NULL, 0, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
         goto error;
     }
     mod_name = "ietf-yang-library";
     rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, "/ietf-yang-library:yang-library",
-            np2srv_state_data_clb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
+            np2srv_state_data_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
         goto error;
     }
     rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, "/ietf-yang-library:modules-state",
-            np2srv_state_data_clb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
+            np2srv_state_data_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
         goto error;
     }
     mod_name = "nc-notifications";
     rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, "/nc-notifications:netconf",
-            np2srv_state_data_clb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
+            np2srv_state_data_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
         goto error;
@@ -1188,7 +1188,7 @@ server_data_subscribe(void)
 
     /* state data */
     xpath = "/ietf-netconf-acm:nacm/denied-operations";
-    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_state_data_clb, NULL,
+    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_state_data_cb, NULL,
             SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
@@ -1196,7 +1196,7 @@ server_data_subscribe(void)
     }
 
     xpath = "/ietf-netconf-acm:nacm/denied-data-writes";
-    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_state_data_clb, NULL,
+    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_state_data_cb, NULL,
             SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
@@ -1204,7 +1204,7 @@ server_data_subscribe(void)
     }
 
     xpath = "/ietf-netconf-acm:nacm/denied-notifications";
-    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_state_data_clb, NULL,
+    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_state_data_cb, NULL,
             SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
@@ -1233,7 +1233,7 @@ worker_thread(void *arg)
                 && (!np2srv.nc_max_sessions || (nc_ps_session_count(np2srv.nc_ps) < np2srv.nc_max_sessions))) {
             msgtype = nc_accept(0, &ncs);
             if (msgtype == NC_MSG_HELLO) {
-                np2srv_new_session_clb(NULL, ncs);
+                np2srv_new_session_cb(NULL, ncs);
             }
         }
 
@@ -1283,13 +1283,13 @@ worker_thread(void *arg)
         }
         if (rc & NC_PSPOLL_SESSION_TERM) {
             VRB("Session %d: thread %d event session terminated.", nc_session_get_id(ncs), idx);
-            np2srv_del_session_clb(ncs);
+            np2srv_del_session_cb(ncs);
         } else if (rc & NC_PSPOLL_SSH_CHANNEL) {
             /* a new SSH channel on existing session was created */
             VRB("Session %d: thread %d event new SSH channel.", nc_session_get_id(ncs), idx);
             msgtype = nc_session_accept_ssh_channel(ncs, &ncs);
             if (msgtype == NC_MSG_HELLO) {
-                np2srv_new_session_clb(NULL, ncs);
+                np2srv_new_session_cb(NULL, ncs);
             } else if (msgtype == NC_MSG_BAD_HELLO) {
                 if (monitored) {
                     ncm_bad_hello();
@@ -1536,9 +1536,9 @@ main(int argc, char *argv[])
     sigaction(SIGPIPE, &action, NULL);
 
     /* set printer callbacks for the used libraries and set proper log levels */
-    nc_set_print_clb(np2log_clb_nc2); /* libnetconf2 */
-    ly_set_log_clb(np2log_clb_ly, 1); /* libyang */
-    sr_log_set_cb(np2log_clb_sr); /* sysrepo, log level is checked by callback */
+    nc_set_print_clb(np2log_cb_nc2); /* libnetconf2 */
+    ly_set_log_clb(np2log_cb_ly, 1); /* libyang */
+    sr_log_set_cb(np2log_cb_sr); /* sysrepo, log level is checked by callback */
 
     /* initiate NETCONF server */
     if (server_init()) {
@@ -1599,7 +1599,7 @@ cleanup:
         while (nc_ps_session_count(np2srv.nc_ps)) {
             sess = nc_ps_get_session(np2srv.nc_ps, 0);
             nc_session_set_term_reason(sess, NC_SESSION_TERM_OTHER);
-            np2srv_del_session_clb(sess);
+            np2srv_del_session_cb(sess);
         }
         nc_ps_free(np2srv.nc_ps);
     }

@@ -59,16 +59,16 @@ void np2log_printf(NC_VERB_LEVEL level, const char *format, ...);
 /**
  * @brief printer callback for libnetconf2
  */
-void np2log_clb_nc2(NC_VERB_LEVEL level, const char *msg);
+void np2log_cb_nc2(NC_VERB_LEVEL level, const char *msg);
 
 /**
  * @brief printer callback for libyang
  */
-void np2log_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path);
+void np2log_cb_ly(LY_LOG_LEVEL level, const char *msg, const char *path);
 
 /**
  * @brief printer callback for sysrepo
  */
-void np2log_clb_sr(sr_log_level_t level, const char *msg);
+void np2log_cb_sr(sr_log_level_t level, const char *msg);
 
 #endif /* NP2SRV_LOG_H_ */
