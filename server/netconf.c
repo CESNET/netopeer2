@@ -1316,7 +1316,11 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
     uint32_t idx;
 
     /* find this NETCONF session */
-    ncs = nc_ps_get_session(np2srv.nc_ps, sr_session_get_nc_id(session));
+    for (i = 0; (ncs = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
+        if (nc_session_get_id(ncs) == sr_session_get_nc_id(session)) {
+            break;
+        }
+    }
     if (!ncs) {
         ERR("Failed to find NETCONF session SID %u.", sr_session_get_nc_id(session));
         rc = SR_ERR_INTERNAL;
