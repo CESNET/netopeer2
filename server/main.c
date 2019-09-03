@@ -16,6 +16,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <string.h>
 #include <signal.h>
 #include <syslog.h>
@@ -33,7 +34,7 @@
 # include <curl/curl.h>
 #endif
 
-struct np2srv np2srv = {.unix_mode = -1, .unix_uid = -1, .unix_gid = -1};
+struct np2srv np2srv = {.unix_mode = -1, .unix_uid = -1, .unix_gid = -1, .pending_sub_lock = PTHREAD_MUTEX_INITIALIZER};
 
 /** @brief flag for main loop */
 ATOMIC_T loop_continue = 1;
@@ -106,7 +107,7 @@ np2srv_verify_cb(const struct nc_session *session)
     return 1;
 }
 
-void
+static void
 np2srv_ntf_new_cb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t notif_type, const struct lyd_node *notif,
         time_t timestamp, void *private_data)
 {
@@ -294,8 +295,17 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
 {
     int c, monitored = 0;
     sr_val_t *event_data;
+    sr_session_ctx_t *sr_sess;
     const struct lys_module *mod;
     char *host = NULL;
+
+    /* start sysrepo session */
+    c = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
+    if (c != SR_ERR_OK) {
+        ERR("Failed to start a sysrepo session (%s).", sr_strerror(c));
+        goto error;
+    }
+    nc_session_set_data(new_session, sr_sess);
 
     switch (nc_session_get_ti(new_session)) {
 #ifdef NC_ENABLED_SSH
@@ -1222,8 +1232,13 @@ static void *
 worker_thread(void *arg)
 {
     NC_MSG_TYPE msgtype;
-    int rc, idx = *((int *)arg), monitored;
+    int rc, idx = *((int *)arg), monitored, i;
+    uint32_t j;
     struct nc_session *ncs;
+    struct lys_node *root, *next, *elem, *parent;
+    struct np2srv_psub *psub;
+    const struct lys_module *ly_mod;
+    struct ly_ctx *ly_ctx;
 
     nc_libssh_thread_verbosity(np2_verbose_level);
 
@@ -1296,6 +1311,76 @@ worker_thread(void *arg)
                 }
             }
         }
+
+        /* pending subscriptions */
+        rc = pthread_mutex_lock(&np2srv.pending_sub_lock);
+        if (rc) {
+            ERR("Locking a mutex failed (%s).", strerror(rc));
+            continue;
+        }
+
+        if (!np2srv.pending_sub_count) {
+            pthread_mutex_unlock(&np2srv.pending_sub_lock);
+            continue;
+        }
+
+        ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
+
+        for (i = 0; i < np2srv.pending_sub_count; ++i) {
+            psub = &np2srv.pending_subs[i];
+
+            if (!strcmp(psub->stream, "NETCONF")) {
+                /* subscribe to all modules with notifications */
+                j = 0;
+                while ((ly_mod = ly_ctx_get_module_iter(ly_ctx, &j))) {
+                    LY_TREE_FOR(ly_mod->data, root) {
+                        LY_TREE_DFS_BEGIN(root, next, elem) {
+                            if (elem->nodetype == LYS_NOTIF) {
+                                /* check that we are not in a grouping */
+                                parent = lys_parent(elem);
+                                while (parent && (parent->nodetype != LYS_GROUPING)) {
+                                     parent = lys_parent(parent);
+                                }
+                                if (!parent) {
+                                    rc = sr_event_notif_subscribe_tree(nc_session_get_data(psub->sess), ly_mod->name,
+                                            psub->xpath, psub->start, psub->stop, np2srv_ntf_new_cb, psub->sess,
+                                            np2srv.sr_notif_sub ? SR_SUBSCR_CTX_REUSE : 0, &np2srv.sr_notif_sub);
+                                    break;
+                                }
+                            }
+                            LY_TREE_DFS_END(root, next, elem);
+                        }
+                        if (elem && (elem->nodetype == LYS_NOTIF)) {
+                            break;
+                        }
+                    }
+                    if (rc != SR_ERR_OK) {
+                        /* one module failed */
+                        break;
+                    }
+                }
+            } else {
+                rc = sr_event_notif_subscribe_tree(nc_session_get_data(psub->sess), psub->stream, psub->xpath, psub->start,
+                        psub->stop, np2srv_ntf_new_cb, psub->sess, np2srv.sr_notif_sub ? SR_SUBSCR_CTX_REUSE : 0,
+                        &np2srv.sr_notif_sub);
+            }
+            if (rc != SR_ERR_OK) {
+                /* fail */
+                ERR("Subscribing to stream \"%s\" failed (%s).", psub->stream, sr_strerror(rc));
+            } else {
+                /* set ongoing notifications flag */
+                nc_session_set_notif_status(psub->sess, 1);
+            }
+
+            free(psub->stream);
+            free(psub->xpath);
+        };
+
+        free(np2srv.pending_subs);
+        np2srv.pending_subs = NULL;
+        np2srv.pending_sub_count = 0;
+
+        pthread_mutex_unlock(&np2srv.pending_sub_lock);
     }
 
     /* cleanup */
