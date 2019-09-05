@@ -63,63 +63,79 @@ ncm_destroy(void)
     pthread_mutex_destroy(&stats.lock);
 }
 
-static uint32_t
-find_session_idx(struct nc_session *session)
+static int
+find_session_idx(struct nc_session *session, uint32_t *idx)
 {
     uint32_t i;
 
     for (i = 0; i < stats.session_count; ++i) {
         if (nc_session_get_id(stats.sessions[i]) == nc_session_get_id(session)) {
-            return i;
+            *idx = i;
+            return 0;
         }
     }
 
-    EINT;
-    return 0;
+    return -1;
 }
 
 void
 ncm_session_rpc(struct nc_session *session)
 {
-    pthread_mutex_lock(&stats.lock);
+    uint32_t idx;
+    if (0 == find_session_idx(session, &idx))
+    {
+        pthread_mutex_lock(&stats.lock);
 
-    ++stats.session_stats[find_session_idx(session)].in_rpcs;
-    ++stats.global_stats.in_rpcs;
+        ++stats.session_stats[idx].in_rpcs;
+        ++stats.global_stats.in_rpcs;
 
-    pthread_mutex_unlock(&stats.lock);
+        pthread_mutex_unlock(&stats.lock);
+    }
 }
 
 void
 ncm_session_bad_rpc(struct nc_session *session)
 {
-    pthread_mutex_lock(&stats.lock);
+    uint32_t idx;
+    if (0 == find_session_idx(session, &idx))
+    {
+        pthread_mutex_lock(&stats.lock);
 
-    ++stats.session_stats[find_session_idx(session)].in_bad_rpcs;
-    ++stats.global_stats.in_bad_rpcs;
+        ++stats.session_stats[idx].in_bad_rpcs;
+        ++stats.global_stats.in_bad_rpcs;
 
-    pthread_mutex_unlock(&stats.lock);
+        pthread_mutex_unlock(&stats.lock);
+    }
 }
 
 void
 ncm_session_rpc_reply_error(struct nc_session *session)
 {
-    pthread_mutex_lock(&stats.lock);
+    uint32_t idx;
+    if (0 == find_session_idx(session, &idx))
+    {
+        pthread_mutex_lock(&stats.lock);
 
-    ++stats.session_stats[find_session_idx(session)].out_rpc_errors;
-    ++stats.global_stats.out_rpc_errors;
+        ++stats.session_stats[idx].out_rpc_errors;
+        ++stats.global_stats.out_rpc_errors;
 
-    pthread_mutex_unlock(&stats.lock);
+        pthread_mutex_unlock(&stats.lock);
+    }
 }
 
 void
 ncm_session_notification(struct nc_session *session)
 {
-    pthread_mutex_lock(&stats.lock);
+    uint32_t idx;
+    if (0 == find_session_idx(session, &idx))
+    {
+        pthread_mutex_lock(&stats.lock);
 
-    ++stats.session_stats[find_session_idx(session)].out_notifications;
-    ++stats.global_stats.out_notifications;
+        ++stats.session_stats[idx].out_notifications;
+        ++stats.global_stats.out_notifications;
 
-    pthread_mutex_unlock(&stats.lock);
+        pthread_mutex_unlock(&stats.lock);
+    }
 }
 
 void
@@ -166,11 +182,13 @@ ncm_session_del(struct nc_session *session)
         ++stats.dropped_sessions;
     }
 
-    i = find_session_idx(session);
-    --stats.session_count;
-    if (stats.session_count && (i < stats.session_count)) {
-        memmove(&stats.sessions[i], &stats.sessions[i + 1], (stats.session_count - i) * sizeof *stats.sessions);
-        memmove(&stats.session_stats[i], &stats.session_stats[i + 1], (stats.session_count - i) * sizeof *stats.session_stats);
+    if (0 == find_session_idx(session, &i))
+    {
+        --stats.session_count;
+        if (stats.session_count && (i < stats.session_count)) {
+            memmove(&stats.sessions[i], &stats.sessions[i + 1], (stats.session_count - i) * sizeof *stats.sessions);
+            memmove(&stats.session_stats[i], &stats.session_stats[i + 1], (stats.session_count - i) * sizeof *stats.session_stats);
+        }
     }
 
     pthread_mutex_unlock(&stats.lock);
