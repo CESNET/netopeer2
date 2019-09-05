@@ -82,8 +82,7 @@ void
 ncm_session_rpc(struct nc_session *session)
 {
     uint32_t idx;
-    if (0 == find_session_idx(session, &idx))
-    {
+    if (0 == find_session_idx(session, &idx)) {
         pthread_mutex_lock(&stats.lock);
 
         ++stats.session_stats[idx].in_rpcs;
@@ -97,8 +96,7 @@ void
 ncm_session_bad_rpc(struct nc_session *session)
 {
     uint32_t idx;
-    if (0 == find_session_idx(session, &idx))
-    {
+    if (0 == find_session_idx(session, &idx)) {
         pthread_mutex_lock(&stats.lock);
 
         ++stats.session_stats[idx].in_bad_rpcs;
@@ -112,8 +110,7 @@ void
 ncm_session_rpc_reply_error(struct nc_session *session)
 {
     uint32_t idx;
-    if (0 == find_session_idx(session, &idx))
-    {
+    if (0 == find_session_idx(session, &idx)) {
         pthread_mutex_lock(&stats.lock);
 
         ++stats.session_stats[idx].out_rpc_errors;
@@ -127,8 +124,7 @@ void
 ncm_session_notification(struct nc_session *session)
 {
     uint32_t idx;
-    if (0 == find_session_idx(session, &idx))
-    {
+    if (0 == find_session_idx(session, &idx)) {
         pthread_mutex_lock(&stats.lock);
 
         ++stats.session_stats[idx].out_notifications;
@@ -182,8 +178,7 @@ ncm_session_del(struct nc_session *session)
         ++stats.dropped_sessions;
     }
 
-    if (0 == find_session_idx(session, &i))
-    {
+    if (0 == find_session_idx(session, &i)) {
         --stats.session_count;
         if (stats.session_count && (i < stats.session_count)) {
             memmove(&stats.sessions[i], &stats.sessions[i + 1], (stats.session_count - i) * sizeof *stats.sessions);
