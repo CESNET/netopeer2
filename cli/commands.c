@@ -2576,22 +2576,19 @@ cmd_status(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
         transport = nc_session_get_ti(session);
         printf("Current NETCONF session:\n");
         printf("  ID          : %u\n", nc_session_get_id(session));
-        if (transport == NC_TI_LIBSSH || transport == NC_TI_OPENSSL) {
-            printf("  Host        : %s\n", nc_session_get_host(session));
-            printf("  Port        : %u\n", nc_session_get_port(session));
-        } else if (transport == NC_TI_UNIX) {
-            printf("  Path        : %s\n", nc_session_get_path(session));
-        }
-        printf("  User        : %s\n", nc_session_get_username(session));
         switch (transport) {
 #ifdef NC_ENABLED_SSH
         case NC_TI_LIBSSH:
             s = "SSH";
+            printf("  Host        : %s\n", nc_session_get_host(session));
+            printf("  Port        : %u\n", nc_session_get_port(session));
             break;
 #endif
 #ifdef NC_ENABLED_TLS
         case NC_TI_OPENSSL:
             s = "TLS";
+            printf("  Host        : %s\n", nc_session_get_host(session));
+            printf("  Port        : %u\n", nc_session_get_port(session));
             break;
 #endif
         case NC_TI_FD:
@@ -2599,6 +2596,7 @@ cmd_status(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
             break;
         case NC_TI_UNIX:
             s = "UNIX";
+            printf("  Path        : %s\n", nc_session_get_path(session));
             break;
         default:
             s = "Unknown";
