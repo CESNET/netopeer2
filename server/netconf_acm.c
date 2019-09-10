@@ -25,6 +25,8 @@
 #include <sysrepo.h>
 
 #include "common.h"
+#include "log.h"
+#include "netconf_acm.h"
 
 struct ncac nacm;
 

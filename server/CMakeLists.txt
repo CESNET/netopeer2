@@ -37,8 +37,10 @@ else()
     option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" OFF)
 endif()
 option(ENABLE_URL "Enable URL capability" ON)
-option(GENERATE_HOSTKEY "Generate a new RSA host key for the server" ON)
-option(ENABLE_SYSREPO_SETUP "Setup sysrepo for the server (install required modules and import default configuration)" ON)
+option(INSTALL_MODULES "Install required modules into sysrepo" ON)
+option(GENERATE_HOSTKEY "Generate a new RSA host key in the keystore named \"genkey\"" ON)
+option(MERGE_LISTEN_CONFIG "Merge default server configuration for listening on all IPv4 interfaces" ON)
+set(DEFAULT_HOSTKEY "genkey" CACHE STRING "Name of the hostkey from the keystore used in default listen configuration")
 set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
 set(MODULES_OWNER "$ENV{USER}" CACHE STRING "User that will become the owner of server modules")
 set(NACM_RECOVERY_UID 0 CACHE STRING "NACM recovery session UID that has unrestricted access")
@@ -71,6 +73,7 @@ set(srcs
     netconf.c
     netconf_monitoring.c
     netconf_server.c
+    netconf_server_ssh.c
     netconf_acm.c
     log.c)
 
@@ -148,25 +151,10 @@ endif()
 
 # install the binary, required modules, and default configuration
 install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
-if(ENABLE_SYSREPO_SETUP)
+if(INSTALL_MODULES)
     install(CODE "
-        message(STATUS \"Setting up sysrepo...\")
-        execute_process(COMMAND ${PROJECT_SOURCE_DIR}/setup.sh ${SYSREPOCTL} ${SYSREPOCFG} ${PROJECT_SOURCE_DIR}/../modules
-                ${MODULES_OWNER})
-    ")
-else()
-    message(WARNING "Server will refuse to start if the setup is not performed!")
-endif()
-if(GENERATE_HOSTKEY)
-    install(CODE "
-        message(STATUS \"Generating a new RSA host key...\")
-        execute_process(COMMAND ${PROJECT_SOURCE_DIR}/gen_hostkey.sh ${SYSREPOCFG} ${OPENSSL})
-    ")
-else()
-    message(WARNING "Server will not accept connections if there is no hostkey set!")
-endif()
-if(ENABLE_SYSREPO_SETUP OR GENERATE_HOSTKEY)
-    install(CODE "
+        message(STATUS \"Installing sysrepo modules...\")
+        execute_process(COMMAND ${PROJECT_SOURCE_DIR}/setup.sh ${SYSREPOCTL} ${PROJECT_SOURCE_DIR}/../modules ${MODULES_OWNER})
         execute_process(COMMAND ${SYSREPOCTL} -C RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR
                 OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_STRIP_TRAILING_WHITESPACE)
         if(\${RET})
@@ -174,6 +162,20 @@ if(ENABLE_SYSREPO_SETUP OR GENERATE_HOSTKEY)
         elseif(\${OUT} GREATER \"0\")
             message(WARNING \"There are some sysrepo connections, module changes could not be applied now!\")
         endif()
+    ")
+else()
+    message(WARNING "Server will refuse to start if the modules are not installed!")
+endif()
+if(GENERATE_HOSTKEY)
+    install(CODE "
+        message(STATUS \"Generating a new RSA host key \\\"genkey\\\"...\")
+        execute_process(COMMAND ${PROJECT_SOURCE_DIR}/merge_hostkey.sh ${SYSREPOCFG} ${OPENSSL})
+    ")
+endif()
+if(MERGE_LISTEN_CONFIG)
+    install(CODE "
+        message(STATUS \"Merging default server listen configuration...\")
+        execute_process(COMMAND ${PROJECT_SOURCE_DIR}/merge_config.sh ${SYSREPOCFG} ${DEFAULT_HOSTKEY})
     ")
 endif()
 

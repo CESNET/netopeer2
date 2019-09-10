@@ -21,6 +21,8 @@
 #include <nc_server.h>
 
 #include "common.h"
+#include "log.h"
+#include "netconf_monitoring.h"
 
 #define NCM_TIMEZONE "CET"
 

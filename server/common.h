@@ -15,14 +15,14 @@
 #ifndef NP2SRV_COMMON_H_
 #define NP2SRV_COMMON_H_
 
+#include <stdint.h>
+#include <sys/types.h>
+#include <time.h>
 #include <pthread.h>
 
+#include <sysrepo.h>
+
 #include "config.h"
-#include "log.h"
-#include "netconf.h"
-#include "netconf_monitoring.h"
-#include "netconf_server.h"
-#include "netconf_acm.h"
 
 #define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
 

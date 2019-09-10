@@ -15,7 +15,8 @@
 #ifndef NP2SRV_NETCONF_H_
 #define NP2SRV_NETCONF_H_
 
-#include <nc_server.h>
+#include <libyang/libyang.h>
+#include <sysrepo.h>
 
 int np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct lyd_node *input,
         sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);

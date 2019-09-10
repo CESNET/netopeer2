@@ -31,7 +31,6 @@
      description
        "This module defines reusable groupings for TCP servers that
         can be used as a basis for specific TCP server instances.
-
         Copyright (c) 2019 IETF Trust and the persons identified
         as authors of the code. All rights reserved.
 
@@ -53,7 +52,7 @@
         (RFC 8174) when, and only when, they appear in all
         capitals, as shown here.";
 
-     revision 2019-04-29 {
+     revision 2019-07-02 {
        description
          "Initial version";
        reference
@@ -67,6 +66,7 @@
          "Per socket TCP keepalive parameters are configurable for
           TCP servers on the server implementing this feature.";
      }
+
 
      // Groupings
 
@@ -82,13 +82,12 @@
           'tcp-server-parameters').  This model purposely does
           not do this itself so as to provide maximum flexibility
           to consuming models.";
-
        leaf local-address {
          type inet:ip-address;
          mandatory true;
          description
            "The local IP address to listen on for incoming
-            TCL client connections.  INADDR_ANY (0.0.0.0) or
+            TCP client connections.  INADDR_ANY (0.0.0.0) or
             INADDR6_ANY (0:0:0:0:0:0:0:0 a.k.a. ::) MUST be
             used when the server is to listen on all IPv4 or
             IPv6 addresses, respectively.";

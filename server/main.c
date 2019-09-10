@@ -29,6 +29,12 @@
 #include <sysrepo.h>
 
 #include "common.h"
+#include "log.h"
+#include "netconf.h"
+#include "netconf_server.h"
+#include "netconf_server_ssh.h"
+#include "netconf_acm.h"
+#include "netconf_monitoring.h"
 
 #ifdef NP2SRV_URL_CAPAB
 # include <curl/curl.h>
@@ -1056,7 +1062,8 @@ server_data_subscribe(void)
         goto error;
     }
 
-    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/server-identity/host-key";
+    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/server-identity/host-key/"
+            "public-key/keystore-reference";
     rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_ssh_hostkey_cb, NULL, 0,
             SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
@@ -1116,7 +1123,7 @@ server_data_subscribe(void)
     }
 
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh/ssh-server-parameters/"
-            "server-identity/host-key";
+            "server-identity/host-key/public-key/keystore-reference";
     rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_ch_endpt_ssh_hostkey_cb, NULL, 0,
             SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {

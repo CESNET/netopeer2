@@ -28,6 +28,8 @@
 #include <libyang/libyang.h>
 
 #include "common.h"
+#include "log.h"
+#include "netconf_acm.h"
 
 #ifdef NP2SRV_URL_CAPAB
 # include <curl/curl.h>
