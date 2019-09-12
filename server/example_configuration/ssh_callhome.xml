@@ -4,7 +4,7 @@
             <name>default-client</name>
             <endpoints>
                 <endpoint>
-                    <name>default</name>
+                    <name>default-ssh</name>
                     <ssh>
                         <tcp-client-parameters>
                             <remote-address>localhost</remote-address>

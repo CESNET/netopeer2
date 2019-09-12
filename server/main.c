@@ -999,258 +999,147 @@ server_data_subscribe(void)
     const char *mod_name, *xpath;
     int rc;
 
+#define SR_OPER_SUBSCR(mod_name, xpath, cb) \
+    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub); \
+    if (rc != SR_ERR_OK) { \
+        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc)); \
+        goto error; \
+    }
+
+#define SR_CONFIG_SUBSCR(mod_name, xpath, cb) \
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, cb, NULL, 0, \
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub); \
+    if (rc != SR_ERR_OK) { \
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc)); \
+        goto error; \
+    }
+
     /* subscribe for providing state data */
     if (np2srv.sr_data_sub) {
         EINT;
         goto error;
     }
     mod_name = "ietf-netconf-monitoring";
-    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, "/ietf-netconf-monitoring:netconf-state",
-            np2srv_state_data_cb, NULL, 0, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_OPER_SUBSCR(mod_name, "/ietf-netconf-monitoring:netconf-state", np2srv_state_data_cb);
+
     mod_name = "ietf-yang-library";
-    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, "/ietf-yang-library:yang-library",
-            np2srv_state_data_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
-    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, "/ietf-yang-library:modules-state",
-            np2srv_state_data_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_OPER_SUBSCR(mod_name, "/ietf-yang-library:yang-library", np2srv_state_data_cb);
+    SR_OPER_SUBSCR(mod_name, "/ietf-yang-library:modules-state", np2srv_state_data_cb);
+
     mod_name = "nc-notifications";
-    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, "/nc-notifications:netconf",
-            np2srv_state_data_cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_OPER_SUBSCR(mod_name, "/nc-notifications:netconf", np2srv_state_data_cb);
 
     /*
      * ietf-netconf-server
      */
     mod_name = "ietf-netconf-server";
-
     xpath = "/ietf-netconf-server:netconf-server/listen/idle-timeout";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_idle_timeout_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_idle_timeout_cb);
 
     /* subscribe for server SSH listen configuration changes */
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_ssh_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_ssh_cb);
 
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/tcp-server-parameters";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_tcp_params_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_tcp_params_cb);
 
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/server-identity/host-key/"
             "public-key/keystore-reference";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_ssh_hostkey_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_ssh_hostkey_cb);
 
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/client-authentication/"
             "supported-authentication-methods";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_ssh_auth_methods_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_ssh_auth_methods_cb);
 
     /* subscribe for providing SSH operational data */
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/client-authentication/users";
-    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_ssh_auth_users_oper_cb, NULL,
-            SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for providing \"%s\" data failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_OPER_SUBSCR(mod_name, xpath, np2srv_endpt_ssh_auth_users_oper_cb);
 
     /* subscribe for server TLS listen configuration changes */
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_tls_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_tls_cb);
 
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls/tcp-server-parameters";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_tcp_params_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_tcp_params_cb);
 
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls/tls-server-parameters/server-identity/keystore-reference";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_tls_hostcert_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_tls_servercert_cb);
 
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls/tls-server-parameters/client-authentication";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_tls_client_auth_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_tls_client_auth_cb);
 
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls/tls-server-parameters/client-authentication/cert-maps";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_tls_client_ctn_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_tls_client_ctn_cb);
+
+    /* subscribe for generic Call Home configuration changes */
+    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client";
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_cb);
+
+    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/connection-type";
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_connection_type_cb);
+
+    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/reconnect-strategy";
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_reconnect_strategy_cb);
 
     /* subscribe for server SSH Call Home configuration changes */
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_ch_client_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
-
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_ch_client_endpt_ssh_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_ssh_cb);
 
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh/tcp-client-parameters";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_ch_client_endpt_tcp_params_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_tcp_params_cb);
 
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh/ssh-server-parameters/"
             "server-identity/host-key/public-key/keystore-reference";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_ch_endpt_ssh_hostkey_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_endpt_ssh_hostkey_cb);
 
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh/ssh-server-parameters/"
             "client-authentication/supported-authentication-methods";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_ch_endpt_ssh_auth_methods_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_endpt_ssh_auth_methods_cb);
 
-    /* subscribe for generic Call Home configuration changes */
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/connection-type";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_ch_connection_type_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    /* subscribe for TLS Call Home configuration changes */
+    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls";
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_tls_cb);
 
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/reconnect-strategy";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_ch_reconnect_strategy_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls/tcp-client-parameters";
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_tcp_params_cb);
+
+    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls/tls-server-parameters/"
+            "server-identity/keystore-reference";
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_tls_servercert_cb);
+
+    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls/tls-server-parameters/"
+            "client-authentication";
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_tls_client_auth_cb);
+
+    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls/tls-server-parameters/"
+            "client-authentication/cert-maps";
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_tls_client_ctn_cb);
 
     /*
      * ietf-netconf-acm
      */
     mod_name = "ietf-netconf-acm";
-
     xpath = "/ietf-netconf-acm:nacm";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_nacm_params_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, ncac_nacm_params_cb);
 
     xpath = "/ietf-netconf-acm:nacm/groups/group";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_group_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, ncac_group_cb);
 
     xpath = "/ietf-netconf-acm:nacm/rule-list";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_rule_list_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, ncac_rule_list_cb);
 
     xpath = "/ietf-netconf-acm:nacm/rule-list/rule";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_rule_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_CONFIG_SUBSCR(mod_name, xpath, ncac_rule_cb);
 
     /* state data */
     xpath = "/ietf-netconf-acm:nacm/denied-operations";
-    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_state_data_cb, NULL,
-            SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_OPER_SUBSCR(mod_name, xpath, ncac_state_data_cb);
 
     xpath = "/ietf-netconf-acm:nacm/denied-data-writes";
-    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_state_data_cb, NULL,
-            SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_OPER_SUBSCR(mod_name, xpath, ncac_state_data_cb);
 
     xpath = "/ietf-netconf-acm:nacm/denied-notifications";
-    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, ncac_state_data_cb, NULL,
-            SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
+    SR_OPER_SUBSCR(mod_name, xpath, ncac_state_data_cb);
 
     return 0;
 
