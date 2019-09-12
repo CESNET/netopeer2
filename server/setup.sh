@@ -29,5 +29,8 @@ $SYSREPOCTL -c notifications -o $OWNER -g $GROUP
 $SYSREPOCTL -i $MODDIR/ietf-x509-cert-to-name@2014-12-10.yang
 $SYSREPOCTL -i $MODDIR/ietf-crypto-types@2019-07-02.yang
 $SYSREPOCTL -i $MODDIR/ietf-keystore@2019-07-02.yang -e keystore-supported -s $MODDIR
-$SYSREPOCTL -i $MODDIR/ietf-ssh-server@2019-07-02.yang -e local-client-auth-supported -e ssh-server-keepalives -s $MODDIR
-$SYSREPOCTL -i $MODDIR/ietf-netconf-server@2019-07-02.yang -e ssh-listen -e ssh-call-home -s $MODDIR
+$SYSREPOCTL -i $MODDIR/ietf-truststore@2019-07-02.yang -e truststore-supported -e x509-certificates -s $MODDIR
+$SYSREPOCTL -i $MODDIR/ietf-tcp-common@2019-07-02.yang -e keepalives-supported -s $MODDIR
+$SYSREPOCTL -i $MODDIR/ietf-ssh-server@2019-07-02.yang -e local-client-auth-supported -s $MODDIR
+$SYSREPOCTL -i $MODDIR/ietf-tls-server@2019-07-02.yang -e local-client-auth-supported -s $MODDIR
+$SYSREPOCTL -i $MODDIR/ietf-netconf-server@2019-07-02.yang -e ssh-listen -e tls-listen -e ssh-call-home -s $MODDIR

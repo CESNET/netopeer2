@@ -14,10 +14,15 @@ KS_KEY_NAME=$2
 CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\">
     <listen>
         <endpoint>
-            <name>default</name>
+            <name>default-ssh</name>
             <ssh>
                 <tcp-server-parameters>
                     <local-address>0.0.0.0</local-address>
+                    <keepalives>
+                        <idle-time>1</idle-time>
+                        <max-probes>10</max-probes>
+                        <probe-interval>5</probe-interval>
+                    </keepalives>
                 </tcp-server-parameters>
                 <ssh-server-parameters>
                     <server-identity>
@@ -36,7 +41,6 @@ CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\
                         </supported-authentication-methods>
                         <users/>
                     </client-authentication>
-                    <keepalives/>
                 </ssh-server-parameters>
             </ssh>
         </endpoint>

@@ -33,6 +33,7 @@
 #include "netconf.h"
 #include "netconf_server.h"
 #include "netconf_server_ssh.h"
+#include "netconf_server_tls.h"
 #include "netconf_acm.h"
 #include "netconf_monitoring.h"
 
@@ -565,15 +566,10 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         goto cleanup;
     }
 
-    /* create sysrepo session with correct user */
+    /* create sysrepo session for this user notifications */
     rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
     if (rc != SR_ERR_OK) {
         ERR("Failed to start a new SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
-    rc = sr_session_set_user(sr_sess, nc_session_get_username(ncs));
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to set user of a SR session (%s).", sr_strerror(rc));
         goto cleanup;
     }
     sr_session_set_nc_id(sr_sess, nc_session_get_id(ncs));
@@ -863,9 +859,13 @@ server_init(void)
     /* set libnetconf2 global PRC callback */
     nc_set_global_rpc_clb(np2srv_rpc_cb);
 
-    /* set libnetconf2 callbacks */
+    /* set libnetconf2 SSH callbacks */
     nc_server_ssh_set_hostkey_clb(np2srv_hostkey_cb, NULL, NULL);
     nc_server_ssh_set_pubkey_auth_clb(np2srv_pubkey_auth_cb, NULL, NULL);
+
+    /* set libnetconf2 TLS callbacks */
+    nc_server_tls_set_server_cert_clb(np2srv_cert_cb, NULL, NULL);
+    nc_server_tls_set_trusted_cert_list_clb(np2srv_cert_list_cb, NULL, NULL);
 
     /* UNIX socket */
     if (np2srv.unix_path) {
@@ -1037,7 +1037,6 @@ server_data_subscribe(void)
      */
     mod_name = "ietf-netconf-server";
 
-    /* subscribe for server SSH listen configuration changes */
     xpath = "/ietf-netconf-server:netconf-server/listen/idle-timeout";
     rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_idle_timeout_cb, NULL, 0,
             SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
@@ -1046,6 +1045,7 @@ server_data_subscribe(void)
         goto error;
     }
 
+    /* subscribe for server SSH listen configuration changes */
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh";
     rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_ssh_cb, NULL, 0,
             SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
@@ -1080,20 +1080,53 @@ server_data_subscribe(void)
         goto error;
     }
 
-    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/keepalives";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_ssh_keepalives_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
-
     /* subscribe for providing SSH operational data */
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/client-authentication/users";
     rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_ssh_auth_users_oper_cb, NULL,
             SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for providing \"%s\" data failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    /* subscribe for server TLS listen configuration changes */
+    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_tls_cb, NULL, 0,
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls/tcp-server-parameters";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_tcp_params_cb, NULL, 0,
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls/tls-server-parameters/server-identity/keystore-reference";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_tls_hostcert_cb, NULL, 0,
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls/tls-server-parameters/client-authentication";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_tls_client_auth_cb, NULL, 0,
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls/tls-server-parameters/client-authentication/cert-maps";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_endpt_tls_client_ctn_cb, NULL, 0,
+            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
         goto error;
     }
 
@@ -1134,15 +1167,6 @@ server_data_subscribe(void)
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh/ssh-server-parameters/"
             "client-authentication/supported-authentication-methods";
     rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_ch_endpt_ssh_auth_methods_cb, NULL, 0,
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
-        goto error;
-    }
-
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh/ssh-server-parameters/"
-            "keepalives";
-    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_ch_endpt_ssh_keepalives_cb, NULL, 0,
             SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));

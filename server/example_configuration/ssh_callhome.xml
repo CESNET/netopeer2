@@ -8,6 +8,11 @@
                     <ssh>
                         <tcp-client-parameters>
                             <remote-address>localhost</remote-address>
+                            <keepalives>
+                                <idle-time>1</idle-time>
+                                <max-probes>10</max-probes>
+                                <probe-interval>5</probe-interval>
+                            </keepalives>
                         </tcp-client-parameters>
                         <ssh-server-parameters>
                             <server-identity>
@@ -26,7 +31,6 @@
                                 </supported-authentication-methods>
                                 <users/>
                             </client-authentication>
-                            <keepalives/>
                         </ssh-server-parameters>
                     </ssh>
                 </endpoint>

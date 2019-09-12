@@ -74,6 +74,7 @@ set(srcs
     netconf_monitoring.c
     netconf_server.c
     netconf_server_ssh.c
+    netconf_server_tls.c
     netconf_acm.c
     log.c)
 

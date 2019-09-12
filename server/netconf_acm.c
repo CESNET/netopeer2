@@ -770,7 +770,7 @@ ncac_destroy(void)
  * @param[in] user User to learn about.
  * @param[out] uid User UID, if set.
  * @param[out] gid User GID, if set.
- * @return 0 on success, -1 on error.
+ * @return 0 on success, 1 on user not found, -1 on error.
  */
 static int
 ncac_getpwnam(const char *user, uid_t *uid, gid_t *gid)
@@ -791,9 +791,12 @@ ncac_getpwnam(const char *user, uid_t *uid, gid_t *gid)
     }
     ret = getpwnam_r(user, &pwd, buf, buflen, &pwd_p);
     if (ret) {
-        ERR("Getting user pwd entry failed (%s).", strerror(ret));
+        ERR("Getting user \"%s\" pwd entry failed (%s).", user, strerror(ret));
         free(buf);
         return -1;
+    } else if (!pwd_p) {
+        free(buf);
+        return 1;
     }
 
     if (uid) {
@@ -832,11 +835,8 @@ ncac_allowed_tree(const struct lys_node *top_node, const char *user)
     }
 
     /* 2) recovery session allowed */
-    if (ncac_getpwnam(user, &user_uid, NULL)) {
+    if (!ncac_getpwnam(user, &user_uid, NULL) && (user_uid == NP2SRV_NACM_RECOVERY_UID)) {
         return 0;
-    }
-    if (user_uid == NP2SRV_NACM_RECOVERY_UID) {
-        return 1;
     }
 
     /* 3) <close-session> and notifications <replayComplete>, <notificationComplete> always allowed */
@@ -874,6 +874,9 @@ ncac_collect_groups(struct ly_ctx *ly_ctx, const char *user, char ***groups, uin
 
     user_dict = lydict_insert(ly_ctx, user, 0);
 
+    *groups = NULL;
+    *group_count = 0;
+
     /* collect NACM groups */
     for (i = 0; i < nacm.group_count; ++i) {
         for (j = 0; j < nacm.groups[i].user_count; ++j) {
@@ -892,7 +895,12 @@ ncac_collect_groups(struct ly_ctx *ly_ctx, const char *user, char ***groups, uin
 
     /* collect system groups */
     if (nacm.enable_external_groups) {
-        if (ncac_getpwnam(user, NULL, &user_gid)) {
+        ret = ncac_getpwnam(user, NULL, &user_gid);
+        if (ret) {
+            if (ret == 1) {
+                /* no user, no more groups */
+                rc = 0;
+            }
             goto cleanup;
         }
 
@@ -924,6 +932,9 @@ ncac_collect_groups(struct ly_ctx *ly_ctx, const char *user, char ***groups, uin
             ret = getgrgid_r(gids[i], &grp, buf, buflen, &grp_p);
             if (ret) {
                 ERR("Getting GID grp entry failed (%s).", strerror(ret));
+                goto cleanup;
+            } else if (!grp_p) {
+                ERR("Getting GID grp entry failed (Group not found).");
                 goto cleanup;
             }
             grp_dict = lydict_insert(ly_ctx, grp.gr_name, 0);
@@ -975,8 +986,8 @@ ncac_allowed_node(const struct lys_node *node, const char *user, uint8_t oper)
     struct ncac_rule_list *rlist;
     struct ncac_rule *rule;
     struct ly_ctx *ly_ctx;
-    char **groups = NULL, *path;
-    uint32_t i, j, group_count = 0;
+    char **groups, *path;
+    uint32_t i, j, group_count;
     int allowed = 0, cmp;
 
     ly_ctx = lys_node_module(node)->ctx;
