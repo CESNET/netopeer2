@@ -171,13 +171,13 @@ filter_xpath_buf_add_top_content(struct ly_ctx *ctx, struct lyxml_elem *elem, co
 /* content node with optional namespace and attributes */
 static int
 filter_xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name,
-                            const char **last_ns, char **buf, int size)
+                            const char *last_ns, char **buf, int size)
 {
     const struct lys_module *module;
     int new_size;
     char *buf_new, *content, quot;
 
-    if (!elem_module_name && elem->ns && (elem->ns->value != *last_ns)
+    if (!elem_module_name && elem->ns && (elem->ns->value != last_ns)
             && strcmp(elem->ns->value, "urn:ietf:params:xml:ns:netconf:base:1.0")) {
         module = ly_ctx_get_module_by_ns(ctx, elem->ns->value, NULL, 1);
         if (!module) {
@@ -185,7 +185,6 @@ filter_xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const 
             return 0;
         }
 
-        *last_ns = elem->ns->value;
         elem_module_name = module->name;
     }
 
@@ -232,13 +231,13 @@ filter_xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const 
 /* containment/selection node with optional namespace and attributes */
 static int
 filter_xpath_buf_add_node(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name,
-                         const char **last_ns, char **buf, int size)
+                         const char *last_ns, char **buf, int size)
 {
     const struct lys_module *module;
     int new_size;
     char *buf_new;
 
-    if (!elem_module_name && elem->ns && (elem->ns->value != *last_ns)
+    if (!elem_module_name && elem->ns && (elem->ns->value != last_ns)
             && strcmp(elem->ns->value, "urn:ietf:params:xml:ns:netconf:base:1.0")) {
         module = ly_ctx_get_module_by_ns(ctx, elem->ns->value, NULL, 1);
         if (!module) {
@@ -246,7 +245,6 @@ filter_xpath_buf_add_node(struct ly_ctx *ctx, struct lyxml_elem *elem, const cha
             return 0;
         }
 
-        *last_ns = elem->ns->value;
         elem_module_name = module->name;
     }
 
@@ -277,7 +275,7 @@ filter_xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *el
     int only_content_match_node = 1;
 
     /* containment node, selection node */
-    size = filter_xpath_buf_add_node(ctx, elem, elem_module_name, &last_ns, buf, size);
+    size = filter_xpath_buf_add_node(ctx, elem, elem_module_name, last_ns, buf, size);
     if (!size) {
         free(*buf);
         *buf = NULL;
@@ -289,7 +287,7 @@ filter_xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *el
     /* content match node */
     LY_TREE_FOR_SAFE(elem->child, temp, child) {
         if (!child->child && child->content && !strws(child->content)) {
-            size = filter_xpath_buf_add_content(ctx, child, elem_module_name, &last_ns, buf, size);
+            size = filter_xpath_buf_add_content(ctx, child, elem_module_name, last_ns, buf, size);
             if (!size) {
                 free(*buf);
                 *buf = NULL;
@@ -332,7 +330,7 @@ filter_xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *el
 
         /* child selection node or content match node */
         } else {
-            new_size = filter_xpath_buf_add_node(ctx, child, NULL, &last_ns, &buf_new, new_size);
+            new_size = filter_xpath_buf_add_node(ctx, child, NULL, last_ns, &buf_new, new_size);
             if (!new_size) {
                 free(buf_new);
                 continue;
