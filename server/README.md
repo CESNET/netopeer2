@@ -51,10 +51,10 @@ MERGE_LISTEN_CONFIG:OFF
 ## NACM
 
 This NETCONF server implements full *ietf-netconf-acm* access control that **bypasses** *sysrepo*
-file system access control. However, NACM is disabled by default meaning all clients that successfully
-authenticate and establish a NETCONF session have **unrestricted access to all configuration** stored
-in *sysrepo*. Therefore, when deploying this server, it is strongly advised to enable NACM and
-configure it properly.
+file system access control. NACM is enabled by default, so users other than `root` will not be
+allowed to *write* any data but should be granted *read* and *execute* permissions unless
+the access was modified by a NACM extension. When deploying this server, it is strongly advised
+to configure NACM properly.
 
 ## Server configuration
 
