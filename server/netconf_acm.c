@@ -836,7 +836,7 @@ ncac_allowed_tree(const struct lys_node *top_node, const char *user)
 
     /* 2) recovery session allowed */
     if (!ncac_getpwnam(user, &user_uid, NULL) && (user_uid == NP2SRV_NACM_RECOVERY_UID)) {
-        return 0;
+        return 1;
     }
 
     /* 3) <close-session> and notifications <replayComplete>, <notificationComplete> always allowed */
