@@ -139,7 +139,6 @@ int op_add_srval(sr_val_t **values, size_t *values_cnt, struct lyd_node *node);
 struct nc_server_reply *op_build_err_nacm(struct nc_server_reply *ereply);
 
 int op_filter_get_tree_from_data(struct lyd_node **root, struct lyd_node *data, const char *subtree_path);
-int op_filter_xpath_add_filter(char *new_filter, char ***filters, int *filter_count);
 int op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_count);
 int op_filter_create_allmodules(char ***filters, int *filter_count);
 

@@ -2141,19 +2141,34 @@ strws(const char *str)
     return 1;
 }
 
-int
+static int
 op_filter_xpath_add_filter(char *new_filter, char ***filters, int *filter_count)
 {
-    char **filters_new;
+    void *mem;
+    int pref_len = 0;
 
-    filters_new = realloc(*filters, (*filter_count + 1) * sizeof **filters);
-    if (!filters_new) {
-        EMEM;
-        return -1;
+    if (*filter_count) {
+        pref_len = strchr((*filters)[*filter_count - 1], ':') - (*filters)[*filter_count - 1];
     }
-    ++(*filter_count);
-    *filters = filters_new;
-    (*filters)[*filter_count - 1] = new_filter;
+
+    if (!pref_len || strncmp((*filters)[*filter_count - 1], new_filter, pref_len)) {
+        mem = realloc(*filters, (*filter_count + 1) * sizeof **filters);
+        if (!mem) {
+            EMEM;
+            return -1;
+        }
+        ++(*filter_count);
+        *filters = mem;
+        (*filters)[*filter_count - 1] = new_filter;
+    } else {
+        mem = *filters[*filter_count - 1];
+        if (asprintf(filters[*filter_count - 1], "%s | %s", (char *)mem, new_filter) == -1) {
+            EMEM;
+            return -1;
+        }
+        free(mem);
+        free(new_filter);
+    }
 
     return 0;
 }
@@ -2595,7 +2610,8 @@ op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_coun
     return 0;
 }
 
-int op_filter_create_allmodules(char ***filters, int *filter_count)
+int
+op_filter_create_allmodules(char ***filters, int *filter_count)
 {
     uint32_t i = 0;
     const struct lys_module *module;
