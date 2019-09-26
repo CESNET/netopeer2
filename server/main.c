@@ -1443,7 +1443,7 @@ main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
     if (ftruncate(pidfd, 0)) {
-        ERR("Failed to truncate PID file (%s).", strerrror(errno));
+        ERR("Failed to truncate PID file (%s).", strerror(errno));
         close(pidfd);
         return EXIT_FAILURE;
     }
