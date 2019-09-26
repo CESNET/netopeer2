@@ -306,7 +306,7 @@ static int
 np2srv_user_add_auth_key(const char *alg, size_t alg_len, const char *key, size_t key_len, struct lyd_node *user,
         uint8_t *key_idx)
 {
-    char name[6], *str;
+    char name[7], *str;
     struct lyd_node *authkey;
 
     authkey = lyd_new(user, NULL, "authorized-key");
