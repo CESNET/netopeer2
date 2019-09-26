@@ -797,7 +797,7 @@ get_sr_data:
      * create the data tree for the data reply
      */
     for (i = 0; i < filter_count; i++) {
-        rc = sr_get_data(session, filters[i], &node);
+        rc = sr_get_data(session, filters[i], 0, &node);
         if (rc != SR_ERR_OK) {
             ERR("Getting data \"%s\" from sysrepo failed (%s).", filters[i], sr_strerror(rc));
             goto cleanup;
@@ -924,10 +924,10 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     }
 
     if (!strcmp(testop, "test-then-set")) {
-        rc = sr_apply_changes(session);
+        rc = sr_apply_changes(session, 0);
     } else {
         assert(!strcmp(testop, "test-only"));
-        rc = sr_validate(session);
+        rc = sr_validate(session, 0);
     }
     if (rc != SR_ERR_OK) {
         sr_get_error(session, &err_info);
@@ -1016,7 +1016,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     if (!config && (tds != SR_DS_STARTUP) && (sds != SR_DS_RUNNING)) {
         /* get source datastore data and filter them */
         sr_session_switch_ds(session, sds);
-        rc = sr_get_data(session, "/*", &config);
+        rc = sr_get_data(session, "/*", 0, &config);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
@@ -1050,7 +1050,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     } else
 #endif
     {
-        rc = sr_replace_config(session, NULL, config, tds);
+        rc = sr_replace_config(session, NULL, config, tds, 0);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
@@ -1111,7 +1111,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path
     } else
 #endif
     {
-        rc = sr_replace_config(session, NULL, NULL, ds);
+        rc = sr_replace_config(session, NULL, NULL, ds, 0);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
@@ -1210,7 +1210,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), con
     int rc = SR_ERR_OK;;
 
     /* sysrepo API */
-    rc = sr_copy_config(session, NULL, SR_DS_CANDIDATE, SR_DS_RUNNING);
+    rc = sr_copy_config(session, NULL, SR_DS_CANDIDATE, SR_DS_RUNNING, 0);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
@@ -1228,7 +1228,7 @@ np2srv_rpc_discard_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     int rc = SR_ERR_OK;
 
     /* sysrepo API */
-    rc = sr_copy_config(session, NULL, SR_DS_RUNNING, SR_DS_CANDIDATE);
+    rc = sr_copy_config(session, NULL, SR_DS_RUNNING, SR_DS_CANDIDATE, 0);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
@@ -1288,7 +1288,7 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
         /* update sysrepo session datastore */
         sr_session_switch_ds(session, ds);
 
-        rc = sr_validate(session);
+        rc = sr_validate(session, 0);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }

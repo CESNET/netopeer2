@@ -51,7 +51,7 @@ np2srv_hostkey_cb(const char *name, void *UNUSED(user_data), char **UNUSED(privk
         EMEM;
         goto cleanup;
     }
-    r = sr_get_subtree(sr_sess, xpath, &data);
+    r = sr_get_subtree(sr_sess, xpath, 0, &data);
     free(xpath);
     if (r != SR_ERR_OK) {
         goto cleanup;

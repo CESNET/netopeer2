@@ -575,7 +575,7 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
     sr_session_set_nc_id(sr_sess, nc_session_get_id(ncs));
 
     /* sysrepo API */
-    rc = sr_rpc_send_tree(sr_sess, rpc, &output);
+    rc = sr_rpc_send_tree(sr_sess, rpc, 0, &output);
     if (rc != SR_ERR_OK) {
         ERR("Failed to send an RPC (%s).", sr_strerror(rc));
         goto cleanup;

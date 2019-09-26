@@ -45,7 +45,7 @@ np2srv_cert_cb(const char *name, void *UNUSED(user_data), char **UNUSED(cert_pat
         EMEM;
         goto cleanup;
     }
-    r = sr_get_subtree(sr_sess, xpath, &data);
+    r = sr_get_subtree(sr_sess, xpath, 0, &data);
     free(xpath);
     if (r != SR_ERR_OK) {
         goto cleanup;
@@ -66,7 +66,7 @@ np2srv_cert_cb(const char *name, void *UNUSED(user_data), char **UNUSED(cert_pat
         goto cleanup;
     }
     lyd_free_withsiblings(data);
-    r = sr_get_subtree(sr_sess, xpath, &data);
+    r = sr_get_subtree(sr_sess, xpath, 0, &data);
     free(xpath);
     if (r != SR_ERR_OK) {
         goto cleanup;
@@ -112,7 +112,7 @@ np2srv_cert_list_cb(const char *name, void *UNUSED(user_data), char ***UNUSED(ce
         EMEM;
         goto cleanup;
     }
-    r = sr_get_subtree(sr_sess, xpath, &data);
+    r = sr_get_subtree(sr_sess, xpath, 0, &data);
     free(xpath);
     if (r != SR_ERR_OK) {
         goto cleanup;
