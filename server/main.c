@@ -1442,7 +1442,11 @@ main(int argc, char *argv[])
         }
         return EXIT_FAILURE;
     }
-    ftruncate(pidfd, 0);
+    if (ftruncate(pidfd, 0)) {
+        ERR("Failed to truncate PID file (%s).", strerrror(errno));
+        close(pidfd);
+        return EXIT_FAILURE;
+    }
     c = snprintf(pid, sizeof(pid), "%d\n", getpid());
     if (write(pidfd, pid, c) < c) {
         ERR("Failed to write into PID file.");
