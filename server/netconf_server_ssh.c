@@ -416,7 +416,7 @@ np2srv_endpt_ssh_auth_users_oper_cb(sr_session_ctx_t *UNUSED(session), const cha
 
             ++ptr;
             data = ptr;
-            if (!(ptr = strchr(ptr, ' ')) && !(ptr = strchr(ptr, '\n'))) {
+            if (!(ptr = strchr(data, ' ')) && !(ptr = strchr(data, '\n'))) {
                 ptr = data + strlen(data);
             }
 
