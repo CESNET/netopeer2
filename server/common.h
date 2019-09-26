@@ -20,6 +20,7 @@
 #include <time.h>
 #include <pthread.h>
 
+#include <nc_server.h>
 #include <sysrepo.h>
 
 #include "config.h"
@@ -39,21 +40,14 @@ struct np2srv {
     uid_t unix_uid;                 /**< UNIX socket UID */
     gid_t unix_gid;                 /**< UNIX socket GID */
 
-    pthread_mutex_t pending_sub_lock;
-    struct np2srv_psub {
-        struct nc_session *sess;
-        char *stream;
-        char *xpath;
-        time_t start;
-        time_t stop;
-    } *pending_subs;
-    uint16_t pending_sub_count;
-
     struct nc_pollsession *nc_ps;   /**< libnetconf2 pollsession structure */
     uint16_t nc_max_sessions;       /**< maximum number of running sessions */
     pthread_t workers[NP2SRV_THREAD_COUNT]; /**< worker threads handling sessions */
 };
 extern struct np2srv np2srv;
+
+void np2srv_ntf_new_cb(sr_session_ctx_t *session, const sr_ev_notif_type_t notif_type, const struct lyd_node *notif,
+        time_t timestamp, void *private_data);
 
 void np2srv_new_session_cb(const char *client_name, struct nc_session *new_session);
 

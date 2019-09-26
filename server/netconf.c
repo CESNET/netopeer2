@@ -1306,13 +1306,14 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
         sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     struct ly_set *nodeset;
+    const struct lys_module *ly_mod;
+    struct lys_node *root, *next, *elem, *parent;
     struct nc_session *ncs;
     const char *stream;
-    struct np2srv_psub *psub;
-    char **filters = NULL, *xp = NULL;
-    void *mem;
+    char **filters = NULL, *xp = NULL, *mem;
     time_t start = 0, stop = 0;
-    int rc = SR_ERR_OK, ret, i, len, filter_count = 0;
+    int rc = SR_ERR_OK, i, len, filter_count = 0;
+    uint32_t idx;
 
     /* find this NETCONF session */
     for (i = 0; (ncs = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
@@ -1377,40 +1378,46 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
     }
     ly_set_free(nodeset);
 
-    /* add a pending subscription */
-    ret = pthread_mutex_lock(&np2srv.pending_sub_lock);
-    if (ret) {
-        ERR("Locking a mutex failed (%s).", strerror(ret));
-        rc = SR_ERR_SYS;
+    /* sysrepo API */
+    if (!strcmp(stream, "NETCONF")) {
+        /* subscribe to all modules with notifications */
+        idx = 0;
+        while ((ly_mod = ly_ctx_get_module_iter(lyd_node_module(input)->ctx, &idx))) {
+            rc = SR_ERR_OK;
+            LY_TREE_FOR(ly_mod->data, root) {
+                LY_TREE_DFS_BEGIN(root, next, elem) {
+                    if (elem->nodetype == LYS_NOTIF) {
+                        /* check that we are not in a grouping */
+                        parent = lys_parent(elem);
+                        while (parent && (parent->nodetype != LYS_GROUPING)) {
+                            parent = lys_parent(parent);
+                        }
+                        if (!parent) {
+                            rc = sr_event_notif_subscribe_tree(nc_session_get_data(ncs), ly_mod->name, xp, start, stop,
+                                    np2srv_ntf_new_cb, ncs, np2srv.sr_notif_sub ? SR_SUBSCR_CTX_REUSE : 0, &np2srv.sr_notif_sub);
+                            break;
+                        }
+                    }
+                    LY_TREE_DFS_END(root, next, elem);
+                }
+                if (elem && (elem->nodetype == LYS_NOTIF)) {
+                   break;
+                }
+            }
+            if (rc != SR_ERR_OK) {
+                goto cleanup;
+            }
+        }
+    } else {
+        rc = sr_event_notif_subscribe_tree(nc_session_get_data(ncs), stream, xp, start, stop, np2srv_ntf_new_cb, ncs,
+                np2srv.sr_notif_sub ? SR_SUBSCR_CTX_REUSE : 0, &np2srv.sr_notif_sub);
+    }
+    if (rc != SR_ERR_OK) {
         goto cleanup;
     }
 
-    mem = realloc(np2srv.pending_subs, (np2srv.pending_sub_count + 1) * sizeof *np2srv.pending_subs);
-    if (!mem) {
-        pthread_mutex_unlock(&np2srv.pending_sub_lock);
-        EMEM;
-        rc = SR_ERR_NOMEM;
-        goto cleanup;
-    }
-    np2srv.pending_subs = mem;
-
-    psub = &np2srv.pending_subs[np2srv.pending_sub_count];
-    psub->sess = ncs;
-    psub->stream = strdup(stream);
-    if (!psub->stream) {
-        pthread_mutex_unlock(&np2srv.pending_sub_lock);
-        EMEM;
-        rc = SR_ERR_NOMEM;
-        goto cleanup;
-    }
-    psub->xpath = xp;
-    psub->start = start;
-    psub->stop = stop;
-
-    ++np2srv.pending_sub_count;
-    xp = NULL;
-
-    pthread_mutex_unlock(&np2srv.pending_sub_lock);
+    /* set ongoing notifications flag */
+    nc_session_set_notif_status(ncs, 1);
 
     /* success */
 
