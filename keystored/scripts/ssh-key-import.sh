@@ -12,13 +12,14 @@ local_path=$(dirname $0)
 : ${SSH_KEYGEN:=ssh-keygen}
 : ${STOCK_KEY_CONFIG:=$local_path/../stock_key_config.xml}
 : ${KEYSTORED_KEYS_DIR:=/etc/keystored/keys}
+: ${KEYSTORED_CHECK_SSH_KEY:=1}
 
 if [ -n "$($SYSREPOCFG -d startup -f xml --export ietf-keystore)" ]; then
     echo "- Some ietf-keystore configuration set, skipping stock key configuration import."
     exit 0
 fi
 
-if [ $KEYSTORED_CHECK_SSH_KEY -eq 0 ]; then
+if [ "$KEYSTORED_CHECK_SSH_KEY" -eq 0 ]; then
     echo "- Warning: Assuming that an external script will provide the SSH key in a PEM format at \"${KEYSTORED_KEYS_DIR}/ssh_host_rsa_key.pem\"."
     echo "- Importing ietf-keystore stock key configuration..."
     $SYSREPOCFG -d startup -i ${STOCK_KEY_CONFIG} ietf-keystore
