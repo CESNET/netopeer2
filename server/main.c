@@ -49,13 +49,13 @@ static void *worker_thread(void *arg);
 static int np2srv_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path,
         const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
-int
-np_sleep(unsigned int miliseconds)
+static int
+np_sleep(uint32_t ms)
 {
     struct timespec ts;
 
-    ts.tv_sec = miliseconds / 1000;
-    ts.tv_nsec = (miliseconds % 1000) * 1000000;
+    ts.tv_sec = ms / 1000;
+    ts.tv_nsec = (ms % 1000) * 1000000;
     return nanosleep(&ts, NULL);
 }
 
@@ -334,7 +334,7 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
     c = 0;
     while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, new_session)) {
         /* presumably timeout, give it a shot 2 times */
-        np_sleep(10);
+        np_sleep(NP2SRV_PS_BACKOFF_SLEEP);
         ++c;
     }
 
@@ -1173,7 +1173,7 @@ worker_thread(void *arg)
 
         if ((rc & (NC_PSPOLL_NOSESSIONS | NC_PSPOLL_TIMEOUT | NC_PSPOLL_ERROR)) && !(rc & NC_PSPOLL_SESSION_TERM)) {
             /* if there is no active session, timeout, or an error, rest for a while */
-            np_sleep(10);
+            np_sleep(NP2SRV_PS_BACKOFF_SLEEP);
             continue;
         }
 

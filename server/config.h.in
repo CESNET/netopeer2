@@ -50,6 +50,11 @@
  */
 #define NP2SRV_NOTIF_SEND_TIMEOUT 1000
 
+/** @brief Timeout for PS structure accessing in
+ * case there is too much contention (ms).
+ */
+#define NP2SRV_PS_BACKOFF_SLEEP 200
+
 /** @brief URL capability support
  */
 #cmakedefine NP2SRV_URL_CAPAB
