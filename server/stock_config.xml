@@ -3,7 +3,7 @@
     <endpoint>
       <name>all-interfaces</name>
       <ssh>
-        <address>0.0.0.0</address>
+        <address>::</address>
         <port>830</port>
         <host-keys>
           <host-key>
