@@ -974,7 +974,7 @@ np2srv_init_schemas(void)
     /* build libyang context */
     /* the lock is not supposed to be locked here. In case of first calling, it needn't be used because we are still
      * single-threaded, in other cases the caller (np2srv_module_install_clb()) is supposed to lock it */
-    np2srv.ly_ctx = ly_ctx_new(NULL, 0);
+    np2srv.ly_ctx = ly_ctx_new(NULL, LY_CTX_DISABLE_SEARCHDIR_CWD);
     if (!np2srv.ly_ctx) {
         goto error;
     }
