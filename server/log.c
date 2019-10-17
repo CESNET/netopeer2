@@ -27,6 +27,8 @@
 #include <nc_server.h>
 #include <sysrepo.h>
 
+#include "log.h"
+
 volatile uint8_t np2_verbose_level;
 uint8_t np2_libssh_verbose_level;
 uint8_t np2_sr_verbose_level;
@@ -143,6 +145,57 @@ np2log(int priority, const char *fmt, ...)
 }
 
 /**
+ * @brief Encode message characters (% -> %%) to avoid printf arg problems.
+ */
+static const char *
+np2log_encode(const char *msg, char **buf)
+{
+    const char *ptr1, *ptr2;
+    size_t buf_len, buf_size = 1;
+    void *mem;
+
+    *buf = NULL;
+    if ((ptr2 = strchr(msg, '%'))) {
+        /* something to encode */
+        ptr1 = msg;
+        do {
+            /* enlarge buffer */
+            buf_len = buf_size - 1;
+            buf_size += (ptr2 - ptr1) + 2;
+            mem = realloc(*buf, buf_size * sizeof **buf);
+            if (!mem) {
+                EMEM;
+                return "";
+            }
+            *buf = mem;
+
+            /* copy preceding message */
+            strncpy(*buf + buf_len, ptr1, ptr2 - ptr1);
+            buf_len += ptr2 - ptr1;
+
+            /* copy % */
+            strcpy(*buf + buf_len, "%%");
+
+            /* next iter */
+            ptr1 = ptr2 + 1;
+        } while ((ptr2 = strchr(ptr1, '%')));
+
+        /* copy remaining message */
+        buf_len = buf_size - 1;
+        buf_size += strlen(ptr1);
+        mem = realloc(*buf, buf_size * sizeof **buf);
+        if (!mem) {
+            EMEM;
+            return "";
+        }
+        *buf = mem;
+        strcpy(*buf + buf_len, ptr1);
+    }
+
+    return (*buf ? *buf : msg);
+}
+
+/**
  * @brief printer callback for libnetconf2
  */
 void
@@ -150,6 +203,8 @@ np2log_clb_nc2(NC_VERB_LEVEL level, const char *msg)
 {
     struct np2err *e;
     int priority = LOG_ERR;
+    const char *log_msg;
+    char *buf;
 
     if (level == NC_VERB_ERROR) {
         e = np2_err_location();
@@ -174,7 +229,9 @@ np2log_clb_nc2(NC_VERB_LEVEL level, const char *msg)
         break;
     }
 
-    np2log(priority, msg);
+    log_msg = np2log_encode(msg, &buf);
+    np2log(priority, log_msg);
+    free(buf);
 }
 
 /**
@@ -185,6 +242,8 @@ np2log_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
 {
     int priority;
     struct np2err *e;
+    const char *log_msg;
+    char *buf;
 
     switch (level) {
     case LY_LLERR:
@@ -211,11 +270,13 @@ np2log_clb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
         }
     }
 
+    log_msg = np2log_encode(msg, &buf);
     if (path) {
-        np2log(priority, "%s (%s)", msg, path);
+        np2log(priority, "%s (%s)", log_msg, path);
     } else {
-        np2log(priority, msg);
+        np2log(priority, log_msg);
     }
+    free(buf);
 }
 
 void
