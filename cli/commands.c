@@ -4420,22 +4420,24 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    /* create notification thread */
-    if (!output) {
-        output = stdout;
-    }
-    nc_session_set_data(session, output);
-    ret = nc_recv_notif_dispatch(session, cli_ntf_clb);
-    if (ret) {
-        ERROR(__func__, "Failed to create notification thread.");
-        goto fail;
-    }
+    if (!nc_session_ntf_thread_running(session)) {
+        /* create notification thread */
+        if (!output) {
+            output = stdout;
+        }
+        nc_session_set_data(session, output);
+        ret = nc_recv_notif_dispatch(session, cli_ntf_clb);
+        if (ret) {
+            ERROR(__func__, "Failed to create notification thread.");
+            goto fail;
+        }
 
-    if (!nc_session_cpblt(session, NC_CAP_INTERLEAVE_ID)) {
-        fprintf(output, "NETCONF server does not support interleave, you\n"
-                        "cannot issue any RPCs during the subscription.\n"
-                        "Close the session with \"disconnect\".\n");
-        interleave = 0;
+        if (!nc_session_cpblt(session, NC_CAP_INTERLEAVE_ID)) {
+            fprintf(output, "NETCONF server does not support interleave, you\n"
+                            "cannot issue any RPCs during the subscription.\n"
+                            "Close the session with \"disconnect\".\n");
+            interleave = 0;
+        }
     }
 
 fail:
