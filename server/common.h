@@ -25,8 +25,6 @@
 
 #include "config.h"
 
-#define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
-
 /* server internal data */
 struct np2srv {
     sr_conn_ctx_t *sr_conn;         /**< sysrepo connection */
@@ -46,9 +44,27 @@ struct np2srv {
 };
 extern struct np2srv np2srv;
 
+int np_sleep(uint32_t ms);
+
+const char *np_get_nc_sess_user(sr_session_ctx_t *session);
+
 void np2srv_ntf_new_cb(sr_session_ctx_t *session, const sr_ev_notif_type_t notif_type, const struct lyd_node *notif,
         time_t timestamp, void *private_data);
 
 void np2srv_new_session_cb(const char *client_name, struct nc_session *new_session);
+
+int np2srv_url_setcap(void);
+
+#ifdef NP2SRV_URL_CAPAB
+
+struct lyd_node *op_parse_url(const char *url, int options, int *rc, sr_session_ctx_t *sr_sess);
+
+int op_export_url(const char *url, struct lyd_node *data, int options, int *rc, sr_session_ctx_t *sr_sess);
+
+#endif
+
+struct lyd_node *op_parse_config(struct lyd_node_anydata *config, int options, int *rc, sr_session_ctx_t *sr_sess);
+
+int op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_count);
 
 #endif /* NP2SRV_COMMON_H_ */

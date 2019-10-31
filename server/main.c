@@ -27,6 +27,7 @@
 #include <nc_server.h>
 #include <sysrepo.h>
 
+#include "config.h"
 #include "common.h"
 #include "log.h"
 #include "netconf.h"
@@ -35,12 +36,7 @@
 #include "netconf_server_tls.h"
 #include "netconf_acm.h"
 #include "netconf_monitoring.h"
-
-#ifdef NP2SRV_URL_CAPAB
-# include <curl/curl.h>
-#endif
-
-struct np2srv np2srv = {.unix_mode = -1, .unix_uid = -1, .unix_gid = -1};
+#include "netconf_nmda.h"
 
 /** @brief flag for main loop */
 ATOMIC_T loop_continue = 1;
@@ -48,16 +44,6 @@ ATOMIC_T loop_continue = 1;
 static void *worker_thread(void *arg);
 static int np2srv_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path,
         const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
-
-static int
-np_sleep(uint32_t ms)
-{
-    struct timespec ts;
-
-    ts.tv_sec = ms / 1000;
-    ts.tv_nsec = (ms % 1000) * 1000000;
-    return nanosleep(&ts, NULL);
-}
 
 /**
  * @brief Signal handler to control the process
@@ -86,77 +72,6 @@ signal_handler(int sig)
     default:
         exit(EXIT_FAILURE);
     }
-}
-
-int
-np2srv_verify_cb(const struct nc_session *session)
-{
-    char buf[256];
-    const char *user;
-    size_t buflen = 256;
-    struct passwd pwd, *ret;
-    int rc;
-
-    user = nc_session_get_username(session);
-
-    errno = 0;
-    rc = getpwnam_r(user, &pwd, buf, buflen, &ret);
-    if (!ret) {
-        if (!rc) {
-            ERR("Username \"%s\" resolved by TLS authentication does not exist on the system.", user);
-        } else {
-            ERR("Getting system passwd entry for \"%s\" failed (%s).", user, strerror(rc));
-        }
-        return 0;
-    }
-
-    return 1;
-}
-
-void
-np2srv_ntf_new_cb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t notif_type, const struct lyd_node *notif,
-        time_t timestamp, void *private_data)
-{
-    struct nc_server_notif *nc_ntf = NULL;
-    struct nc_session *ncs = (struct nc_session *)private_data;
-    struct lyd_node *ly_ntf = NULL;
-    NC_MSG_TYPE msg_type;
-    char buf[26], *datetime;
-
-    /* create these notifications, sysrepo only emulates them */
-    if (notif_type == SR_EV_NOTIF_REPLAY_COMPLETE) {
-        ly_ntf = lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/nc-notifications:replayComplete", NULL, 0, 0);
-        notif = ly_ntf;
-    } else if (notif_type == SR_EV_NOTIF_STOP) {
-        ly_ntf = lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/nc-notifications:notificationComplete", NULL, 0, 0);
-        notif = ly_ntf;
-    }
-
-    /* check NACM */
-    if (ncac_check_operation(notif, nc_session_get_username(ncs))) {
-        goto cleanup;
-    }
-
-    /* create the notification object */
-    datetime = nc_time2datetime(timestamp, NULL, buf);
-    nc_ntf = nc_server_notif_new((struct lyd_node *)notif, datetime, NC_PARAMTYPE_CONST);
-
-    /* send the notification */
-    msg_type = nc_server_notif_send(ncs, nc_ntf, NP2SRV_NOTIF_SEND_TIMEOUT);
-    if ((msg_type == NC_MSG_ERROR) || (msg_type == NC_MSG_WOULDBLOCK)) {
-        ERR("Sending a notification to session %d %s.", nc_session_get_id(ncs), msg_type == NC_MSG_ERROR ? "failed" : "timed out");
-        goto cleanup;
-    }
-    ncm_session_notification(ncs);
-
-    if (notif_type == SR_EV_NOTIF_STOP) {
-        /* subscription finished */
-        nc_session_set_notif_status(ncs, 0);
-    }
-
-cleanup:
-    nc_server_notif_free(nc_ntf);
-    lyd_free_withsiblings(ly_ntf);
 }
 
 static struct lyd_node *
@@ -294,89 +209,6 @@ cleanup:
     ly_set_free(set);
     lyd_free_withsiblings(data);
     return ret;
-}
-
-void
-np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_session)
-{
-    int c, monitored = 0;
-    sr_val_t *event_data;
-    sr_session_ctx_t *sr_sess;
-    const struct lys_module *mod;
-    char *host = NULL;
-
-    /* start sysrepo session for every NETCONF session (so that it can be used for notification subscriptions) */
-    c = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
-    if (c != SR_ERR_OK) {
-        ERR("Failed to start a sysrepo session (%s).", sr_strerror(c));
-        goto error;
-    }
-    nc_session_set_data(new_session, sr_sess);
-
-    switch (nc_session_get_ti(new_session)) {
-#ifdef NC_ENABLED_SSH
-    case NC_TI_LIBSSH:
-#endif
-#ifdef NC_ENABLED_TLS
-    case NC_TI_OPENSSL:
-#endif
-#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
-        ncm_session_add(new_session);
-        monitored = 1;
-        break;
-#endif
-    default:
-        WRN("Session %d uses a transport protocol not supported by ietf-netconf-monitoring, will not be monitored.",
-                nc_session_get_id(new_session));
-        break;
-    }
-
-    c = 0;
-    while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, new_session)) {
-        /* presumably timeout, give it a shot 2 times */
-        np_sleep(NP2SRV_PS_BACKOFF_SLEEP);
-        ++c;
-    }
-
-    if (c == 3) {
-        /* there is some serious problem in synchronization/system planner */
-        EINT;
-        goto error;
-    }
-
-    if ((mod = ly_ctx_get_module(sr_get_context(np2srv.sr_conn), "ietf-netconf-notifications", NULL, 1))) {
-        /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
-        if (nc_session_get_ti(new_session) != NC_TI_UNIX) {
-            host = (char *)nc_session_get_host(new_session);
-        }
-        event_data = calloc(3, sizeof *event_data);
-        event_data[0].xpath = "/ietf-netconf-notifications:netconf-session-start/username";
-        event_data[0].type = SR_STRING_T;
-        event_data[0].data.string_val = (char *)nc_session_get_username(new_session);
-        event_data[1].xpath = "/ietf-netconf-notifications:netconf-session-start/session-id";
-        event_data[1].type = SR_UINT32_T;
-        event_data[1].data.uint32_val = nc_session_get_id(new_session);
-        if (host) {
-            event_data[2].xpath = "/ietf-netconf-notifications:netconf-session-start/source-host";
-            event_data[2].type = SR_STRING_T;
-            event_data[2].data.string_val = host;
-        }
-        c = sr_event_notif_send(np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-start", event_data, host ? 3 : 2);
-        if (c != SR_ERR_OK) {
-            WRN("Failed to send a notification (%s).", sr_strerror(c));
-        } else {
-            VRB("Generated new event (netconf-session-start).");
-        }
-        free(event_data);
-    }
-
-    return;
-
-error:
-    if (monitored) {
-        ncm_session_del(new_session);
-    }
-    nc_session_free(new_session, NULL);
 }
 
 static void
@@ -618,7 +450,7 @@ np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
     if ((node = ncac_check_diff(diff, sr_session_get_user(session)))) {
         /* access denied */
         path = lys_data_path(node->schema);
-        sr_set_error(session, "Access to the requested data model is denied because authorization failed.", path);
+        sr_set_error(session, path, "Access to the requested data model is denied because authorization failed.");
         free(path);
         return SR_ERR_UNAUTHORIZED;
     }
@@ -744,59 +576,6 @@ np2srv_check_schemas(sr_session_ctx_t *sr_sess)
     return 0;
 }
 
-#ifdef NP2SRV_URL_CAPAB
-
-static char *
-np2srv_url_getcap(void)
-{
-    uint32_t i, j;
-    char *cpblt;
-    int first = 1, cur_prot, sup_prot = 0;
-    curl_version_info_data *curl_data;
-    const char *url_protocol_str[] = {"scp", "http", "https", "ftp", "sftp", "ftps", "file", NULL};
-    const char *main_cpblt = "urn:ietf:params:netconf:capability:url:1.0?scheme=";
-
-    curl_data = curl_version_info(CURLVERSION_NOW);
-    for (i = 0; curl_data->protocols[i]; ++i) {
-        for (j = 0; url_protocol_str[j]; ++j) {
-            if (!strcmp(curl_data->protocols[i], url_protocol_str[j])) {
-                sup_prot |= (1 << j);
-                break;
-            }
-        }
-    }
-    if (!sup_prot) {
-        /* no protocols supported */
-        return NULL;
-    }
-
-    /* get max capab string size and allocate it */
-    j = strlen(main_cpblt) + 1;
-    for (i = 0; url_protocol_str[i]; ++i) {
-        j += strlen(url_protocol_str[i]) + 1;
-    }
-    cpblt = malloc(j);
-    if (!cpblt) {
-        EMEM;
-        return NULL;
-    }
-
-    /* main capability */
-    strcpy(cpblt, main_cpblt);
-
-    /* supported protocols */
-    for (i = 0, cur_prot = 1; i < (sizeof url_protocol_str / sizeof *url_protocol_str); ++i, cur_prot <<= 1) {
-        if (cur_prot & sup_prot) {
-            sprintf(cpblt + strlen(cpblt), "%s%s", first ? "" : ",", url_protocol_str[i]);
-            first = 0;
-        }
-    }
-
-    return cpblt;
-}
-
-#endif
-
 static int
 server_init(void)
 {
@@ -846,14 +625,10 @@ server_init(void)
     nc_server_set_capability("urn:ietf:params:netconf:capability:notification:1.0");
     nc_server_set_capability("urn:ietf:params:netconf:capability:interleave:1.0");
 
-#ifdef NP2SRV_URL_CAPAB
     /* set URL capability */
-    char *url_cap = np2srv_url_getcap();
-    if (url_cap) {
-        nc_server_set_capability(url_cap);
-        free(url_cap);
+    if (np2srv_url_setcap()) {
+        goto error;
     }
-#endif
 
     /* set libnetconf2 global PRC callback */
     nc_set_global_rpc_clb(np2srv_rpc_cb);
@@ -894,89 +669,30 @@ server_rpc_subscribe(void)
     const char *xpath;
     int rc;
 
+#define SR_RPC_SUBSCR(xpath, cb) \
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, cb, NULL, 0, SR_SUBSCR_CTX_REUSE, &np2srv.sr_rpc_sub); \
+    if (rc != SR_ERR_OK) { \
+        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc)); \
+        goto error; \
+    }
+
     /* subscribe to standard supported RPCs */
     if (np2srv.sr_rpc_sub) {
         EINT;
         goto error;
     }
-    xpath = "/ietf-netconf:get-config";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_get_cb, NULL, 0, 0, &np2srv.sr_rpc_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
-        goto error;
-    }
-
-    xpath = "/ietf-netconf:edit-config";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_editconfig_cb, NULL, 0, SR_SUBSCR_CTX_REUSE, &np2srv.sr_rpc_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
-        goto error;
-    }
-
-    xpath = "/ietf-netconf:copy-config";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_copyconfig_cb, NULL, 0, SR_SUBSCR_CTX_REUSE, &np2srv.sr_rpc_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
-        goto error;
-    }
-
-    xpath = "/ietf-netconf:delete-config";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_deleteconfig_cb, NULL, 0, SR_SUBSCR_CTX_REUSE, &np2srv.sr_rpc_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
-        goto error;
-    }
-
-    xpath = "/ietf-netconf:lock";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_un_lock_cb, NULL, 0, SR_SUBSCR_CTX_REUSE, &np2srv.sr_rpc_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
-        goto error;
-    }
-
-    xpath = "/ietf-netconf:unlock";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_un_lock_cb, NULL, 0, SR_SUBSCR_CTX_REUSE, &np2srv.sr_rpc_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
-        goto error;
-    }
-
-    xpath = "/ietf-netconf:get";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_get_cb, NULL, 0, SR_SUBSCR_CTX_REUSE, &np2srv.sr_rpc_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
-        goto error;
-    }
-
+    SR_RPC_SUBSCR("/ietf-netconf:get-config", np2srv_rpc_get_cb);
+    SR_RPC_SUBSCR("/ietf-netconf:edit-config", np2srv_rpc_editconfig_cb);
+    SR_RPC_SUBSCR("/ietf-netconf:copy-config", np2srv_rpc_copyconfig_cb);
+    SR_RPC_SUBSCR("/ietf-netconf:delete-config", np2srv_rpc_deleteconfig_cb);
+    SR_RPC_SUBSCR("/ietf-netconf:lock", np2srv_rpc_un_lock_cb);
+    SR_RPC_SUBSCR("/ietf-netconf:unlock", np2srv_rpc_un_lock_cb);
+    SR_RPC_SUBSCR("/ietf-netconf:get", np2srv_rpc_get_cb);
     /* keep close-session empty so that internal lnc2 callback is used */
-
-    xpath = "/ietf-netconf:kill-session";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_kill_cb, NULL, 0, SR_SUBSCR_CTX_REUSE, &np2srv.sr_rpc_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
-        goto error;
-    }
-
-    xpath = "/ietf-netconf:commit";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_commit_cb, NULL, 0, SR_SUBSCR_CTX_REUSE, &np2srv.sr_rpc_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
-        goto error;
-    }
-
-    xpath = "/ietf-netconf:discard-changes";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_discard_cb, NULL, 0, SR_SUBSCR_CTX_REUSE, &np2srv.sr_rpc_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
-        goto error;
-    }
-
-    xpath = "/ietf-netconf:validate";
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_validate_cb, NULL, 0, SR_SUBSCR_CTX_REUSE, &np2srv.sr_rpc_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
-        goto error;
-    }
+    SR_RPC_SUBSCR("/ietf-netconf:kill-session", np2srv_rpc_kill_cb);
+    SR_RPC_SUBSCR("/ietf-netconf:commit", np2srv_rpc_commit_cb);
+    SR_RPC_SUBSCR("/ietf-netconf:discard-changes", np2srv_rpc_discard_cb);
+    SR_RPC_SUBSCR("/ietf-netconf:validate", np2srv_rpc_validate_cb);
 
     xpath = "/notifications:create-subscription";
     /* subscribes to notifications, needs special flag */
@@ -986,6 +702,10 @@ server_rpc_subscribe(void)
         ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
         goto error;
     }
+
+    /* subscribe to NMDA RPCs */
+    SR_RPC_SUBSCR("/ietf-netconf-nmda:get-data", np2srv_rpc_getdata_cb);
+    SR_RPC_SUBSCR("/ietf-netconf-nmda:edit-data", np2srv_rpc_editdata_cb);
 
     return 0;
 
@@ -1489,7 +1209,7 @@ main(int argc, char *argv[])
 
     if (server_data_subscribe()) {
         /* try to recover sysrepo */
-        c = sr_connection_recover();
+        c = sr_connection_recover(np2srv.sr_conn);
         if (c != SR_ERR_OK) {
             ERR("Sysrepo recover failed (%s).", sr_strerror(c));
             ret = EXIT_FAILURE;

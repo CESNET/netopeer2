@@ -70,12 +70,14 @@ endif()
 
 # source files
 set(srcs
+    common.c
     netconf.c
     netconf_monitoring.c
     netconf_server.c
     netconf_server_ssh.c
     netconf_server_tls.c
     netconf_acm.c
+    netconf_nmda.c
     log.c)
 
 # object library to build source codes only once for the main binary

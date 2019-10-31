@@ -20,6 +20,10 @@ $SYSREPOCTL -c ietf-netconf -e writable-running -e candidate -e rollback-on-erro
 # ietf-netconf-monitoring
 $SYSREPOCTL -i $MODDIR/ietf-netconf-monitoring@2010-10-04.yang -v2
 $SYSREPOCTL -c ietf-netconf-monitoring -o $OWNER -g $GROUP -v2
+# ietf-datastores
+$SYSREPOCTL -i $MODDIR/ietf-datastores@2017-08-17.yang -v2
+# ietf-netconf-nmda
+$SYSREPOCTL -i $MODDIR/ietf-netconf-nmda@2019-01-07.yang -e origin -e with-defaults -s $MODDIR -v2
 # notification modules
 $SYSREPOCTL -i $MODDIR/nc-notifications@2008-07-14.yang -s $MODDIR -v2
 $SYSREPOCTL -c nc-notifications -o $OWNER -g $GROUP -v2

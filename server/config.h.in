@@ -86,4 +86,8 @@
 # define ATOMIC_LOAD_RELAXED(var) ATOMIC_LOAD_FENCE(var)
 #endif
 
+/** @brief unused compiler attribute
+ */
+#define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
+
 #endif /* NP2SRV_CONFIG_H_ */
