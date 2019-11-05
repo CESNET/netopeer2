@@ -170,7 +170,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
 
     /* origin */
     nodeset = lyd_find_path(input, "with-origin");
-    leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
+    leaf = nodeset->number ? (struct lyd_node_leaf_list *)nodeset->set.d[0] : NULL;
     ly_set_free(nodeset);
     if (leaf) {
         get_opts |= SR_OPER_WITH_ORIGIN;
@@ -260,11 +260,11 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
     nodeset = lyd_find_path(input, "datastore");
     leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
     ly_set_free(nodeset);
-    if (!strcmp(leaf->value_str, "running")) {
+    if (!strcmp(leaf->value.ident->name, "running")) {
         ds = SR_DS_RUNNING;
-    } else if (!strcmp(leaf->value_str, "startup")) {
+    } else if (!strcmp(leaf->value.ident->name, "startup")) {
         ds = SR_DS_STARTUP;
-    } else if (!strcmp(leaf->value_str, "candidate")) {
+    } else if (!strcmp(leaf->value.ident->name, "candidate")) {
         ds = SR_DS_CANDIDATE;
     } else {
         rc = SR_ERR_INVAL_ARG;
