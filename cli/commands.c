@@ -1078,6 +1078,64 @@ cmd_getschema_help(void)
 }
 
 void
+cmd_getdata_help(void)
+{
+    const struct lys_module *mod;
+    const char *defaults, *xpath;
+    int origin;
+
+    if (session && !(mod = ly_ctx_get_module(nc_session_get_ctx(session), "ietf-netconf-nmda", NULL, 1))) {
+        printf("get-data is not supported by the current session.\n");
+        return;
+    }
+
+    if (!session || nc_session_cpblt(session, NC_CAP_WITHDEFAULTS_ID)) {
+        defaults = " [--defaults report-all|report-all-tagged|trim|explicit]";
+    } else {
+        defaults = "";
+    }
+
+    if (!session || nc_session_cpblt(session, NC_CAP_XPATH_ID)) {
+        xpath = " | --filter-xpath <XPath>";
+    } else {
+        xpath = "";
+    }
+
+    if (mod && !lys_features_state(mod, "origin")) {
+        origin = 0;
+    } else {
+        origin = 1;
+    }
+
+    fprintf(stdout, "get-data [--help] --datastore running|startup|candidate|operational [--filter-subtree[=<file>]%s]"
+                    " [--config true|false]%s [--depth <subtree-depth>]%s%s [--out <file>]\n",
+            xpath, origin ? " [--origin <origin>]* [--negated-origin]" : "", origin ? " [--with-origin]" : "", defaults);
+}
+
+void
+cmd_editdata_help(void)
+{
+    const struct lys_module *mod;
+    const char *url, *bracket;
+
+    if (session && !(mod = ly_ctx_get_module(nc_session_get_ctx(session), "ietf-netconf-nmda", NULL, 1))) {
+        printf("edit-data is not supported by the current session.\n");
+        return;
+    }
+
+    if (!session || nc_session_cpblt(session, NC_CAP_URL_ID)) {
+        url = " | --url <url>)";
+        bracket = "(";
+    } else {
+        url = "";
+        bracket = "";
+    }
+
+    fprintf(stdout, "edit-data [--help] --datastore running|startup|candidate %s--config[=<file>]%s"
+                    " [--defop merge|replace|none]\n", bracket, url);
+}
+
+void
 cmd_userrpc_help(void)
 {
     printf("user-rpc [--help] [--content <file>] [--out <file>]\n");
@@ -4557,6 +4615,414 @@ fail:
 }
 
 int
+cmd_getdata(const char *arg, char **tmp_config_file)
+{
+    int c, config_fd, ret = EXIT_FAILURE, filter_param = 0, origin_count = 0, negated_origin = 0, depth = 0, with_origin = 0;
+    struct stat config_stat;
+    char *filter = NULL, *config_m = NULL, *datastore = NULL, *config = NULL, **origin = NULL, *ptr;
+    struct nc_rpc *rpc;
+    NC_WD_MODE wd = NC_WD_UNKNOWN;
+    FILE *output = NULL;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"datastore", 1, 0, 'd'},
+            {"filter-subtree", 2, 0, 's'},
+            {"filter-xpath", 1, 0, 'x'},
+            {"config", 1, 0, 'c'},
+            {"origin", 1, 0, 'r'},
+            {"negated-origin", 0, 0, 'n'},
+            {"depth", 1, 0, 'e'},
+            {"with-origin", 0, 0, 'w'},
+            {"defaults", 1, 0, 'f'},
+            {"out", 1, 0, 'o'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
+
+    while ((c = getopt_long(cmd.count, cmd.list, "hd:s::x:c:r:ne:wf:o:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_getconfig_help();
+            ret = EXIT_SUCCESS;
+            goto fail;
+        case 'd':
+            if (datastore) {
+                ERROR(__func__, "Datastore was already specified.");
+                goto fail;
+            }
+
+            if (!strcmp(optarg, "running")) {
+                datastore = "ietf-datastores:running";
+            } else if (!strcmp(optarg, "startup")) {
+                datastore = "ietf-datastores:startup";
+            } else if (!strcmp(optarg, "candidate")) {
+                datastore = "ietf-datastores:candidate";
+            } else if (!strcmp(optarg, "operational")) {
+                datastore = "ietf-datastores:operational";
+            } else {
+                ERROR(__func__, "Invalid datastore specified (%s).", optarg);
+                goto fail;
+            }
+            break;
+        case 's':
+            /* check if -x was not used */
+            if (filter_param) {
+                ERROR(__func__, "Mixing --filter-subtree, and --filter-xpath parameters is not allowed.");
+                goto fail;
+            }
+
+            filter_param = 1;
+
+            if (optarg) {
+                /* open edit configuration data from the file */
+                config_fd = open(optarg, O_RDONLY);
+                if (config_fd == -1) {
+                    ERROR(__func__, "Unable to open the local datastore file \"%s\" (%s).", optarg, strerror(errno));
+                    goto fail;
+                }
+
+                /* map content of the file into the memory */
+                if (fstat(config_fd, &config_stat) != 0) {
+                    ERROR(__func__, "fstat failed (%s).", strerror(errno));
+                    close(config_fd);
+                    goto fail;
+                }
+                config_m = mmap(NULL, config_stat.st_size, PROT_READ, MAP_PRIVATE, config_fd, 0);
+                if (config_m == MAP_FAILED) {
+                    ERROR(__func__, "mmap of the local datastore file failed (%s).", strerror(errno));
+                    close(config_fd);
+                    goto fail;
+                }
+
+                /* make a copy of the content to allow closing the file */
+                filter = strdup(config_m);
+
+                /* unmap local datastore file and close it */
+                munmap(config_m, config_stat.st_size);
+                close(config_fd);
+            }
+            break;
+        case 'x':
+            /* check if -s was not used */
+            if (filter_param) {
+                ERROR(__func__, "Mixing --filter-subtree, and --filter-xpath parameters is not allowed.");
+                goto fail;
+            }
+
+            filter_param = 1;
+
+            filter = strdup(optarg);
+            break;
+        case 'c':
+            if (config) {
+                ERROR(__func__, "Config filter was already specified.");
+                goto fail;
+            }
+
+            if (!strcmp(optarg, "true") || !strcmp(optarg, "false")) {
+                config = optarg;
+            } else {
+                ERROR(__func__, "Invalid config filter specified (%s).", optarg);
+                goto fail;
+            }
+            break;
+        case 'r':
+            origin = realloc(origin, (origin_count + 1) * sizeof *origin);
+            asprintf(&origin[origin_count], "ietf-origin:%s", optarg);
+            ++origin_count;
+            break;
+        case 'n':
+            negated_origin = 1;
+            break;
+        case 'e':
+            depth = strtoul(optarg, &ptr, 10);
+            if (ptr[0]) {
+                ERROR(__func__, "Invalid depth specified (%s).", optarg);
+                goto fail;
+            }
+            break;
+        case 'w':
+            with_origin = 1;
+            break;
+        case 'f':
+            if (!strcmp(optarg, "report-all")) {
+                wd = NC_WD_ALL;
+            } else if (!strcmp(optarg, "report-all-tagged")) {
+                wd = NC_WD_ALL_TAG;
+            } else if (!strcmp(optarg, "trim")) {
+                wd = NC_WD_TRIM;
+            } else if (!strcmp(optarg, "explicit")) {
+                wd = NC_WD_EXPLICIT;
+            } else {
+                ERROR(__func__, "Unknown with-defaults mode \"%s\".", optarg);
+                goto fail;
+            }
+            break;
+        case 'o':
+            if (output) {
+                ERROR(__func__, "Duplicated \"out\" option.");
+                cmd_getconfig_help();
+                goto fail;
+            }
+            output = fopen(optarg, "w");
+            if (!output) {
+                ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
+                goto fail;
+            }
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_getconfig_help();
+            goto fail;
+        }
+    }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_getconfig_help();
+        goto fail;
+    }
+
+    if (!datastore) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_getconfig_help();
+        goto fail;
+    }
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
+        goto fail;
+    }
+
+    /* check if edit configuration data were specified */
+    if (filter_param && !filter) {
+        /* let user write edit data interactively */
+        filter = readinput("Type the content of the subtree filter.", *tmp_config_file, tmp_config_file);
+        if (!filter) {
+            ERROR(__func__, "Reading filter data failed.");
+            goto fail;
+        }
+    }
+
+    /* create requests */
+    rpc = nc_rpc_getdata(datastore, filter, config, origin, origin_count, negated_origin, depth, with_origin, wd,
+                         NC_PARAMTYPE_CONST);
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        goto fail;
+    }
+
+    if (output) {
+        ret = cli_send_recv(rpc, output, wd);
+    } else {
+        ret = cli_send_recv(rpc, stdout, wd);
+    }
+
+    nc_rpc_free(rpc);
+
+fail:
+    clear_arglist(&cmd);
+    if (output) {
+        fclose(output);
+    }
+    free(filter);
+    for (c = 0; c < origin_count; ++c) {
+        free(origin[c]);
+    }
+    free(origin);
+    return ret;
+}
+
+int
+cmd_editdata(const char *arg, char **tmp_config_file)
+{
+    int c, config_fd, ret = EXIT_FAILURE, content_param = 0;
+    struct stat config_stat;
+    char *content = NULL, *config_m = NULL, *cont_start, *datastore = NULL;
+    struct nc_rpc *rpc;
+    NC_RPC_EDIT_DFLTOP op = NC_RPC_EDIT_DFLTOP_UNKNOWN;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"datastore", 1, 0, 'd'},
+            {"defop", 1, 0, 'o'},
+            {"config", 2, 0, 'c'},
+            {"url", 1, 0, 'u'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
+
+    while ((c = getopt_long(cmd.count, cmd.list, "hd:o:c::u:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_editconfig_help();
+            ret = EXIT_SUCCESS;
+            goto fail;
+        case 'd':
+            if (datastore) {
+                ERROR(__func__, "Datastore was already specified.");
+                goto fail;
+            }
+
+            if (!strcmp(optarg, "running")) {
+                datastore = "ietf-datastores:running";
+            } else if (!strcmp(optarg, "startup")) {
+                datastore = "ietf-datastores:startup";
+            } else if (!strcmp(optarg, "candidate")) {
+                datastore = "ietf-datastores:candidate";
+            } else if (!strcmp(optarg, "operational")) {
+                datastore = "ietf-datastores:operational";
+            } else {
+                ERROR(__func__, "Invalid datastore specified (%s).", optarg);
+                goto fail;
+            }
+            break;
+        case 'o':
+            if (!strcmp(optarg, "merge")) {
+                op = NC_RPC_EDIT_DFLTOP_MERGE;
+            } else if (!strcmp(optarg, "replace")) {
+                op = NC_RPC_EDIT_DFLTOP_REPLACE;
+            } else if (!strcmp(optarg, "none")) {
+                op = NC_RPC_EDIT_DFLTOP_NONE;
+            } else {
+                ERROR(__func__, "Invalid default operation specified (%s).", optarg);
+                goto fail;
+            }
+            break;
+        case 'c':
+            /* check if -u was not used */
+            if (content_param) {
+                ERROR(__func__, "Mixing --url and --config parameters is not allowed.");
+                goto fail;
+            }
+
+            content_param = 1;
+
+            if (optarg) {
+                /* open edit configuration data from the file */
+                config_fd = open(optarg, O_RDONLY);
+                if (config_fd == -1) {
+                    ERROR(__func__, "Unable to open the local datastore file \"%s\" (%s).", optarg, strerror(errno));
+                    goto fail;
+                }
+
+                /* map content of the file into the memory */
+                if (fstat(config_fd, &config_stat) != 0) {
+                    ERROR(__func__, "fstat failed (%s).", strerror(errno));
+                    close(config_fd);
+                    goto fail;
+                }
+                config_m = mmap(NULL, config_stat.st_size, PROT_READ, MAP_PRIVATE, config_fd, 0);
+                if (config_m == MAP_FAILED) {
+                    ERROR(__func__, "mmap of the local datastore file failed (%s).", strerror(errno));
+                    close(config_fd);
+                    goto fail;
+                }
+
+                /* make a copy of the content to allow closing the file */
+                content = strdup(config_m);
+
+                /* unmap local datastore file and close it */
+                munmap(config_m, config_stat.st_size);
+                close(config_fd);
+            }
+            break;
+        case 'u':
+            /* check if -c was not used */
+            if (content_param) {
+                ERROR(__func__, "Mixing --url and --config parameters is not allowed.");
+                goto fail;
+            }
+
+            content_param = 1;
+
+            content = strdup(optarg);
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_editconfig_help();
+            goto fail;
+        }
+    }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_editconfig_help();
+        goto fail;
+    }
+
+    if (!datastore || !content_param) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_editconfig_help();
+        goto fail;
+    }
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
+        goto fail;
+    }
+
+    /* check if edit configuration data were specified */
+    if (!content) {
+        /* let user write edit data interactively */
+        content = readinput("Type the content of the <edit-data>.", *tmp_config_file, tmp_config_file);
+        if (!content) {
+            ERROR(__func__, "Reading configuration data failed.");
+            goto fail;
+        }
+    }
+
+    /* trim top-level element if needed */
+    cont_start = trim_top_elem(content, "config", "urn:ietf:params:xml:ns:netconf:base:1.0");
+    if (!cont_start) {
+        ERROR(__func__, "Provided configuration content is invalid.");
+        goto fail;
+    }
+
+    rpc = nc_rpc_editdata(datastore, op, cont_start, NC_PARAMTYPE_CONST);
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        goto fail;
+    }
+
+    ret = cli_send_recv(rpc, stdout, 0);
+
+    nc_rpc_free(rpc);
+
+fail:
+    clear_arglist(&cmd);
+    free(content);
+    return ret;
+}
+
+int
 cmd_userrpc(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE;
@@ -4746,7 +5212,9 @@ COMMAND commands[] = {
         {"validate", cmd_validate, cmd_validate_help, "ietf-netconf <validate> operation"},
         {"subscribe", cmd_subscribe, cmd_subscribe_help, "notifications <create-subscription> operation"},
         {"get-schema", cmd_getschema, cmd_getschema_help, "ietf-netconf-monitoring <get-schema> operation"},
-        {"user-rpc", cmd_userrpc, cmd_userrpc_help, "Send your own content in an RPC envelope (for DEBUG purposes)"},
+        {"get-data", cmd_getdata, cmd_getdata_help, "ietf-netconf-nmda <get-data> operation"},
+        {"edit-data", cmd_editdata, cmd_editdata_help, "ietf-netconf-nmda <edit-data> operation"},
+        {"user-rpc", cmd_userrpc, cmd_userrpc_help, "Send your own content in an RPC envelope"},
         {"timed", cmd_timed, cmd_timed_help, "Time all the commands (that communicate with a server) from issuing a RPC to getting a reply"},
         /* synonyms for previous commands */
         {"?", cmd_help, NULL, "Display commands description"},
