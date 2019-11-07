@@ -85,7 +85,10 @@ install(FILES ${PROJECT_SOURCE_DIR}/doc/${PROJECT_NAME}.1 DESTINATION ${CMAKE_IN
 
 # clean cmake cache
 add_custom_target(cleancache
-                  COMMAND make clean
-                  COMMAND find . -iname '*cmake*' -not -name CMakeLists.txt -exec rm -rf {} +
-                  COMMAND rm -rf Makefile Doxyfile
-                  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    COMMAND make clean
+    COMMAND find . -iname '*cmake*' -not -name CMakeLists.txt -exec rm -rf {} +
+    COMMAND rm -rf Makefile Doxyfile
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+# uninstall
+add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_MODULE_PATH}/uninstall.cmake")
