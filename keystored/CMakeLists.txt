@@ -154,3 +154,6 @@ add_custom_target(install-scripts-ide
 
 # plugins should be installed into sysrepo plugins dir
 install(TARGETS keystored DESTINATION ${SR_PLUGINS_DIR})
+
+# uninstall
+add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_MODULE_PATH}/uninstall.cmake")
