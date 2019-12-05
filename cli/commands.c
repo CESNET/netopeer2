@@ -46,6 +46,7 @@
 #include "completion.h"
 
 #define CLI_CH_TIMEOUT 60 /* 1 minute */
+#define CLI_RPC_REPLY_TIMEOUT 5 /* 5 seconds */
 
 #define NC_CAP_WRITABLERUNNING_ID "urn:ietf:params:netconf:capability:writable-running"
 #define NC_CAP_CANDIDATE_ID       "urn:ietf:params:netconf:capability:candidate"
@@ -272,7 +273,7 @@ cli_difftimespec(const struct timespec *ts1, const struct timespec *ts2)
 }
 
 static int
-cli_send_recv(struct nc_rpc *rpc, FILE *output, NC_WD_MODE wd_mode)
+cli_send_recv(struct nc_rpc *rpc, FILE *output, NC_WD_MODE wd_mode, int timeout_s)
 {
     char *str, *model_data;
     int ret = 0, ly_wd, mono;
@@ -307,7 +308,7 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output, NC_WD_MODE wd_mode)
     }
 
 recv_reply:
-    msgtype = nc_recv_reply(session, rpc, msgid, 20000,
+    msgtype = nc_recv_reply(session, rpc, msgid, timeout_s * 1000,
                             LYD_OPT_DESTRUCT | LYD_OPT_NOSIBLINGS, &reply);
     if (msgtype == NC_MSG_ERROR) {
         ERROR(__func__, "Failed to receive a reply.");
@@ -724,7 +725,7 @@ cmd_cancelcommit_help(void)
     if (session && !nc_session_cpblt(session, NC_CAP_CONFIRMEDCOMMIT_ID)) {
         printf("cancel-commit is not supported by the current session.\n");
     } else {
-        printf("cancel-commit [--help] [--persist-id <commit-id>]\n");
+        printf("cancel-commit [--help] [--persist-id <commit-id>] [--rpc-timeout <seconds>]\n");
     }
 }
 
@@ -743,7 +744,7 @@ cmd_commit_help(void)
     } else {
         confirmed = "";
     }
-    printf("commit [--help]%s\n", confirmed);
+    printf("commit [--help]%s [--rpc-timeout <seconds>]\n", confirmed);
 }
 
 void
@@ -809,7 +810,7 @@ cmd_copyconfig_help(void)
         }
     }
 
-    printf("copy-config [--help] --target %s%s%s%s (--source %s%s%s%s | --src-config[=<file>])%s\n",
+    printf("copy-config [--help] --target %s%s%s%s (--source %s%s%s%s | --src-config[=<file>])%s [--rpc-timeout <seconds>]\n",
            running, startup, candidate, url,
            running, startup, candidate, url, defaults);
 }
@@ -841,14 +842,14 @@ cmd_deleteconfig_help(void)
         return;
     }
 
-    printf("delete-config [--help] --target %s%s\n", startup, url);
+    printf("delete-config [--help] --target %s%s [--rpc-timeout <seconds>]\n", startup, url);
 }
 
 void
 cmd_discardchanges_help(void)
 {
     if (!session || nc_session_cpblt(session, NC_CAP_CANDIDATE_ID)) {
-        printf("discard-changes [--help]\n");
+        printf("discard-changes [--help] [--rpc-timeout <seconds>]\n");
     } else {
         printf("discard-changes is not supported by the current session.\n");
     }
@@ -903,7 +904,7 @@ cmd_editconfig_help(void)
     }
 
     printf("edit-config [--help] --target %s%s %s--config[=<file>]%s [--defop merge|replace|none] "
-           "%s[--error stop|continue%s]\n", running, candidate, bracket, url, validate, rollback);
+           "%s[--error stop|continue%s] [--rpc-timeout <seconds>]\n", running, candidate, bracket, url, validate, rollback);
 }
 
 void
@@ -923,7 +924,7 @@ cmd_get_help(void)
         xpath = "";
     }
 
-    fprintf(stdout, "get [--help] [--filter-subtree[=<file>]%s] %s[--out <file>]\n", xpath, defaults);
+    fprintf(stdout, "get [--help] [--filter-subtree[=<file>]%s] %s[--out <file>] [--rpc-timeout <seconds>]\n", xpath, defaults);
 }
 
 void
@@ -956,14 +957,14 @@ cmd_getconfig_help(void)
         candidate = "";
     }
 
-    printf("get-config [--help] --source running%s%s [--filter-subtree[=<file>]%s] %s[--out <file>]\n",
+    printf("get-config [--help] --source running%s%s [--filter-subtree[=<file>]%s] %s[--out <file>] [--rpc-timeout <seconds>]\n",
            startup, candidate, xpath, defaults);
 }
 
 void
 cmd_killsession_help(void)
 {
-    printf("killsession [--help] --sid <sesion-ID>\n");
+    printf("killsession [--help] --sid <sesion-ID> [--rpc-timeout <seconds>]\n");
 }
 
 void
@@ -983,7 +984,7 @@ cmd_lock_help(void)
         candidate = "";
     }
 
-    printf("lock [--help] --target running%s%s\n", startup, candidate);
+    printf("lock [--help] --target running%s%s [--rpc-timeout <seconds>]\n", startup, candidate);
 }
 
 void
@@ -1003,7 +1004,7 @@ cmd_unlock_help(void)
         candidate = "";
     }
 
-    printf("unlock [--help] --target running%s%s\n", startup, candidate);
+    printf("unlock [--help] --target running%s%s [--rpc-timeout <seconds>]\n", startup, candidate);
 }
 
 void
@@ -1039,7 +1040,7 @@ cmd_validate_help(void)
             url = "";
         }
     }
-    printf("validate [--help] (--source running%s%s%s | --src-config[=<file>])\n",
+    printf("validate [--help] (--source running%s%s%s | --src-config[=<file>]) [--rpc-timeout <seconds>]\n",
            startup, candidate, url);
 }
 
@@ -1059,7 +1060,8 @@ cmd_subscribe_help(void)
         xpath = "";
     }
 
-    printf("subscribe [--help] [--filter-subtree[=<file>]%s] [--begin <time>] [--end <time>] [--stream <stream>] [--out <file>]\n", xpath);
+    printf("subscribe [--help] [--filter-subtree[=<file>]%s] [--begin <time>] [--end <time>] [--stream <stream>] [--out <file>]"
+           " [--rpc-timeout <seconds>]\n", xpath);
     printf("\t<time> has following format:\n");
     printf("\t\t+<num>  - current time plus the given number of seconds.\n");
     printf("\t\t<num>   - absolute time as number of seconds since 1970-01-01.\n");
@@ -1074,13 +1076,13 @@ cmd_getschema_help(void)
         return;
     }
 
-    printf("get-schema [--help] --model <identifier> [--version <version>] [--format <format>] [--out <file>]\n");
+    printf("get-schema [--help] --model <identifier> [--version <version>] [--format <format>] [--out <file>] [--rpc-timeout <seconds>]\n");
 }
 
 void
 cmd_userrpc_help(void)
 {
-    printf("user-rpc [--help] [--content <file>] [--out <file>]\n");
+    printf("user-rpc [--help] [--content <file>] [--out <file>] [--rpc-timeout <seconds>]\n");
 }
 
 void
@@ -2802,12 +2804,13 @@ int
 cmd_cancelcommit(const char *arg, char **UNUSED(tmp_config_file))
 {
     struct nc_rpc *rpc;
-    int c, ret = EXIT_FAILURE;
+    int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
     const char *persist_id = NULL;
     struct arglist cmd;
     struct option long_options[] = {
             {"help", 0, 0, 'h'},
             {"persist-id", 1, 0, 'i'},
+            {"rpc-timeout", 1, 0, 'r'},
             {0, 0, 0, 0}
     };
     int option_index = 0;
@@ -2821,7 +2824,7 @@ cmd_cancelcommit(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    while ((c = getopt_long(cmd.count, cmd.list, "hi:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd.count, cmd.list, "hi:r:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_cancelcommit_help();
@@ -2829,6 +2832,13 @@ cmd_cancelcommit(const char *arg, char **UNUSED(tmp_config_file))
             goto fail;
         case 'i':
             persist_id = optarg;
+            break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
             break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
@@ -2860,7 +2870,7 @@ cmd_cancelcommit(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0);
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -2873,7 +2883,7 @@ int
 cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
 {
     struct nc_rpc *rpc;
-    int c, ret = EXIT_FAILURE, confirmed = 0;
+    int c, ret = EXIT_FAILURE, confirmed = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
     int32_t confirm_timeout = 0;
     char *persist = NULL, *persist_id = NULL;
     struct arglist cmd;
@@ -2883,6 +2893,7 @@ cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
             {"confirm-timeout", 1, 0, 't'},
             {"persist", 1, 0, 'p'},
             {"persist-id", 1, 0, 'i'},
+            {"rpc-timeout", 1, 0, 'r'},
             {0, 0, 0, 0}
     };
     int option_index = 0;
@@ -2896,7 +2907,7 @@ cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    while ((c = getopt_long(cmd.count, cmd.list, "hct:p:i:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd.count, cmd.list, "hct:p:i:r:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_commit_help();
@@ -2913,6 +2924,13 @@ cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
             break;
         case 'i':
             persist_id = optarg;
+            break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
             break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
@@ -2943,7 +2961,7 @@ cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0);
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -2955,7 +2973,7 @@ fail:
 int
 cmd_copyconfig(const char *arg, char **tmp_config_file)
 {
-    int c, config_fd, ret = EXIT_FAILURE;
+    int c, config_fd, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct stat config_stat;
     char *src = NULL, *config_m = NULL, *src_start = NULL;
     const char *trg = NULL;
@@ -2969,6 +2987,7 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
             {"source", 1, 0, 's'},
             {"src-config", 2, 0, 'c'},
             {"defaults", 1, 0, 'd'},
+            {"rpc-timeout", 1, 0, 'r'},
             {0, 0, 0, 0}
     };
     int option_index = 0;
@@ -2981,7 +3000,7 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
         return EXIT_FAILURE;
     }
 
-    while ((c = getopt_long(cmd.count, cmd.list, "ht:s:c::d:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd.count, cmd.list, "ht:s:c::d:r:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_copyconfig_help();
@@ -3077,6 +3096,13 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
                 goto fail;
             }
             break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
+            break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
             cmd_copyconfig_help();
@@ -3132,7 +3158,7 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0);
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -3146,7 +3172,7 @@ fail:
 int
 cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
 {
-    int c, ret = EXIT_FAILURE;
+    int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
     const char *trg = NULL;
     struct nc_rpc *rpc;
     NC_DATASTORE target = NC_DATASTORE_ERROR;;
@@ -3154,6 +3180,7 @@ cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
     struct option long_options[] = {
             {"help", 0, 0, 'h'},
             {"target", 1, 0, 't'},
+            {"rpc-timeout", 1, 0, 'r'},
             {0, 0, 0, 0}
     };
     int option_index = 0;
@@ -3166,7 +3193,7 @@ cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    while ((c = getopt_long(cmd.count, cmd.list, "ht:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd.count, cmd.list, "ht:r:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_deleteconfig_help();
@@ -3180,6 +3207,13 @@ cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
                 trg = &(optarg[4]);
             } else {
                 ERROR(__func__, "Invalid source datastore specified (%s).", optarg);
+                goto fail;
+            }
+            break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
                 goto fail;
             }
             break;
@@ -3219,7 +3253,7 @@ cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0);
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -3232,10 +3266,11 @@ int
 cmd_discardchanges(const char *arg, char **UNUSED(tmp_config_file))
 {
     struct nc_rpc *rpc;
-    int c, ret;
+    int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct arglist cmd;
     struct option long_options[] = {
             {"help", 0, 0, 'h'},
+            {"rpc-timeout", 1, 0, 'r'},
             {0, 0, 0, 0}
     };
     int option_index = 0;
@@ -3249,55 +3284,62 @@ cmd_discardchanges(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    while ((c = getopt_long(cmd.count, cmd.list, "h", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd.count, cmd.list, "hr:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_discardchanges_help();
-            clear_arglist(&cmd);
-            return EXIT_SUCCESS;
+            ret = EXIT_SUCCESS;
+            goto fail;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
+            break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
             cmd_discardchanges_help();
-            clear_arglist(&cmd);
-            return EXIT_FAILURE;
+            goto fail;
         }
     }
 
     if (cmd.list[optind]) {
         ERROR(__func__, "Unparsed command arguments.");
         cmd_discardchanges_help();
-        clear_arglist(&cmd);
-        return EXIT_FAILURE;
+        goto fail;
     }
-
-    clear_arglist(&cmd);
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     if (!interleave) {
         ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     rpc = nc_rpc_discard();
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0);
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
+
+fail:
+    clear_arglist(&cmd);
+
     return ret;
 }
 
 int
 cmd_editconfig(const char *arg, char **tmp_config_file)
 {
-    int c, config_fd, ret = EXIT_FAILURE, content_param = 0;
+    int c, config_fd, ret = EXIT_FAILURE, content_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct stat config_stat;
     char *content = NULL, *config_m = NULL, *cont_start;
     NC_DATASTORE target = NC_DATASTORE_ERROR;
@@ -3311,9 +3353,10 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
             {"target", 1, 0, 't'},
             {"defop", 1, 0, 'o'},
             {"test", 1, 0, 'e'},
-            {"error", 1, 0, 'r'},
+            {"error", 1, 0, 'E'},
             {"config", 2, 0, 'c'},
             {"url", 1, 0, 'u'},
+            {"rpc-timeout", 1, 0, 'r'},
             {0, 0, 0, 0}
     };
     int option_index = 0;
@@ -3326,7 +3369,7 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
         return EXIT_FAILURE;
     }
 
-    while ((c = getopt_long(cmd.count, cmd.list, "ht:o:e:r:c::u:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd.count, cmd.list, "ht:o:E:r:c::u:r:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_editconfig_help();
@@ -3367,7 +3410,7 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
                 goto fail;
             }
             break;
-        case 'r':
+        case 'E':
             if (!strcmp(optarg, "stop")) {
                 err = NC_RPC_EDIT_ERROPT_STOP;
             } else if (!strcmp(optarg, "continue")) {
@@ -3428,6 +3471,13 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
 
             content = strdup(optarg);
             break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
+            break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
             cmd_editconfig_help();
@@ -3480,7 +3530,7 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0);
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -3493,7 +3543,7 @@ fail:
 int
 cmd_get(const char *arg, char **tmp_config_file)
 {
-    int c, config_fd, ret = EXIT_FAILURE, filter_param = 0;
+    int c, config_fd, ret = EXIT_FAILURE, filter_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct stat config_stat;
     char *filter = NULL, *config_m = NULL;
     struct nc_rpc *rpc;
@@ -3506,6 +3556,7 @@ cmd_get(const char *arg, char **tmp_config_file)
             {"filter-xpath", 1, 0, 'x'},
             {"defaults", 1, 0, 'd'},
             {"out", 1, 0, 'o'},
+            {"rpc-timeout", 1, 0, 'r'},
             {0, 0, 0, 0}
     };
     int option_index = 0;
@@ -3518,7 +3569,7 @@ cmd_get(const char *arg, char **tmp_config_file)
         return EXIT_FAILURE;
     }
 
-    while ((c = getopt_long(cmd.count, cmd.list, "hs::x:d:o:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd.count, cmd.list, "hs::x:d:o:r:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_get_help();
@@ -3599,6 +3650,13 @@ cmd_get(const char *arg, char **tmp_config_file)
                 goto fail;
             }
             break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
+            break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
             cmd_get_help();
@@ -3640,9 +3698,9 @@ cmd_get(const char *arg, char **tmp_config_file)
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output, wd);
+        ret = cli_send_recv(rpc, output, wd, timeout);
     } else {
-        ret = cli_send_recv(rpc, stdout, wd);
+        ret = cli_send_recv(rpc, stdout, wd, timeout);
     }
 
     nc_rpc_free(rpc);
@@ -3659,7 +3717,7 @@ fail:
 int
 cmd_getconfig(const char *arg, char **tmp_config_file)
 {
-    int c, config_fd, ret = EXIT_FAILURE, filter_param = 0;
+    int c, config_fd, ret = EXIT_FAILURE, filter_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct stat config_stat;
     char *filter = NULL, *config_m = NULL;
     struct nc_rpc *rpc;
@@ -3674,6 +3732,7 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
             {"filter-xpath", 1, 0, 'x'},
             {"defaults", 1, 0, 'd'},
             {"out", 1, 0, 'o'},
+            {"rpc-timeout", 1, 0, 'r'},
             {0, 0, 0, 0}
     };
     int option_index = 0;
@@ -3686,7 +3745,7 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
         return EXIT_FAILURE;
     }
 
-    while ((c = getopt_long(cmd.count, cmd.list, "hu:s::x:d:o:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd.count, cmd.list, "hu:s::x:d:o:r:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_getconfig_help();
@@ -3779,6 +3838,13 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
                 goto fail;
             }
             break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
+            break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
             cmd_getconfig_help();
@@ -3826,9 +3892,9 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output, wd);
+        ret = cli_send_recv(rpc, output, wd, timeout);
     } else {
-        ret = cli_send_recv(rpc, stdout, wd);
+        ret = cli_send_recv(rpc, stdout, wd, timeout);
     }
 
     nc_rpc_free(rpc);
@@ -3846,12 +3912,13 @@ int
 cmd_killsession(const char *arg, char **UNUSED(tmp_config_file))
 {
     struct nc_rpc *rpc;
-    int c, ret;
+    int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
     uint32_t sid = 0;
     struct arglist cmd;
     struct option long_options[] = {
             {"help", 0, 0, 'h'},
             {"sid", 1, 0, 's'},
+            {"rpc-timeout", 1, 0, 'r'},
             {0, 0, 0, 0}
     };
     int option_index = 0;
@@ -3865,75 +3932,82 @@ cmd_killsession(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    while ((c = getopt_long(cmd.count, cmd.list, "hs:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd.count, cmd.list, "hs:r:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_killsession_help();
-            clear_arglist(&cmd);
-            return EXIT_SUCCESS;
+            ret = EXIT_SUCCESS;
+            goto fail;
         case 's':
             sid = atoi(optarg);
+            break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
             break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
             cmd_killsession_help();
-            clear_arglist(&cmd);
-            return EXIT_FAILURE;
+            goto fail;
         }
     }
 
     if (cmd.list[optind]) {
         ERROR(__func__, "Unparsed command arguments.");
         cmd_killsession_help();
-        clear_arglist(&cmd);
-        return EXIT_FAILURE;
+        goto fail;
     }
-
-    clear_arglist(&cmd);
 
     if (!sid) {
         ERROR(__func__, "Mandatory command arguments missing.");
         cmd_killsession_help();
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     if (!interleave) {
         ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     if (!sid) {
         ERROR(__func__, "Session ID was not specififed or not a number.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     rpc = nc_rpc_kill(sid);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0);
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
+
+fail:
+    clear_arglist(&cmd);
     return ret;
 }
 
 int
 cmd_lock(const char *arg, char **UNUSED(tmp_config_file))
 {
-    int c, ret;
+    int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct nc_rpc *rpc;
     NC_DATASTORE target = NC_DATASTORE_ERROR;;
     struct arglist cmd;
     struct option long_options[] = {
             {"help", 0, 0, 'h'},
             {"target", 1, 0, 't'},
+            {"rpc-timeout", 1, 0, 'r'},
             {0, 0, 0, 0}
     };
     int option_index = 0;
@@ -3946,12 +4020,12 @@ cmd_lock(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    while ((c = getopt_long(cmd.count, cmd.list, "ht:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd.count, cmd.list, "ht:r:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_lock_help();
-            clear_arglist(&cmd);
-            return EXIT_SUCCESS;
+            ret = EXIT_SUCCESS;
+            goto fail;
         case 't':
             if (!strcmp(optarg, "running")) {
                 target = NC_DATASTORE_RUNNING;
@@ -3961,66 +4035,72 @@ cmd_lock(const char *arg, char **UNUSED(tmp_config_file))
                 target = NC_DATASTORE_CANDIDATE;
             } else {
                 ERROR(__func__, "Invalid source datastore specified (%s).", optarg);
-                clear_arglist(&cmd);
-                return EXIT_FAILURE;
+                goto fail;
+            }
+            break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
             }
             break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
             cmd_lock_help();
-            clear_arglist(&cmd);
-            return EXIT_FAILURE;
+            goto fail;
         }
     }
 
     if (cmd.list[optind]) {
         ERROR(__func__, "Unparsed command arguments.");
         cmd_lock_help();
-        clear_arglist(&cmd);
-        return EXIT_FAILURE;
+        goto fail;
     }
-
-    clear_arglist(&cmd);
 
     if (!target) {
         ERROR(__func__, "Mandatory command arguments missing.");
         cmd_lock_help();
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     if (!interleave) {
         ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     /* create requests */
     rpc = nc_rpc_lock(target);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0);
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
+
+fail:
+    clear_arglist(&cmd);
     return ret;
 }
 
 int
 cmd_unlock(const char *arg, char **UNUSED(tmp_config_file))
 {
-    int c, ret;
+    int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct nc_rpc *rpc;
     NC_DATASTORE target = NC_DATASTORE_ERROR;;
     struct arglist cmd;
     struct option long_options[] = {
             {"help", 0, 0, 'h'},
             {"target", 1, 0, 't'},
+            {"rpc-timeout", 1, 0, 'r'},
             {0, 0, 0, 0}
     };
     int option_index = 0;
@@ -4033,12 +4113,12 @@ cmd_unlock(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    while ((c = getopt_long(cmd.count, cmd.list, "ht:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd.count, cmd.list, "ht:r:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_unlock_help();
-            clear_arglist(&cmd);
-            return EXIT_SUCCESS;
+            ret = EXIT_SUCCESS;
+            goto fail;
         case 't':
             if (!strcmp(optarg, "running")) {
                 target = NC_DATASTORE_RUNNING;
@@ -4048,60 +4128,65 @@ cmd_unlock(const char *arg, char **UNUSED(tmp_config_file))
                 target = NC_DATASTORE_CANDIDATE;
             } else {
                 ERROR(__func__, "Invalid source datastore specified (%s).", optarg);
-                clear_arglist(&cmd);
-                return EXIT_FAILURE;
+                goto fail;
+            }
+            break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
             }
             break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
             cmd_unlock_help();
-            clear_arglist(&cmd);
-            return EXIT_FAILURE;
+            goto fail;
         }
     }
 
     if (cmd.list[optind]) {
         ERROR(__func__, "Unparsed command arguments.");
         cmd_unlock_help();
-        clear_arglist(&cmd);
-        return EXIT_FAILURE;
+        goto fail;
     }
-
-    clear_arglist(&cmd);
 
     if (!target) {
         ERROR(__func__, "Mandatory command arguments missing.");
         cmd_unlock_help();
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     if (!interleave) {
         ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     /* create requests */
     rpc = nc_rpc_unlock(target);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
-        return EXIT_FAILURE;
+        goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0);
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
+
+fail:
+    clear_arglist(&cmd);
     return ret;
 }
 
 int
 cmd_validate(const char *arg, char **tmp_config_file)
 {
-    int c, config_fd, ret = EXIT_FAILURE;
+    int c, config_fd, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct stat config_stat;
     char *src = NULL, *config_m = NULL, *src_start;
     NC_DATASTORE source = NC_DATASTORE_ERROR;
@@ -4111,6 +4196,7 @@ cmd_validate(const char *arg, char **tmp_config_file)
             {"help", 0, 0, 'h'},
             {"source", 1, 0, 's'},
             {"src-config", 2, 0, 'c'},
+            {"rpc-timeout", 1, 0, 'r'},
             {0, 0, 0, 0}
     };
     int option_index = 0;
@@ -4123,7 +4209,7 @@ cmd_validate(const char *arg, char **tmp_config_file)
         return EXIT_FAILURE;
     }
 
-    while ((c = getopt_long(cmd.count, cmd.list, "hs:c::", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd.count, cmd.list, "hs:c::r:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_validate_help();
@@ -4189,6 +4275,13 @@ cmd_validate(const char *arg, char **tmp_config_file)
                 close(config_fd);
             }
             break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
+            break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
             cmd_validate_help();
@@ -4246,7 +4339,7 @@ cmd_validate(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0);
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -4259,7 +4352,7 @@ fail:
 int
 cmd_subscribe(const char *arg, char **tmp_config_file)
 {
-    int c, config_fd, ret = EXIT_FAILURE, filter_param = 0;
+    int c, config_fd, ret = EXIT_FAILURE, filter_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct stat config_stat;
     char *filter = NULL, *config_m = NULL, *start = NULL, *stop = NULL;
     const char *stream = NULL;
@@ -4275,6 +4368,7 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
             {"end", 1, 0, 'e'},
             {"stream", 1, 0, 't'},
             {"out", 1, 0, 'o'},
+            {"rpc-timeout", 1, 0, 'r'},
             {0, 0, 0, 0}
     };
     int option_index = 0;
@@ -4287,7 +4381,7 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
         return EXIT_FAILURE;
     }
 
-    while ((c = getopt_long(cmd.count, cmd.list, "hs::x:b:e:t:o:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd.count, cmd.list, "hs::x:b:e:t:o:r:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_subscribe_help();
@@ -4377,6 +4471,13 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
                 goto fail;
             }
             break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
+            break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
             cmd_subscribe_help();
@@ -4417,7 +4518,7 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0);
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
     nc_rpc_free(rpc);
 
     if (ret) {
@@ -4457,7 +4558,7 @@ fail:
 int
 cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
 {
-    int c, ret = EXIT_FAILURE;
+    int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
     const char *model = NULL, *version = NULL, *format = NULL;
     struct nc_rpc *rpc;
     FILE *output = NULL;
@@ -4468,6 +4569,7 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
             {"version", 1, 0, 'v'},
             {"format", 1, 0, 'f'},
             {"out", 1, 0, 'o'},
+            {"rpc-timeout", 1, 0, 'r'},
             {0, 0, 0, 0}
     };
     int option_index = 0;
@@ -4480,7 +4582,7 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    while ((c = getopt_long(cmd.count, cmd.list, "hm:v:f:o:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd.count, cmd.list, "hm:v:f:o:r:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_getschema_help();
@@ -4504,6 +4606,13 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
             output = fopen(optarg, "w");
             if (!output) {
                 ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
+                goto fail;
+            }
+            break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
                 goto fail;
             }
             break;
@@ -4543,9 +4652,9 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output, 0);
+        ret = cli_send_recv(rpc, output, 0, timeout);
     } else {
-        ret = cli_send_recv(rpc, stdout, 0);
+        ret = cli_send_recv(rpc, stdout, 0, timeout);
     }
 
     nc_rpc_free(rpc);
@@ -4561,7 +4670,7 @@ fail:
 int
 cmd_userrpc(const char *arg, char **tmp_config_file)
 {
-    int c, config_fd, ret = EXIT_FAILURE;
+    int c, config_fd, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct stat config_stat;
     char *content = NULL, *config_m = NULL;
     struct nc_rpc *rpc;
@@ -4571,6 +4680,7 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
             {"help", 0, 0, 'h'},
             {"content", 1, 0, 'c'},
             {"out", 1, 0, 'o'},
+            {"rpc-timeout", 1, 0, 'r'},
             {0, 0, 0, 0}
     };
     int option_index = 0;
@@ -4583,7 +4693,7 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
         return EXIT_FAILURE;
     }
 
-    while ((c = getopt_long(cmd.count, cmd.list, "ht:s:c::d:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd.count, cmd.list, "ht:s:c::d:r:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_userrpc_help();
@@ -4634,6 +4744,13 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
                 goto fail;
             }
             break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
+            break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
             cmd_userrpc_help();
@@ -4675,9 +4792,9 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output, 0);
+        ret = cli_send_recv(rpc, output, 0, timeout);
     } else {
-        ret = cli_send_recv(rpc, stdout, 0);
+        ret = cli_send_recv(rpc, stdout, 0, timeout);
     }
 
     nc_rpc_free(rpc);
