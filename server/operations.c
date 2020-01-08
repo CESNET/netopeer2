@@ -2956,6 +2956,49 @@ op_sr2ly_get_cache_parent(const char *xpath, struct sr2ly_cache *cache, struct l
     return 0;
 }
 
+static LY_DATA_TYPE
+op_srtype2lytype(sr_type_t sr_type)
+{
+    switch (sr_type) {
+    case SR_STRING_T:
+        return LY_TYPE_STRING;
+    case SR_BINARY_T:
+        return LY_TYPE_BINARY;
+    case SR_BITS_T:
+        return LY_TYPE_BITS;
+    case SR_ENUM_T:
+        return LY_TYPE_ENUM;
+    case SR_IDENTITYREF_T:
+        return LY_TYPE_IDENT;
+    case SR_INSTANCEID_T:
+        return LY_TYPE_INST;
+    case SR_LEAF_EMPTY_T:
+        return LY_TYPE_EMPTY;
+    case SR_BOOL_T:
+        return LY_TYPE_BOOL;
+    case SR_DECIMAL64_T:
+        return LY_TYPE_DEC64;
+    case SR_UINT8_T:
+        return LY_TYPE_UINT8;
+    case SR_UINT16_T:
+        return LY_TYPE_UINT16;
+    case SR_UINT32_T:
+        return LY_TYPE_UINT32;
+    case SR_UINT64_T:
+        return LY_TYPE_UINT64;
+    case SR_INT8_T:
+        return LY_TYPE_INT8;
+    case SR_INT16_T:
+        return LY_TYPE_INT16;
+    case SR_INT32_T:
+        return LY_TYPE_INT32;
+    case SR_INT64_T:
+        return LY_TYPE_INT64;
+    default:
+        return LY_TYPE_UNKNOWN;
+    }
+}
+
 int
 op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_node, struct sr2ly_cache *cache)
 {
@@ -3035,6 +3078,8 @@ op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_no
     case SR_INT64_T:
         val_str = op_get_srval(np2srv.ly_ctx, sr_val, numstr);
         node = lyd_new_leaf(parent, mod, cache->items[cache->used - 1].name, val_str);
+        /* for unions, so they are printed correctly */
+        ((struct lyd_node_leaf_list *)node)->value_type = op_srtype2lytype(sr_val->type);
         break;
     case SR_ANYDATA_T:
     case SR_ANYXML_T:
