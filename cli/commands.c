@@ -2725,7 +2725,7 @@ cmd_connect_listen(const char *arg, int is_connect)
     optstring = "hti:o:p:c:k:r:uS:";
 #endif
 
-    while ((c = getopt_long(cmd.count, cmd.list, optstring, long_options, &option_index)) != -1) {
+    while ((ret == -1) && ((c = getopt_long(cmd.count, cmd.list, optstring, long_options, &option_index)) != -1)) {
         switch (c) {
         case 'h':
             if (is_connect) {
