@@ -370,7 +370,9 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     } else
 #endif
     {
+        /* config is spent */
         rc = sr_replace_config(session, NULL, config, tds, 0);
+        config = NULL;
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
