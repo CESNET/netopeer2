@@ -44,6 +44,7 @@ set(DEFAULT_HOSTKEY "genkey" CACHE STRING "Name of the hostkey from the keystore
 set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
 set(MODULES_OWNER "$ENV{USER}" CACHE STRING "User that will become the owner of server modules")
 set(NACM_RECOVERY_UID 0 CACHE STRING "NACM recovery session UID that has unrestricted access")
+set(EDIT_CONFIG_TIMEOUT 0 CACHE STRING "Timeout in seconds of the <edit-config> RPC, 0 is the default sysrepo timeout")
 
 # set prefix for the PID file
 if(NOT PIDFILE_PREFIX)

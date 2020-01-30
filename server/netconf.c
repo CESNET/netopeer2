@@ -244,7 +244,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     }
 
     if (!strcmp(testop, "test-then-set")) {
-        rc = sr_apply_changes(session, 0);
+        rc = sr_apply_changes(session, NP2SRV_EDIT_CONFIG_TIMEOUT);
     } else {
         assert(!strcmp(testop, "test-only"));
         rc = sr_validate(session, 0);

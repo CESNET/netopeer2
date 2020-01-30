@@ -40,6 +40,10 @@
  */
 #define NP2SRV_NACM_RECOVERY_UID @NACM_RECOVERY_UID@
 
+/** @brief edit-config RPC timeout, 0 is the sysrepo default
+ */
+#define NP2SRV_EDIT_CONFIG_TIMEOUT @EDIT_CONFIG_TIMEOUT@
+
 /** @brief Starting allocated length for a message
  */
 #define NP2SRV_MSG_LEN_START 128
