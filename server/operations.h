@@ -114,7 +114,7 @@ int np2srv_sr_get_submodule_schema(sr_session_ctx_t *srs, const char *submodule_
 int np2srv_sr_get_schema(sr_session_ctx_t *srs, const char *module_name, const char *revision,
          const char *submodule_name, sr_schema_format_t format, char **schema_content, struct nc_server_reply **ereply);
 
-char *op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char *buf);
+char *op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char *buf, int output);
 
 /**
  * @brief Fill sr_val_t for communication with sysrepo

@@ -37,7 +37,7 @@ build_rpc_act_from_output(struct lyd_node *rpc_act, sr_val_t *output, size_t out
 
     for (i = 0; i < out_count; ++i) {
         ly_errno = LY_SUCCESS;
-        node = lyd_new_path(rpc_act, np2srv.ly_ctx, output[i].xpath, op_get_srval(np2srv.ly_ctx, &output[i], buf),
+        node = lyd_new_path(rpc_act, np2srv.ly_ctx, output[i].xpath, op_get_srval(np2srv.ly_ctx, &output[i], buf, 1),
                 (output->type == SR_ANYXML_T || output->type == SR_ANYDATA_T) ? LYD_ANYDATA_SXML : 0,
                 LYD_PATH_OPT_UPDATE | LYD_PATH_OPT_OUTPUT);
         if (ly_errno != LY_SUCCESS) {

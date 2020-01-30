@@ -1847,7 +1847,7 @@ np2srv_sr_get_schema(sr_session_ctx_t *srs, const char *module_name, const char 
 }
 
 char *
-op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char *buf)
+op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char *buf, int output)
 {
     struct lys_node_leaf *sleaf;
 
@@ -1871,7 +1871,7 @@ op_get_srval(struct ly_ctx *ctx, const sr_val_t *value, char *buf)
         return value->data.bool_val ? "true" : "false";
     case SR_DECIMAL64_T:
         /* get fraction-digits */
-        sleaf = (struct lys_node_leaf *)ly_ctx_get_node(ctx, NULL, value->xpath, 0);
+        sleaf = (struct lys_node_leaf *)ly_ctx_get_node(ctx, NULL, value->xpath, output);
         if (!sleaf) {
             return NULL;
         }
@@ -3076,14 +3076,14 @@ op_sr2ly(struct lyd_node *root, const sr_val_t *sr_val, struct lyd_node **new_no
     case SR_INT16_T:
     case SR_INT32_T:
     case SR_INT64_T:
-        val_str = op_get_srval(np2srv.ly_ctx, sr_val, numstr);
+        val_str = op_get_srval(np2srv.ly_ctx, sr_val, numstr, 0);
         node = lyd_new_leaf(parent, mod, cache->items[cache->used - 1].name, val_str);
         /* for unions, so they are printed correctly */
         ((struct lyd_node_leaf_list *)node)->value_type = op_srtype2lytype(sr_val->type);
         break;
     case SR_ANYDATA_T:
     case SR_ANYXML_T:
-        val_str = op_get_srval(np2srv.ly_ctx, sr_val, numstr);
+        val_str = op_get_srval(np2srv.ly_ctx, sr_val, numstr, 0);
         node = lyd_new_anydata(parent, mod, cache->items[cache->used - 1].name, val_str, LYD_ANYDATA_SXML);
         break;
     case SR_LIST_T:
