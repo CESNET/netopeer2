@@ -197,7 +197,9 @@ np2srv_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, const char *UNUSED(module
         if (op == SR_OP_CREATED) {
             rc = nc_server_ssh_endpt_add_hostkey(endpt_name, ((struct lyd_node_leaf_list *)node)->value_str, -1);
         } else if (op == SR_OP_DELETED) {
-            rc = nc_server_ssh_endpt_del_hostkey(endpt_name, ((struct lyd_node_leaf_list *)node)->value_str, -1);
+            if (nc_server_is_endpt(endpt_name)) {
+                rc = nc_server_ssh_endpt_del_hostkey(endpt_name, ((struct lyd_node_leaf_list *)node)->value_str, -1);
+            }
         } else if (op == SR_OP_MOVED) {
             rc = nc_server_ssh_endpt_mov_hostkey(endpt_name, ((struct lyd_node_leaf_list *)node)->value_str, prev_val);
         }
@@ -281,6 +283,11 @@ np2srv_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, const char *UNUSED(m
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
         /* find name */
         endpt_name = ((struct lyd_node_leaf_list *)node->parent->parent->parent->parent->parent->child)->value_str;
+
+        if ((op == SR_OP_DELETED) && !nc_server_is_endpt(endpt_name)) {
+            /* endpt deleted */
+            continue;
+        }
 
         /* current methods */
         auth = nc_server_ssh_endpt_get_auth_methods(endpt_name);
@@ -519,8 +526,10 @@ np2srv_ch_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, const char *UNUSED(mod
             rc = nc_server_ssh_ch_client_endpt_add_hostkey(client_name, endpt_name,
                     ((struct lyd_node_leaf_list *)node)->value_str, -1);
         } else if (op == SR_OP_DELETED) {
-            rc = nc_server_ssh_ch_client_endpt_del_hostkey(client_name, endpt_name,
-                    ((struct lyd_node_leaf_list *)node)->value_str, -1);
+            if (nc_server_ch_client_is_endpt(client_name, endpt_name)) {
+                rc = nc_server_ssh_ch_client_endpt_del_hostkey(client_name, endpt_name,
+                        ((struct lyd_node_leaf_list *)node)->value_str, -1);
+            }
         } else if (op == SR_OP_MOVED) {
             rc = nc_server_ssh_ch_client_endpt_mov_hostkey(client_name, endpt_name,
                     ((struct lyd_node_leaf_list *)node)->value_str, prev_val);
@@ -568,6 +577,10 @@ np2srv_ch_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, const char *UNUSE
         /* find names */
         endpt_name = ((struct lyd_node_leaf_list *)node->parent->parent->parent->parent->parent->child)->value_str;
         client_name = ((struct lyd_node_leaf_list *)node->parent->parent->parent->parent->parent->parent->parent->child)->value_str;
+
+        if ((op == SR_OP_DELETED) && !nc_server_ch_client_is_endpt(client_name, endpt_name)) {
+            continue;
+        }
 
         /* current methods */
         auth = nc_server_ssh_ch_client_endpt_get_auth_methods(client_name, endpt_name);

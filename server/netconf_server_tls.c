@@ -237,7 +237,9 @@ np2srv_endpt_tls_servercert_cb(sr_session_ctx_t *session, const char *UNUSED(mod
             if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
                 rc = nc_server_tls_endpt_set_server_cert(endpt_name, ((struct lyd_node_leaf_list *)node)->value_str);
             } else if (op == SR_OP_DELETED) {
-                rc = nc_server_tls_endpt_set_server_cert(endpt_name, NULL);
+                if (nc_server_is_endpt(endpt_name)) {
+                    rc = nc_server_tls_endpt_set_server_cert(endpt_name, NULL);
+                }
             }
             if (rc) {
                 sr_free_change_iter(iter);
@@ -291,7 +293,9 @@ np2srv_endpt_tls_client_auth_cb(sr_session_ctx_t *session, const char *UNUSED(mo
             if (op == SR_OP_CREATED) {
                 rc = nc_server_tls_endpt_add_trusted_cert_list(endpt_name, ((struct lyd_node_leaf_list *)node)->value_str);
             } else if (op == SR_OP_DELETED) {
-                rc = nc_server_tls_endpt_del_trusted_cert_list(endpt_name, ((struct lyd_node_leaf_list *)node)->value_str);
+                if (nc_server_is_endpt(endpt_name)) {
+                    rc = nc_server_tls_endpt_del_trusted_cert_list(endpt_name, ((struct lyd_node_leaf_list *)node)->value_str);
+                }
             } else if (op == SR_OP_MODIFIED) {
                 nc_server_tls_endpt_del_trusted_cert_list(endpt_name, prev_val);
                 rc = nc_server_tls_endpt_add_trusted_cert_list(endpt_name, ((struct lyd_node_leaf_list *)node)->value_str);
@@ -390,7 +394,9 @@ np2srv_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, const char *UNUSED(mod
         if (op == SR_OP_CREATED) {
             rc = nc_server_tls_endpt_add_ctn(endpt_name, id, fingerprint, map_type, name);
         } else if (op == SR_OP_DELETED) {
-            rc = nc_server_tls_endpt_del_ctn(endpt_name, id, fingerprint, map_type, name);
+            if (nc_server_is_endpt(endpt_name)) {
+                rc = nc_server_tls_endpt_del_ctn(endpt_name, id, fingerprint, map_type, name);
+            }
         } else if (op == SR_OP_MODIFIED) {
             nc_server_tls_endpt_del_ctn(endpt_name, id, NULL, 0, NULL);
             rc = nc_server_tls_endpt_add_ctn(endpt_name, id, fingerprint, map_type, name);
@@ -436,7 +442,9 @@ np2srv_ch_client_endpt_tls_cb(sr_session_ctx_t *session, const char *UNUSED(modu
         if (op == SR_OP_CREATED) {
             rc = nc_server_ch_client_add_endpt(client_name, endpt_name, NC_TI_OPENSSL);
         } else if (op == SR_OP_DELETED) {
-            rc = nc_server_ch_client_del_endpt(client_name, endpt_name, NC_TI_OPENSSL);
+            if (nc_server_ch_is_client(client_name)) {
+                rc = nc_server_ch_client_del_endpt(client_name, endpt_name, NC_TI_OPENSSL);
+            }
         }
         if (rc) {
             sr_free_change_iter(iter);
@@ -488,7 +496,9 @@ np2srv_ch_client_endpt_tls_servercert_cb(sr_session_ctx_t *session, const char *
                 rc = nc_server_tls_ch_client_endpt_set_server_cert(client_name, endpt_name,
                         ((struct lyd_node_leaf_list *)node)->value_str);
             } else if (op == SR_OP_DELETED) {
-                rc = nc_server_tls_ch_client_endpt_set_server_cert(client_name, endpt_name, NULL);
+                if (nc_server_ch_client_is_endpt(client_name, endpt_name)) {
+                    rc = nc_server_tls_ch_client_endpt_set_server_cert(client_name, endpt_name, NULL);
+                }
             }
             if (rc) {
                 sr_free_change_iter(iter);
@@ -545,8 +555,10 @@ np2srv_ch_client_endpt_tls_client_auth_cb(sr_session_ctx_t *session, const char 
                 rc = nc_server_tls_ch_client_endpt_add_trusted_cert_list(client_name, endpt_name,
                         ((struct lyd_node_leaf_list *)node)->value_str);
             } else if (op == SR_OP_DELETED) {
-                rc = nc_server_tls_ch_client_endpt_del_trusted_cert_list(client_name, endpt_name,
-                        ((struct lyd_node_leaf_list *)node)->value_str);
+                if (nc_server_ch_client_is_endpt(client_name, endpt_name)) {
+                    rc = nc_server_tls_ch_client_endpt_del_trusted_cert_list(client_name, endpt_name,
+                            ((struct lyd_node_leaf_list *)node)->value_str);
+                }
             } else if (op == SR_OP_MODIFIED) {
                 nc_server_tls_ch_client_endpt_del_trusted_cert_list(client_name, endpt_name, prev_val);
                 rc = nc_server_tls_ch_client_endpt_add_trusted_cert_list(client_name, endpt_name,
@@ -621,7 +633,9 @@ np2srv_ch_client_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, const char *
         if (op == SR_OP_CREATED) {
             rc = nc_server_tls_ch_client_endpt_add_ctn(client_name, endpt_name, id, fingerprint, map_type, name);
         } else if (op == SR_OP_DELETED) {
-            rc = nc_server_tls_ch_client_endpt_del_ctn(client_name, endpt_name, id, fingerprint, map_type, name);
+            if (nc_server_ch_client_is_endpt(client_name, endpt_name)) {
+                rc = nc_server_tls_ch_client_endpt_del_ctn(client_name, endpt_name, id, fingerprint, map_type, name);
+            }
         } else if (op == SR_OP_MODIFIED) {
             nc_server_tls_ch_client_endpt_del_ctn(client_name, endpt_name, id, NULL, 0, NULL);
             rc = nc_server_tls_ch_client_endpt_add_ctn(client_name, endpt_name, id, fingerprint, map_type, name);

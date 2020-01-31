@@ -142,9 +142,13 @@ np2srv_tcp_keepalives(const char *client_name, const char *endpt_name, sr_sessio
 
     /* set new keepalive parameters */
     if (!client_name) {
-        rc = nc_server_endpt_set_keepalives(endpt_name, idle_time, max_probes, probe_interval);
+        if (nc_server_is_endpt(endpt_name)) {
+            rc = nc_server_endpt_set_keepalives(endpt_name, idle_time, max_probes, probe_interval);
+        }
     } else {
-        rc = nc_server_ch_client_endpt_set_keepalives(client_name, endpt_name, idle_time, max_probes, probe_interval);
+        if (nc_server_ch_client_is_endpt(client_name, endpt_name)) {
+            rc = nc_server_ch_client_endpt_set_keepalives(client_name, endpt_name, idle_time, max_probes, probe_interval);
+        }
     }
     if (rc) {
         return SR_ERR_INTERNAL;
@@ -199,7 +203,9 @@ np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_
             if (op == SR_OP_CREATED) {
                 rc = nc_server_endpt_enable_keepalives(endpt_name, 1);
             } else if (op == SR_OP_DELETED) {
-                rc = nc_server_endpt_enable_keepalives(endpt_name, 0);
+                if (nc_server_is_endpt(endpt_name)) {
+                    rc = nc_server_endpt_enable_keepalives(endpt_name, 0);
+                }
             }
             if (rc) {
                 sr_free_change_iter(iter);
@@ -247,23 +253,29 @@ np2srv_ch_periodic_connection_params(const char *client_name, sr_session_ctx_t *
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
         if (!strcmp(node->schema->name, "period")) {
             if (op == SR_OP_DELETED) {
-                /* set default */
-                rc = nc_server_ch_client_periodic_set_period(client_name, 60);
+                if (nc_server_ch_is_client(client_name)) {
+                    /* set default */
+                    rc = nc_server_ch_client_periodic_set_period(client_name, 60);
+                }
             } else {
                 rc = nc_server_ch_client_periodic_set_period(client_name, ((struct lyd_node_leaf_list *)node)->value.uint16);
             }
         } else if (!strcmp(node->schema->name, "anchor-time")) {
             if (op == SR_OP_DELETED) {
-                /* set default */
-                rc = nc_server_ch_client_periodic_set_anchor_time(client_name, 0);
+                if (nc_server_ch_is_client(client_name)) {
+                    /* set default */
+                    rc = nc_server_ch_client_periodic_set_anchor_time(client_name, 0);
+                }
             } else {
                 rc = nc_server_ch_client_periodic_set_anchor_time(client_name,
                         nc_datetime2time(((struct lyd_node_leaf_list *)node)->value.string));
             }
         } else if (!strcmp(node->schema->name, "idle-timeout")) {
             if (op == SR_OP_DELETED) {
-                /* set default */
-                rc = nc_server_ch_client_periodic_set_idle_timeout(client_name, 120);
+                if (nc_server_ch_is_client(client_name)) {
+                    /* set default */
+                    rc = nc_server_ch_client_periodic_set_idle_timeout(client_name, 120);
+                }
             } else {
                 rc = nc_server_ch_client_periodic_set_idle_timeout(client_name,
                         ((struct lyd_node_leaf_list *)node)->value.uint16);
@@ -375,7 +387,9 @@ np2srv_ch_client_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *UNUS
             if (op == SR_OP_CREATED) {
                 rc = nc_server_ch_client_endpt_enable_keepalives(client_name, endpt_name, 1);
             } else if (op == SR_OP_DELETED) {
-                rc = nc_server_ch_client_endpt_enable_keepalives(client_name, endpt_name, 0);
+                if (nc_server_ch_client_is_endpt(client_name, endpt_name)) {
+                    rc = nc_server_ch_client_endpt_enable_keepalives(client_name, endpt_name, 0);
+                }
             }
             if (rc) {
                 sr_free_change_iter(iter);
@@ -500,8 +514,10 @@ np2srv_ch_reconnect_strategy_cb(sr_session_ctx_t *session, const char *UNUSED(mo
 
         if (!strcmp(node->schema->name, "start-with")) {
             if (op == SR_OP_DELETED) {
-                /* set default */
-                rc = nc_server_ch_client_set_start_with(client_name, NC_CH_FIRST_LISTED);
+                if (nc_server_ch_is_client(client_name)) {
+                    /* set default */
+                    rc = nc_server_ch_client_set_start_with(client_name, NC_CH_FIRST_LISTED);
+                }
             } else {
                 str = ((struct lyd_node_leaf_list *)node)->value_str;
                 if (!strcmp(str, "first-listed")) {
@@ -514,8 +530,10 @@ np2srv_ch_reconnect_strategy_cb(sr_session_ctx_t *session, const char *UNUSED(mo
             }
         } else if (!strcmp(node->schema->name, "max-attempts")) {
             if (op == SR_OP_DELETED) {
-                /* set default */
-                rc = nc_server_ch_client_set_max_attempts(client_name, 3);
+                if (nc_server_ch_is_client(client_name)) {
+                    /* set default */
+                    rc = nc_server_ch_client_set_max_attempts(client_name, 3);
+                }
             } else {
                 rc = nc_server_ch_client_set_max_attempts(client_name, ((struct lyd_node_leaf_list *)node)->value.uint8);
             }
