@@ -266,7 +266,7 @@ int
 np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
         sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
-    sr_datastore_t tds, sds;
+    sr_datastore_t ds = 0, sds;
     struct ly_set *nodeset;
     struct lyd_node *config = NULL;
     int rc = SR_ERR_OK;
@@ -278,62 +278,58 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
 
     /* get know which datastores are affected */
     nodeset = lyd_find_path(input, "target/*");
-    if (nodeset->number) {
-        if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
-            tds = SR_DS_RUNNING;
-        } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
-            tds = SR_DS_STARTUP;
-        } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
-            tds = SR_DS_CANDIDATE;
-        } else {
-            assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
+    if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
+        ds = SR_DS_RUNNING;
+    } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
+        ds = SR_DS_STARTUP;
+    } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
+        ds = SR_DS_CANDIDATE;
+    } else {
+        assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-            trg_url = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
+        trg_url = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
 #else
-            ly_set_free(nodeset);
-            rc = SR_ERR_UNSUPPORTED;
-            sr_set_error(session, NULL, "URL not supported.");
-            goto cleanup;
+        ly_set_free(nodeset);
+        rc = SR_ERR_UNSUPPORTED;
+        sr_set_error(session, NULL, "URL not supported.");
+        goto cleanup;
 #endif
-        }
     }
     ly_set_free(nodeset);
 
     nodeset = lyd_find_path(input, "source/*");
-    if (nodeset->number) {
-        if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
-            sds = SR_DS_RUNNING;
-        } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
-            sds = SR_DS_STARTUP;
-        } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
-            sds = SR_DS_CANDIDATE;
-        } else if (!strcmp(nodeset->set.d[0]->schema->name, "config")) {
-            config = op_parse_config((struct lyd_node_anydata *)nodeset->set.d[0], LYD_OPT_CONFIG | LYD_OPT_STRICT, &rc, session);
-            if (rc) {
-                ly_set_free(nodeset);
-                goto cleanup;
-            }
-        } else {
-            assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
-#ifdef NP2SRV_URL_CAPAB
-            config = op_parse_url(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str,
-                    LYD_OPT_CONFIG | LYD_OPT_STRICT, &rc, session);
-            if (rc) {
-                ly_set_free(nodeset);
-                goto cleanup;
-            }
-#else
+    if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
+        sds = SR_DS_RUNNING;
+    } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
+        sds = SR_DS_STARTUP;
+    } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
+        sds = SR_DS_CANDIDATE;
+    } else if (!strcmp(nodeset->set.d[0]->schema->name, "config")) {
+        config = op_parse_config((struct lyd_node_anydata *)nodeset->set.d[0], LYD_OPT_CONFIG | LYD_OPT_STRICT, &rc, session);
+        if (rc) {
             ly_set_free(nodeset);
-            rc = SR_ERR_UNSUPPORTED;
-            sr_set_error(session, NULL, "URL not supported.");
             goto cleanup;
-#endif
         }
+    } else {
+        assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
+#ifdef NP2SRV_URL_CAPAB
+        config = op_parse_url(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str,
+                LYD_OPT_CONFIG | LYD_OPT_STRICT, &rc, session);
+        if (rc) {
+            ly_set_free(nodeset);
+            goto cleanup;
+        }
+#else
+        ly_set_free(nodeset);
+        rc = SR_ERR_UNSUPPORTED;
+        sr_set_error(session, NULL, "URL not supported.");
+        goto cleanup;
+#endif
     }
     ly_set_free(nodeset);
 
     /* NACM checks */
-    if (!config && (tds != SR_DS_STARTUP) && (sds != SR_DS_RUNNING)) {
+    if (!config && (ds != SR_DS_STARTUP) && (sds != SR_DS_RUNNING)) {
         /* get source datastore data and filter them */
         sr_session_switch_ds(session, sds);
         rc = sr_get_data(session, "/*", 0, 0, 0, &config);
@@ -342,6 +338,9 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
         }
         ncac_check_data_read_filter(&config, np_get_nc_sess_user(session));
     }
+
+    /* update sysrepo session datastore */
+    sr_session_switch_ds(session, ds);
 
     /* sysrepo API/URL handling */
 #ifdef NP2SRV_URL_CAPAB
@@ -371,7 +370,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
 #endif
     {
         /* config is spent */
-        rc = sr_replace_config(session, NULL, config, tds, 0);
+        rc = sr_replace_config(session, NULL, config, 0);
         config = NULL;
         if (rc != SR_ERR_OK) {
             goto cleanup;
@@ -389,7 +388,7 @@ int
 np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
         sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
-    sr_datastore_t ds;
+    sr_datastore_t ds = 0;
     struct ly_set *nodeset;
     int rc = SR_ERR_OK;
 #ifdef NP2SRV_URL_CAPAB
@@ -399,22 +398,23 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path
 
     /* get know which datastore is affected */
     nodeset = lyd_find_path(input, "target/*");
-    if (nodeset->number) {
-        if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
-            ds = SR_DS_STARTUP;
-        } else {
-            assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
+    if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
+        ds = SR_DS_STARTUP;
+    } else {
+        assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-            trg_url = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
+        trg_url = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
 #else
-            ly_set_free(nodeset);
-            rc = SR_ERR_UNSUPPORTED;
-            sr_set_error(session, NULL, "URL not supported.");
-            goto cleanup;
+        ly_set_free(nodeset);
+        rc = SR_ERR_UNSUPPORTED;
+        sr_set_error(session, NULL, "URL not supported.");
+        goto cleanup;
 #endif
-        }
     }
     ly_set_free(nodeset);
+
+    /* update sysrepo session datastore */
+    sr_session_switch_ds(session, ds);
 
     /* sysrepo API/URL handling */
 #ifdef NP2SRV_URL_CAPAB
@@ -433,7 +433,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path
     } else
 #endif
     {
-        rc = sr_replace_config(session, NULL, NULL, ds, 0);
+        rc = sr_replace_config(session, NULL, NULL, 0);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
@@ -531,8 +531,11 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), con
 {
     int rc = SR_ERR_OK;;
 
+    /* update sysrepo session datastore */
+    sr_session_switch_ds(session, SR_DS_RUNNING);
+
     /* sysrepo API */
-    rc = sr_copy_config(session, NULL, SR_DS_CANDIDATE, SR_DS_RUNNING, 0);
+    rc = sr_copy_config(session, NULL, SR_DS_CANDIDATE, 0);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
@@ -549,8 +552,11 @@ np2srv_rpc_discard_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
 {
     int rc = SR_ERR_OK;
 
+    /* update sysrepo session datastore */
+    sr_session_switch_ds(session, SR_DS_CANDIDATE);
+
     /* sysrepo API */
-    rc = sr_copy_config(session, NULL, SR_DS_RUNNING, SR_DS_CANDIDATE, 0);
+    rc = sr_copy_config(session, NULL, SR_DS_RUNNING, 0);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }

@@ -1206,18 +1206,9 @@ main(int argc, char *argv[])
         ret = EXIT_FAILURE;
         goto cleanup;
     }
-
     if (server_data_subscribe()) {
-        /* try to recover sysrepo */
-        c = sr_connection_recover(np2srv.sr_conn);
-        if (c != SR_ERR_OK) {
-            ERR("Sysrepo recover failed (%s).", sr_strerror(c));
-            ret = EXIT_FAILURE;
-            goto cleanup;
-        } else if (server_data_subscribe()) {
-            ret = EXIT_FAILURE;
-            goto cleanup;
-        }
+        ret = EXIT_FAILURE;
+        goto cleanup;
     }
 
     /* start additional worker threads */
