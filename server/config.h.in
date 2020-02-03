@@ -40,9 +40,13 @@
  */
 #define NP2SRV_NACM_RECOVERY_UID @NACM_RECOVERY_UID@
 
-/** @brief edit-config RPC timeout, 0 is the sysrepo default
+/** @brief timeout for sysrepo operations modifying data, 0 is the sysrepo default
  */
-#define NP2SRV_EDIT_CONFIG_TIMEOUT @EDIT_CONFIG_TIMEOUT@
+#define NP2SRV_DATA_CHANGE_TIMEOUT @DATA_CHANGE_TIMEOUT@
+
+/** @brief Whether to wait on sysrepo data change calls for all the events to be processed
+ */
+#define NP2SRV_DATA_CHANGE_WAIT @DATA_CHANGE_WAIT_BOOL@
 
 /** @brief Starting allocated length for a message
  */
