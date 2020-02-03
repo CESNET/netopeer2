@@ -244,7 +244,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     }
 
     if (!strcmp(testop, "test-then-set")) {
-        rc = sr_apply_changes(session, NP2SRV_EDIT_CONFIG_TIMEOUT);
+        rc = sr_apply_changes(session, NP2SRV_EDIT_CONFIG_TIMEOUT, 0);
     } else {
         assert(!strcmp(testop, "test-only"));
         rc = sr_validate(session, 0);
@@ -370,7 +370,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
 #endif
     {
         /* config is spent */
-        rc = sr_replace_config(session, NULL, config, 0);
+        rc = sr_replace_config(session, NULL, config, 0, 0);
         config = NULL;
         if (rc != SR_ERR_OK) {
             goto cleanup;
@@ -433,7 +433,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path
     } else
 #endif
     {
-        rc = sr_replace_config(session, NULL, NULL, 0);
+        rc = sr_replace_config(session, NULL, NULL, 0, 0);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
@@ -535,7 +535,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), con
     sr_session_switch_ds(session, SR_DS_RUNNING);
 
     /* sysrepo API */
-    rc = sr_copy_config(session, NULL, SR_DS_CANDIDATE, 0);
+    rc = sr_copy_config(session, NULL, SR_DS_CANDIDATE, 0, 0);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
@@ -556,7 +556,7 @@ np2srv_rpc_discard_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     sr_session_switch_ds(session, SR_DS_CANDIDATE);
 
     /* sysrepo API */
-    rc = sr_copy_config(session, NULL, SR_DS_RUNNING, 0);
+    rc = sr_copy_config(session, NULL, SR_DS_RUNNING, 0, 0);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }

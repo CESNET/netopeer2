@@ -310,7 +310,7 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
         goto cleanup;
     }
 
-    rc = sr_apply_changes(session, 0);
+    rc = sr_apply_changes(session, 0, 0);
     if (rc != SR_ERR_OK) {
         sr_get_error(session, &err_info);
         sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
