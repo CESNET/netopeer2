@@ -1082,7 +1082,7 @@ cmd_getschema_help(void)
 void
 cmd_getdata_help(void)
 {
-    const struct lys_module *mod;
+    const struct lys_module *mod = 0;
     const char *defaults, *xpath;
     int origin;
 
@@ -4762,7 +4762,7 @@ cmd_getdata(const char *arg, char **tmp_config_file)
     while ((c = getopt_long(cmd.count, cmd.list, "hd:s::x:c:O:ne:wf:o:r:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
-            cmd_getconfig_help();
+            cmd_getdata_help();
             ret = EXIT_SUCCESS;
             goto fail;
         case 'd':
@@ -4899,20 +4899,20 @@ cmd_getdata(const char *arg, char **tmp_config_file)
             break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
-            cmd_getconfig_help();
+            cmd_getdata_help();
             goto fail;
         }
     }
 
     if (cmd.list[optind]) {
         ERROR(__func__, "Unparsed command arguments.");
-        cmd_getconfig_help();
+        cmd_getdata_help();
         goto fail;
     }
 
     if (!datastore) {
         ERROR(__func__, "Mandatory command arguments missing.");
-        cmd_getconfig_help();
+        cmd_getdata_help();
         goto fail;
     }
 
@@ -4996,7 +4996,7 @@ cmd_editdata(const char *arg, char **tmp_config_file)
     while ((c = getopt_long(cmd.count, cmd.list, "hd:o:c::u:r:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
-            cmd_editconfig_help();
+            cmd_editdata_help();
             ret = EXIT_SUCCESS;
             goto fail;
         case 'd':
@@ -5088,20 +5088,20 @@ cmd_editdata(const char *arg, char **tmp_config_file)
             break;
         default:
             ERROR(__func__, "Unknown option -%c.", c);
-            cmd_editconfig_help();
+            cmd_editdata_help();
             goto fail;
         }
     }
 
     if (cmd.list[optind]) {
         ERROR(__func__, "Unparsed command arguments.");
-        cmd_editconfig_help();
+        cmd_editdata_help();
         goto fail;
     }
 
     if (!datastore || !content_param) {
         ERROR(__func__, "Mandatory command arguments missing.");
-        cmd_editconfig_help();
+        cmd_editdata_help();
         goto fail;
     }
 
