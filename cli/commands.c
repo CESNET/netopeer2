@@ -1082,7 +1082,7 @@ cmd_getschema_help(void)
 void
 cmd_getdata_help(void)
 {
-    const struct lys_module *mod = 0;
+    const struct lys_module *mod = NULL;
     const char *defaults, *xpath;
     int origin;
 
