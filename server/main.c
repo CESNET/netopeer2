@@ -163,17 +163,11 @@ np2srv_state_data_cb(sr_session_ctx_t *UNUSED(session), const char *module_name,
 {
     struct lyd_node *data = NULL, *node;
     struct ly_set *set = NULL;
-    struct ly_ctx *ly_ctx;
     int ret = SR_ERR_OK;
-
-    ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
 
     /* get the full module state data tree */
     if (!strcmp(module_name, "ietf-netconf-monitoring")) {
         data = ncm_get_data(np2srv.sr_conn);
-    } else if (!strcmp(module_name, "ietf-yang-library")) {
-        /* TODO cache this somehow when both subtrees are requested */
-        data = ly_ctx_info(ly_ctx);
     } else if (!strcmp(module_name, "nc-notifications")) {
         data = np2srv_ntf_get_data(np2srv.sr_conn);
     } else {
@@ -742,10 +736,6 @@ server_data_subscribe(void)
     }
     mod_name = "ietf-netconf-monitoring";
     SR_OPER_SUBSCR(mod_name, "/ietf-netconf-monitoring:netconf-state", np2srv_state_data_cb);
-
-    mod_name = "ietf-yang-library";
-    SR_OPER_SUBSCR(mod_name, "/ietf-yang-library:yang-library", np2srv_state_data_cb);
-    SR_OPER_SUBSCR(mod_name, "/ietf-yang-library:modules-state", np2srv_state_data_cb);
 
     mod_name = "nc-notifications";
     SR_OPER_SUBSCR(mod_name, "/nc-notifications:netconf", np2srv_state_data_cb);
