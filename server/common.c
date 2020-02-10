@@ -119,7 +119,7 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
 {
     int c, monitored = 0;
     sr_val_t *event_data;
-    sr_session_ctx_t *sr_sess;
+    sr_session_ctx_t *sr_sess = NULL;
     const struct lys_module *mod;
     char *host = NULL;
 
@@ -194,6 +194,7 @@ error:
     if (monitored) {
         ncm_session_del(new_session);
     }
+    sr_session_stop(sr_sess);
     nc_session_free(new_session, NULL);
 }
 
