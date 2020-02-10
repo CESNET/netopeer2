@@ -391,13 +391,8 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         goto cleanup;
     }
 
-    /* create sysrepo session for this user notifications */
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to start a new SR session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
-    sr_session_set_nc_id(sr_sess, nc_session_get_id(ncs));
+    /* get this user session with its NC id (but not user name) */
+    sr_sess = nc_session_get_data(ncs);
 
     /* sysrepo API */
     rc = sr_rpc_send_tree(sr_sess, rpc, 0, &output);
@@ -439,13 +434,33 @@ static int
 np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
 {
     const struct lyd_node *node;
+    struct nc_session *ncs;
     char *path;
+    uint32_t ncid, i;
 
-    if ((node = ncac_check_diff(diff, sr_session_get_user(session)))) {
+    /* get NC id */
+    ncid = sr_session_get_nc_id(session);
+    if (!ncid) {
+        EINT;
+        return SR_ERR_INTERNAL;
+    }
+
+    /* use it to find the netconf session */
+    for (i = 0; (ncs = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
+        if (nc_session_get_id(ncs) == ncid) {
+            break;
+        }
+    }
+    if (!ncs) {
+        EINT;
+        return SR_ERR_INTERNAL;
+    }
+
+    if ((node = ncac_check_diff(diff, nc_session_get_username(ncs)))) {
         /* access denied */
         path = lys_data_path(node->schema);
         sr_set_error(session, path, "Access to the data model \"%s\" is denied because \"%s\" NACM authorization failed.",
-                lyd_node_module(node)->name, sr_session_get_user(session));
+                lyd_node_module(node)->name, nc_session_get_username(ncs));
         free(path);
         return SR_ERR_UNAUTHORIZED;
     }

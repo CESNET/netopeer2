@@ -130,6 +130,7 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
         goto error;
     }
     nc_session_set_data(new_session, sr_sess);
+    sr_session_set_nc_id(sr_sess, nc_session_get_id(new_session));
 
     switch (nc_session_get_ti(new_session)) {
 #ifdef NC_ENABLED_SSH
