@@ -444,7 +444,8 @@ np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
     if ((node = ncac_check_diff(diff, sr_session_get_user(session)))) {
         /* access denied */
         path = lys_data_path(node->schema);
-        sr_set_error(session, path, "Access to the requested data model is denied because authorization failed.");
+        sr_set_error(session, path, "Access to the data model \"%s\" is denied because \"%s\" NACM authorization failed.",
+                lyd_node_module(node)->name, sr_session_get_user(session));
         free(path);
         return SR_ERR_UNAUTHORIZED;
     }
