@@ -44,6 +44,8 @@ struct np2srv {
 };
 extern struct np2srv np2srv;
 
+extern ATOMIC_T skip_nacm_sr_sid;
+
 int np_sleep(uint32_t ms);
 
 const char *np_get_nc_sess_user(sr_session_ctx_t *session);

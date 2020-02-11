@@ -73,7 +73,7 @@
 #ifdef HAVE_STDATOMIC
 # include <stdatomic.h>
 
-# define ATOMIC_T atomic_uchar
+# define ATOMIC_T atomic_uint_fast32_t
 
 # define ATOMIC_STORE_FENCE(var, x) atomic_store_explicit(&(var), x, memory_order_release)
 # define ATOMIC_INC_FENCE(var) atomic_fetch_add_explicit(&(var), 1, memory_order_release)
@@ -83,7 +83,7 @@
 # define ATOMIC_STORE_RELAXED(var, x) atomic_store_explicit(&(var), x, memory_order_relaxed)
 # define ATOMIC_LOAD_RELAXED(var) atomic_load_explicit(&(var), memory_order_relaxed)
 #else
-# define ATOMIC_T unsigned char
+# define ATOMIC_T uint32_t
 
 # define ATOMIC_STORE_FENCE(var, x) ((var) = (x))
 # define ATOMIC_INC_FENCE(var) __sync_add_and_fetch(&(var), 1)

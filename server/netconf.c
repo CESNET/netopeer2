@@ -266,10 +266,10 @@ int
 np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
         sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
-    sr_datastore_t ds = 0, sds;
+    sr_datastore_t ds = SR_DS_OPERATIONAL, sds;
     struct ly_set *nodeset;
     struct lyd_node *config = NULL;
-    int rc = SR_ERR_OK;
+    int rc = SR_ERR_OK, run_to_start = 0;
 #ifdef NP2SRV_URL_CAPAB
     struct lyd_node_leaf_list *leaf;
     const char *trg_url = NULL;
@@ -300,6 +300,10 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     nodeset = lyd_find_path(input, "source/*");
     if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
         sds = SR_DS_RUNNING;
+        if (ds == SR_DS_STARTUP) {
+            /* special copy-config from running to startup that bypasses NACM */
+            run_to_start = 1;
+        }
     } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
         sds = SR_DS_STARTUP;
     } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
@@ -329,7 +333,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     ly_set_free(nodeset);
 
     /* NACM checks */
-    if (!config && (ds != SR_DS_STARTUP) && (sds != SR_DS_RUNNING)) {
+    if (!config && !run_to_start) {
         /* get source datastore data and filter them */
         sr_session_switch_ds(session, sds);
         rc = sr_get_data(session, "/*", 0, 0, 0, &config);
@@ -369,11 +373,25 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     } else
 #endif
     {
-        /* config is spent */
-        rc = sr_replace_config(session, NULL, config, NP2SRV_DATA_CHANGE_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
-        config = NULL;
-        if (rc != SR_ERR_OK) {
-            goto cleanup;
+        if (config) {
+            /* config is spent */
+            rc = sr_replace_config(session, NULL, config, NP2SRV_DATA_CHANGE_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
+            config = NULL;
+            if (rc != SR_ERR_OK) {
+                goto cleanup;
+            }
+        } else {
+            assert(run_to_start);
+
+            /* set SID to skip NACM check, only one copy-config can be executed at once */
+            ATOMIC_STORE_RELAXED(skip_nacm_sr_sid, sr_session_get_id(session));
+
+            rc = sr_copy_config(session, NULL, sds, NP2SRV_DATA_CHANGE_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
+            if (rc != SR_ERR_OK) {
+                goto cleanup;
+            }
+
+            ATOMIC_STORE_RELAXED(skip_nacm_sr_sid, 0);
         }
     }
 

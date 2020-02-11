@@ -41,6 +41,9 @@
 /** @brief flag for main loop */
 ATOMIC_T loop_continue = 1;
 
+/* SR SID of session to skip diff check for */
+ATOMIC_T skip_nacm_sr_sid;
+
 static void *worker_thread(void *arg);
 static int np2srv_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path,
         const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
@@ -434,33 +437,25 @@ static int
 np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
 {
     const struct lyd_node *node;
-    struct nc_session *ncs;
     char *path;
-    uint32_t ncid, i;
+    const char *user;
 
-    /* get NC id */
-    ncid = sr_session_get_nc_id(session);
-    if (!ncid) {
+    if (ATOMIC_LOAD_RELAXED(skip_nacm_sr_sid) == sr_session_get_id(session)) {
+        /* skip the NACM check */
+        return SR_ERR_OK;
+    }
+
+    user = np_get_nc_sess_user(session);
+    if (!user) {
         EINT;
         return SR_ERR_INTERNAL;
     }
 
-    /* use it to find the netconf session */
-    for (i = 0; (ncs = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
-        if (nc_session_get_id(ncs) == ncid) {
-            break;
-        }
-    }
-    if (!ncs) {
-        EINT;
-        return SR_ERR_INTERNAL;
-    }
-
-    if ((node = ncac_check_diff(diff, nc_session_get_username(ncs)))) {
+    if ((node = ncac_check_diff(diff, user))) {
         /* access denied */
         path = lys_data_path(node->schema);
         sr_set_error(session, path, "Access to the data model \"%s\" is denied because \"%s\" NACM authorization failed.",
-                lyd_node_module(node)->name, nc_session_get_username(ncs));
+                lyd_node_module(node)->name, user);
         free(path);
         return SR_ERR_UNAUTHORIZED;
     }
