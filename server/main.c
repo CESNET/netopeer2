@@ -376,10 +376,12 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
 {
     sr_session_ctx_t *sr_sess = NULL;
     const struct lyd_node *node;
+    struct lyd_node_leaf_list *leaf;
     const sr_error_info_t *err_info;
     struct nc_server_reply *reply = NULL;
     struct lyd_node *output, *child = NULL;
     NC_WD_MODE nc_wd;
+    struct ly_set *nodeset;
     struct nc_server_error *e;
     char *path;
     int rc;
@@ -413,7 +415,24 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         }
     }
     if (child) {
-        nc_server_get_capab_withdefaults(&nc_wd, NULL);
+        /* get with-defaults mode */
+        nodeset = lyd_find_path(rpc, "ietf-netconf-with-defaults:with-defaults");
+        if (nodeset->number) {
+            leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
+            if (!strcmp(leaf->value_str, "report-all")) {
+                nc_wd = NC_WD_ALL;
+            } else if (!strcmp(leaf->value_str, "report-all-tagged")) {
+                nc_wd = NC_WD_ALL_TAG;
+            } else if (!strcmp(leaf->value_str, "trim")) {
+                nc_wd = NC_WD_TRIM;
+            } else {
+                nc_wd = NC_WD_EXPLICIT;
+            }
+        } else {
+            nc_server_get_capab_withdefaults(&nc_wd, NULL);
+        }
+        ly_set_free(nodeset);
+
         reply = nc_server_reply_data(output, nc_wd, NC_PARAMTYPE_FREE);
     } else {
         lyd_free_withsiblings(output);
