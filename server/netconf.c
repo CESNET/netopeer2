@@ -34,17 +34,12 @@ int
 np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct lyd_node *input, sr_event_t UNUSED(event),
         uint32_t UNUSED(request_id), struct lyd_node *output, void *UNUSED(private_data))
 {
-    struct lyd_node_leaf_list *leaf;
     struct lyd_node *node, *data_get = NULL;
     char **filters = NULL;
     int filter_count = 0, i, rc = SR_ERR_OK;
     struct ly_set *nodeset;
     sr_datastore_t ds = 0;
     sr_get_oper_options_t get_opts = 0;
-    NC_WD_MODE nc_wd;
-
-    /* get default value for with-defaults */
-    nc_server_get_capab_withdefaults(&nc_wd, NULL);
 
     /* get know which datastore is being affected */
     if (!strcmp(op_path, "/ietf-netconf:get")) {
@@ -91,22 +86,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
         }
     }
 
-    /* get with-defaults mode */
-    nodeset = lyd_find_path(input, "ietf-netconf-with-defaults:with-defaults");
-    if (nodeset->number) {
-        leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
-        if (!strcmp(leaf->value_str, "report-all")) {
-            nc_wd = NC_WD_ALL;
-        } else if (!strcmp(leaf->value_str, "report-all-tagged")) {
-            nc_wd = NC_WD_ALL_TAG;
-        } else if (!strcmp(leaf->value_str, "trim")) {
-            nc_wd = NC_WD_TRIM;
-        } else {
-            assert(!strcmp(leaf->value_str, "explicit"));
-            nc_wd = NC_WD_EXPLICIT;
-        }
-    }
-    ly_set_free(nodeset);
+    /* we do not care here about with-defaults mode, it does not change anything */
 
 get_sr_data:
     /* update sysrepo session datastore */
