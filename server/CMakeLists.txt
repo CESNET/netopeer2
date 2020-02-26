@@ -45,6 +45,7 @@ set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and ha
 set(MODULES_OWNER "$ENV{USER}" CACHE STRING "User that will become the owner of server modules")
 set(NACM_RECOVERY_UID 0 CACHE STRING "NACM recovery session UID that has unrestricted access")
 set(DATA_CHANGE_TIMEOUT 0 CACHE STRING "Timeout in seconds of any (sysrepo) data changes, 0 is the default sysrepo timeout")
+set(RPC_TIMEOUT 6 CACHE STRING "Timeout in seconds of the global RPC callback, that calls all the other specific RPC callbacks. This timeout should always be higher than the maximum timeout of the other RPCs. 6 is the default timeout")
 option(DATA_CHANGE_WAIT "Whether to wait for all events on any (sysrepo) data changes" OFF)
 if(DATA_CHANGE_WAIT)
     set(DATA_CHANGE_WAIT_BOOL 1)

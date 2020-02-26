@@ -48,6 +48,10 @@
  */
 #define NP2SRV_DATA_CHANGE_WAIT @DATA_CHANGE_WAIT_BOOL@
 
+/** @brief Timeout for sysrepo operations (ms) handle RPC, 0 is the sysrepo default
+ */
+#define NP2SRV_RPC_TIMEOUT (@RPC_TIMEOUT@ * 1000)
+
 /** @brief Starting allocated length for a message
  */
 #define NP2SRV_MSG_LEN_START 128
