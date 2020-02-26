@@ -44,13 +44,16 @@ set(DEFAULT_HOSTKEY "genkey" CACHE STRING "Name of the hostkey from the keystore
 set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
 set(MODULES_OWNER "$ENV{USER}" CACHE STRING "User that will become the owner of server modules")
 set(NACM_RECOVERY_UID 0 CACHE STRING "NACM recovery session UID that has unrestricted access")
-set(DATA_CHANGE_TIMEOUT 0 CACHE STRING "Timeout in seconds of any (sysrepo) data changes, 0 is the default sysrepo timeout")
-set(RPC_TIMEOUT 6 CACHE STRING "Timeout in seconds of the global RPC callback, that calls all the other specific RPC callbacks. This timeout should always be higher than the maximum timeout of the other RPCs. 6 is the default timeout")
+set(DATA_CHANGE_TIMEOUT 5 CACHE STRING "Timeout in seconds of any (sysrepo) data changes, 0 is the default sysrepo timeout")
+set(RPC_TIMEOUT 6 CACHE STRING "Timeout in seconds of the global RPC callback, that calls all the other specific RPC callbacks. This timeout should always be higher than that of other RPCs")
 option(DATA_CHANGE_WAIT "Whether to wait for all events on any (sysrepo) data changes" OFF)
 if(DATA_CHANGE_WAIT)
     set(DATA_CHANGE_WAIT_BOOL 1)
 else()
     set(DATA_CHANGE_WAIT_BOOL 0)
+endif()
+if(NOT RPC_TIMEOUT GREATER DATA_CHANGE_TIMEOUT)
+    message(FATAL_ERROR "RPC timeout must be longer than data change timeout.")
 endif()
 
 # set prefix for the PID file
