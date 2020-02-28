@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <pwd.h>
+#include <ctype.h>
 
 #include <libssh/libssh.h>
 #include <nc_server.h>
@@ -77,11 +78,14 @@ cleanup:
 int
 np2srv_pubkey_auth_cb(const struct nc_session *session, ssh_key key, void *UNUSED(user_data))
 {
+    FILE *f = NULL;
     struct passwd *pwd;
-    ssh_key pub_key;
+    ssh_key pub_key = NULL;
+    enum ssh_keytypes_e ktype;
     const char *username;
-    char *path;
-    int ret;
+    char *line = NULL, *ptr, *ptr2;
+    size_t n;
+    int r, ret = 1, line_num = 0;
 
     username = nc_session_get_username(session);
 
@@ -89,41 +93,84 @@ np2srv_pubkey_auth_cb(const struct nc_session *session, ssh_key key, void *UNUSE
     pwd = getpwnam(username);
     if (!pwd) {
         ERR("Failed to find user entry for \"%s\" (%s).", username, errno ? strerror(errno) : "User not found");
-        return 1;
+        goto cleanup;
     }
 
     /* check any authorized keys */
-    if (asprintf(&path, "%s/.ssh/authorized_keys", pwd->pw_dir) == -1) {
+    r = asprintf(&line, "%s/.ssh/authorized_keys", pwd->pw_dir);
+    if (r == -1) {
         EMEM;
-        return 1;
+        line = NULL;
+        goto cleanup;
+    }
+    n = r;
+
+    f = fopen(line, "r");
+    if (!f) {
+        if (errno == ENOENT) {
+            VRB("User \"%s\" has no authorized_keys file.");
+        } else {
+            ERR("Failed to open \"%s\" authorized_keys file (%s).", strerror(errno));
+        }
+        goto cleanup;
     }
 
-    ret = ssh_pki_import_pubkey_file(path, &pub_key);
-    free(path);
-    if (ret != SSH_OK) {
-        WRN("Failed to import authorized keys of \"%s\" (%s).", username, ret == SSH_EOF ? "Unexpected end-of-file" : "SSH error");
-        return 1;
-    }
+    while (getline(&line, &n, f) > -1) {
+        ++line_num;
 
-    /* TODO support for more keys in the file */
-        /*case NC_SSH_KEY_DSA:
-            ret = ssh_pki_import_pubkey_base64(server_opts.authkeys[i].base64, SSH_KEYTYPE_DSS, &pub_key);
-            break;
-        case NC_SSH_KEY_RSA:
-            ret = ssh_pki_import_pubkey_base64(server_opts.authkeys[i].base64, SSH_KEYTYPE_RSA, &pub_key);
-            break;
-        case NC_SSH_KEY_ECDSA:
-            ret = ssh_pki_import_pubkey_base64(server_opts.authkeys[i].base64, SSH_KEYTYPE_ECDSA, &pub_key);
-            break;
-        }*/
+        /* separate key type */
+        ptr = line;
+        for (ptr2 = ptr; !isspace(ptr2[0]); ++ptr2);
+        if (ptr2[0] == '\0') {
+            WRN("Invalid authorized key format of \"%s\" (line %d).", username, line_num);
+            continue;
+        }
+        ptr2[0] = '\0';
 
-    if (!ssh_key_cmp(key, pub_key, SSH_KEY_CMP_PUBLIC)) {
+        /* detect key type */
+        ktype = ssh_key_type_from_name(ptr);
+        if (ktype == SSH_KEYTYPE_UNKNOWN) {
+            WRN("Unknown key type \"%s\" (line %d).", ptr, line_num);
+            continue;
+        }
+
+        /* separate key data */
+        ptr = ptr2 + 1;
+        for (ptr2 = ptr; !isspace(ptr2[0]); ++ptr2);
+        ptr2[0] = '\0';
+
+        r = ssh_pki_import_pubkey_base64(ptr, ktype, &pub_key);
+        if (r != SSH_OK) {
+            WRN("Failed to import authorized key of \"%s\" (%s, line %d).",
+                    username, r == SSH_EOF ? "Unexpected end-of-file" : "SSH error", line_num);
+            continue;
+        }
+
+        /* compare public keys */
+        if (!ssh_key_cmp(key, pub_key, SSH_KEY_CMP_PUBLIC)) {
+            /* key matches */
+            ret = 0;
+            goto cleanup;
+        }
+
+        /* not a match, next key */
         ssh_key_free(pub_key);
-        return 0;
+        pub_key = NULL;
+    }
+    if (!feof(f)) {
+        WRN("Failed reading from authorized_keys file of \"%s\".", username);
+        goto cleanup;
     }
 
+    /* no match */
+
+cleanup:
+    if (f) {
+        fclose(f);
+    }
+    free(line);
     ssh_key_free(pub_key);
-    return 1;
+    return ret;
 }
 
 /* /ietf-netconf-server:netconf-server/listen/endpoint/ssh */
