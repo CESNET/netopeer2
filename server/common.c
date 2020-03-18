@@ -87,6 +87,11 @@ np2srv_ntf_new_cb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t no
         notif = ly_ntf;
     }
 
+    /* find the top-level node */
+    while (notif->parent) {
+        notif = notif->parent;
+    }
+
     /* check NACM */
     if (ncac_check_operation(notif, nc_session_get_username(ncs))) {
         goto cleanup;
