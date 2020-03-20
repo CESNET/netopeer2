@@ -208,6 +208,13 @@ cleanup:
     return ret;
 }
 
+static int
+np2srv_dummy_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name), const char *UNUSED(xpath),
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+{
+    return SR_ERR_OK;
+}
+
 static void
 np2srv_del_session_cb(struct nc_session *session)
 {
@@ -855,6 +862,20 @@ server_data_subscribe(void)
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls/tls-server-parameters/"
             "client-authentication/cert-maps";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_tls_client_ctn_cb);
+
+    /*
+     * ietf-keystore (just for in-use operational data)
+     */
+    mod_name = "ietf-keystore";
+    xpath = "/ietf-keystore:keystore/asymmetric-keys";
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_dummy_cb);
+
+    /*
+     * ietf-truststore (just for in-use operational data)
+     */
+    mod_name = "ietf-truststore";
+    xpath = "/ietf-truststore:truststore/certificates";
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_dummy_cb);
 
     /*
      * ietf-netconf-acm
