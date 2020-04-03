@@ -495,7 +495,7 @@ recv_reply:
 
     if (timed) {
         msec = cli_difftimespec(&ts_start, &ts_stop);
-        fprintf(output, "%s %2dm%d,%03ds\n", mono ? "mono" : "real", msec / 60000, (msec % 60000) / 1000, msec % 1000);
+        fprintf(output, "%s %2dm%d.%03ds\n", mono ? "mono" : "real", msec / 60000, (msec % 60000) / 1000, msec % 1000);
     }
 
     return ret;
