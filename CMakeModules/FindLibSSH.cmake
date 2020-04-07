@@ -4,6 +4,7 @@
 #  LIBSSH_FOUND - system has LibSSH
 #  LIBSSH_INCLUDE_DIRS - the LibSSH include directory
 #  LIBSSH_LIBRARY_DIR - the LibSSH library directory
+#  LIBSSH_LIBRARIES - link these to use LibSSH
 #
 #  Copyright (c) 2009 Andreas Schneider <asn@cryptomilk.org>
 #
@@ -31,10 +32,10 @@
 #  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-if (LIBSSH_LIBRARY_DIR AND LIBSSH_INCLUDE_DIRS)
+if(LIBSSH_LIBRARY_DIR AND LIBSSH_LIBRARIES AND LIBSSH_INCLUDE_DIRS)
   # in cache already
   set(LIBSSH_FOUND TRUE)
-else (LIBSSH_LIBRARY_DIR AND LIBSSH_INCLUDE_DIRS)
+else()
 
   find_path(LIBSSH_INCLUDE_DIR
     NAMES
@@ -48,7 +49,7 @@ else (LIBSSH_LIBRARY_DIR AND LIBSSH_INCLUDE_DIRS)
       ${CMAKE_INSTALL_PREFIX}/include
   )
 
-  find_library(SSH_LIBRARY
+  find_library(LIBSSH_LIBRARY
     NAMES
       ssh.so
       libssh.so
@@ -61,18 +62,17 @@ else (LIBSSH_LIBRARY_DIR AND LIBSSH_INCLUDE_DIRS)
       ${CMAKE_INSTALL_PREFIX}/lib
   )
 
-  if (LIBSSH_INCLUDE_DIR AND SSH_LIBRARY)
+  if(LIBSSH_INCLUDE_DIR AND LIBSSH_LIBRARY)
     set(SSH_FOUND TRUE)
-  endif (LIBSSH_INCLUDE_DIR AND SSH_LIBRARY)
+  endif()
 
-  set(LIBSSH_INCLUDE_DIRS
-    ${LIBSSH_INCLUDE_DIR}
-  )
+  set(LIBSSH_INCLUDE_DIRS ${LIBSSH_INCLUDE_DIR})
+  set(LIBSSH_LIBRARIES ${LIBSSH_LIBRARY})
 
   if (SSH_FOUND)
     string(REPLACE "libssh.so" ""
       LIBSSH_LIBRARY_DIR
-      ${SSH_LIBRARY}
+      ${LIBSSH_LIBRARY}
     )
     string(REPLACE "ssh.so" ""
       LIBSSH_LIBRARY_DIR
@@ -85,34 +85,34 @@ else (LIBSSH_LIBRARY_DIR AND LIBSSH_INCLUDE_DIRS)
       # Older versions of libssh like libssh-0.2 have LIBSSH_VERSION but not LIBSSH_VERSION_MAJOR
       if (LIBSSH_VERSION_MAJOR)
         string(REGEX MATCH "[0-9]+" LIBSSH_VERSION_MAJOR ${LIBSSH_VERSION_MAJOR})
-	file(STRINGS ${LIBSSH_INCLUDE_DIR}/libssh/libssh.h LIBSSH_VERSION_MINOR
-          REGEX "#define[ ]+LIBSSH_VERSION_MINOR[ ]+[0-9]+")
-	string(REGEX MATCH "[0-9]+" LIBSSH_VERSION_MINOR ${LIBSSH_VERSION_MINOR})
-	file(STRINGS ${LIBSSH_INCLUDE_DIR}/libssh/libssh.h LIBSSH_VERSION_PATCH
-          REGEX "#define[ ]+LIBSSH_VERSION_MICRO[ ]+[0-9]+")
-	string(REGEX MATCH "[0-9]+" LIBSSH_VERSION_PATCH ${LIBSSH_VERSION_PATCH})
+        file(STRINGS ${LIBSSH_INCLUDE_DIR}/libssh/libssh.h LIBSSH_VERSION_MINOR
+             REGEX "#define[ ]+LIBSSH_VERSION_MINOR[ ]+[0-9]+")
+        string(REGEX MATCH "[0-9]+" LIBSSH_VERSION_MINOR ${LIBSSH_VERSION_MINOR})
+        file(STRINGS ${LIBSSH_INCLUDE_DIR}/libssh/libssh.h LIBSSH_VERSION_PATCH
+             REGEX "#define[ ]+LIBSSH_VERSION_MICRO[ ]+[0-9]+")
+        string(REGEX MATCH "[0-9]+" LIBSSH_VERSION_PATCH ${LIBSSH_VERSION_PATCH})
 
-	set(LibSSH_VERSION ${LIBSSH_VERSION_MAJOR}.${LIBSSH_VERSION_MINOR}.${LIBSSH_VERSION_PATCH})
+        set(LibSSH_VERSION ${LIBSSH_VERSION_MAJOR}.${LIBSSH_VERSION_MINOR}.${LIBSSH_VERSION_PATCH})
 
-	include(FindPackageVersionCheck)
-	find_package_version_check(LibSSH DEFAULT_MSG)
-      else (LIBSSH_VERSION_MAJOR)
+        include(FindPackageVersionCheck)
+        find_package_version_check(LibSSH DEFAULT_MSG)
+      else()
         message(STATUS "LIBSSH_VERSION_MAJOR not found in ${LIBSSH_INCLUDE_DIR}/libssh/libssh.h, assuming libssh is too old")
         set(LIBSSH_FOUND FALSE)
-      endif (LIBSSH_VERSION_MAJOR)
-    endif (LibSSH_FIND_VERSION)
-  endif (SSH_FOUND)
+      endif()
+    endif()
+  endif()
 
   # If the version is too old, but libs and includes are set,
   # find_package_handle_standard_args will set LIBSSH_FOUND to TRUE again,
   # so we need this if() here.
-  if (LIBSSH_FOUND)
+  if(LIBSSH_FOUND)
     include(FindPackageHandleStandardArgs)
     find_package_handle_standard_args(LibSSH DEFAULT_MSG LIBSSH_LIBRARY_DIR LIBSSH_INCLUDE_DIRS)
-  endif (LIBSSH_FOUND)
+  endif()
 
-  # show the LIBSSH_INCLUDE_DIRS and LIBSSH_LIBRARY_DIR variables only in the advanced view
-  mark_as_advanced(LIBSSH_INCLUDE_DIRS LIBSSH_LIBRARY_DIR)
+  # show the LIBSSH_INCLUDE_DIRS, LIBSSH_LIBRARIES, and LIBSSH_LIBRARY_DIR variables only in the advanced view
+  mark_as_advanced(LIBSSH_INCLUDE_DIRS LIBSSH_LIBRARY_DIR LIBSSH_LIBRARIES)
 
-endif (LIBSSH_LIBRARY_DIR AND LIBSSH_INCLUDE_DIRS)
+endif()
 

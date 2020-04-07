@@ -114,15 +114,30 @@ endif()
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 find_package(Threads REQUIRED)
 target_link_libraries(netopeer2-server ${CMAKE_THREAD_LIBS_INIT})
-set(CMAKE_REQUIRED_FLAGS ${CMAKE_THREAD_LIBS_INIT})
+list(APPEND CMAKE_REQUIRED_FLAGS ${CMAKE_THREAD_LIBS_INIT})
 
 # dependencies - stdatomic
 check_include_file(stdatomic.h HAVE_STDATOMIC)
+
+# dependencies - libssh
+find_package(LibSSH 0.7.0 REQUIRED)
+if(LibSSH_VERSION VERSION_LESS 0.8.0)
+    target_link_libraries(netopeer2-server "-L${LIBSSH_LIBRARY_DIR}" -lssh -lssh_threads -lcrypt)
+    list(APPEND CMAKE_REQUIRED_FLAGS "-L${LIBSSH_LIBRARY_DIR}")
+    list(APPEND CMAKE_REQUIRED_LIBRARIES ssh crypt)
+else()
+    target_link_libraries(netopeer2-server ${LIBSSH_LIBRARIES} -lcrypt)
+    list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBSSH_LIBRARIES} crypt)
+endif()
+include_directories(${LIBSSH_INCLUDE_DIRS})
+list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBSSH_INCLUDE_DIRS})
 
 # dependencies - libyang
 find_package(LibYANG REQUIRED)
 target_link_libraries(netopeer2-server ${LIBYANG_LIBRARIES})
 include_directories(${LIBYANG_INCLUDE_DIRS})
+list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBYANG_INCLUDE_DIRS})
+list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBYANG_LIBRARIES})
 
 # dependencies - libnetconf2
 find_package(LibNETCONF2 REQUIRED)
@@ -131,6 +146,8 @@ if(NOT LIBNETCONF2_ENABLED_SSH)
 endif()
 target_link_libraries(netopeer2-server ${LIBNETCONF2_LIBRARIES})
 include_directories(${LIBNETCONF2_INCLUDE_DIRS})
+list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBNETCONF2_INCLUDE_DIRS})
+list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBNETCONF2_LIBRARIES})
 
 # dependencies - sysrepo
 find_package(SYSREPO REQUIRED)
@@ -145,17 +162,7 @@ if(SYSREPOCFG-NOTFOUND)
     message(FATAL_ERROR "sysrepocfg utility not found.")
 endif()
 
-# dependencies - libssh
-find_package(LibSSH 0.7.0 REQUIRED)
-if(LibSSH_VERSION VERSION_LESS 0.8.0)
-    target_link_libraries(netopeer2-server "-L${LIBSSH_LIBRARY_DIR}" -lssh -lssh_threads -lcrypt)
-else()
-    target_link_libraries(netopeer2-server "-L${LIBSSH_LIBRARY_DIR}" -lssh -lcrypt)
-    set(CMAKE_REQUIRED_LIBRARIES "ssh;crypt")
-endif()
-include_directories(${LIBSSH_INCLUDE_DIRS})
-
-# dependencies - openssl
+# dependencies - openssl utility
 if(GENERATE_HOSTKEY)
     find_program(OPENSSL "openssl")
     if(OPENSSL-NOTFOUND)
