@@ -1281,6 +1281,9 @@ cleanup:
     sr_unsubscribe(np2srv.sr_data_sub);
     sr_unsubscribe(np2srv.sr_notif_sub);
 
+    /* remove all CH clients so they do not reconnect */
+    nc_server_ch_del_client(NULL);
+
     /* close all open sessions */
     if (np2srv.nc_ps) {
         while (nc_ps_session_count(np2srv.nc_ps)) {
