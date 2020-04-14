@@ -250,6 +250,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
 {
     sr_datastore_t ds = SR_DS_OPERATIONAL, sds;
     struct ly_set *nodeset;
+    const sr_error_info_t *err_info;
     struct lyd_node *config = NULL;
     int rc = SR_ERR_OK, run_to_start = 0;
 #ifdef NP2SRV_URL_CAPAB
@@ -359,21 +360,18 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
             /* config is spent */
             rc = sr_replace_config(session, NULL, config, NP2SRV_DATA_CHANGE_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
             config = NULL;
-            if (rc != SR_ERR_OK) {
-                goto cleanup;
-            }
         } else {
             assert(run_to_start);
 
             /* set SID to skip NACM check, only one copy-config can be executed at once */
             ATOMIC_STORE_RELAXED(skip_nacm_sr_sid, sr_session_get_id(session));
-
             rc = sr_copy_config(session, NULL, sds, NP2SRV_DATA_CHANGE_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
-            if (rc != SR_ERR_OK) {
-                goto cleanup;
-            }
-
             ATOMIC_STORE_RELAXED(skip_nacm_sr_sid, 0);
+        }
+        if (rc != SR_ERR_OK) {
+            sr_get_error(session, &err_info);
+            sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
+            goto cleanup;
         }
     }
 
@@ -530,6 +528,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), con
         sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     int rc = SR_ERR_OK;;
+    const sr_error_info_t *err_info;
 
     /* update sysrepo session datastore */
     sr_session_switch_ds(session, SR_DS_RUNNING);
@@ -537,6 +536,8 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), con
     /* sysrepo API */
     rc = sr_copy_config(session, NULL, SR_DS_CANDIDATE, NP2SRV_DATA_CHANGE_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
     if (rc != SR_ERR_OK) {
+        sr_get_error(session, &err_info);
+        sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
         goto cleanup;
     }
 
