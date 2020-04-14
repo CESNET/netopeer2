@@ -218,9 +218,11 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     sr_session_switch_ds(session, ds);
 
     /* sysrepo API */
-    rc = sr_edit_batch(session, config, defop);
-    if (rc != SR_ERR_OK) {
-        goto cleanup;
+    if (config) {
+        rc = sr_edit_batch(session, config, defop);
+        if (rc != SR_ERR_OK) {
+            goto cleanup;
+        }
     }
 
     if (!strcmp(testop, "test-then-set")) {
