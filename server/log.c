@@ -148,6 +148,7 @@ np2log_cb_nc2(NC_VERB_LEVEL level, const char *msg)
         priority = LOG_INFO;
         break;
     case NC_VERB_DEBUG:
+    case NC_VERB_DEBUG_LOWLVL:
         priority = LOG_DEBUG;
         break;
     }
@@ -285,6 +286,7 @@ np2log_printf(NC_VERB_LEVEL level, const char *format, ...)
         priority = LOG_INFO;
         break;
     case NC_VERB_DEBUG:
+    case NC_VERB_DEBUG_LOWLVL:
         priority = LOG_DEBUG;
         break;
     }

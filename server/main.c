@@ -1021,7 +1021,7 @@ print_usage(char* progname)
 #ifndef NDEBUG
     fprintf(stdout, " -c category[,category]*\n");
     fprintf(stdout, "           verbose debug level, print only these debug message categories\n");
-    fprintf(stdout, "           categories: DICT, YANG, YIN, XPATH, DIFF, MSG, SSH, SYSREPO\n");
+    fprintf(stdout, "           categories: DICT, YANG, YIN, XPATH, DIFF, MSG, LN2DBG, SSH, SYSREPO\n");
 #else
     fprintf(stdout, " -c category[,category]*\n");
     fprintf(stdout, "           verbose debug level, NOT SUPPORTED in release build type\n");
@@ -1147,6 +1147,8 @@ main(int argc, char *argv[])
                 } else if (!strcmp(ptr, "MSG")) {
                     /* NETCONF messages - only lnc2 debug verbosity */
                     nc_verbosity(NC_VERB_DEBUG);
+                } else if (!strcmp(ptr, "LN2DBG")) {
+                    nc_verbosity(NC_VERB_DEBUG_LOWLVL);
                 } else if (!strcmp(ptr, "SSH")) {
                     /* 2 should be always enough, 3 is too much useless info */
                     np2_libssh_verbose_level = 2;
