@@ -142,7 +142,7 @@ check_function_exists(pthread_rwlockattr_setkind_np HAVE_PTHREAD_RWLOCKATTR_SETK
 check_include_file(stdatomic.h HAVE_STDATOMIC)
 
 # dependencies - libyang
-find_package(LibYANG REQUIRED)
+find_package(LibYANG 1.0.157 REQUIRED)
 target_link_libraries(netopeer2-server ${LIBYANG_LIBRARIES})
 include_directories(${LIBYANG_INCLUDE_DIRS})
 
