@@ -5,6 +5,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../CMakeModules/
 
 project(netopeer2-cli C)
 include(GNUInstallDirs)
+include(UseCompat)
 
 # check the supported platform
 if(NOT UNIX)
@@ -33,8 +34,11 @@ set(srcs
     configuration.c
     linenoise/linenoise.c)
 
+#link compat
+use_compat()
+
 # netopeer2-cli target
-add_executable(netopeer2-cli ${srcs})
+add_executable(netopeer2-cli ${srcs} $<TARGET_OBJECTS:compat>)
 
 # dependencies - pthread
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)

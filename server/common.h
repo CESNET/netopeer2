@@ -23,6 +23,7 @@
 #include <nc_server.h>
 #include <sysrepo.h>
 
+#include "compat.h"
 #include "config.h"
 
 /* server internal data */

@@ -29,6 +29,7 @@
 #include <libyang/libyang.h>
 #include <nc_client.h>
 
+#include "compat.h"
 #include "commands.h"
 #include "completion.h"
 #include "configuration.h"

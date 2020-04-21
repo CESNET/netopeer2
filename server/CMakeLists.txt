@@ -7,6 +7,7 @@ project(netopeer2-server C)
 include(GNUInstallDirs)
 include(CheckFunctionExists)
 include(CheckIncludeFile)
+include(UseCompat)
 
 # check the supported platform
 if(NOT UNIX)
@@ -94,8 +95,11 @@ set(srcs
 # object library to build source codes only once for the main binary
 add_library(serverobj OBJECT ${srcs})
 
+# link compat
+use_compat()
+
 # netopeer2-server target
-add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> main.c)
+add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> main.c $<TARGET_OBJECTS:compat>)
 
 # dependencies - libcurl
 if(ENABLE_URL)
