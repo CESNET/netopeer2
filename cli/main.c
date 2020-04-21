@@ -63,6 +63,7 @@ lnc2_print_clb(NC_VERB_LEVEL level, const char *msg)
         fprintf(stderr, "nc VERBOSE: %s\n", msg);
         break;
     case NC_VERB_DEBUG:
+    case NC_VERB_DEBUG_LOWLVL:
         fprintf(stderr, "nc DEBUG: %s\n", msg);
         break;
     }
