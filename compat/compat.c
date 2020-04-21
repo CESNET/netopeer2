@@ -151,3 +151,12 @@ get_current_dir_name(void)
     return retval;
 }
 #endif
+
+#ifndef HAVE_STRCHRNUL
+char *
+strchrnul(const char *s, int c)
+{
+    char * p = strchr(s, c);
+    return p == NULL ? (char *) s + strlen(s) : p;
+}
+#endif
