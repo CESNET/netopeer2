@@ -100,7 +100,8 @@ np2srv_ntf_get_data(sr_conn_ctx_t *sr_conn)
         goto error;
     }
     if (!lyd_new_leaf(stream, stream->schema->module, "description",
-                "Default NETCONF stream containing notifications from all the modules.")) {
+            "Default NETCONF stream containing notifications from all the modules."
+            " Replays only notifications for modules that support replay.")) {
         goto error;
     }
     if (!lyd_new_leaf(stream, stream->schema->module, "replaySupport", "true")) {
