@@ -52,6 +52,10 @@
  */
 #define NP2SRV_RPC_TIMEOUT (@RPC_TIMEOUT@ * 1000)
 
+/** @brief Timeout for nc_ps_poll() call
+ */
+#define NP2SRV_POLL_IO_TIMEOUT @POLL_IO_TIMEOUT@
+
 /** @brief Starting allocated length for a message
  */
 #define NP2SRV_MSG_LEN_START 128
