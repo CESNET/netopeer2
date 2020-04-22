@@ -20,7 +20,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
-#include <sys/sendfile.h>
 #include <pwd.h>
 #include <fcntl.h>
 #include <assert.h>
@@ -1640,6 +1639,7 @@ cp(const char *to, const char *from)
     struct stat st;
     ssize_t from_len;
     int saved_errno;
+    void *buf;
 
     fd_from = open(from, O_RDONLY);
     if (fd_from < 0) {
@@ -1657,10 +1657,17 @@ cp(const char *to, const char *from)
 
     from_len = st.st_size;
 
-    if (sendfile(fd_to, fd_from, NULL, from_len) < from_len) {
+    buf = malloc(from_len);
+
+    if (read(fd_from, buf, from_len) < from_len) {
         goto out_error;
     }
 
+    if (write(fd_to, buf, from_len) < from_len) {
+        goto out_error;
+    }
+
+    free(buf);
     close(fd_from);
     close(fd_to);
 

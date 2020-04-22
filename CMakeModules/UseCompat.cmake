@@ -17,6 +17,9 @@ macro(USE_COMPAT)
     check_symbol_exists(strndup "string.h" HAVE_STRNDUP)
     check_symbol_exists(getline "stdio.h" HAVE_GETLINE)
 
+    check_symbol_exists(strdupa "string.h" HAVE_STRDUPA)
+    check_symbol_exists(strchrnul "string.h" HAVE_STRCHRNUL)
+
     TEST_BIG_ENDIAN(IS_BIG_ENDIAN)
 
     # header and object file
