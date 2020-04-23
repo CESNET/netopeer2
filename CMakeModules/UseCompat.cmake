@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8.12)
 include(CheckSymbolExists)
 include(TestBigEndian)
 
-macro(USE_COMPAT)
+macro(PREPARE_COMPAT)
     # compatibility checks
     set(CMAKE_REQUIRED_DEFINITIONS -D_POSIX_C_SOURCE=200809L)
     list(APPEND CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE)
@@ -23,5 +23,7 @@ macro(USE_COMPAT)
     # header and object file
     configure_file(${PROJECT_SOURCE_DIR}/../compat/compat.h.in ${PROJECT_BINARY_DIR}/compat.h @ONLY)
     include_directories(${PROJECT_BINARY_DIR})
+endmacro()
+macro(USE_COMPAT)
     add_library(compat OBJECT ${PROJECT_SOURCE_DIR}/../compat/compat.c)
 endmacro()

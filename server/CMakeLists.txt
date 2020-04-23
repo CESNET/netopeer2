@@ -97,6 +97,7 @@ set(srcs
 add_library(serverobj OBJECT ${srcs})
 
 # link compat
+prepare_compat()
 if(NOT TARGET compat)
     use_compat()
 endif()

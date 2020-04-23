@@ -35,6 +35,7 @@ set(srcs
     linenoise/linenoise.c)
 
 #link compat
+prepare_compat()
 if(NOT TARGET compat)
     use_compat()
 endif()
