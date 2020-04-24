@@ -97,9 +97,7 @@ set(srcs
 add_library(serverobj OBJECT ${srcs})
 
 # link compat
-if(NOT TARGET compat)
-    use_compat()
-endif()
+use_compat()
 
 # netopeer2-server target
 add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> main.c $<TARGET_OBJECTS:compat>)

@@ -23,5 +23,7 @@ macro(USE_COMPAT)
     # header and object file
     configure_file(${PROJECT_SOURCE_DIR}/../compat/compat.h.in ${PROJECT_BINARY_DIR}/compat.h @ONLY)
     include_directories(${PROJECT_BINARY_DIR})
-    add_library(compat OBJECT ${PROJECT_SOURCE_DIR}/../compat/compat.c)
+    if(NOT TARGET compat)
+        add_library(compat OBJECT ${PROJECT_SOURCE_DIR}/../compat/compat.c)
+    endif()
 endmacro()

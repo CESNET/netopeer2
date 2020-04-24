@@ -35,9 +35,7 @@ set(srcs
     linenoise/linenoise.c)
 
 #link compat
-if(NOT TARGET compat)
-    use_compat()
-endif()
+use_compat()
 
 # netopeer2-cli target
 add_executable(netopeer2-cli ${srcs} $<TARGET_OBJECTS:compat>)
