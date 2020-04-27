@@ -58,7 +58,24 @@ option(INSTALL_MODULES "Install required modules into sysrepo" ON)
 option(GENERATE_HOSTKEY "Generate a new RSA host key in the keystore named \"genkey\"" ON)
 option(MERGE_LISTEN_CONFIG "Merge default server configuration for listening on all IPv4 interfaces" ON)
 set(DEFAULT_HOSTKEY "genkey" CACHE STRING "Name of the hostkey from the keystore used in default listen configuration")
-set(MODULES_OWNER "$ENV{USER}" CACHE STRING "User that will become the owner of server modules")
+if(NOT MODULES_OWNER)
+    execute_process(COMMAND id -un RESULT_VARIABLE RET
+    OUTPUT_VARIABLE MODULES_OWNER OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_VARIABLE ERROR_STR OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(RET)
+        message(FATAL_ERROR "Learning server module user failed: ${ERROR_STR}")
+    endif()
+endif()
+set(MODULES_OWNER "${MODULES_OWNER}" CACHE STRING "System user that will become the owner of server modules")
+if(NOT MODULES_GROUP)
+    execute_process(COMMAND id -gn ${MODULES_OWNER} RESULT_VARIABLE RET
+    OUTPUT_VARIABLE MODULES_GROUP OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_VARIABLE ERROR_STR OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(RET)
+        message(FATAL_ERROR "Learning server module group failed: ${ERROR_STR}")
+    endif()
+endif()
+set(MODULES_GROUP "${MODULES_GROUP}" CACHE STRING "System group that the server modules will belong to")
 set(MODULES_DIR "${PROJECT_SOURCE_DIR}/../modules" CACHE STRING "Directory with the YANG modules to install")
 
 # set prefix for the PID file
