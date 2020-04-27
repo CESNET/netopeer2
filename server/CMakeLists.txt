@@ -38,12 +38,7 @@ else()
     option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" OFF)
 endif()
 option(ENABLE_URL "Enable URL capability" ON)
-option(INSTALL_MODULES "Install required modules into sysrepo" ON)
-option(GENERATE_HOSTKEY "Generate a new RSA host key in the keystore named \"genkey\"" ON)
-option(MERGE_LISTEN_CONFIG "Merge default server configuration for listening on all IPv4 interfaces" ON)
-set(DEFAULT_HOSTKEY "genkey" CACHE STRING "Name of the hostkey from the keystore used in default listen configuration")
 set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
-set(MODULES_OWNER "$ENV{USER}" CACHE STRING "User that will become the owner of server modules")
 set(NACM_RECOVERY_UID 0 CACHE STRING "NACM recovery session UID that has unrestricted access")
 set(DATA_CHANGE_TIMEOUT 5 CACHE STRING "Timeout in seconds of any (sysrepo) data changes, 0 is the default sysrepo timeout")
 set(RPC_TIMEOUT 6 CACHE STRING "Timeout in seconds of the global RPC callback, that calls all the other specific RPC callbacks. This timeout should always be higher than that of other RPCs")
@@ -57,6 +52,14 @@ endif()
 if(NOT RPC_TIMEOUT GREATER DATA_CHANGE_TIMEOUT)
     message(FATAL_ERROR "RPC timeout must be longer than data change timeout.")
 endif()
+
+# script options
+option(INSTALL_MODULES "Install required modules into sysrepo" ON)
+option(GENERATE_HOSTKEY "Generate a new RSA host key in the keystore named \"genkey\"" ON)
+option(MERGE_LISTEN_CONFIG "Merge default server configuration for listening on all IPv4 interfaces" ON)
+set(DEFAULT_HOSTKEY "genkey" CACHE STRING "Name of the hostkey from the keystore used in default listen configuration")
+set(MODULES_OWNER "$ENV{USER}" CACHE STRING "User that will become the owner of server modules")
+set(MODULES_DIR "${PROJECT_SOURCE_DIR}/../modules" CACHE STRING "Directory with the YANG modules to install")
 
 # set prefix for the PID file
 if(NOT PIDFILE_PREFIX)
@@ -175,12 +178,18 @@ if(GENERATE_HOSTKEY)
     endif()
 endif()
 
+# generate files
+configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_BINARY_DIR}/config.h" ESCAPE_QUOTES @ONLY)
+include_directories(${PROJECT_BINARY_DIR})
+
+configure_file("${PROJECT_SOURCE_DIR}/setup.sh.in" "${PROJECT_BINARY_DIR}/setup.sh" ESCAPE_QUOTES @ONLY)
+
 # install the binary, required modules, and default configuration
 install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
 if(INSTALL_MODULES)
     install(CODE "
         message(STATUS \"Installing sysrepo modules...\")
-        execute_process(COMMAND ${PROJECT_SOURCE_DIR}/setup.sh ${SYSREPOCTL} ${PROJECT_SOURCE_DIR}/../modules ${MODULES_OWNER})
+        execute_process(COMMAND ${PROJECT_BINARY_DIR}/setup.sh)
         execute_process(COMMAND ${SYSREPOCTL} -C RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR
                 OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_STRIP_TRAILING_WHITESPACE)
         if(\${RET})
@@ -204,9 +213,6 @@ if(MERGE_LISTEN_CONFIG)
         execute_process(COMMAND ${PROJECT_SOURCE_DIR}/merge_config.sh ${SYSREPOCFG} ${DEFAULT_HOSTKEY})
     ")
 endif()
-
-configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_BINARY_DIR}/config.h" ESCAPE_QUOTES @ONLY)
-include_directories(${PROJECT_BINARY_DIR})
 
 # clean cmake cache
 add_custom_target(cleancache
