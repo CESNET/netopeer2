@@ -140,6 +140,8 @@ np2srv_tcp_keepalives(const char *client_name, const char *endpt_name, sr_sessio
         return rc;
     }
 
+    rc = 0;
+
     /* set new keepalive parameters */
     if (!client_name) {
         if (nc_server_is_endpt(endpt_name)) {
@@ -151,6 +153,7 @@ np2srv_tcp_keepalives(const char *client_name, const char *endpt_name, sr_sessio
         }
     }
     if (rc) {
+        ERR("Keepalives configuration failed (%d).", rc);
         return SR_ERR_INTERNAL;
     }
 
