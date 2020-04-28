@@ -228,7 +228,7 @@ endif()
 if(MERGE_LISTEN_CONFIG)
     install(CODE "
         message(STATUS \"Merging default server listen configuration if there is none...\")
-        execute_process(COMMAND ${PROJECT_SOURCE_DIR}/merge_config.sh)
+        execute_process(COMMAND ${PROJECT_BINARY_DIR}/merge_config.sh)
     ")
 endif()
 

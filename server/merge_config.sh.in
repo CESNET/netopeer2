@@ -8,7 +8,7 @@ KS_KEY_NAME=genkey
 # check that there is no listen/Call Home configuration yet
 SERVER_CONFIG=`$SYSREPOCFG -X -x "/ietf-netconf-server:netconf-server/listen/endpoint[1]/name | /ietf-netconf-server:netconf-server/call-home/netconf-client[1]/name"`
 if [ ! -z "$SERVER_CONFIG" ]; then
-    return
+    exit
 fi
 
 # import default config
