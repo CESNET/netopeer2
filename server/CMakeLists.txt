@@ -57,7 +57,6 @@ endif()
 option(INSTALL_MODULES "Install required modules into sysrepo" ON)
 option(GENERATE_HOSTKEY "Generate a new RSA host key in the keystore named \"genkey\"" ON)
 option(MERGE_LISTEN_CONFIG "Merge default server configuration for listening on all IPv4 interfaces" ON)
-set(DEFAULT_HOSTKEY "genkey" CACHE STRING "Name of the hostkey from the keystore used in default listen configuration")
 if(NOT MODULES_OWNER)
     execute_process(COMMAND id -un RESULT_VARIABLE RET
     OUTPUT_VARIABLE MODULES_OWNER OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -200,12 +199,14 @@ configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_BINARY_DIR}/config
 include_directories(${PROJECT_BINARY_DIR})
 
 configure_file("${PROJECT_SOURCE_DIR}/setup.sh.in" "${PROJECT_BINARY_DIR}/setup.sh" ESCAPE_QUOTES @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/merge_hostkey.sh.in" "${PROJECT_BINARY_DIR}/merge_hostkey.sh" ESCAPE_QUOTES @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/merge_config.sh.in" "${PROJECT_BINARY_DIR}/merge_config.sh" ESCAPE_QUOTES @ONLY)
 
 # install the binary, required modules, and default configuration
 install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
 if(INSTALL_MODULES)
     install(CODE "
-        message(STATUS \"Installing sysrepo modules...\")
+        message(STATUS \"Installing missing sysrepo modules...\")
         execute_process(COMMAND ${PROJECT_BINARY_DIR}/setup.sh)
         execute_process(COMMAND ${SYSREPOCTL} -C RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR
                 OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_STRIP_TRAILING_WHITESPACE)
@@ -220,14 +221,14 @@ else()
 endif()
 if(GENERATE_HOSTKEY)
     install(CODE "
-        message(STATUS \"Generating a new RSA host key \\\"genkey\\\"...\")
-        execute_process(COMMAND ${PROJECT_SOURCE_DIR}/merge_hostkey.sh ${SYSREPOCFG} ${OPENSSL})
+        message(STATUS \"Generating a new RSA host key \\\"genkey\\\" if not already added...\")
+        execute_process(COMMAND ${PROJECT_BINARY_DIR}/merge_hostkey.sh)
     ")
 endif()
 if(MERGE_LISTEN_CONFIG)
     install(CODE "
-        message(STATUS \"Merging default server listen configuration...\")
-        execute_process(COMMAND ${PROJECT_SOURCE_DIR}/merge_config.sh ${SYSREPOCFG} ${DEFAULT_HOSTKEY})
+        message(STATUS \"Merging default server listen configuration if there is none...\")
+        execute_process(COMMAND ${PROJECT_SOURCE_DIR}/merge_config.sh)
     ")
 endif()
 

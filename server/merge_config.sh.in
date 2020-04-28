@@ -1,14 +1,15 @@
 #!/bin/bash
 
-if [ $# -lt 2 ]; then
-    echo "Usage $0 <sysrepocfg-path> <keystore-key-name>"
-    exit
-fi
-
 set -e
 
-SYSREPOCFG=$1
-KS_KEY_NAME=$2
+SYSREPOCFG=@SYSREPOCFG@
+KS_KEY_NAME=genkey
+
+# check that there is no listen/Call Home configuration yet
+SERVER_CONFIG=`$SYSREPOCFG -X -x "/ietf-netconf-server:netconf-server/listen/endpoint[1]/name | /ietf-netconf-server:netconf-server/call-home/netconf-client[1]/name"`
+if [ ! -z "$SERVER_CONFIG" ]; then
+    return
+fi
 
 # import default config
 CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\">

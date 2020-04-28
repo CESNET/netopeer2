@@ -1,14 +1,15 @@
 #!/bin/bash
 
-if [ $# -lt 2 ]; then
-    echo "Usage $0 <sysrepocfg-path> <openssl-path>"
-    exit
-fi
-
 set -e
 
-SYSREPOCFG=$1
-OPENSSL=$2
+SYSREPOCFG=@SYSREPOCFG@
+OPENSSL=@OPENSSL@
+
+# check that there is no SSH key with this name yet
+KEYSTORE_KEY=`$SYSREPOCFG -X -x "/ietf-keystore:keystore/asymmetric-keys/asymmetric-key[name='genkey']/name"`
+if [ ! -z "$KEYSTORE_KEY" ]; then
+    return
+fi
 
 # generate a new key
 PRIVPEM=`$OPENSSL genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform PEM 2>/dev/null`
