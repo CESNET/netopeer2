@@ -347,7 +347,8 @@ op_parse_url(const char *url, int options, int *rc, sr_session_ctx_t *sr_sess)
         return NULL;
     }
 
-    config = lyd_parse_fd(ly_ctx, fd, LYD_XML, options);
+    /* do not validate the whole context, we just want to load the config anyxml */
+    config = lyd_parse_fd(ly_ctx, fd, LYD_XML, LYD_OPT_CONFIG | LYD_OPT_TRUSTED);
     if (ly_errno) {
         *rc = SR_ERR_LY;
         sr_set_error(sr_sess, ly_errpath(ly_ctx), ly_errmsg(ly_ctx));

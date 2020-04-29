@@ -200,7 +200,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
         assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
         config = op_parse_url(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str,
-                LYD_OPT_EDIT | LYD_OPT_STRICT, &rc, session);
+                LYD_OPT_EDIT | LYD_OPT_STRICT | LYD_OPT_TRUSTED, &rc, session);
         if (rc) {
             ly_set_free(nodeset);
             goto cleanup;
@@ -301,7 +301,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
         assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
         config = op_parse_url(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str,
-                LYD_OPT_CONFIG | LYD_OPT_STRICT, &rc, session);
+                LYD_OPT_CONFIG | LYD_OPT_STRICT | LYD_OPT_TRUSTED, &rc, session);
         if (rc) {
             ly_set_free(nodeset);
             goto cleanup;
@@ -418,7 +418,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path
 #ifdef NP2SRV_URL_CAPAB
     if (trg_url) {
         /* import URL to check its validity */
-        config = op_parse_url(trg_url, LYD_OPT_CONFIG | LYD_OPT_STRICT, &rc, session);
+        config = op_parse_url(trg_url, LYD_OPT_CONFIG | LYD_OPT_STRICT | LYD_OPT_TRUSTED, &rc, session);
         if (rc) {
             goto cleanup;
         }
@@ -596,9 +596,8 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
         } else {
             assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-            /* config is also validated now */
             config = op_parse_url(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str,
-                    LYD_OPT_CONFIG | LYD_OPT_STRICT, &rc, session);
+                    LYD_OPT_CONFIG | LYD_OPT_STRICT | LYD_OPT_TRUSTED, &rc, session);
             if (rc) {
                 ly_set_free(nodeset);
                 goto cleanup;
