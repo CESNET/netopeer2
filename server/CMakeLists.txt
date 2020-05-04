@@ -165,6 +165,9 @@ list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBYANG_LIBRARIES})
 
 # dependencies - libnetconf2
 find_package(LibNETCONF2 REQUIRED)
+if(NOT LIBNETCONF2_LIBRARY OR NOT LIBNETCONF2_INCLUDE_DIR)
+    message(FATAL_ERROR "libnetconf2 library not found!")
+endif()
 if(NOT LIBNETCONF2_ENABLED_SSH)
     message(FATAL_ERROR "Missing SSH support in libnetconf2, server requires SSH to be supported.")
 endif()
