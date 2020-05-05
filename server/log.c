@@ -137,6 +137,10 @@ np2log_cb_nc2(NC_VERB_LEVEL level, const char *msg)
     const char *log_msg;
     char *buf;
 
+    if (level > np2_verbose_level) {
+        return;
+    }
+
     switch (level) {
     case NC_VERB_ERROR:
         priority = LOG_ERR;;
@@ -167,6 +171,10 @@ np2log_cb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
     int priority;
     const char *log_msg;
     char *buf;
+
+    if (level > np2_verbose_level) {
+        return;
+    }
 
     switch (level) {
     case LY_LLERR:
@@ -241,7 +249,7 @@ np2log_printf(NC_VERB_LEVEL level, const char *format, ...)
     char *msg, *mem;
     int priority = LOG_ERR;
 
-    if (np2_verbose_level < level) {
+    if (level > np2_verbose_level) {
         return;
     }
 
