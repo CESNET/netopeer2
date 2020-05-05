@@ -1,11 +1,9 @@
-# - Try to find LibNETCONF2
-# Once done this will define
+# Find Sysrepo
+#  Once done, it will define
 #
-#  LIBNETCONF2_FOUND - system has LibNETCONF2
-#  LIBNETCONF2_INCLUDE_DIRS - the LibNETCONF2 include directory
-#  LIBNETCONF2_LIBRARIES - Link these to use LibNETCONF2
-#  LIBNETCONF2_ENABLED_SSH - LibNETCONF2 was compiled with SSH support
-#  LIBNETCONF2_ENABLED_TLS - LibNETCONF2 was compiled with TLS support
+#  SYSREPO_FOUND - System has SYSREPO
+#  SYSREPO_INCLUDE_DIRS - The SYSREPO include directories
+#  SYSREPO_LIBRARIES - The libraries needed to use SYSREPO
 #
 #  Author Michal Vasko <mvasko@cesnet.cz>
 #  Copyright (c) 2020 CESNET, z.s.p.o.
@@ -34,52 +32,28 @@
 #  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 include(FindPackageHandleStandardArgs)
-include(CheckSymbolExists)
 
-if(LIBNETCONF2_LIBRARIES AND LIBNETCONF2_INCLUDE_DIRS)
+if(SYSREPO_LIBRARIES AND SYSREPO_INCLUDE_DIRS)
     # in cache already
-    set(LIBNETCONF2_FOUND TRUE)
+    set(SYSREPO_FOUND TRUE)
 else()
-    find_path(LIBNETCONF2_INCLUDE_DIR
-        NAMES
-        nc_client.h
-        nc_server.h
-        PATHS
-        /usr/include
-        /usr/local/include
-        /opt/local/include
-        /sw/include
-        ${CMAKE_INCLUDE_PATH}
-        ${CMAKE_INSTALL_PREFIX}/include
+    find_path(SYSREPO_INCLUDE_DIR
+        NAMES sysrepo.h
+        PATHS /usr/include /usr/local/include /opt/local/include /sw/include
+        ${CMAKE_INCLUDE_PATH} ${CMAKE_INSTALL_PREFIX}/include
     )
 
-    find_library(LIBNETCONF2_LIBRARY
-        NAMES
-        netconf2
-        libnetconf2
-        PATHS
-        /usr/lib
-        /usr/lib64
-        /usr/local/lib
-        /usr/local/lib64
-        /opt/local/lib
-        /sw/lib
-        ${CMAKE_LIBRARY_PATH}
-        ${CMAKE_INSTALL_PREFIX}/lib
+    find_library(SYSREPO_LIBRARY
+        NAMES sysrepo libsysrepo
+        PATHS /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 /opt/local/lib /sw/lib
+        ${CMAKE_LIBRARY_PATH} ${CMAKE_INSTALL_PREFIX}/lib
     )
 
-    set(LIBNETCONF2_INCLUDE_DIRS ${LIBNETCONF2_INCLUDE_DIR})
-    set(LIBNETCONF2_LIBRARIES ${LIBNETCONF2_LIBRARY})
-    mark_as_advanced(LIBNETCONF2_INCLUDE_DIRS LIBNETCONF2_LIBRARIES)
+    set(SYSREPO_INCLUDE_DIRS ${SYSREPO_INCLUDE_DIR})
+    set(SYSREPO_LIBRARIES ${SYSREPO_LIBRARY})
+    mark_as_advanced(SYSREPO_INCLUDE_DIRS SYSREPO_LIBRARIES)
 
     # handle the QUIETLY and REQUIRED arguments and set SYSREPO_FOUND to TRUE
     # if all listed variables are TRUE
-    find_package_handle_standard_args(LibNETCONF2 DEFAULT_MSG LIBNETCONF2_LIBRARY LIBNETCONF2_INCLUDE_DIR)
-
-    # check the configured options and make them available through cmake
-    list(INSERT CMAKE_REQUIRED_INCLUDES 0 "${LIBNETCONF2_INCLUDE_DIR}")
-    check_symbol_exists("NC_ENABLED_SSH" "nc_client.h" LIBNETCONF2_ENABLED_SSH)
-    check_symbol_exists("NC_ENABLED_TLS" "nc_client.h" LIBNETCONF2_ENABLED_TLS)
-    list(REMOVE_AT CMAKE_REQUIRED_INCLUDES 0)
+    find_package_handle_standard_args(Sysrepo DEFAULT_MSG SYSREPO_LIBRARY SYSREPO_INCLUDE_DIR)
 endif()
-

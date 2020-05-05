@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 2.8.9)
 
-# include custom Modules
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../CMakeModules/")
+project(netopeer2 C)
+set(NETOPEER2_DESC "NETCONF tools suite including a server and command-line client")
 
-project(netopeer2-server C)
+# include custom Modules
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules/")
+
 include(GNUInstallDirs)
 include(CheckFunctionExists)
 include(CheckIncludeFile)
@@ -31,12 +33,13 @@ set(NP2SRV_VERSION 1.1.26)
 
 # build options
 if(CMAKE_BUILD_TYPE STREQUAL debug)
-    option(ENABLE_BUILD_TESTS "Build tests" ON)
-    option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" ON)
+    option(BUILD_TESTS "Build tests" ON)
+    option(VALGRIND_TESTS "Build tests with valgrind" ON)
 else()
-    option(ENABLE_BUILD_TESTS "Build tests" OFF)
-    option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" OFF)
+    option(BUILD_TESTS "Build tests" OFF)
+    option(VALGRIND_TESTS "Build tests with valgrind" OFF)
 endif()
+option(BUILD_CLI "Build and install neotpeer2-cli" ON)
 option(ENABLE_URL "Enable URL capability" ON)
 set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
 set(NACM_RECOVERY_UID 0 CACHE STRING "NACM recovery session UID that has unrestricted access")
@@ -75,7 +78,7 @@ if(NOT MODULES_GROUP)
     endif()
 endif()
 set(MODULES_GROUP "${MODULES_GROUP}" CACHE STRING "System group that the server modules will belong to")
-set(MODULES_DIR "${PROJECT_SOURCE_DIR}/../modules" CACHE STRING "Directory with the YANG modules to install")
+set(MODULES_DIR "${PROJECT_SOURCE_DIR}/modules" CACHE STRING "Directory with the YANG modules to install")
 
 # set prefix for the PID file
 if(NOT PIDFILE_PREFIX)
@@ -101,25 +104,23 @@ else()
 endif()
 
 # source files
-set(srcs
-    common.c
-    netconf.c
-    netconf_monitoring.c
-    netconf_server.c
-    netconf_server_ssh.c
-    netconf_server_tls.c
-    netconf_acm.c
-    netconf_nmda.c
-    log.c)
-
-# object library to build source codes only once for the main binary
-add_library(serverobj OBJECT ${srcs})
+set(SERVER_SRC
+    src/common.c
+    src/netconf.c
+    src/netconf_monitoring.c
+    src/netconf_server.c
+    src/netconf_server_ssh.c
+    src/netconf_server_tls.c
+    src/netconf_acm.c
+    src/netconf_nmda.c
+    src/log.c)
 
 # link compat
 use_compat()
 
-# netopeer2-server target
-add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> main.c $<TARGET_OBJECTS:compat>)
+# netopeer2-server
+add_library(serverobj OBJECT ${SERVER_SRC})
+add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> src/main.c $<TARGET_OBJECTS:compat>)
 
 # dependencies - libcurl
 if(ENABLE_URL)
@@ -158,9 +159,6 @@ list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBSSH_INCLUDE_DIRS})
 
 # dependencies - libyang
 find_package(LibYANG REQUIRED)
-if(NOT LIBYANG_FOUND)
-    message(FATAL_ERROR "libyang library not found!")
-endif()
 target_link_libraries(netopeer2-server ${LIBYANG_LIBRARIES})
 include_directories(${LIBYANG_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBYANG_INCLUDE_DIRS})
@@ -168,9 +166,6 @@ list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBYANG_LIBRARIES})
 
 # dependencies - libnetconf2
 find_package(LibNETCONF2 REQUIRED)
-if(NOT LIBNETCONF2_FOUND)
-    message(FATAL_ERROR "libnetconf2 library not found!")
-endif()
 if(NOT LIBNETCONF2_ENABLED_SSH)
     message(FATAL_ERROR "Missing SSH support in libnetconf2, server requires SSH to be supported.")
 endif()
@@ -180,9 +175,13 @@ list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBNETCONF2_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBNETCONF2_LIBRARIES})
 
 # dependencies - sysrepo
-find_package(SYSREPO REQUIRED)
+find_package(Sysrepo REQUIRED)
 target_link_libraries(netopeer2-server ${SYSREPO_LIBRARIES})
 include_directories(${SYSREPO_INCLUDE_DIRS})
+list(APPEND CMAKE_REQUIRED_INCLUDES ${SYSREPO_INCLUDE_DIRS})
+list(APPEND CMAKE_REQUIRED_LIBRARIES ${SYSREPO_LIBRARIES})
+
+# sysrepo tools
 find_program(SYSREPOCTL "sysrepoctl")
 if(SYSREPOCTL-NOTFOUND)
     message(FATAL_ERROR "sysrepoctl utility not found.")
@@ -201,12 +200,12 @@ if(GENERATE_HOSTKEY)
 endif()
 
 # generate files
-configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_BINARY_DIR}/config.h" ESCAPE_QUOTES @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/src/config.h.in" "${PROJECT_BINARY_DIR}/config.h" ESCAPE_QUOTES @ONLY)
 include_directories(${PROJECT_BINARY_DIR})
 
-configure_file("${PROJECT_SOURCE_DIR}/setup.sh.in" "${PROJECT_BINARY_DIR}/setup.sh" ESCAPE_QUOTES @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/merge_hostkey.sh.in" "${PROJECT_BINARY_DIR}/merge_hostkey.sh" ESCAPE_QUOTES @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/merge_config.sh.in" "${PROJECT_BINARY_DIR}/merge_config.sh" ESCAPE_QUOTES @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/scripts/setup.sh.in" "${PROJECT_BINARY_DIR}/setup.sh" ESCAPE_QUOTES @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/scripts/merge_hostkey.sh.in" "${PROJECT_BINARY_DIR}/merge_hostkey.sh" ESCAPE_QUOTES @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/scripts/merge_config.sh.in" "${PROJECT_BINARY_DIR}/merge_config.sh" ESCAPE_QUOTES @ONLY)
 
 # install the binary, required modules, and default configuration
 install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
@@ -236,6 +235,11 @@ if(MERGE_LISTEN_CONFIG)
         message(STATUS \"Merging default server listen configuration if there is none...\")
         execute_process(COMMAND ${PROJECT_BINARY_DIR}/merge_config.sh)
     ")
+endif()
+
+# cli
+if(BUILD_CLI)
+    add_subdirectory(cli)
 endif()
 
 # clean cmake cache

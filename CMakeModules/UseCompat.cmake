@@ -21,9 +21,7 @@ macro(USE_COMPAT)
     TEST_BIG_ENDIAN(IS_BIG_ENDIAN)
 
     # header and object file
-    configure_file(${PROJECT_SOURCE_DIR}/../compat/compat.h.in ${PROJECT_BINARY_DIR}/compat.h @ONLY)
+    configure_file(${PROJECT_SOURCE_DIR}/compat/compat.h.in ${PROJECT_BINARY_DIR}/compat.h @ONLY)
     include_directories(${PROJECT_BINARY_DIR})
-    if(NOT TARGET compat)
-        add_library(compat OBJECT ${PROJECT_SOURCE_DIR}/../compat/compat.c)
-    endif()
+    add_library(compat OBJECT ${PROJECT_SOURCE_DIR}/compat/compat.c)
 endmacro()
