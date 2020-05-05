@@ -158,6 +158,9 @@ list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBSSH_INCLUDE_DIRS})
 
 # dependencies - libyang
 find_package(LibYANG REQUIRED)
+if(NOT LIBYANG_FOUND)
+    message(FATAL_ERROR "libyang library not found!")
+endif()
 target_link_libraries(netopeer2-server ${LIBYANG_LIBRARIES})
 include_directories(${LIBYANG_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBYANG_INCLUDE_DIRS})
@@ -165,7 +168,7 @@ list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBYANG_LIBRARIES})
 
 # dependencies - libnetconf2
 find_package(LibNETCONF2 REQUIRED)
-if(NOT LIBNETCONF2_LIBRARY OR NOT LIBNETCONF2_INCLUDE_DIR)
+if(NOT LIBNETCONF2_FOUND)
     message(FATAL_ERROR "libnetconf2 library not found!")
 endif()
 if(NOT LIBNETCONF2_ENABLED_SSH)
