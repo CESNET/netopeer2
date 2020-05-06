@@ -229,7 +229,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
         rc = sr_apply_changes(session, NP2SRV_DATA_CHANGE_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
     } else {
         assert(!strcmp(testop, "test-only"));
-        rc = sr_validate(session, 0);
+        rc = sr_validate(session, NULL, 0);
     }
     if (rc != SR_ERR_OK) {
         sr_get_error(session, &err_info);
@@ -616,7 +616,7 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
         /* update sysrepo session datastore */
         sr_session_switch_ds(session, ds);
 
-        rc = sr_validate(session, 0);
+        rc = sr_validate(session, NULL, 0);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
