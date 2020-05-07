@@ -103,6 +103,9 @@ else()
     message(STATUS "pkg-config not found, so it was not possible to check if libnetconf2 supports ${THREAD_COUNT} threads")
 endif()
 
+# put all binaries into one directory (even from subprojects)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
+
 # source files
 set(SERVER_SRC
     src/common.c

@@ -16,7 +16,6 @@ set(CLI_SRC
     linenoise/linenoise.c)
 
 # netopeer2-cli target
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 add_executable(netopeer2-cli ${CLI_SRC} $<TARGET_OBJECTS:compat>)
 
 # reuse server variables
