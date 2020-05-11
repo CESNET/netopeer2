@@ -55,6 +55,7 @@ endif()
 if(NOT RPC_TIMEOUT GREATER DATA_CHANGE_TIMEOUT)
     message(FATAL_ERROR "RPC timeout must be longer than data change timeout.")
 endif()
+set(YANG_MODULE_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/yang/modules/netopeer2" CACHE STRING "Directory where to copy the YANG modules to")
 
 # script options
 option(INSTALL_MODULES "Install required modules into sysrepo" ON)
@@ -78,7 +79,6 @@ if(NOT MODULES_GROUP)
     endif()
 endif()
 set(MODULES_GROUP "${MODULES_GROUP}" CACHE STRING "System group that the server modules will belong to")
-set(MODULES_DIR "${PROJECT_SOURCE_DIR}/modules" CACHE STRING "Directory with the YANG modules to install")
 
 # set prefix for the PID file
 if(NOT PIDFILE_PREFIX)
@@ -209,6 +209,9 @@ include_directories(${PROJECT_BINARY_DIR})
 configure_file("${PROJECT_SOURCE_DIR}/scripts/setup.sh.in" "${PROJECT_BINARY_DIR}/setup.sh" ESCAPE_QUOTES @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/scripts/merge_hostkey.sh.in" "${PROJECT_BINARY_DIR}/merge_hostkey.sh" ESCAPE_QUOTES @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/scripts/merge_config.sh.in" "${PROJECT_BINARY_DIR}/merge_config.sh" ESCAPE_QUOTES @ONLY)
+
+# install the module files
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/modules/" DESTINATION ${YANG_MODULE_DIR})
 
 # install the binary, required modules, and default configuration
 install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
