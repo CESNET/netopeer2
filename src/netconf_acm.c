@@ -1054,7 +1054,8 @@ ncac_allowed_node(const struct lys_node *node, const char *user, uint8_t oper)
             }
             if (rule->target) {
                 path = lys_data_path(node);
-                cmp = strcmp(path, rule->target);
+                /* exact match or is a descendant (specified in RFC 8341 page 27) */
+                cmp = strncmp(path, rule->target, strlen(rule->target));
                 free(path);
                 if (cmp) {
                     continue;
