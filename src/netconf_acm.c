@@ -1045,7 +1045,7 @@ ncac_allowed_node(const struct lys_node *node, const char *user, uint8_t oper)
                 }
                 break;
             case NCAC_TARGET_DATA:
-                if (lys_parent(node) || (node->nodetype & (LYS_RPC | LYS_NOTIF))) {
+                if (node->nodetype & (LYS_RPC | LYS_NOTIF)) {
                     continue;
                 }
                 break;
