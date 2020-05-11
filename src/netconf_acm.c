@@ -1054,7 +1054,7 @@ ncac_allowed_node(const struct lys_node *node, const char *user, uint8_t oper)
             }
             if (rule->target) {
                 path = lys_data_path(node);
-                cmp = strncmp(path, rule->target, strlen(rule->target));
+                cmp = strcmp(path, rule->target);
                 free(path);
                 if (cmp) {
                     continue;
