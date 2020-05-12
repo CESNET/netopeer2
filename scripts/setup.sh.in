@@ -1,6 +1,7 @@
 #!/bin/bash
 
-SYSREPOCTL=@SYSREPOCTL@
+# avoid problems with sudo path
+SYSREPOCTL=`su -c "which sysrepoctl" $USER`
 MODDIR=@YANG_MODULE_DIR@
 OWNER=@MODULES_OWNER@
 GROUP=@MODULES_GROUP@
