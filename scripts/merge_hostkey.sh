@@ -2,8 +2,9 @@
 
 set -e
 
-SYSREPOCFG=@SYSREPOCFG@
-OPENSSL=@OPENSSL@
+# avoid problems with sudo path
+SYSREPOCFG=`su -c "which sysrepocfg" $USER`
+OPENSSL=`su -c "which openssl" $USER`
 
 # check that there is no SSH key with this name yet
 KEYSTORE_KEY=`$SYSREPOCFG -X -x "/ietf-keystore:keystore/asymmetric-keys/asymmetric-key[name='genkey']/name"`
@@ -16,7 +17,7 @@ PRIVKEY=`grep -v -- "-----" - <<STDIN
 $PRIVPEM
 STDIN`
 # get public key
-PUBPEM=`openssl rsa -pubout 2>/dev/null <<STDIN
+PUBPEM=`$OPENSSL rsa -pubout 2>/dev/null <<STDIN
 $PRIVPEM
 STDIN`
 # remove header/footer

@@ -192,31 +192,13 @@ include_directories(${SYSREPO_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${SYSREPO_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${SYSREPO_LIBRARIES})
 
-# sysrepo tools
-find_program(SYSREPOCTL "sysrepoctl")
-if(SYSREPOCTL-NOTFOUND)
-    message(FATAL_ERROR "sysrepoctl utility not found.")
-endif()
-find_program(SYSREPOCFG "sysrepocfg")
-if(SYSREPOCFG-NOTFOUND)
-    message(FATAL_ERROR "sysrepocfg utility not found.")
-endif()
-
-# dependencies - openssl utility
-if(GENERATE_HOSTKEY)
-    find_program(OPENSSL "openssl")
-    if(OPENSSL-NOTFOUND)
-        message(FATAL_ERROR "openssl utility not found.")
-    endif()
-endif()
-
 # generate files
 configure_file("${PROJECT_SOURCE_DIR}/src/config.h.in" "${PROJECT_BINARY_DIR}/config.h" ESCAPE_QUOTES @ONLY)
 include_directories(${PROJECT_BINARY_DIR})
 
 configure_file("${PROJECT_SOURCE_DIR}/scripts/setup.sh.in" "${PROJECT_BINARY_DIR}/setup.sh" ESCAPE_QUOTES @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/scripts/merge_hostkey.sh.in" "${PROJECT_BINARY_DIR}/merge_hostkey.sh" ESCAPE_QUOTES @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/scripts/merge_config.sh.in" "${PROJECT_BINARY_DIR}/merge_config.sh" ESCAPE_QUOTES @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/scripts/merge_hostkey.sh" "${PROJECT_BINARY_DIR}/merge_hostkey.sh" COPYONLY)
+configure_file("${PROJECT_SOURCE_DIR}/scripts/merge_config.sh" "${PROJECT_BINARY_DIR}/merge_config.sh" COPYONLY)
 
 # install the module files
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/modules/" DESTINATION ${YANG_MODULE_DIR})
@@ -227,13 +209,6 @@ if(INSTALL_MODULES)
     install(CODE "
         message(STATUS \"Installing missing sysrepo modules...\")
         execute_process(COMMAND ${PROJECT_BINARY_DIR}/setup.sh)
-        execute_process(COMMAND ${SYSREPOCTL} -C RESULT_VARIABLE RET OUTPUT_VARIABLE OUT ERROR_VARIABLE ERR
-                OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_STRIP_TRAILING_WHITESPACE)
-        if(\${RET})
-            message(FATAL_ERROR \"sysrepoctl failed: \${ERR}\")
-        elseif(\${OUT} GREATER \"0\")
-            message(WARNING \"There are some sysrepo connections, module changes could not be applied now!\")
-        endif()
     ")
 else()
     message(WARNING "Server will refuse to start if the modules are not installed!")
