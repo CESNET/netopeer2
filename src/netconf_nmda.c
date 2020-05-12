@@ -224,7 +224,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     ly_set_free(nodeset);
 
     /* perform correct NACM filtering */
-    ncac_check_data_read_filter(&data_get, sr_session_get_user(session));
+    ncac_check_data_read_filter(&data_get, np_get_nc_sess_user(session));
 
     /* add output */
     node = lyd_new_output_anydata(output, NULL, "data", data_get, LYD_ANYDATA_DATATREE);
