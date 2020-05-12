@@ -1,10 +1,16 @@
 #!/bin/bash
 
+# env variables NP2_MODULE_DIR, NP2_MODULE_OWNER, NP2_MODULE_GROUP must be defined when executing this script!
+if [ -z "$NP2_MODULE_DIR" -o -z "$NP2_MODULE_OWNER" -o -z "$NP2_MODULE_GROUP" ]; then
+    echo "Required environment variables not defined!"
+    exit 1
+fi
+
 # avoid problems with sudo path
 SYSREPOCTL=`su -c "which sysrepoctl" $USER`
-MODDIR=@YANG_MODULE_DIR@
-OWNER=@MODULES_OWNER@
-GROUP=@MODULES_GROUP@
+MODDIR=${NP2_MODULE_DIR}
+OWNER=${NP2_MODULE_OWNER}
+GROUP=${NP2_MODULE_GROUP}
 
 # array of modules to install
 MODULES=(
