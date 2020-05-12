@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# env variables NP2_MODULE_DIR, NP2_MODULE_OWNER, NP2_MODULE_GROUP must be defined when executing this script!
-if [ -z "$NP2_MODULE_DIR" -o -z "$NP2_MODULE_OWNER" -o -z "$NP2_MODULE_GROUP" ]; then
+# env variables NP2_MODULE_DIR, NP2_MODULE_PERMS, NP2_MODULE_OWNER, NP2_MODULE_GROUP must be defined when executing this script!
+if [ -z "$NP2_MODULE_DIR" -o -z "$NP2_MODULE_PERMS" -o -z "$NP2_MODULE_OWNER" -o -z "$NP2_MODULE_GROUP" ]; then
     echo "Required environment variables not defined!"
     exit 1
 fi
@@ -9,6 +9,7 @@ fi
 # avoid problems with sudo path
 SYSREPOCTL=`su -c "which sysrepoctl" $USER`
 MODDIR=${NP2_MODULE_DIR}
+PERMS=${NP2_MODULE_PERMS}
 OWNER=${NP2_MODULE_OWNER}
 GROUP=${NP2_MODULE_GROUP}
 
@@ -32,7 +33,7 @@ MODULES=(
 
 # functions
 INSTALL_MODULE() {
-    $SYSREPOCTL -a -i $MODDIR/$1 -s $MODDIR -o $OWNER -g $GROUP -v2
+    $SYSREPOCTL -a -i $MODDIR/$1 -s $MODDIR -p $PERMS -o $OWNER -g $GROUP -v2
     local rc=$?
     if [ $rc -ne 0 ]; then
         exit $rc
@@ -40,7 +41,7 @@ INSTALL_MODULE() {
 }
 
 UPDATE_MODULE() {
-    $SYSREPOCTL -a -U $MODDIR/$1 -s $MODDIR -o $OWNER -g $GROUP -v2
+    $SYSREPOCTL -a -U $MODDIR/$1 -s $MODDIR -p $PERMS -o $OWNER -g $GROUP -v2
     local rc=$?
     if [ $rc -ne 0 ]; then
         exit $rc
