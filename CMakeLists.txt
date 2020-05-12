@@ -196,9 +196,8 @@ list(APPEND CMAKE_REQUIRED_LIBRARIES ${SYSREPO_LIBRARIES})
 configure_file("${PROJECT_SOURCE_DIR}/src/config.h.in" "${PROJECT_BINARY_DIR}/config.h" ESCAPE_QUOTES @ONLY)
 include_directories(${PROJECT_BINARY_DIR})
 
-configure_file("${PROJECT_SOURCE_DIR}/scripts/setup.sh.in" "${PROJECT_BINARY_DIR}/setup.sh" ESCAPE_QUOTES @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/scripts/merge_hostkey.sh" "${PROJECT_BINARY_DIR}/merge_hostkey.sh" COPYONLY)
-configure_file("${PROJECT_SOURCE_DIR}/scripts/merge_config.sh" "${PROJECT_BINARY_DIR}/merge_config.sh" COPYONLY)
+# set script dir
+set(SCRIPT_DIR "${PROJECT_SOURCE_DIR}/scripts/")
 
 # install the module files
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/modules/" DESTINATION ${YANG_MODULE_DIR})
@@ -208,7 +207,10 @@ install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
 if(INSTALL_MODULES)
     install(CODE "
         message(STATUS \"Installing missing sysrepo modules...\")
-        execute_process(COMMAND ${PROJECT_BINARY_DIR}/setup.sh)
+        set(ENV{NP2_MODULE_DIR} ${YANG_MODULE_DIR})
+        set(ENV{NP2_MODULE_OWNER} ${MODULES_OWNER})
+        set(ENV{NP2_MODULE_GROUP} ${MODULES_GROUP})
+        execute_process(COMMAND ${SCRIPT_DIR}/setup.sh)
     ")
 else()
     message(WARNING "Server will refuse to start if the modules are not installed!")
@@ -216,13 +218,13 @@ endif()
 if(GENERATE_HOSTKEY)
     install(CODE "
         message(STATUS \"Generating a new RSA host key \\\"genkey\\\" if not already added...\")
-        execute_process(COMMAND ${PROJECT_BINARY_DIR}/merge_hostkey.sh)
+        execute_process(COMMAND ${SCRIPT_DIR}/merge_hostkey.sh)
     ")
 endif()
 if(MERGE_LISTEN_CONFIG)
     install(CODE "
         message(STATUS \"Merging default server listen configuration if there is none...\")
-        execute_process(COMMAND ${PROJECT_BINARY_DIR}/merge_config.sh)
+        execute_process(COMMAND ${SCRIPT_DIR}/merge_config.sh)
     ")
 endif()
 
