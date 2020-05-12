@@ -162,8 +162,6 @@ list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBSSH_INCLUDE_DIRS})
 
 # dependencies - OpenSSL (required by later libnetconf2 checks and not really the server itself)
 find_package(OpenSSL REQUIRED)
-target_link_libraries(netconf2 ${OPENSSL_LIBRARIES})
-include_directories(${OPENSSL_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${OPENSSL_LIBRARIES})
 
