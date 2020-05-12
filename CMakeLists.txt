@@ -64,6 +64,7 @@ set(YANG_MODULE_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/yang/modul
 option(INSTALL_MODULES "Install required modules into sysrepo" ON)
 option(GENERATE_HOSTKEY "Generate a new RSA host key in the keystore named \"genkey\"" ON)
 option(MERGE_LISTEN_CONFIG "Merge default server configuration for listening on all IPv4 interfaces" ON)
+set(MODULES_PERMS 600 CACHE STRING "File access permissions set for all the server modules")
 if(NOT MODULES_OWNER)
     execute_process(COMMAND id -un RESULT_VARIABLE RET
     OUTPUT_VARIABLE MODULES_OWNER OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -208,6 +209,7 @@ if(INSTALL_MODULES)
     install(CODE "
         message(STATUS \"Installing missing sysrepo modules...\")
         set(ENV{NP2_MODULE_DIR} ${YANG_MODULE_DIR})
+        set(ENV{NP2_MODULE_PERMS} ${MODULES_PERMS})
         set(ENV{NP2_MODULE_OWNER} ${MODULES_OWNER})
         set(ENV{NP2_MODULE_GROUP} ${MODULES_GROUP})
         execute_process(COMMAND ${SCRIPT_DIR}/setup.sh)
