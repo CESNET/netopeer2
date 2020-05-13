@@ -1,0 +1,18 @@
+Source: @PACKAGE@
+Maintainer: CESNET <mvasko@cesnet.cz>
+Priority: extra
+Standards-Version: 3.8.2
+Build-Depends: debhelper (>= 9), gcc
+Homepage: @GITHUB_URL@
+
+Package: @PACKAGE@
+Depends: libyang (>= 1.0), sysrepo (>= 1.4.57), libnetconf2 (>= 1.1.23), libssh-4 (>= 0.7.1), openssl, ${shlibs:Depends}
+Section: libs
+Architecture: any
+Description: @PACKAGE_DESC@
+
+Package: @PACKAGE@-dbg
+Depends: @PACKAGE@ (=@NP2SRV_VERSION@)
+Section: debug
+Architecture: any
+Description: @PACKAGE_DBG_DESC@

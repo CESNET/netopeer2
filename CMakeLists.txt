@@ -200,6 +200,9 @@ include_directories(${PROJECT_BINARY_DIR})
 # set script dir
 set(SCRIPT_DIR "${PROJECT_SOURCE_DIR}/scripts/")
 
+# packages
+add_subdirectory(packages)
+
 # install the module files
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/modules/" DESTINATION ${YANG_MODULE_DIR})
 
