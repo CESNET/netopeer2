@@ -1,0 +1,67 @@
+Name: @PACKAGE@
+Version: @NP2SRV_VERSION@
+Release: 0
+Summary: @PACKAGE_BRIEF@
+Url: @GITHUB_URL@
+Source: @GITHUB_URL@/archive/master.tar.gz
+License: BSD-3-Clause
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}
+
+%if 0%{?suse_version}
+Requires:  libssh4 >= 0.7.1
+%else
+Requires:  libssh >= 0.7.1
+%endif
+
+Requires:  libyang >= 1.0
+Requires:  sysrepo >= 1.4.57
+Requires:  libnetconf2 >= 1.1.23
+Requires:  openssl
+
+BuildRequires:  cmake
+BuildRequires:  gcc
+BuildRequires:  libssh-devel >= 0.7.1
+BuildRequires:  libyang-devel >= 1.0
+BuildRequires:  sysrepo-devel >= 1.4.57
+BuildRequires:  libnetconf2-devel >= 1.1.23
+BuildRequires:  openssl-devel
+
+%if 0%{?suse_version}
+BuildRequires:  timezone
+%endif
+
+%description
+@PACKAGE_DESC@
+
+%prep
+%setup -n @PACKAGE@-master
+mkdir build
+
+%build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX=/usr \
+   -DCMAKE_BUILD_TYPE="Package" \
+   -DINSTALL_MODULES=OFF \
+   -DGENERATE_HOSTKEY=OFF \
+   -DMERGE_LISTEN_CONFIG=OFF ..
+make
+
+%install
+cd build
+make DESTDIR=%{buildroot} install
+
+%post
+#!/bin/bash
+@POSTINST_CMD1@
+@POSTINST_CMD2@
+@POSTINST_CMD3@
+@POSTINST_CMD4@
+
+%files
+%defattr(-,root,root)
+%{_bindir}/netopeer2-server
+%{_datadir}/yang
+%{_bindir}/netopeer2-cli
+%{_mandir}/man1
+
+%changelog
