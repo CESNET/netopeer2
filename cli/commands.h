@@ -17,7 +17,7 @@
 
 #include "cli_version.h"
 
-char some_msg[4096];
+extern char some_msg[];
 #define INSTRUCTION(format,args...) {snprintf(some_msg,4095,format,##args);printf("\n  %s",some_msg);}
 #define ERROR(function,format,args...) {snprintf(some_msg,4095,format,##args);fprintf(stderr,"%s: %s\n",function,some_msg);}
 
