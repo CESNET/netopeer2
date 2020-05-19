@@ -171,7 +171,7 @@ np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_
     const char *prev_val, *prev_list, *endpt_name;
     char *xpath2;
     bool prev_dflt;
-    int rc;
+    int rc, failed = 0;
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
@@ -191,28 +191,26 @@ np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_
         if (!strcmp(node->schema->name, "local-address")) {
             if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
                 if (nc_server_endpt_set_address(endpt_name, ((struct lyd_node_leaf_list *)node)->value_str)) {
-                    sr_free_change_iter(iter);
-                    return SR_ERR_INTERNAL;
+                    failed = 1;
                 }
             }
         } else if (!strcmp(node->schema->name, "local-port")) {
             if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
                 if (nc_server_endpt_set_port(endpt_name, ((struct lyd_node_leaf_list *)node)->value.uint16)) {
-                    sr_free_change_iter(iter);
-                    return SR_ERR_INTERNAL;
+                    failed = 1;
                 }
             }
         } else if (!strcmp(node->schema->name, "keepalives")) {
             if (op == SR_OP_CREATED) {
-                rc = nc_server_endpt_enable_keepalives(endpt_name, 1);
+                if (nc_server_endpt_enable_keepalives(endpt_name, 1)) {
+                    failed = 1;
+                }
             } else if (op == SR_OP_DELETED) {
                 if (nc_server_is_endpt(endpt_name)) {
-                    rc = nc_server_endpt_enable_keepalives(endpt_name, 0);
+                    if (nc_server_endpt_enable_keepalives(endpt_name, 0)) {
+                        failed = 1;
+                    }
                 }
-            }
-            if (rc) {
-                sr_free_change_iter(iter);
-                return SR_ERR_INTERNAL;
             }
 
             /* set specific parameters */
@@ -220,12 +218,10 @@ np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_
                 EMEM;
                 return SR_ERR_NOMEM;
             }
-            rc = np2srv_tcp_keepalives(NULL, endpt_name, session, xpath2);
-            free(xpath2);
-            if (rc != SR_ERR_OK) {
-                sr_free_change_iter(iter);
-                return rc;
+            if (np2srv_tcp_keepalives(NULL, endpt_name, session, xpath2)) {
+                failed = 1;
             }
+            free(xpath2);
         }
     }
     sr_free_change_iter(iter);
@@ -234,7 +230,7 @@ np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_
         return rc;
     }
 
-    return SR_ERR_OK;
+    return failed ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
 static int
