@@ -153,15 +153,9 @@ check_include_file(stdatomic.h HAVE_STDATOMIC)
 
 # dependencies - libssh
 find_package(LibSSH 0.7.0 REQUIRED)
-if(LibSSH_VERSION VERSION_LESS 0.8.0)
-    target_link_libraries(netopeer2-server "-L${LIBSSH_LIBRARY_DIR}" -lssh -lssh_threads)
-    list(APPEND CMAKE_REQUIRED_FLAGS "-L${LIBSSH_LIBRARY_DIR}")
-    list(APPEND CMAKE_REQUIRED_LIBRARIES ssh ssh_threads)
-else()
-    target_link_libraries(netopeer2-server ${LIBSSH_LIBRARIES})
-    list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBSSH_LIBRARIES})
-endif()
+target_link_libraries(netopeer2-server ${LIBSSH_LIBRARIES})
 include_directories(${LIBSSH_INCLUDE_DIRS})
+list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBSSH_LIBRARIES})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBSSH_INCLUDE_DIRS})
 
 # dependencies - OpenSSL (required by later libnetconf2 checks and not really the server itself)
