@@ -35,6 +35,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
         uint32_t UNUSED(request_id), struct lyd_node *output, void *UNUSED(private_data))
 {
     struct lyd_node *node, *data_get = NULL;
+    const sr_error_info_t *err_info;
     char **filters = NULL;
     int filter_count = 0, i, rc = SR_ERR_OK;
     struct ly_set *nodeset;
@@ -99,6 +100,8 @@ get_sr_data:
         rc = sr_get_data(session, filters[i], 0, 0, get_opts, &node);
         if (rc != SR_ERR_OK) {
             ERR("Getting data \"%s\" from sysrepo failed (%s).", filters[i], sr_strerror(rc));
+            sr_get_error(session, &err_info);
+            sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
             goto cleanup;
         }
 
