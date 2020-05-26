@@ -90,15 +90,15 @@ else()
 
             if(LIBSSH_VERSION VERSION_LESS 0.8.0)
                 # libssh_threads also needs to be linked for these versions
-                string(REPLACE "libssh.so" ""
+                string(REPLACE "libssh.so" "libssh_threads.so"
                     LIBSSH_THREADS_LIBRARY
                     ${LIBSSH_LIBRARY}
                 )
-                string(REPLACE "libssh.dylib" ""
+                string(REPLACE "libssh.dylib" "libssh_threads.dylib"
                     LIBSSH_THREADS_LIBRARY
                     ${LIBSSH_THREADS_LIBRARY}
                 )
-                string(REPLACE "ssh.so" ""
+                string(REPLACE "ssh.so" "ssh_threads.so"
                     LIBSSH_THREADS_LIBRARY
                     ${LIBSSH_THREADS_LIBRARY}
                 )
