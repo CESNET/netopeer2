@@ -96,7 +96,7 @@ get_sr_data:
      * create the data tree for the data reply
      */
     for (i = 0; i < filter_count; i++) {
-        rc = sr_get_data(session, filters[i], 0, 0, get_opts, &node);
+        rc = sr_get_data(session, filters[i], 0, NP2SRV_DATA_CHANGE_TIMEOUT, get_opts, &node);
         if (rc != SR_ERR_OK) {
             ERR("Getting data \"%s\" from sysrepo failed (%s).", filters[i], sr_strerror(rc));
             goto cleanup;
@@ -319,7 +319,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     if (!config && !run_to_start) {
         /* get source datastore data and filter them */
         sr_session_switch_ds(session, sds);
-        rc = sr_get_data(session, "/*", 0, 0, 0, &config);
+        rc = sr_get_data(session, "/*", 0, NP2SRV_DATA_CHANGE_TIMEOUT, 0, &config);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
