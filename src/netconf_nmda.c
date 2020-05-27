@@ -200,7 +200,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
      * create the data tree for the data reply
      */
     for (i = 0; i < filter_count; i++) {
-        rc = sr_get_data(session, filters[i], max_depth, 0, get_opts, &node);
+        rc = sr_get_data(session, filters[i], max_depth, NP2SRV_DATA_CHANGE_TIMEOUT, get_opts, &node);
         if (rc != SR_ERR_OK) {
             ERR("Getting data \"%s\" from sysrepo failed (%s).", filters[i], sr_strerror(rc));
             goto cleanup;
