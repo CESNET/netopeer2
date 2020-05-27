@@ -96,7 +96,7 @@ get_sr_data:
      * create the data tree for the data reply
      */
     for (i = 0; i < filter_count; i++) {
-        rc = sr_get_data(session, filters[i], 0, NP2SRV_DATA_CHANGE_TIMEOUT, get_opts, &node);
+        rc = sr_get_data(session, filters[i], 0, NP2SRV_SYSREPO_TIMEOUT, get_opts, &node);
         if (rc != SR_ERR_OK) {
             ERR("Getting data \"%s\" from sysrepo failed (%s).", filters[i], sr_strerror(rc));
             goto cleanup;
@@ -226,7 +226,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     }
 
     if (!strcmp(testop, "test-then-set")) {
-        rc = sr_apply_changes(session, NP2SRV_DATA_CHANGE_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
+        rc = sr_apply_changes(session, NP2SRV_SYSREPO_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
     } else {
         assert(!strcmp(testop, "test-only"));
         rc = sr_validate(session, NULL, 0);
@@ -319,7 +319,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     if (!config && !run_to_start) {
         /* get source datastore data and filter them */
         sr_session_switch_ds(session, sds);
-        rc = sr_get_data(session, "/*", 0, NP2SRV_DATA_CHANGE_TIMEOUT, 0, &config);
+        rc = sr_get_data(session, "/*", 0, NP2SRV_SYSREPO_TIMEOUT, 0, &config);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
@@ -358,14 +358,14 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     {
         if (config) {
             /* config is spent */
-            rc = sr_replace_config(session, NULL, config, NP2SRV_DATA_CHANGE_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
+            rc = sr_replace_config(session, NULL, config, NP2SRV_SYSREPO_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
             config = NULL;
         } else {
             assert(run_to_start);
 
             /* set SID to skip NACM check, only one copy-config can be executed at once */
             ATOMIC_STORE_RELAXED(skip_nacm_sr_sid, sr_session_get_id(session));
-            rc = sr_copy_config(session, NULL, sds, NP2SRV_DATA_CHANGE_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
+            rc = sr_copy_config(session, NULL, sds, NP2SRV_SYSREPO_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
             ATOMIC_STORE_RELAXED(skip_nacm_sr_sid, 0);
         }
         if (rc != SR_ERR_OK) {
@@ -431,7 +431,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path
     } else
 #endif
     {
-        rc = sr_replace_config(session, NULL, NULL, NP2SRV_DATA_CHANGE_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
+        rc = sr_replace_config(session, NULL, NULL, NP2SRV_SYSREPO_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
@@ -534,7 +534,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), con
     sr_session_switch_ds(session, SR_DS_RUNNING);
 
     /* sysrepo API */
-    rc = sr_copy_config(session, NULL, SR_DS_CANDIDATE, NP2SRV_DATA_CHANGE_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
+    rc = sr_copy_config(session, NULL, SR_DS_CANDIDATE, NP2SRV_SYSREPO_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
     if (rc != SR_ERR_OK) {
         sr_get_error(session, &err_info);
         sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
@@ -557,7 +557,7 @@ np2srv_rpc_discard_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     sr_session_switch_ds(session, SR_DS_CANDIDATE);
 
     /* sysrepo API */
-    rc = sr_copy_config(session, NULL, SR_DS_RUNNING, NP2SRV_DATA_CHANGE_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
+    rc = sr_copy_config(session, NULL, SR_DS_RUNNING, NP2SRV_SYSREPO_TIMEOUT, NP2SRV_DATA_CHANGE_WAIT);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }

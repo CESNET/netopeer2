@@ -40,9 +40,9 @@
  */
 #define NP2SRV_NACM_RECOVERY_UID @NACM_RECOVERY_UID@
 
-/** @brief Timeout for sysrepo operations (ms) modifying data, 0 is the sysrepo default
+/** @brief Timeout for all sysrepo operations (ms)  with a custom timeout, 0 is the sysrepo default
  */
-#define NP2SRV_DATA_CHANGE_TIMEOUT (@DATA_CHANGE_TIMEOUT@ * 1000)
+#define NP2SRV_SYSREPO_TIMEOUT (@SYSREPO_TIMEOUT@ * 1000)
 
 /** @brief Whether to wait on sysrepo data change calls for all the events to be processed
  */
