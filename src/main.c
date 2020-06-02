@@ -11,6 +11,7 @@
  *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
+#define _GNU_SOURCE
 #define _POSIX_C_SOUCRE 199309L
 
 #include <sys/types.h>
@@ -20,6 +21,7 @@
 #include <signal.h>
 #include <syslog.h>
 #include <errno.h>
+#include <stdio.h>
 #include <pwd.h>
 #include <grp.h>
 
@@ -391,15 +393,23 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
     NC_WD_MODE nc_wd;
     struct ly_set *nodeset;
     struct nc_server_error *e;
-    char *path;
+    char *str;
     int rc;
 
     /* check NACM */
     if ((node = ncac_check_operation(rpc, nc_session_get_username(ncs)))) {
         e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_APP);
-        path = lys_data_path(node->schema);
-        nc_err_set_path(e, path);
-        free(path);
+
+        /* set path */
+        str = lys_data_path(node->schema);
+        nc_err_set_path(e, str);
+        free(str);
+
+        /* set message */
+        asprintf(&str, "Executing the operation is denied because \"%s\" NACM authorization failed.", nc_session_get_username(ncs));
+        nc_err_set_msg(e, str, "en");
+        free(str);
+
         reply = nc_server_reply_err(e);
         goto cleanup;
     }

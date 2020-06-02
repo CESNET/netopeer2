@@ -183,7 +183,7 @@ np2srv_endpt_ssh_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), 
     const struct lyd_node *node;
     const char *prev_val, *prev_list, *endpt_name;
     bool prev_dflt;
-    int rc;
+    int rc, failed = 0;
 
     rc = sr_get_changes_iter(session, xpath, &iter);
     if (rc != SR_ERR_OK) {
@@ -197,15 +197,15 @@ np2srv_endpt_ssh_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), 
 
         /* ignore other operations */
         if (op == SR_OP_CREATED) {
-            rc = nc_server_add_endpt(endpt_name, NC_TI_LIBSSH);
+            if (nc_server_add_endpt(endpt_name, NC_TI_LIBSSH)) {
+                failed = 1;
+            }
             /* turn off all auth methods by default */
             nc_server_ssh_endpt_set_auth_methods(endpt_name, 0);
         } else if (op == SR_OP_DELETED) {
-            rc = nc_server_del_endpt(endpt_name, NC_TI_LIBSSH);
-        }
-        if (rc) {
-            sr_free_change_iter(iter);
-            return SR_ERR_INTERNAL;
+            if (nc_server_del_endpt(endpt_name, NC_TI_LIBSSH)) {
+                failed = 1;
+            }
         }
     }
     sr_free_change_iter(iter);
@@ -214,7 +214,7 @@ np2srv_endpt_ssh_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), 
         return rc;
     }
 
-    return SR_ERR_OK;
+    return failed ? SR_ERR_INTERNAL : SR_ERR_OK;
 }
 
 /* /ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/server-identity/host-key/public-key/

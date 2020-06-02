@@ -61,6 +61,8 @@
 #define NC_CAP_NOTIFICATION_ID    "urn:ietf:params:netconf:capability:notification"
 #define NC_CAP_INTERLEAVE_ID      "urn:ietf:params:netconf:capability:interleave"
 
+char some_msg[4096];
+
 COMMAND commands[];
 extern int done;
 LYD_FORMAT output_format = LYD_XML;

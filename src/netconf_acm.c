@@ -1009,13 +1009,18 @@ ncac_allowed_node(const struct lys_node *node, const char *user, uint8_t oper)
     /* 6) find matching rule lists */
     for (rlist = nacm.rule_lists; rlist; rlist = rlist->next) {
         for (i = 0; i < rlist->group_count; ++i) {
-            for (j = 0; j < group_count; ++j) {
-                if (rlist->groups[i] == groups[j]) {
+            if (strcmp(rlist->groups[i], "*")) {
+                for (j = 0; j < group_count; ++j) {
+                    if (rlist->groups[i] == groups[j]) {
+                        break;
+                    }
+                }
+                if (j < group_count) {
+                    /* match */
                     break;
                 }
-            }
-            if (j < group_count) {
-                /* match */
+            } else {
+                /* match for all groups */
                 break;
             }
         }
@@ -1045,7 +1050,7 @@ ncac_allowed_node(const struct lys_node *node, const char *user, uint8_t oper)
                 }
                 break;
             case NCAC_TARGET_DATA:
-                if (lys_parent(node) || (node->nodetype & (LYS_RPC | LYS_NOTIF))) {
+                if (node->nodetype & (LYS_RPC | LYS_NOTIF)) {
                     continue;
                 }
                 break;
@@ -1054,6 +1059,7 @@ ncac_allowed_node(const struct lys_node *node, const char *user, uint8_t oper)
             }
             if (rule->target) {
                 path = lys_data_path(node);
+                /* exact match or is a descendant (specified in RFC 8341 page 27) */
                 cmp = strncmp(path, rule->target, strlen(rule->target));
                 free(path);
                 if (cmp) {
