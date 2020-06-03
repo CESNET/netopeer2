@@ -28,6 +28,9 @@
 #include "common.h"
 #include "operations.h"
 
+/* there is no enum for "no move", and the name SR_MOVE_LAST suggests that it might be the last item of an enum */
+#define SR_MOVE_INVALID_SENTINEL 666
+
 static enum NP2_EDIT_OP
 edit_get_op(struct lyd_node *node, enum NP2_EDIT_OP parentop, enum NP2_EDIT_DEFOP defop)
 {
@@ -168,7 +171,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
     struct nc_server_reply *ereply = NULL;
     struct np2_sessions *sessions = NULL;
     sr_datastore_t ds = 0;
-    sr_move_position_t pos = SR_MOVE_LAST;
+    sr_move_position_t pos = SR_MOVE_INVALID_SENTINEL;
     sr_val_t value;
     struct ly_set *nodeset;
     /* default value for default-operation is "merge" */
@@ -381,7 +384,6 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
         /* specific work for different node types */
         ret = -1;
-        rel = NULL;
         lastkey = 0;
         np_cont = 0;
         switch (iter->schema->nodetype) {
@@ -430,13 +432,14 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             DBG("EDIT_CONFIG: leaf %s, operation %s", path, op2str(op[op_index]));
             break;
         case LYS_LEAFLIST:
+            rel = NULL;
             /* get info about inserting to a specific place */
             if (edit_get_move(iter, path, &pos, &rel)) {
                 goto internalerror;
             }
 
             DBG("EDIT_CONFIG: leaflist %s, operation %s", path, op2str(op[op_index]));
-            if (pos != SR_MOVE_LAST) {
+            if (pos != SR_MOVE_INVALID_SENTINEL) {
                 DBG("EDIT_CONFIG: moving leaflist %s, position %d (%s)", path, pos, rel ? rel : "absolute");
             }
 
@@ -455,6 +458,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
             break;
         case LYS_LIST:
+            rel = NULL;
             /* get info about inserting to a specific place */
             if (edit_get_move(iter, path, &pos, &rel)) {
                 goto internalerror;
@@ -540,10 +544,10 @@ resultcheck:
         }
 
         /* move user-ordered list/leaflist */
-        if (pos != SR_MOVE_LAST) {
+        if (pos != SR_MOVE_INVALID_SENTINEL) {
             ret = np2srv_sr_move_item(sessions->srs, path, pos, rel, &ereply);
             free(rel);
-            pos = SR_MOVE_LAST;
+            pos = SR_MOVE_INVALID_SENTINEL;
             goto resultcheck;
         }
 
