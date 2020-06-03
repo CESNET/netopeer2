@@ -384,7 +384,6 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
         /* specific work for different node types */
         ret = -1;
-        rel = NULL;
         lastkey = 0;
         np_cont = 0;
         switch (iter->schema->nodetype) {
@@ -433,6 +432,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
             DBG("EDIT_CONFIG: leaf %s, operation %s", path, op2str(op[op_index]));
             break;
         case LYS_LEAFLIST:
+            rel = NULL;
             /* get info about inserting to a specific place */
             if (edit_get_move(iter, path, &pos, &rel)) {
                 goto internalerror;
@@ -458,6 +458,7 @@ op_editconfig(struct lyd_node *rpc, struct nc_session *ncs)
 
             break;
         case LYS_LIST:
+            rel = NULL;
             /* get info about inserting to a specific place */
             if (edit_get_move(iter, path, &pos, &rel)) {
                 goto internalerror;
