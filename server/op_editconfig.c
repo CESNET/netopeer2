@@ -112,7 +112,61 @@ edit_get_move(struct lyd_node *node, const char *path, sr_move_position_t *pos, 
                     *pos = SR_MOVE_AFTER;
                 }
             } else if (!strcmp(attr_iter->name, name)) {
-                if (asprintf(rel, format, path, attr_iter->value_str) < 0) {
+                const char* keySuffix = attr_iter->value_str;
+                char* keysWithoutPrefixes;
+                if (node->schema->nodetype & LYS_LIST) {
+                    // The yang:key attribute is in the form of [prefix1:key1='value'][prefix2:key2='value2']
+                    // where prefixN is the YANG prefix of the module. sysrepo
+                    // can't deal with these, but it can deal with no prefixes.
+                    // This algorithm gets rid of them.
+                    size_t keysSize = strlen(attr_iter->value_str);
+                    keysWithoutPrefixes = malloc(keysSize * sizeof(keysWithoutPrefixes));
+                    enum {
+                        KeyPrefix,
+                        KeyName,
+                        KeyValue,
+                        Start
+                    } position = Start;
+
+                    size_t destPos = 0;
+                    for (size_t srcPos = 0; srcPos < keysSize; srcPos++) {
+                        switch (position) {
+                            case Start:
+                                // First is a left bracket so we go prefix parsing
+                                position = KeyPrefix;
+                                break;
+                            case KeyPrefix:
+                                if (attr_iter->value_str[srcPos] == ':') {
+                                    position = KeyName;
+                                }
+                                continue; // While we're parsing the prefix, don't copy any chars
+                            case KeyName:
+                                if (attr_iter->value_str[srcPos] == '=') {
+                                    position = KeyValue;
+                                }
+                                break;
+                            case KeyValue:
+                                if (attr_iter->value_str[srcPos] == ']') {
+                                    position = KeyPrefix;
+                                    // After the right bracket, there is a left bracket. So we
+                                    // copy the right bracket here and the other is gonna get
+                                    // copied below.
+                                    keysWithoutPrefixes[destPos++] = attr_iter->value_str[srcPos++];
+                                }
+                                break;
+                        }
+                        keysWithoutPrefixes[destPos++] = attr_iter->value_str[srcPos];
+                    }
+                    keysWithoutPrefixes[destPos] = '\0';
+                    keySuffix = keysWithoutPrefixes;
+                }
+
+                int ret = asprintf(rel, format, path, keySuffix);
+                if (node->schema->nodetype & LYS_LIST) {
+                    free(keysWithoutPrefixes);
+                }
+                ERR("rel: %s", rel);
+                if (ret < 0) {
                     ERR("%s: memory allocation failed (%s) - %s:%d",
                         __func__, strerror(errno), __FILE__, __LINE__);
                     return -1;
