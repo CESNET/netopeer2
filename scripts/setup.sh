@@ -7,7 +7,7 @@ if [ -z "$NP2_MODULE_DIR" -o -z "$NP2_MODULE_PERMS" -o -z "$NP2_MODULE_OWNER" -o
 fi
 
 # avoid problems with sudo path
-SYSREPOCTL=`su -c "which sysrepoctl" $USER`
+SYSREPOCTL=`su -c "PATH=$PATH which sysrepoctl" $USER`
 MODDIR=${NP2_MODULE_DIR}
 PERMS=${NP2_MODULE_PERMS}
 OWNER=${NP2_MODULE_OWNER}
@@ -33,7 +33,7 @@ MODULES=(
 
 # functions
 INSTALL_MODULE() {
-    $SYSREPOCTL -a -i $MODDIR/$1 -s $MODDIR -p $PERMS -o $OWNER -g $GROUP -v2
+    "$SYSREPOCTL" -a -i $MODDIR/$1 -s "$MODDIR" -p "$PERMS" -o "$OWNER" -g "$GROUP" -v2
     local rc=$?
     if [ $rc -ne 0 ]; then
         exit $rc
@@ -41,7 +41,7 @@ INSTALL_MODULE() {
 }
 
 UPDATE_MODULE() {
-    $SYSREPOCTL -a -U $MODDIR/$1 -s $MODDIR -p $PERMS -o $OWNER -g $GROUP -v2
+    "$SYSREPOCTL" -a -U $MODDIR/$1 -s "$MODDIR" -p "$PERMS" -o "$OWNER" -g "$GROUP" -v2
     local rc=$?
     if [ $rc -ne 0 ]; then
         exit $rc
@@ -49,7 +49,7 @@ UPDATE_MODULE() {
 }
 
 ENABLE_FEATURE() {
-    $SYSREPOCTL -a -c $1 -e $2 -v2
+    "$SYSREPOCTL" -a -c $1 -e $2 -v2
     local rc=$?
     if [ $rc -ne 0 ]; then
         exit $rc
@@ -74,7 +74,7 @@ for i in "${MODULES[@]}"; do
     if [ "$sctl_revision" \< "$revision" ]; then
         # update module without any features
         file=`echo "$i" | cut -d' ' -f 1`
-        UPDATE_MODULE $file
+        UPDATE_MODULE "$file"
     fi
 
     # parse sysrepoctl features and add extra space at the end for easier matching
@@ -91,7 +91,7 @@ for i in "${MODULES[@]}"; do
         sctl_feature=`echo "$sctl_features" | grep " ${feature} "`
         if [ -z "$sctl_feature" ]; then
             # enable feature
-            ENABLE_FEATURE $name $feature
+            ENABLE_FEATURE "$name" "$feature"
         fi
 
         # next iteration, skip this feature
