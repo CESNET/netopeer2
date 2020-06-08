@@ -8,7 +8,7 @@ fi
 
 # avoid problems with sudo path
 SYSREPOCTL=`su -c "PATH=$PATH which sysrepoctl" $USER`
-MODDIR=${NP2_MODULE_DIR}
+MODDIR=${DESTDIR}${NP2_MODULE_DIR}
 PERMS=${NP2_MODULE_PERMS}
 OWNER=${NP2_MODULE_OWNER}
 GROUP=${NP2_MODULE_GROUP}
