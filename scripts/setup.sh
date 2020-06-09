@@ -7,7 +7,7 @@ if [ -z "$NP2_MODULE_DIR" -o -z "$NP2_MODULE_PERMS" -o -z "$NP2_MODULE_OWNER" -o
 fi
 
 # avoid problems with sudo path
-SYSREPOCTL=`su -c "PATH=$PATH which sysrepoctl" $USER`
+SYSREPOCTL=`su -c 'which sysrepoctl' -l $USER`
 MODDIR=${DESTDIR}${NP2_MODULE_DIR}
 PERMS=${NP2_MODULE_PERMS}
 OWNER=${NP2_MODULE_OWNER}
@@ -91,7 +91,7 @@ for i in "${MODULES[@]}"; do
         sctl_feature=`echo "$sctl_features" | grep " ${feature} "`
         if [ -z "$sctl_feature" ]; then
             # enable feature
-            ENABLE_FEATURE "$name" "$feature"
+            ENABLE_FEATURE $name $feature
         fi
 
         # next iteration, skip this feature
