@@ -6,8 +6,12 @@ if [ -z "$NP2_MODULE_DIR" -o -z "$NP2_MODULE_PERMS" -o -z "$NP2_MODULE_OWNER" -o
     exit 1
 fi
 
-# avoid problems with sudo path
-SYSREPOCTL=`su -c 'which sysrepoctl' -l $USER`
+# avoid problems with sudo PATH
+if [ `id -u` -eq 0 ]; then
+    SYSREPOCTL=`su -c 'which sysrepoctl' -l $USER`
+else
+    SYSREPOCTL=`which sysrepoctl`
+fi
 MODDIR=${DESTDIR}${NP2_MODULE_DIR}
 PERMS=${NP2_MODULE_PERMS}
 OWNER=${NP2_MODULE_OWNER}

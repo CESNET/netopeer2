@@ -2,9 +2,14 @@
 
 set -e
 
-# avoid problems with sudo path
-SYSREPOCFG=`su -c "which sysrepocfg" $USER`
-OPENSSL=`su -c "which openssl" $USER`
+# avoid problems with sudo PATH
+if [ `id -u` -eq 0 ]; then
+    SYSREPOCFG=`su -c 'which sysrepocfg' -l $USER`
+    OPENSSL=`su -c 'which openssl' -l $USER`
+else
+    SYSREPOCFG=`which sysrepocfg`
+    OPENSSL=`which openssl`
+fi
 
 # check that there is no SSH key with this name yet
 KEYSTORE_KEY=`$SYSREPOCFG -X -x "/ietf-keystore:keystore/asymmetric-keys/asymmetric-key[name='genkey']/name"`
