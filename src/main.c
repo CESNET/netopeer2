@@ -928,7 +928,7 @@ worker_thread(void *arg)
     int rc, idx = *((int *)arg), monitored;
     struct nc_session *ncs;
 
-    nc_libssh_thread_verbosity(np2_verbose_level);
+    nc_libssh_thread_verbosity(np2_libssh_verbose_level);
 
     while (ATOMIC_LOAD_RELAXED(loop_continue)) {
         /* try to accept new NETCONF sessions */
@@ -1140,7 +1140,6 @@ main(int argc, char *argv[])
 
             /* set verbose for all, we change to debug later if requested */
             np2_verbose_level = NC_VERB_VERBOSE;
-            nc_verbosity(np2_verbose_level);
             np2_libssh_verbose_level = 1;
 
             ptr = strtok(optarg, ",");
@@ -1157,9 +1156,9 @@ main(int argc, char *argv[])
                     verb |= LY_LDGDIFF;
                 } else if (!strcmp(ptr, "MSG")) {
                     /* NETCONF messages - only lnc2 debug verbosity */
-                    nc_verbosity(NC_VERB_DEBUG);
+                    np2_verbose_level = NC_VERB_DEBUG;
                 } else if (!strcmp(ptr, "LN2DBG")) {
-                    nc_verbosity(NC_VERB_DEBUG_LOWLVL);
+                    np2_verbose_level = NC_VERB_DEBUG_LOWLVL;
                 } else if (!strcmp(ptr, "SSH")) {
                     /* 2 should be always enough, 3 is too much useless info */
                     np2_libssh_verbose_level = 2;
@@ -1170,7 +1169,8 @@ main(int argc, char *argv[])
                     return EXIT_FAILURE;
                 }
             } while ((ptr = strtok(NULL, ",")));
-            /* set final verbosity of libssh and libyang */
+            /* set final verbosity */
+            nc_verbosity(np2_verbose_level);
             nc_libssh_thread_verbosity(np2_libssh_verbose_level);
             if (verb) {
                 ly_verb(LY_LLDBG);
