@@ -452,6 +452,7 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
 {
     sr_datastore_t ds = 0;
     struct ly_set *nodeset;
+    const sr_error_info_t *err_info;
     int rc = SR_ERR_OK;
 
     /* get know which datastore is being affected */
@@ -476,6 +477,8 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
         rc = sr_unlock(session, NULL);
     }
     if (rc != SR_ERR_OK) {
+        sr_get_error(session, &err_info);
+        sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
         goto cleanup;
     }
 

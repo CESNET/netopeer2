@@ -313,6 +313,7 @@ np2srv_err_sr(int err_code, const char *message, const char *xpath)
 
     switch (err_code) {
     case SR_ERR_LOCKED:
+err_lock_denied:
         ptr = strstr(message, "NC SID ");
         if (!ptr) {
             EINT;
@@ -344,6 +345,8 @@ err_access_denied:
     default:
         if (strstr(message, "authorization failed")) {
             goto err_access_denied;
+        } else if (strstr(message, "is already locked")) {
+            goto err_lock_denied;
         }
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
         nc_err_set_msg(e, message, "en");
