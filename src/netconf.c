@@ -709,6 +709,9 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
     }
     ly_set_free(nodeset);
 
+    /* set ongoing notifications flag */
+    nc_session_set_notif_status(ncs, 1);
+
     /* sysrepo API */
     if (!strcmp(stream, "NETCONF")) {
         /* subscribe to all modules with notifications */
@@ -747,9 +750,6 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
         goto cleanup;
     }
 
-    /* set ongoing notifications flag */
-    nc_session_set_notif_status(ncs, 1);
-
     /* success */
 
 cleanup:
@@ -758,5 +758,8 @@ cleanup:
     }
     free(filters);
     free(xp);
+    if (ncs && rc) {
+        nc_session_set_notif_status(ncs, 0);
+    }
     return rc;
 }
