@@ -251,7 +251,7 @@ int
 np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
         sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
-    sr_datastore_t ds = SR_DS_OPERATIONAL, sds;
+    sr_datastore_t ds = SR_DS_OPERATIONAL, sds = SR_DS_OPERATIONAL;
     struct ly_set *nodeset;
     const sr_error_info_t *err_info;
     struct lyd_node *config = NULL;
@@ -303,6 +303,12 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     } else {
         assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
+        if (trg_url && !strcmp(trg_url, ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str)) {
+            rc = SR_ERR_INVAL_ARG;
+            sr_set_error(session, NULL, "Source and target URLs are the same.");
+            goto cleanup;
+        }
+
         config = op_parse_url(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str,
                 LYD_OPT_CONFIG | LYD_OPT_STRICT | LYD_OPT_TRUSTED, &rc, session);
         if (rc) {
@@ -317,6 +323,12 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
 #endif
     }
     ly_set_free(nodeset);
+
+    if (ds == sds) {
+        rc = SR_ERR_INVAL_ARG;
+        sr_set_error(session, NULL, "Source and target datastores are the same.");
+        goto cleanup;
+    }
 
     /* NACM checks */
     if (!config && !run_to_start) {
