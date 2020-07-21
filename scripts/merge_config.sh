@@ -2,8 +2,12 @@
 
 set -e
 
-# avoid problems with sudo path
-SYSREPOCFG=`su -c "which sysrepocfg" $USER`
+# avoid problems with sudo PATH
+if [ `id -u` -eq 0 ]; then
+    SYSREPOCFG=`su -c 'which sysrepocfg' -l $USER`
+else
+    SYSREPOCFG=`which sysrepocfg`
+fi
 KS_KEY_NAME=genkey
 
 # check that there is no listen/Call Home configuration yet

@@ -646,7 +646,7 @@ ncac_rule_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const c
                 str = ((struct lyd_node_leaf_list *)node)->value_str;
                 lydict_remove(ly_ctx, rule->module_name);
                 if (!strcmp(str, "*")) {
-                    rule->module_name  = NULL;
+                    rule->module_name = NULL;
                 } else {
                     rule->module_name = lydict_insert(ly_ctx, str, 0);
                 }
@@ -1042,10 +1042,18 @@ ncac_allowed_node(const struct lys_node *node, const char *user, uint8_t oper)
                 if (node->nodetype != LYS_RPC) {
                     continue;
                 }
+                if (rule->target && (rule->target != node->name)) {
+                    /* exact match needed */
+                    continue;
+                }
                 break;
             case NCAC_TARGET_NOTIF:
                 /* only top-level notification */
                 if (lys_parent(node) || (node->nodetype != LYS_NOTIF)) {
+                    continue;
+                }
+                if (rule->target && (rule->target != node->name)) {
+                    /* exact match needed */
                     continue;
                 }
                 break;
@@ -1053,18 +1061,18 @@ ncac_allowed_node(const struct lys_node *node, const char *user, uint8_t oper)
                 if (node->nodetype & (LYS_RPC | LYS_NOTIF)) {
                     continue;
                 }
-                break;
+                /* fallthrough */
             case NCAC_TARGET_ANY:
-                break;
-            }
-            if (rule->target) {
-                path = lys_data_path(node);
-                /* exact match or is a descendant (specified in RFC 8341 page 27) */
-                cmp = strncmp(path, rule->target, strlen(rule->target));
-                free(path);
-                if (cmp) {
-                    continue;
+                if (rule->target) {
+                    path = lys_data_path(node);
+                    /* exact match or is a descendant (specified in RFC 8341 page 27) */
+                    cmp = strncmp(path, rule->target, strlen(rule->target));
+                    free(path);
+                    if (cmp) {
+                        continue;
+                    }
                 }
+                break;
             }
 
             /* access operation matching */

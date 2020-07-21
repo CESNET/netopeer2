@@ -313,6 +313,7 @@ np2srv_err_sr(int err_code, const char *message, const char *xpath)
 
     switch (err_code) {
     case SR_ERR_LOCKED:
+err_lock_denied:
         ptr = strstr(message, "NC SID ");
         if (!ptr) {
             EINT;
@@ -344,6 +345,12 @@ err_access_denied:
     default:
         if (strstr(message, "authorization failed")) {
             goto err_access_denied;
+        } else if (strstr(message, "is already locked")) {
+            goto err_lock_denied;
+        } else if (strstr(message, "Source and target")) {
+            e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
+            nc_err_set_msg(e, message, "en");
+            break;
         }
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
         nc_err_set_msg(e, message, "en");
@@ -928,7 +935,7 @@ worker_thread(void *arg)
     int rc, idx = *((int *)arg), monitored;
     struct nc_session *ncs;
 
-    nc_libssh_thread_verbosity(np2_verbose_level);
+    nc_libssh_thread_verbosity(np2_libssh_verbose_level);
 
     while (ATOMIC_LOAD_RELAXED(loop_continue)) {
         /* try to accept new NETCONF sessions */
@@ -1140,7 +1147,6 @@ main(int argc, char *argv[])
 
             /* set verbose for all, we change to debug later if requested */
             np2_verbose_level = NC_VERB_VERBOSE;
-            nc_verbosity(np2_verbose_level);
             np2_libssh_verbose_level = 1;
 
             ptr = strtok(optarg, ",");
@@ -1157,9 +1163,9 @@ main(int argc, char *argv[])
                     verb |= LY_LDGDIFF;
                 } else if (!strcmp(ptr, "MSG")) {
                     /* NETCONF messages - only lnc2 debug verbosity */
-                    nc_verbosity(NC_VERB_DEBUG);
+                    np2_verbose_level = NC_VERB_DEBUG;
                 } else if (!strcmp(ptr, "LN2DBG")) {
-                    nc_verbosity(NC_VERB_DEBUG_LOWLVL);
+                    np2_verbose_level = NC_VERB_DEBUG_LOWLVL;
                 } else if (!strcmp(ptr, "SSH")) {
                     /* 2 should be always enough, 3 is too much useless info */
                     np2_libssh_verbose_level = 2;
@@ -1170,7 +1176,8 @@ main(int argc, char *argv[])
                     return EXIT_FAILURE;
                 }
             } while ((ptr = strtok(NULL, ",")));
-            /* set final verbosity of libssh and libyang */
+            /* set final verbosity */
+            nc_verbosity(np2_verbose_level);
             nc_libssh_thread_verbosity(np2_libssh_verbose_level);
             if (verb) {
                 ly_verb(LY_LLDBG);

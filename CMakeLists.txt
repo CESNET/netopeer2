@@ -30,7 +30,7 @@ set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -DDEBUG")
 # Generic version of not only the library. Major version is reserved for really big changes of the project,
 # minor version changes with added functionality (new tool, functionality of the tool or library, ...) and
 # micro version is changed with a set of small changes or bugfixes anywhere in the project.
-set(NP2SRV_VERSION 1.1.34)
+set(NP2SRV_VERSION 1.1.39)
 
 # build options
 if(CMAKE_BUILD_TYPE STREQUAL debug)
@@ -203,11 +203,11 @@ install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
 if(INSTALL_MODULES)
     install(CODE "
         message(STATUS \"Installing missing sysrepo modules...\")
-        set(ENV{NP2_MODULE_DIR} ${YANG_MODULE_DIR})
-        set(ENV{NP2_MODULE_PERMS} ${MODULES_PERMS})
-        set(ENV{NP2_MODULE_OWNER} ${MODULES_OWNER})
-        set(ENV{NP2_MODULE_GROUP} ${MODULES_GROUP})
-        execute_process(COMMAND ${SCRIPT_DIR}/setup.sh)
+        set(ENV{NP2_MODULE_DIR} \"${YANG_MODULE_DIR}\")
+        set(ENV{NP2_MODULE_PERMS} \"${MODULES_PERMS}\")
+        set(ENV{NP2_MODULE_OWNER} \"${MODULES_OWNER}\")
+        set(ENV{NP2_MODULE_GROUP} \"${MODULES_GROUP}\")
+        execute_process(COMMAND \"${SCRIPT_DIR}/setup.sh\")
     ")
 else()
     message(WARNING "Server will refuse to start if the modules are not installed!")
