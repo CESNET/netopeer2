@@ -344,9 +344,28 @@ err_access_denied:
         /* fallthrough */
     default:
         if (strstr(message, "authorization failed")) {
+            // access-denied
             goto err_access_denied;
-        } else if (strstr(message, "is already locked")) {
+        } else if (strstr(message, "is already locked") ||
+                   strstr(message, "Module \"yang\" is locked by session")) {
+            // lock-denied
             goto err_lock_denied;
+        } else if (strstr(message, "is locked by session")) {
+            // in-use
+            e = nc_err(NC_ERR_IN_USE, NC_ERR_TYPE_PROT);
+            nc_err_set_msg(e, message, "en");
+            if (xpath) {
+                nc_err_set_path(e, xpath);
+            }
+            break;
+        } else if (strstr(message, "already exists")) {
+            // data-exists
+            e = nc_err(NC_ERR_DATA_EXISTS);
+            nc_err_set_msg(e, message, "en");
+            if (xpath) {
+                nc_err_set_path(e, xpath);
+            }
+            break;
         } else if (strstr(message, "Source and target")) {
             e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
             nc_err_set_msg(e, message, "en");
