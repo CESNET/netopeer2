@@ -13,7 +13,7 @@ Requires:  libssh4 >= 0.7.1
 Requires:  libssh >= 0.7.1
 %endif
 
-Requires:  libyang >= 1.0
+Requires:  libyang@LIBYANG_DEP_SOVERSION_MAJOR@
 Requires:  sysrepo >= 1.4.57
 Requires:  libnetconf2 >= 1.1.23
 Requires:  openssl

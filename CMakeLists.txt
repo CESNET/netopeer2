@@ -32,6 +32,9 @@ set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -DDEBUG")
 # micro version is changed with a set of small changes or bugfixes anywhere in the project.
 set(NP2SRV_VERSION 1.1.39)
 
+# libyang required SO version
+set(LIBYANG_DEP_SOVERSION_MAJOR 1)
+
 # build options
 if(CMAKE_BUILD_TYPE STREQUAL debug)
     option(BUILD_TESTS "Build tests" ON)
@@ -150,7 +153,7 @@ list(APPEND CMAKE_REQUIRED_FLAGS ${CMAKE_THREAD_LIBS_INIT})
 check_include_file(stdatomic.h HAVE_STDATOMIC)
 
 # dependencies - libssh
-find_package(LibSSH 0.7.0 REQUIRED)
+find_package(LibSSH 0.7.1 REQUIRED)
 target_link_libraries(netopeer2-server ${LIBSSH_LIBRARIES})
 include_directories(${LIBSSH_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBSSH_LIBRARIES})
