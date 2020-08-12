@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <unistd.h>
 #include <errno.h>
 
 #ifdef NP2SRV_URL_CAPAB

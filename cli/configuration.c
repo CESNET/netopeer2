@@ -377,8 +377,7 @@ void
 store_config(void)
 {
     char *netconf_dir, *history_file, *config_file;
-    const char *priv_key, *pub_key;
-    int i, indent;
+    int indent;
     FILE *config_f = NULL;
 
     if ((netconf_dir = get_netconf_dir()) == NULL) {
@@ -432,7 +431,8 @@ store_config(void)
         }
         fprintf(config_f, "</output-format>\n");
 
-        /* authentication */
+#ifdef NC_ENABLED_SSH
+        /* SSH authentication */
         fprintf(config_f, "%*.s<authentication>\n", indent, "");
         ++indent;
 
@@ -442,7 +442,8 @@ store_config(void)
 
         fprintf(config_f, "%*.s<publickey>%d</publickey>\n", indent, "", nc_client_ssh_get_auth_pref(NC_SSH_AUTH_PUBLICKEY));
         fprintf(config_f, "%*.s<password>%d</password>\n", indent, "", nc_client_ssh_get_auth_pref(NC_SSH_AUTH_PASSWORD));
-        fprintf(config_f, "%*.s<interactive>%d</interactive>\n", indent, "", nc_client_ssh_get_auth_pref(NC_SSH_AUTH_INTERACTIVE));
+        fprintf(config_f, "%*.s<interactive>%d</interactive>\n", indent, "",
+                nc_client_ssh_get_auth_pref(NC_SSH_AUTH_INTERACTIVE));
 
         --indent;
         fprintf(config_f, "%*.s</pref>\n", indent, "");
@@ -453,7 +454,9 @@ store_config(void)
             ++indent;
 
             /* pair(s) */
-            for (i = 0; i < nc_client_ssh_get_keypair_count(); ++i) {
+            for (int i = 0; i < nc_client_ssh_get_keypair_count(); ++i) {
+                const char *priv_key, *pub_key;
+
                 nc_client_ssh_get_keypair(i, &pub_key, &priv_key);
                 fprintf(config_f, "%*.s<pair>\n", indent, "");
                 ++indent;
@@ -471,6 +474,7 @@ store_config(void)
 
         --indent;
         fprintf(config_f, "%*.s</authentication>\n", indent, "");
+#endif
 
         --indent;
         fprintf(config_f, "%*.s</netconf-client>\n", indent, "");

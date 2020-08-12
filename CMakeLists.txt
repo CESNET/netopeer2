@@ -111,17 +111,32 @@ endif()
 # put all binaries into one directory (even from subprojects)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 
+# find libnetconf2 because we need to configure outselves based on it
+find_package(LibNETCONF2 REQUIRED)
+
 # source files
 set(SERVER_SRC
     src/common.c
     src/netconf.c
     src/netconf_monitoring.c
-    src/netconf_server.c
-    src/netconf_server_ssh.c
-    src/netconf_server_tls.c
     src/netconf_acm.c
     src/netconf_nmda.c
     src/log.c)
+
+# at least some remote transport is enabled
+if(LIBNETCONF2_ENABLED_SSH OR LIBNETCONF2_ENABLED_TLS)
+    list(APPEND SERVER_SRC src/netconf_server.c)
+endif()
+
+# SSH is enabled
+if(LIBNETCONF2_ENABLED_SSH)
+    list(APPEND SERVER_SRC src/netconf_server_ssh.c)
+endif()
+
+# TLS is enabled
+if(LIBNETCONF2_ENABLED_TLS)
+    list(APPEND SERVER_SRC src/netconf_server_tls.c)
+endif()
 
 # link compat
 use_compat()
@@ -171,11 +186,7 @@ include_directories(${LIBYANG_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBYANG_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBYANG_LIBRARIES})
 
-# dependencies - libnetconf2
-find_package(LibNETCONF2 REQUIRED)
-if(NOT LIBNETCONF2_ENABLED_SSH)
-    message(FATAL_ERROR "Missing SSH support in libnetconf2, server requires SSH to be supported.")
-endif()
+# dependencies - libnetconf2 (was already found)
 target_link_libraries(netopeer2-server ${LIBNETCONF2_LIBRARIES})
 include_directories(${LIBNETCONF2_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBNETCONF2_INCLUDE_DIRS})

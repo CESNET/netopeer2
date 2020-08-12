@@ -17,6 +17,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <unistd.h>
 #include <string.h>
 #include <signal.h>
 #include <syslog.h>
@@ -33,9 +34,15 @@
 #include "common.h"
 #include "log.h"
 #include "netconf.h"
-#include "netconf_server.h"
-#include "netconf_server_ssh.h"
-#include "netconf_server_tls.h"
+#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+# include "netconf_server.h"
+#endif
+#ifdef NC_ENABLED_SSH
+# include "netconf_server_ssh.h"
+#endif
+#ifdef NC_ENABLED_TLS
+# include "netconf_server_tls.h"
+#endif
 #include "netconf_acm.h"
 #include "netconf_monitoring.h"
 #include "netconf_nmda.h"
@@ -211,12 +218,16 @@ cleanup:
     return ret;
 }
 
+#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+
 static int
 np2srv_dummy_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name), const char *UNUSED(xpath),
         sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     return SR_ERR_OK;
 }
+
+#endif
 
 static void
 np2srv_del_session_cb(struct nc_session *session)
@@ -701,13 +712,17 @@ server_init(void)
     /* set libnetconf2 global PRC callback */
     nc_set_global_rpc_clb(np2srv_rpc_cb);
 
+#ifdef NC_ENABLED_SSH
     /* set libnetconf2 SSH callbacks */
     nc_server_ssh_set_hostkey_clb(np2srv_hostkey_cb, NULL, NULL);
     nc_server_ssh_set_pubkey_auth_clb(np2srv_pubkey_auth_cb, NULL, NULL);
+#endif
 
+#ifdef NC_ENABLED_TLS
     /* set libnetconf2 TLS callbacks */
     nc_server_tls_set_server_cert_clb(np2srv_cert_cb, NULL, NULL);
     nc_server_tls_set_trusted_cert_list_clb(np2srv_cert_list_cb, NULL, NULL);
+#endif
 
     /* UNIX socket */
     if (np2srv.unix_path) {
@@ -818,9 +833,13 @@ server_data_subscribe(void)
      * ietf-netconf-server
      */
     mod_name = "ietf-netconf-server";
+
+#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
     xpath = "/ietf-netconf-server:netconf-server/listen/idle-timeout";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_idle_timeout_cb);
+#endif
 
+#ifdef NC_ENABLED_SSH
     /* subscribe for server SSH listen configuration changes */
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_ssh_cb);
@@ -839,7 +858,9 @@ server_data_subscribe(void)
     /* subscribe for providing SSH operational data */
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/client-authentication/users";
     SR_OPER_SUBSCR(mod_name, xpath, np2srv_endpt_ssh_auth_users_oper_cb);
+#endif
 
+#ifdef NC_ENABLED_TLS
     /* subscribe for server TLS listen configuration changes */
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_tls_cb);
@@ -855,7 +876,9 @@ server_data_subscribe(void)
 
     xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls/tls-server-parameters/client-authentication/cert-maps";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_tls_client_ctn_cb);
+#endif
 
+#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
     /* subscribe for generic Call Home configuration changes */
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_cb);
@@ -865,7 +888,9 @@ server_data_subscribe(void)
 
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/reconnect-strategy";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_reconnect_strategy_cb);
+#endif
 
+#ifdef NC_ENABLED_SSH
     /* subscribe for server SSH Call Home configuration changes */
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_ssh_cb);
@@ -880,7 +905,9 @@ server_data_subscribe(void)
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh/ssh-server-parameters/"
             "client-authentication/supported-authentication-methods";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_endpt_ssh_auth_methods_cb);
+#endif
 
+#ifdef NC_ENABLED_TLS
     /* subscribe for TLS Call Home configuration changes */
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_tls_cb);
@@ -899,7 +926,9 @@ server_data_subscribe(void)
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls/tls-server-parameters/"
             "client-authentication/cert-maps";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_tls_client_ctn_cb);
+#endif
 
+#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
     /*
      * ietf-keystore (just for in-use operational data)
      */
@@ -913,6 +942,7 @@ server_data_subscribe(void)
     mod_name = "ietf-truststore";
     xpath = "/ietf-truststore:truststore/certificates";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_dummy_cb);
+#endif
 
     /*
      * ietf-netconf-acm
@@ -954,7 +984,9 @@ worker_thread(void *arg)
     int rc, idx = *((int *)arg), monitored;
     struct nc_session *ncs;
 
+#ifdef NC_ENABLED_SSH
     nc_libssh_thread_verbosity(np2_libssh_verbose_level);
+#endif
 
     while (ATOMIC_LOAD_RELAXED(loop_continue)) {
         /* try to accept new NETCONF sessions */
@@ -1013,7 +1045,9 @@ worker_thread(void *arg)
         if (rc & NC_PSPOLL_SESSION_TERM) {
             VRB("Session %d: thread %d event session terminated.", nc_session_get_id(ncs), idx);
             np2srv_del_session_cb(ncs);
-        } else if (rc & NC_PSPOLL_SSH_CHANNEL) {
+        }
+#ifdef NC_ENABLED_SSH
+        else if (rc & NC_PSPOLL_SSH_CHANNEL) {
             /* a new SSH channel on existing session was created */
             VRB("Session %d: thread %d event new SSH channel.", nc_session_get_id(ncs), idx);
             msgtype = nc_session_accept_ssh_channel(ncs, &ncs);
@@ -1025,10 +1059,13 @@ worker_thread(void *arg)
                 }
             }
         }
+#endif
     }
 
     /* cleanup */
+#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
     nc_thread_destroy();
+#endif
     free(arg);
     return NULL;
 }
@@ -1058,7 +1095,11 @@ print_usage(char* progname)
 #ifndef NDEBUG
     fprintf(stdout, " -c category[,category]*\n");
     fprintf(stdout, "           verbose debug level, print only these debug message categories\n");
+# ifdef NC_ENABLED_SSH
     fprintf(stdout, "           categories: DICT, YANG, YIN, XPATH, DIFF, MSG, LN2DBG, SSH, SYSREPO\n");
+# else
+    fprintf(stdout, "           categories: DICT, YANG, YIN, XPATH, DIFF, MSG, LN2DBG, SYSREPO\n");
+# endif
 #else
     fprintf(stdout, " -c category[,category]*\n");
     fprintf(stdout, "           verbose debug level, NOT SUPPORTED in release build type\n");
@@ -1120,7 +1161,9 @@ main(int argc, char *argv[])
             }
 
             nc_verbosity(np2_verbose_level);
+#ifdef NC_ENABLED_SSH
             nc_libssh_thread_verbosity(np2_libssh_verbose_level);
+#endif
             break;
         case 'V':
             print_version();
@@ -1185,9 +1228,11 @@ main(int argc, char *argv[])
                     np2_verbose_level = NC_VERB_DEBUG;
                 } else if (!strcmp(ptr, "LN2DBG")) {
                     np2_verbose_level = NC_VERB_DEBUG_LOWLVL;
+# ifdef NC_ENABLED_SSH
                 } else if (!strcmp(ptr, "SSH")) {
                     /* 2 should be always enough, 3 is too much useless info */
                     np2_libssh_verbose_level = 2;
+# endif
                 } else if (!strcmp(ptr, "SYSREPO")) {
                     np2_sr_verbose_level = SR_LL_DBG;
                 } else {
@@ -1197,7 +1242,9 @@ main(int argc, char *argv[])
             } while ((ptr = strtok(NULL, ",")));
             /* set final verbosity */
             nc_verbosity(np2_verbose_level);
+# ifdef NC_ENABLED_SSH
             nc_libssh_thread_verbosity(np2_libssh_verbose_level);
+# endif
             if (verb) {
                 ly_verb(LY_LLDBG);
                 ly_verb_dbg(verb);
@@ -1320,8 +1367,10 @@ cleanup:
     sr_unsubscribe(np2srv.sr_data_sub);
     sr_unsubscribe(np2srv.sr_notif_sub);
 
+#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
     /* remove all CH clients so they do not reconnect */
     nc_server_ch_del_client(NULL);
+#endif
 
     /* close all open sessions */
     if (np2srv.nc_ps) {
