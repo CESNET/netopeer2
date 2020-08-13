@@ -430,14 +430,16 @@ np2srv_endpt_ssh_auth_users_oper_cb(sr_session_ctx_t *UNUSED(session), const cha
             goto cleanup;
         }
         f = fopen(path, "r");
-        free(path);
         if (!f) {
             if (errno != ENOENT) {
-                ERR("Opening \"%s\" authorized key file failed (%s).", strerror(errno));
+                ERR("Opening \"%s\" authorized key file failed (%s).", path, strerror(errno));
+                free(path);
                 goto cleanup;
             }
+            free(path);
             continue;
         }
+        free(path);
 
         /* create authorized keys */
         key_idx = 1;
