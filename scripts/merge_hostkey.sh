@@ -3,20 +3,20 @@
 set -e
 
 # avoid problems with sudo PATH
-if [ `id -u` -eq 0 ]; then
-    SYSREPOCFG=`su -c 'which sysrepocfg' -l $USER`
-    OPENSSL=`su -c 'which openssl' -l $USER`
+if [ $(id -u) -eq 0 ]; then
+    SYSREPOCFG=$(su -c 'which sysrepocfg' -l "$USER")
+    OPENSSL=$(su -c 'which openssl' -l "$USER")
 else
-    SYSREPOCFG=`which sysrepocfg`
-    OPENSSL=`which openssl`
+    SYSREPOCFG=$(which sysrepocfg)
+    OPENSSL=$(which openssl)
 fi
 
 # check that there is no SSH key with this name yet
-KEYSTORE_KEY=`$SYSREPOCFG -X -x "/ietf-keystore:keystore/asymmetric-keys/asymmetric-key[name='genkey']/name"`
+KEYSTORE_KEY=$($SYSREPOCFG -X -x "/ietf-keystore:keystore/asymmetric-keys/asymmetric-key[name='genkey']/name")
 if [ -z "$KEYSTORE_KEY" ]; then
 
 # generate a new key
-PRIVPEM=`$OPENSSL genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform PEM 2>/dev/null`
+PRIVPEM=$($OPENSSL genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform PEM 2>/dev/null)
 # remove header/footer
 PRIVKEY=`grep -v -- "-----" - <<STDIN
 $PRIVPEM
@@ -41,12 +41,12 @@ CONFIG="<keystore xmlns=\"urn:ietf:params:xml:ns:yang:ietf-keystore\">
         </asymmetric-key>
     </asymmetric-keys>
 </keystore>"
-TMPFILE=`mktemp -u`
-printf -- "$CONFIG" > $TMPFILE
+TMPFILE=$(mktemp -u)
+printf -- "$CONFIG" > "$TMPFILE"
 # apply it to startup and running
-$SYSREPOCFG --edit=$TMPFILE -d startup -f xml -m ietf-keystore -v2
+$SYSREPOCFG --edit="$TMPFILE" -d startup -f xml -m ietf-keystore -v2
 $SYSREPOCFG -C startup -m ietf-keystore -v2
 # remove the tmp file
-rm $TMPFILE
+rm "$TMPFILE"
 
 fi
