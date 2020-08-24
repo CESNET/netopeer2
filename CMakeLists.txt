@@ -71,19 +71,19 @@ if(NOT MODULES_OWNER)
     OUTPUT_VARIABLE MODULES_OWNER OUTPUT_STRIP_TRAILING_WHITESPACE
     ERROR_VARIABLE ERROR_STR OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(RET)
-        message(FATAL_ERROR "Learning server module user failed: ${ERROR_STR}")
+        message(WARNING "Learning server module user failed (${ERROR_STR}), the current user will be used.")
     endif()
 endif()
-set(MODULES_OWNER "${MODULES_OWNER}" CACHE STRING "System user that will become the owner of server modules")
-if(NOT MODULES_GROUP)
+set(MODULES_OWNER "${MODULES_OWNER}" CACHE STRING "System user that will become the owner of server modules, empty means the current user")
+if(NOT MODULES_GROUP AND MODULES_OWNER)
     execute_process(COMMAND id -gn ${MODULES_OWNER} RESULT_VARIABLE RET
     OUTPUT_VARIABLE MODULES_GROUP OUTPUT_STRIP_TRAILING_WHITESPACE
     ERROR_VARIABLE ERROR_STR OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(RET)
-        message(FATAL_ERROR "Learning server module group failed: ${ERROR_STR}")
+        message(WARNING "Learning server module group failed (${ERROR_STR}), the current user group will be used.")
     endif()
 endif()
-set(MODULES_GROUP "${MODULES_GROUP}" CACHE STRING "System group that the server modules will belong to")
+set(MODULES_GROUP "${MODULES_GROUP}" CACHE STRING "System group that the server modules will belong to, empty means the current user group")
 
 # set prefix for the PID file
 if(NOT PIDFILE_PREFIX)

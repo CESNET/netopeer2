@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# env variables NP2_MODULE_DIR, NP2_MODULE_PERMS, NP2_MODULE_OWNER, NP2_MODULE_GROUP must be defined when executing this script!
-if [ -z "$NP2_MODULE_DIR" -o -z "$NP2_MODULE_PERMS" -o -z "$NP2_MODULE_OWNER" -o -z "$NP2_MODULE_GROUP" ]; then
+# env variables NP2_MODULE_DIR, NP2_MODULE_PERMS must be defined and NP2_MODULE_OWNER, NP2_MODULE_GROUP will be used if
+# defined when executing this script!
+if [ -z "$NP2_MODULE_DIR" -o -z "$NP2_MODULE_PERMS" ]; then
     echo "Required environment variables not defined!"
     exit 1
 fi
@@ -37,7 +38,14 @@ MODULES=(
 
 # functions
 INSTALL_MODULE() {
-    "$SYSREPOCTL" -a -i $MODDIR/$1 -s "$MODDIR" -p "$PERMS" -o "$OWNER" -g "$GROUP" -v2
+    CMD="'$SYSREPOCTL' -a -i $MODDIR/$1 -s '$MODDIR' -p '$PERMS' -v2"
+    if [ ! -z ${OWNER} ]; then
+        CMD="$CMD -o '$OWNER'"
+    fi
+    if [ ! -z ${GROUP} ]; then
+        CMD="$CMD -g '$GROUP'"
+    fi
+    eval $CMD
     local rc=$?
     if [ $rc -ne 0 ]; then
         exit $rc
@@ -45,7 +53,14 @@ INSTALL_MODULE() {
 }
 
 UPDATE_MODULE() {
-    "$SYSREPOCTL" -a -U $MODDIR/$1 -s "$MODDIR" -p "$PERMS" -o "$OWNER" -g "$GROUP" -v2
+    CMD="'$SYSREPOCTL' -a -U $MODDIR/$1 -s '$MODDIR' -p '$PERMS' -v2"
+    if [ ! -z ${OWNER} ]; then
+        CMD="$CMD -o '$OWNER'"
+    fi
+    if [ ! -z ${GROUP} ]; then
+        CMD="$CMD -g '$GROUP'"
+    fi
+    eval $CMD
     local rc=$?
     if [ $rc -ne 0 ]; then
         exit $rc
