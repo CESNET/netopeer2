@@ -1084,7 +1084,7 @@ print_usage(char* progname)
     fprintf(stdout, " -d        debug mode (do not daemonize and print verbose messages to stderr instead of syslog)\n");
     fprintf(stdout, " -h        display help\n");
     fprintf(stdout, " -V        show program version\n");
-    fprintf(stdout, " -U (path) listen on a local UNIX socket (specific path, default is \"%s\")\n", NP2SRV_UNIX_SOCK_PATH);
+    fprintf(stdout, " -U[path]  listen on a local UNIX socket (default path is \"%s\")\n", NP2SRV_UNIX_SOCK_PATH);
     fprintf(stdout, " -m mode   set mode for the listening UNIX socket\n");
     fprintf(stdout, " -u uid    set UID/user for the listening UNIX socket\n");
     fprintf(stdout, " -g gid    set GID/group for the listening UNIX socket\n");
