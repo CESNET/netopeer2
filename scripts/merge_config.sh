@@ -2,8 +2,11 @@
 
 set -e
 
+# optional env variable override
+if [ -n "$SYSREPOCFG_EXECUTABLE" ]; then
+    SYSREPOCFG="$SYSREPOCFG_EXECUTABLE"
 # avoid problems with sudo PATH
-if [ `id -u` -eq 0 ]; then
+elif [ `id -u` -eq 0 ]; then
     SYSREPOCFG=`su -c 'which sysrepocfg' -l $USER`
 else
     SYSREPOCFG=`which sysrepocfg`

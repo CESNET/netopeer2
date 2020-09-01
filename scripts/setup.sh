@@ -7,8 +7,11 @@ if [ -z "$NP2_MODULE_DIR" -o -z "$NP2_MODULE_PERMS" ]; then
     exit 1
 fi
 
+# optional env variable override
+if [ -n "$SYSREPOCTL_EXECUTABLE" ]; then
+    SYSREPOCTL="$SYSREPOCTL_EXECUTABLE"
 # avoid problems with sudo PATH
-if [ `id -u` -eq 0 ]; then
+elif [ `id -u` -eq 0 ]; then
     SYSREPOCTL=`su -c 'which sysrepoctl' -l $USER`
 else
     SYSREPOCTL=`which sysrepoctl`
