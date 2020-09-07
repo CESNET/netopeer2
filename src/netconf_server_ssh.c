@@ -431,11 +431,16 @@ np2srv_endpt_ssh_auth_users_oper_cb(sr_session_ctx_t *UNUSED(session), const cha
         }
         f = fopen(path, "r");
         if (!f) {
-            if (errno != ENOENT) {
+            if (errno != ENOENT && errno != EACCES) {
                 ERR("Opening \"%s\" authorized key file failed (%s).", path, strerror(errno));
                 free(path);
                 goto cleanup;
             }
+
+            if (errno == EACCES) {
+                VRB("Skipping \"%s\" authorized key file (%s).", path, strerror(errno));
+            }
+
             free(path);
             continue;
         }
