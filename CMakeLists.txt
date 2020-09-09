@@ -6,6 +6,9 @@ set(NETOPEER2_DESC "NETCONF tools suite including a server and command-line clie
 # include custom Modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules/")
 
+if(POLICY CMP0075)
+    cmake_policy(SET CMP0075 NEW)
+endif()
 include(GNUInstallDirs)
 include(CheckFunctionExists)
 include(CheckIncludeFile)
@@ -111,8 +114,18 @@ endif()
 # put all binaries into one directory (even from subprojects)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 
-# find libnetconf2 because we need to configure outselves based on it
+# dependencies - OpenSSL (required by later libnetconf2 checks and not really the server itself)
+find_package(OpenSSL)
+if(OpenSSL_FOUND)
+    list(APPEND CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIRS})
+    list(APPEND CMAKE_REQUIRED_LIBRARIES ${OPENSSL_LIBRARIES})
+endif()
+
+# dependencies - libnetconf2 (now, because we need to configure outselves based on it)
 find_package(LibNETCONF2 REQUIRED)
+include_directories(${LIBNETCONF2_INCLUDE_DIRS})
+list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBNETCONF2_INCLUDE_DIRS})
+list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBNETCONF2_LIBRARIES})
 
 # source files
 set(SERVER_SRC
@@ -145,6 +158,9 @@ use_compat()
 add_library(serverobj OBJECT ${SERVER_SRC})
 add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> src/main.c $<TARGET_OBJECTS:compat>)
 
+# dependencies - libnetconf2 (was already found)
+target_link_libraries(netopeer2-server ${LIBNETCONF2_LIBRARIES})
+
 # dependencies - libcurl
 if(ENABLE_URL)
     find_package(CURL)
@@ -168,16 +184,13 @@ list(APPEND CMAKE_REQUIRED_FLAGS ${CMAKE_THREAD_LIBS_INIT})
 check_include_file(stdatomic.h HAVE_STDATOMIC)
 
 # dependencies - libssh
-find_package(LibSSH 0.7.1 REQUIRED)
-target_link_libraries(netopeer2-server ${LIBSSH_LIBRARIES})
-include_directories(${LIBSSH_INCLUDE_DIRS})
-list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBSSH_LIBRARIES})
-list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBSSH_INCLUDE_DIRS})
-
-# dependencies - OpenSSL (required by later libnetconf2 checks and not really the server itself)
-find_package(OpenSSL REQUIRED)
-list(APPEND CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIRS})
-list(APPEND CMAKE_REQUIRED_LIBRARIES ${OPENSSL_LIBRARIES})
+find_package(LibSSH 0.7.1)
+if(LibSSH_FOUND)
+    target_link_libraries(netopeer2-server ${LIBSSH_LIBRARIES})
+    include_directories(${LIBSSH_INCLUDE_DIRS})
+    list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBSSH_INCLUDE_DIRS})
+    list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBSSH_LIBRARIES})
+endif()
 
 # dependencies - libyang
 find_package(LibYANG REQUIRED)
@@ -185,12 +198,6 @@ target_link_libraries(netopeer2-server ${LIBYANG_LIBRARIES})
 include_directories(${LIBYANG_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBYANG_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBYANG_LIBRARIES})
-
-# dependencies - libnetconf2 (was already found)
-target_link_libraries(netopeer2-server ${LIBNETCONF2_LIBRARIES})
-include_directories(${LIBNETCONF2_INCLUDE_DIRS})
-list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBNETCONF2_INCLUDE_DIRS})
-list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBNETCONF2_LIBRARIES})
 
 # dependencies - sysrepo
 find_package(Sysrepo REQUIRED)
