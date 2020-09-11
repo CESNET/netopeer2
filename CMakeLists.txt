@@ -121,6 +121,13 @@ if(OpenSSL_FOUND)
     list(APPEND CMAKE_REQUIRED_LIBRARIES ${OPENSSL_LIBRARIES})
 endif()
 
+# dependencies - libssh (also required by libnetconf2 checks)
+find_package(LibSSH 0.7.1)
+if(LibSSH_FOUND)
+    list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBSSH_INCLUDE_DIRS})
+    list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBSSH_LIBRARIES})
+endif()
+
 # dependencies - libnetconf2 (now, because we need to configure outselves based on it)
 find_package(LibNETCONF2 REQUIRED)
 include_directories(${LIBNETCONF2_INCLUDE_DIRS})
@@ -161,6 +168,12 @@ add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> src/main.c $<TARGET_
 # dependencies - libnetconf2 (was already found)
 target_link_libraries(netopeer2-server ${LIBNETCONF2_LIBRARIES})
 
+# dependencies - libssh (was already found, if exists)
+if(LibSSH_FOUND AND LIBNETCONF2_ENABLED_SSH)
+    target_link_libraries(netopeer2-server ${LIBSSH_LIBRARIES})
+    include_directories(${LIBSSH_INCLUDE_DIRS})
+endif()
+
 # dependencies - libcurl
 if(ENABLE_URL)
     find_package(CURL)
@@ -182,15 +195,6 @@ list(APPEND CMAKE_REQUIRED_FLAGS ${CMAKE_THREAD_LIBS_INIT})
 
 # dependencies - stdatomic
 check_include_file(stdatomic.h HAVE_STDATOMIC)
-
-# dependencies - libssh
-find_package(LibSSH 0.7.1)
-if(LibSSH_FOUND)
-    target_link_libraries(netopeer2-server ${LIBSSH_LIBRARIES})
-    include_directories(${LIBSSH_INCLUDE_DIRS})
-    list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBSSH_INCLUDE_DIRS})
-    list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBSSH_LIBRARIES})
-endif()
 
 # dependencies - libyang
 find_package(LibYANG REQUIRED)
