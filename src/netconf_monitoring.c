@@ -169,7 +169,7 @@ ncm_bad_hello(void)
 struct lyd_node *
 ncm_get_data(sr_conn_ctx_t *conn)
 {
-    struct lyd_node *root = NULL, *cont, *list, *cont2;
+    struct lyd_node *root = NULL, *cont, *list, *cont2, *cont3;
     const struct lys_module *mod;
     struct ly_ctx *ly_ctx;
     const char **cpblts;
@@ -207,11 +207,12 @@ ncm_get_data(sr_conn_ctx_t *conn)
     if (rc != SR_ERR_OK) {
         WRN("Failed to learn about running lock (%s).", sr_strerror(rc));
     } else if (is_locked) {
-        cont2 = lyd_new(list, NULL, "global-lock");
+        cont2 = lyd_new(list, NULL, "locks");
+        cont3 = lyd_new(cont2, NULL, "global-lock");
         sprintf(buf, "%u", nc_id);
-        lyd_new_leaf(cont2, NULL, "locked-by-session", buf);
+        lyd_new_leaf(cont3, NULL, "locked-by-session", buf);
         nc_time2datetime(ts, NCM_TIMEZONE, buf);
-        lyd_new_leaf(cont2, NULL, "locked-time", buf);
+        lyd_new_leaf(cont3, NULL, "locked-time", buf);
     }
 
     list = lyd_new(cont, NULL, "datastore");
@@ -220,11 +221,12 @@ ncm_get_data(sr_conn_ctx_t *conn)
     if (rc != SR_ERR_OK) {
         WRN("Failed to learn about startup lock (%s).", sr_strerror(rc));
     } else if (is_locked) {
-        cont2 = lyd_new(list, NULL, "global-lock");
+        cont2 = lyd_new(list, NULL, "locks");
+        cont3 = lyd_new(cont2, NULL, "global-lock");
         sprintf(buf, "%u", nc_id);
-        lyd_new_leaf(cont2, NULL, "locked-by-session", buf);
+        lyd_new_leaf(cont3, NULL, "locked-by-session", buf);
         nc_time2datetime(ts, NCM_TIMEZONE, buf);
-        lyd_new_leaf(cont2, NULL, "locked-time", buf);
+        lyd_new_leaf(cont3, NULL, "locked-time", buf);
     }
 
     list = lyd_new(cont, NULL, "datastore");
@@ -233,11 +235,12 @@ ncm_get_data(sr_conn_ctx_t *conn)
     if (rc != SR_ERR_OK) {
         WRN("Failed to learn about candidate lock (%s).", sr_strerror(rc));
     } else if (is_locked) {
-        cont2 = lyd_new(list, NULL, "global-lock");
+        cont2 = lyd_new(list, NULL, "locks");
+        cont3 = lyd_new(cont2, NULL, "global-lock");
         sprintf(buf, "%u", nc_id);
-        lyd_new_leaf(cont2, NULL, "locked-by-session", buf);
+        lyd_new_leaf(cont3, NULL, "locked-by-session", buf);
         nc_time2datetime(ts, NCM_TIMEZONE, buf);
-        lyd_new_leaf(cont2, NULL, "locked-time", buf);
+        lyd_new_leaf(cont3, NULL, "locked-time", buf);
     }
 
     /* schemas */
