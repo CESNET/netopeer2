@@ -194,13 +194,13 @@ np2log_cb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
         return;
     }
 
-    log_msg = np2log_encode(msg, &buf);
     if (path) {
-        np2log(priority, "LY", "%s (%s)", log_msg, path);
+        np2log(priority, "LY", "%s (%s)", msg, path);
     } else {
+        log_msg = np2log_encode(msg, &buf);
         np2log(priority, "LY", log_msg);
+        free(buf);
     }
-    free(buf);
 }
 
 void
