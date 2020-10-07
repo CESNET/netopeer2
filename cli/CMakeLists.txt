@@ -25,7 +25,7 @@ target_link_libraries(netopeer2-cli ${LIBNETCONF2_LIBRARIES})
 
 # dependencies - libssh
 if(LIBNETCONF2_ENABLED_SSH)
-    if(NOT LibSSH_FOUND)
+    if(NOT LIBSSH_FOUND)
         message(FATAL_ERROR "libnetconf2 supports SSH but libssh was not found, CLI compilation failed!")
     endif()
     target_link_libraries(netopeer2-cli ${LIBSSH_LIBRARIES})
@@ -34,7 +34,7 @@ endif()
 
 # dependencies - libssl
 if(LIBNETCONF2_ENABLED_TLS)
-    if(NOT OpenSSL_FOUND)
+    if(NOT OPENSSL_FOUND)
         message(FATAL_ERROR "libnetconf2 supports TLS but OpenSSL was not found, CLI compilation failed!")
     endif()
     target_link_libraries(netopeer2-cli ${OPENSSL_LIBRARIES})
