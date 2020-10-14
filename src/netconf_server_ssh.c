@@ -431,7 +431,7 @@ np2srv_endpt_ssh_auth_users_oper_cb(sr_session_ctx_t *UNUSED(session), const cha
         }
         f = fopen(path, "r");
         if (!f) {
-            if (errno != ENOENT && errno != EACCES) {
+            if (errno != ENOENT && errno != ENOTDIR && errno != EACCES) {
                 ERR("Opening \"%s\" authorized key file failed (%s).", path, strerror(errno));
                 free(path);
                 goto cleanup;
