@@ -245,21 +245,7 @@ np2srv_del_session_cb(struct nc_session *session)
     /* stop sysrepo session (also stop any sysrepo notification subscriptions) */
     sr_sess = nc_session_get_data(session);
     sr_session_stop(sr_sess);
-
-    switch (nc_session_get_ti(session)) {
-#ifdef NC_ENABLED_SSH
-    case NC_TI_LIBSSH:
-#endif
-#ifdef NC_ENABLED_TLS
-    case NC_TI_OPENSSL:
-#endif
-#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
-        ncm_session_del(session);
-        break;
-#endif
-    default:
-        break;
-    }
+    ncm_session_del(session);
 
     if ((mod = ly_ctx_get_module(sr_get_context(np2srv.sr_conn), "ietf-netconf-notifications", NULL, 1))) {
         /* generate ietf-netconf-notification's netconf-session-end event for sysrepo */
@@ -981,7 +967,7 @@ static void *
 worker_thread(void *arg)
 {
     NC_MSG_TYPE msgtype;
-    int rc, idx = *((int *)arg), monitored;
+    int rc, idx = *((int *)arg);
     struct nc_session *ncs;
 
 #ifdef NC_ENABLED_SSH
@@ -1007,39 +993,17 @@ worker_thread(void *arg)
             continue;
         }
 
-        switch (nc_session_get_ti(ncs)) {
-#ifdef NC_ENABLED_SSH
-        case NC_TI_LIBSSH:
-#endif
-#ifdef NC_ENABLED_TLS
-        case NC_TI_OPENSSL:
-#endif
-#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
-            monitored = 1;
-            break;
-#endif
-        default:
-            monitored = 0;
-            break;
-        }
-
         /* process the result of nc_ps_poll(), increase counters */
         if (rc & NC_PSPOLL_BAD_RPC) {
-            if (monitored) {
-                ncm_session_bad_rpc(ncs);
-            }
+            ncm_session_bad_rpc(ncs);
             VRB("Session %d: thread %d event bad RPC.", nc_session_get_id(ncs), idx);
         }
         if (rc & NC_PSPOLL_RPC) {
-            if (monitored) {
-                ncm_session_rpc(ncs);
-            }
+            ncm_session_rpc(ncs);
             VRB("Session %d: thread %d event new RPC.", nc_session_get_id(ncs), idx);
         }
         if (rc & NC_PSPOLL_REPLY_ERROR) {
-            if (monitored) {
-                ncm_session_rpc_reply_error(ncs);
-            }
+            ncm_session_rpc_reply_error(ncs);
             VRB("Session %d: thread %d event reply error.", nc_session_get_id(ncs), idx);
         }
         if (rc & NC_PSPOLL_SESSION_TERM) {
@@ -1054,9 +1018,7 @@ worker_thread(void *arg)
             if (msgtype == NC_MSG_HELLO) {
                 np2srv_new_session_cb(NULL, ncs);
             } else if (msgtype == NC_MSG_BAD_HELLO) {
-                if (monitored) {
-                    ncm_bad_hello();
-                }
+                ncm_bad_hello(ncs);
             }
         }
 #endif

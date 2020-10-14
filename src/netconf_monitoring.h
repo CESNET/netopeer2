@@ -50,7 +50,7 @@ void ncm_session_rpc_reply_error(struct nc_session *session);
 void ncm_session_notification(struct nc_session *session);
 void ncm_session_add(struct nc_session *session);
 void ncm_session_del(struct nc_session *session);
-void ncm_bad_hello(void);
+void ncm_bad_hello(struct nc_session *session);
 
 struct lyd_node *ncm_get_data(sr_conn_ctx_t *conn);
 

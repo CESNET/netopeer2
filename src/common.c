@@ -123,7 +123,7 @@ cleanup:
 void
 np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_session)
 {
-    int c, monitored = 0;
+    int c;
     sr_val_t *event_data;
     sr_session_ctx_t *sr_sess = NULL;
     const struct lys_module *mod;
@@ -133,28 +133,12 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
     c = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
     if (c != SR_ERR_OK) {
         ERR("Failed to start a sysrepo session (%s).", sr_strerror(c));
-        goto error;
+        nc_session_free(new_session, NULL);
+        return;
     }
     nc_session_set_data(new_session, sr_sess);
     sr_session_set_nc_id(sr_sess, nc_session_get_id(new_session));
-
-    switch (nc_session_get_ti(new_session)) {
-#ifdef NC_ENABLED_SSH
-    case NC_TI_LIBSSH:
-#endif
-#ifdef NC_ENABLED_TLS
-    case NC_TI_OPENSSL:
-#endif
-#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
-        ncm_session_add(new_session);
-        monitored = 1;
-        break;
-#endif
-    default:
-        WRN("Session %d uses a transport protocol not supported by ietf-netconf-monitoring, will not be monitored.",
-                nc_session_get_id(new_session));
-        break;
-    }
+    ncm_session_add(new_session);
 
     c = 0;
     while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, new_session)) {
@@ -198,9 +182,7 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
     return;
 
 error:
-    if (monitored) {
-        ncm_session_del(new_session);
-    }
+    ncm_session_del(new_session);
     sr_session_stop(sr_sess);
     nc_session_free(new_session, NULL);
 }

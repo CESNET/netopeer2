@@ -58,9 +58,33 @@ find_session_idx(struct nc_session *session)
     return 0;
 }
 
+static int
+ncm_is_monitored(struct nc_session *session)
+{
+    switch (nc_session_get_ti(session)) {
+#ifdef NC_ENABLED_SSH
+    case NC_TI_LIBSSH:
+#endif
+#ifdef NC_ENABLED_TLS
+    case NC_TI_OPENSSL:
+#endif
+#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+        return 1;
+#endif
+    default:
+        break;
+    }
+
+    return 0;
+}
+
 void
 ncm_session_rpc(struct nc_session *session)
 {
+    if (!ncm_is_monitored(session)) {
+        return;
+    }
+
     pthread_mutex_lock(&stats.lock);
 
     ++stats.session_stats[find_session_idx(session)].in_rpcs;
@@ -72,6 +96,10 @@ ncm_session_rpc(struct nc_session *session)
 void
 ncm_session_bad_rpc(struct nc_session *session)
 {
+    if (!ncm_is_monitored(session)) {
+        return;
+    }
+
     pthread_mutex_lock(&stats.lock);
 
     ++stats.session_stats[find_session_idx(session)].in_bad_rpcs;
@@ -83,6 +111,10 @@ ncm_session_bad_rpc(struct nc_session *session)
 void
 ncm_session_rpc_reply_error(struct nc_session *session)
 {
+    if (!ncm_is_monitored(session)) {
+        return;
+    }
+
     pthread_mutex_lock(&stats.lock);
 
     ++stats.session_stats[find_session_idx(session)].out_rpc_errors;
@@ -94,6 +126,10 @@ ncm_session_rpc_reply_error(struct nc_session *session)
 void
 ncm_session_notification(struct nc_session *session)
 {
+    if (!ncm_is_monitored(session)) {
+        return;
+    }
+
     pthread_mutex_lock(&stats.lock);
 
     ++stats.session_stats[find_session_idx(session)].out_notifications;
@@ -106,6 +142,12 @@ void
 ncm_session_add(struct nc_session *session)
 {
     void *new;
+
+    if (!ncm_is_monitored(session)) {
+        WRN("Session %d uses a transport protocol not supported by ietf-netconf-monitoring, will not be monitored.",
+                nc_session_get_id(session));
+        return;
+    }
 
     pthread_mutex_lock(&stats.lock);
 
@@ -136,6 +178,10 @@ ncm_session_del(struct nc_session *session)
 {
     uint32_t i;
 
+    if (!ncm_is_monitored(session)) {
+        return;
+    }
+
     pthread_mutex_lock(&stats.lock);
 
     if (!nc_session_get_term_reason(session)) {
@@ -157,8 +203,12 @@ ncm_session_del(struct nc_session *session)
 }
 
 void
-ncm_bad_hello(void)
+ncm_bad_hello(struct nc_session *session)
 {
+    if (!ncm_is_monitored(session)) {
+        return;
+    }
+
     pthread_mutex_lock(&stats.lock);
 
     ++stats.in_bad_hellos;
