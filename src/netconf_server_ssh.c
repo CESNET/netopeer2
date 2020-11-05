@@ -108,7 +108,7 @@ np2srv_pubkey_auth_cb(const struct nc_session *session, ssh_key key, void *UNUSE
     f = fopen(line, "r");
     if (!f) {
         if (errno == ENOENT) {
-            VRB("User \"%s\" has no authorized_keys file.");
+            VRB("User \"%s\" has no authorized_keys file.", username);
         } else {
             ERR("Failed to open \"%s\" authorized_keys file (%s).", line, strerror(errno));
         }
