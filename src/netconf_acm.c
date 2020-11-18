@@ -973,6 +973,62 @@ cleanup:
 }
 
 /**
+ * @brief Check NACM match of a node path and specific rule target.
+ *
+ * Details on matching in description of typedef ietf-netconf-acm:node-instance-identifier.
+ *
+ * @param[in] rule_target Rule target instance-identifier.
+ * @param[in] node_path Node data path.
+ * @return non-zero if the target matches, 0 if not.
+ */
+static int
+ncac_allowed_path(const char *rule_target, const char *node_path)
+{
+    const char *target_ptr, *path_ptr;
+
+    target_ptr = rule_target;
+    path_ptr = node_path;
+
+    while (target_ptr[0] && path_ptr[0]) {
+        if (target_ptr[0] == path_ptr[0]) {
+            ++target_ptr;
+            ++path_ptr;
+        } else if ((target_ptr[0] == '/') && (path_ptr[0] == '[')) {
+            /* target has no predicate, skip it in path as well because it matches any value */
+            while (path_ptr[0] != ']') {
+                if (path_ptr[0] == '\'') {
+                    do {
+                        ++path_ptr;
+                    } while (path_ptr[0] != '\'');
+                }
+
+                ++path_ptr;
+            }
+
+            ++path_ptr;
+        } else {
+            /* not a match */
+            return 0;
+        }
+    }
+
+    if (!target_ptr[0] && !path_ptr[0]) {
+        /* full match */
+        return 1;
+    } else if (target_ptr[0]) {
+        assert(!path_ptr[0]);
+        /* if the target continues, it cannot match */
+        return 0;
+    } else if ((path_ptr[0] == '/') || (path_ptr[0] == '[')) {
+        /* prefix match */
+        return 1;
+    }
+
+    /* last target node is a prefix of a path node, not a match */
+    return 0;
+}
+
+/**
  * @brief Check NACM access for a single node.
  *
  * @param[in] node Node to check.
@@ -981,16 +1037,16 @@ cleanup:
  * @return non-zero if access allowed, 0 if not.
  */
 static int
-ncac_allowed_node(const struct lys_node *node, const char *user, uint8_t oper)
+ncac_allowed_node(const struct lyd_node *node, const char *user, uint8_t oper)
 {
     struct ncac_rule_list *rlist;
     struct ncac_rule *rule;
     struct ly_ctx *ly_ctx;
     char **groups, *path;
     uint32_t i, j, group_count;
-    int allowed = 0, cmp;
+    int allowed = 0, ret;
 
-    ly_ctx = lys_node_module(node)->ctx;
+    ly_ctx = lyd_node_module(node)->ctx;
 
     /*
      * ref https://tools.ietf.org/html/rfc8341#section-3.4.4
@@ -1032,43 +1088,43 @@ ncac_allowed_node(const struct lys_node *node, const char *user, uint8_t oper)
         /* 7) find matching rules */
         for (rule = rlist->rules; rule; rule = rule->next) {
             /* module name matching */
-            if (rule->module_name && (rule->module_name != lys_node_module(node)->name)) {
+            if (rule->module_name && (rule->module_name != lyd_node_module(node)->name)) {
                 continue;
             }
 
             /* target (rule) type matching */
             switch (rule->target_type) {
             case NCAC_TARGET_RPC:
-                if (node->nodetype != LYS_RPC) {
+                if (node->schema->nodetype != LYS_RPC) {
                     continue;
                 }
-                if (rule->target && (rule->target != node->name)) {
+                if (rule->target && (rule->target != node->schema->name)) {
                     /* exact match needed */
                     continue;
                 }
                 break;
             case NCAC_TARGET_NOTIF:
                 /* only top-level notification */
-                if (lys_parent(node) || (node->nodetype != LYS_NOTIF)) {
+                if (lys_parent(node->schema) || (node->schema->nodetype != LYS_NOTIF)) {
                     continue;
                 }
-                if (rule->target && (rule->target != node->name)) {
+                if (rule->target && (rule->target != node->schema->name)) {
                     /* exact match needed */
                     continue;
                 }
                 break;
             case NCAC_TARGET_DATA:
-                if (node->nodetype & (LYS_RPC | LYS_NOTIF)) {
+                if (node->schema->nodetype & (LYS_RPC | LYS_NOTIF)) {
                     continue;
                 }
                 /* fallthrough */
             case NCAC_TARGET_ANY:
                 if (rule->target) {
-                    path = lys_data_path(node);
+                    path = lyd_path(node);
                     /* exact match or is a descendant (specified in RFC 8341 page 27) */
-                    cmp = strncmp(path, rule->target, strlen(rule->target));
+                    ret = ncac_allowed_path(rule->target, path);
                     free(path);
-                    if (cmp) {
+                    if (!ret) {
                         continue;
                     }
                 }
@@ -1092,13 +1148,13 @@ ncac_allowed_node(const struct lys_node *node, const char *user, uint8_t oper)
 
 step10:
     /* 10) check default-deny-all extension */
-    for (i = 0; i < node->ext_size; ++i) {
-        if (!strcmp(node->ext[i]->def->module->name, "ietf-netconf-acm")) {
-            if (!strcmp(node->ext[i]->def->name, "default-deny-all")) {
+    for (i = 0; i < node->schema->ext_size; ++i) {
+        if (!strcmp(node->schema->ext[i]->def->module->name, "ietf-netconf-acm")) {
+            if (!strcmp(node->schema->ext[i]->def->name, "default-deny-all")) {
                 goto cleanup;
             }
             if ((oper & (NCAC_OP_CREATE | NCAC_OP_UPDATE | NCAC_OP_DELETE))
-                        && !strcmp(node->ext[i]->def->name, "default-deny-write")) {
+                        && !strcmp(node->schema->ext[i]->def->name, "default-deny-write")) {
                 goto cleanup;
             }
         }
@@ -1193,21 +1249,21 @@ ncac_check_operation(const struct lyd_node *data, const char *user)
 
     if (op->schema->nodetype & (LYS_RPC | LYS_ACTION)) {
         /* check X access on the RPC/action */
-        if (!ncac_allowed_node(op->schema, user, NCAC_OP_EXEC)) {
+        if (!ncac_allowed_node(op, user, NCAC_OP_EXEC)) {
             goto cleanup;
         }
     } else {
         assert(op->schema->nodetype == LYS_NOTIF);
 
         /* check R access on the notification */
-        if (!ncac_allowed_node(op->schema, user, NCAC_OP_READ)) {
+        if (!ncac_allowed_node(op, user, NCAC_OP_READ)) {
             goto cleanup;
         }
     }
 
     for (data = op->parent; data; data = data->parent) {
         /* check R access on the parents */
-        if (!ncac_allowed_node(data->schema, user, NCAC_OP_READ)) {
+        if (!ncac_allowed_node(data, user, NCAC_OP_READ)) {
             goto cleanup;
         }
     }
@@ -1241,7 +1297,7 @@ ncac_check_data_read_filter_r(struct lyd_node **first, const char *user)
 
     LY_TREE_FOR_SAFE(*first, next, elem) {
         /* check access for each sibling */
-        if (!ncac_allowed_node(elem->schema, user, NCAC_OP_READ)) {
+        if (!ncac_allowed_node(elem, user, NCAC_OP_READ)) {
             if ((elem == *first) && !(*first)->parent) {
                 *first = (*first)->next;
             }
@@ -1326,7 +1382,7 @@ ncac_check_diff_r(const struct lyd_node *diff, const char *user, const char *par
         }
 
         /* check access for the node */
-        if (oper && !ncac_allowed_node(diff->schema, user, oper)) {
+        if (oper && !ncac_allowed_node(diff, user, oper)) {
             node = diff;
             break;
         }
