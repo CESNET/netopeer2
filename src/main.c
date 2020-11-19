@@ -1042,10 +1042,11 @@ print_version(void)
 static void
 print_usage(char* progname)
 {
-    fprintf(stdout, "Usage: %s [-dhV] [-U (path)] [-m mode] [-u uid] [-g gid] [-v level] [-c category]\n", progname);
+    fprintf(stdout, "Usage: %s [-dhV] [-p pid] [-U (path)] [-m mode] [-u uid] [-g gid] [-v level] [-c category]\n", progname);
     fprintf(stdout, " -d        debug mode (do not daemonize and print verbose messages to stderr instead of syslog)\n");
     fprintf(stdout, " -h        display help\n");
     fprintf(stdout, " -V        show program version\n");
+    fprintf(stdout, " -p path   path to pidfile (default path is \"%s\")\n", NP2SRV_PID_FILE_PATH);
     fprintf(stdout, " -U[path]  listen on a local UNIX socket (default path is \"%s\")\n", NP2SRV_UNIX_SOCK_PATH);
     fprintf(stdout, " -m mode   set mode for the listening UNIX socket\n");
     fprintf(stdout, " -u uid    set UID/user for the listening UNIX socket\n");
@@ -1076,6 +1077,7 @@ main(int argc, char *argv[])
     int c, *idx, i;
     int daemonize = 1, verb = 0;
     int pidfd;
+    const char *pidfile = NP2SRV_PID_FILE_PATH;
     char pid[8];
     char *ptr;
     struct passwd *pwd;
@@ -1089,7 +1091,7 @@ main(int argc, char *argv[])
     np2_stderr_log = 1;
 
     /* process command line options */
-    while ((c = getopt(argc, argv, "dhVU::m:u:g:v:c:")) != -1) {
+    while ((c = getopt(argc, argv, "dhVU::m:u:g:v:c:p:")) != -1) {
         switch (c) {
         case 'd':
             daemonize = 0;
@@ -1161,6 +1163,9 @@ main(int argc, char *argv[])
                 }
                 np2srv.unix_gid = grp->gr_gid;
             }
+            break;
+        case 'p':
+            pidfile = optarg;
             break;
         case 'c':
 #ifndef NDEBUG
@@ -1237,9 +1242,9 @@ main(int argc, char *argv[])
     }
 
     /* make sure we are the only instance - lock the PID file and write the PID */
-    pidfd = open(NP2SRV_PID_FILE_PATH, O_RDWR | O_CREAT, 0640);
+    pidfd = open(pidfile, O_RDWR | O_CREAT, 0640);
     if (pidfd < 0) {
-        ERR("Unable to open the PID file \"%s\" (%s).", NP2SRV_PID_FILE_PATH, strerror(errno));
+        ERR("Unable to open the PID file \"%s\" (%s).", pidfile, strerror(errno));
         return EXIT_FAILURE;
     }
     if (lockf(pidfd, F_TLOCK, 0) < 0) {
@@ -1247,7 +1252,7 @@ main(int argc, char *argv[])
         if (errno == EACCES || errno == EAGAIN) {
             ERR("Another instance of the Netopeer2 server is running.");
         } else {
-            ERR("Unable to lock the PID file \"%s\" (%s).", NP2SRV_PID_FILE_PATH, strerror(errno));
+            ERR("Unable to lock the PID file \"%s\" (%s).", pidfile, strerror(errno));
         }
         return EXIT_FAILURE;
     }
