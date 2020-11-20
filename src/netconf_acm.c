@@ -28,7 +28,7 @@
 #include "log.h"
 #include "netconf_acm.h"
 
-struct ncac nacm;
+static struct ncac nacm;
 
 /* /ietf-netconf-acm:nacm */
 int
