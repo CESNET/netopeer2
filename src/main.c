@@ -457,7 +457,13 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
     }
     if (child) {
         /* get with-defaults mode */
-        nodeset = lyd_find_path(rpc, "ietf-netconf-with-defaults:with-defaults");
+        if (!strcmp(lyd_node_module(rpc)->name, "ietf-netconf")) {
+            /* augment */
+            nodeset = lyd_find_path(rpc, "ietf-netconf-with-defaults:with-defaults");
+        } else {
+            /* grouping */
+            nodeset = lyd_find_path(rpc, "with-defaults");
+        }
         if (nodeset->number) {
             leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
             if (!strcmp(leaf->value_str, "report-all")) {
