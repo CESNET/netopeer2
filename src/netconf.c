@@ -22,6 +22,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <errno.h>
+#include <ctype.h>
 
 #include <sysrepo.h>
 #include <libyang/libyang.h>
@@ -30,23 +31,229 @@
 #include "log.h"
 #include "netconf_acm.h"
 
+static int
+np2srv_get_first_ns(const char *expr, const char **start, int *len)
+{
+    int i;
+
+    if (expr[0] != '/') {
+        return -1;
+    }
+    if (expr[1] == '/') {
+        expr += 2;
+    } else {
+        ++expr;
+    }
+
+    if (!isalpha(expr[0]) && (expr[0] != '_')) {
+        return -1;
+    }
+    for (i = 1; expr[i] && (isalnum(expr[i]) || (expr[i] == '_') || (expr[i] == '-') || (expr[i] == '.')); ++i);
+    if (expr[i] != ':') {
+        return -1;
+    }
+
+    *start = expr;
+    *len = i;
+    return 0;
+}
+
+/**
+ * @brief Get generic filters in the form of "/module:*" from exact xpath filters.
+ */
+static int
+np2srv_get_rpc_module_filters(char **filters, int filter_count, char ***mod_filters, int *mod_filter_count)
+{
+    int i, j, len;
+    const char *start;
+    char *str;
+
+    *mod_filters = NULL;
+    *mod_filter_count = 0;
+
+    for (i = 0; i < filter_count; ++i) {
+        if (np2srv_get_first_ns(filters[i], &start, &len)) {
+            /* not the simple format, use it as it is */
+            str = strdup(filters[i]);
+        } else {
+            /* get all the data of a module */
+            if (asprintf(&str, "/%.*s:*", len, start) == -1) {
+                str = NULL;
+            }
+        }
+
+        if (!str) {
+            EMEM;
+            return SR_ERR_NOMEM;
+        }
+
+        /* check for a duplicity */
+        for (j = 0; j < *mod_filter_count; ++j) {
+            if (!strcmp(str, (*mod_filters)[j])) {
+                break;
+            }
+        }
+        if (j < *mod_filter_count) {
+            free(str);
+            continue;
+        }
+
+        /* add a new module filter */
+        ++(*mod_filter_count);
+        *mod_filters = realloc(*mod_filters, *mod_filter_count * sizeof **mod_filters);
+        (*mod_filters)[*mod_filter_count - 1] = str;
+    }
+
+    return SR_ERR_OK;
+}
+
+/**
+ * @brief Get data for a get RPC.
+ */
+static int
+np2srv_get_rpc_data(sr_session_ctx_t *session, char **filters, int filter_count, struct lyd_node **data)
+{
+    struct lyd_node *node, *ds_data = NULL;
+    sr_datastore_t ds;
+    sr_get_oper_options_t get_opts = 0;
+    const sr_error_info_t *err_info;
+    char **mod_filters = NULL;
+    int mod_filter_count = 0, i, rc = SR_ERR_OK;
+    uint32_t j;
+    struct ly_set *set;
+
+    /* get generic filters to allow retrieving all possibly needed data first, which are then filtered again
+     * (once we have merged config and state data) */
+    rc = np2srv_get_rpc_module_filters(filters, filter_count, &mod_filters, &mod_filter_count);
+    if (rc) {
+        goto cleanup;
+    }
+
+    /* get data from running first */
+    ds = SR_DS_RUNNING;
+
+get_sr_data:
+    sr_session_switch_ds(session, ds);
+
+    for (i = 0; i < mod_filter_count; ++i) {
+        rc = sr_get_data(session, mod_filters[i], 0, NP2SRV_SYSREPO_TIMEOUT, get_opts, &node);
+        if (rc) {
+            ERR("Getting data \"%s\" from sysrepo failed (%s).", mod_filters[i], sr_strerror(rc));
+            sr_get_error(session, &err_info);
+            sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
+            goto cleanup;
+        }
+
+        if (!ds_data) {
+            ds_data = node;
+        } else if (node && lyd_merge(ds_data, node, LYD_OPT_DESTRUCT | LYD_OPT_EXPLICIT)) {
+            lyd_free_withsiblings(node);
+            rc = SR_ERR_LY;
+            goto cleanup;
+        }
+    }
+
+    if (ds == SR_DS_RUNNING) {
+        /* we have running data, now append state data */
+        ds = SR_DS_OPERATIONAL;
+        get_opts = SR_OPER_NO_CONFIG;
+        goto get_sr_data;
+    }
+
+    /* now filter only the requested data from the created running data + state data */
+    for (i = 0; i < filter_count; ++i) {
+        set = lyd_find_path(ds_data, filters[i]);
+        if (!set) {
+            rc = SR_ERR_LY;
+            goto cleanup;
+        }
+
+        for (j = 0; j < set->number; ++j) {
+            node = lyd_dup(set->set.d[j], LYD_DUP_OPT_RECURSIVE | LYD_DUP_OPT_WITH_PARENTS | LYD_DUP_OPT_WITH_KEYS |
+                    LYD_DUP_OPT_WITH_WHEN);
+            if (!node) {
+                rc = SR_ERR_LY;
+                goto cleanup;
+            }
+
+            /* always find parent */
+            while (node->parent) {
+                node = node->parent;
+            }
+
+            /* merge */
+            if (!*data) {
+                *data = node;
+            } else if (node && lyd_merge(*data, node, LYD_OPT_DESTRUCT | LYD_OPT_EXPLICIT)) {
+                lyd_free_withsiblings(node);
+                rc = SR_ERR_LY;
+                goto cleanup;
+            }
+        }
+
+        ly_set_free(set);
+        set = NULL;
+    }
+
+cleanup:
+    ly_set_free(set);
+    lyd_free_withsiblings(ds_data);
+    for (i = 0; i < mod_filter_count; ++i) {
+        free(mod_filters[i]);
+    }
+    free(mod_filters);
+    return rc;
+}
+
+/**
+ * @brief get data for a get-config RPC.
+ */
+static int
+np2srv_getconfig_rpc_data(sr_session_ctx_t *session, char **filters, int filter_count, sr_datastore_t ds,
+        struct lyd_node **data)
+{
+    struct lyd_node *node;
+    const sr_error_info_t *err_info;
+    int i, rc;
+
+    /* update sysrepo session datastore */
+    sr_session_switch_ds(session, ds);
+
+    /*
+     * create the data tree for the data reply
+     */
+    for (i = 0; i < filter_count; i++) {
+        rc = sr_get_data(session, filters[i], 0, NP2SRV_SYSREPO_TIMEOUT, 0, &node);
+        if (rc != SR_ERR_OK) {
+            ERR("Getting data \"%s\" from sysrepo failed (%s).", filters[i], sr_strerror(rc));
+            sr_get_error(session, &err_info);
+            sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
+            return rc;
+        }
+
+        if (!*data) {
+            *data = node;
+        } else if (node && lyd_merge(*data, node, LYD_OPT_DESTRUCT | LYD_OPT_EXPLICIT)) {
+            lyd_free_withsiblings(node);
+            return SR_ERR_LY;
+        }
+    }
+
+    return SR_ERR_OK;
+}
+
 int
 np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct lyd_node *input, sr_event_t UNUSED(event),
         uint32_t UNUSED(request_id), struct lyd_node *output, void *UNUSED(private_data))
 {
     struct lyd_node *node, *data_get = NULL;
-    const sr_error_info_t *err_info;
     char **filters = NULL;
     int filter_count = 0, i, rc = SR_ERR_OK;
     struct ly_set *nodeset;
     sr_datastore_t ds = 0;
-    sr_get_oper_options_t get_opts = 0;
 
-    /* get know which datastore is being affected */
-    if (!strcmp(op_path, "/ietf-netconf:get")) {
-        /* get running data first */
-        ds = SR_DS_RUNNING;
-    } else { /* get-config */
+    /* get know which datastore is being affected for get-config */
+    if (!strcmp(op_path, "/ietf-netconf:get-config")) {
         nodeset = lyd_find_path(input, "source/*");
         if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
             ds = SR_DS_RUNNING;
@@ -89,36 +296,14 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
 
     /* we do not care here about with-defaults mode, it does not change anything */
 
-get_sr_data:
-    /* update sysrepo session datastore */
-    sr_session_switch_ds(session, ds);
-
-    /*
-     * create the data tree for the data reply
-     */
-    for (i = 0; i < filter_count; i++) {
-        rc = sr_get_data(session, filters[i], 0, NP2SRV_SYSREPO_TIMEOUT, get_opts, &node);
-        if (rc != SR_ERR_OK) {
-            ERR("Getting data \"%s\" from sysrepo failed (%s).", filters[i], sr_strerror(rc));
-            sr_get_error(session, &err_info);
-            sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
-            goto cleanup;
-        }
-
-        if (!data_get) {
-            data_get = node;
-        } else if (node && lyd_merge(data_get, node, LYD_OPT_DESTRUCT | LYD_OPT_EXPLICIT)) {
-            lyd_free_withsiblings(node);
-            rc = SR_ERR_LY;
-            goto cleanup;
-        }
+    /* get filtered data */
+    if (!strcmp(op_path, "/ietf-netconf:get-config")) {
+        rc = np2srv_getconfig_rpc_data(session, filters, filter_count, ds, &data_get);
+    } else {
+        rc = np2srv_get_rpc_data(session, filters, filter_count, &data_get);
     }
-
-    if (!strcmp(op_path, "/ietf-netconf:get") && (ds == SR_DS_RUNNING)) {
-        /* we have running data, now append state data */
-        ds = SR_DS_OPERATIONAL;
-        get_opts = SR_OPER_NO_CONFIG;
-        goto get_sr_data;
+    if (rc) {
+        goto cleanup;
     }
 
     /* perform correct NACM filtering */
