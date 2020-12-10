@@ -69,7 +69,6 @@ LYD_FORMAT output_format = LYD_XML;
 int output_flag = LYP_FORMAT;
 char *config_editor;
 struct nc_session *session;
-volatile pthread_t ntf_tid;
 volatile int interleave;
 int timed;
 
@@ -2631,8 +2630,6 @@ cmd_disconnect(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
     if (session == NULL) {
         ERROR("disconnect", "Not connected to any NETCONF server.");
     } else {
-        /* possible data race, but let's be optimistic */
-        ntf_tid = 0;
         nc_session_free(session, NULL);
         session = NULL;
     }
@@ -4571,11 +4568,6 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
 
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
-        goto fail;
-    }
-
-    if (ntf_tid) {
-        ERROR(__func__, "Already subscribed to a notification stream.");
         goto fail;
     }
 

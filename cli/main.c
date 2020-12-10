@@ -39,7 +39,6 @@ int done;
 
 extern char *config_editor;
 extern struct nc_session *session;
-extern pthread_t ntf_tid;
 
 void
 lnc2_print_clb(NC_VERB_LEVEL level, const char *msg)
@@ -218,7 +217,6 @@ main(void)
 
     free(config_editor);
 
-    ntf_tid = 0;
     if (session) {
         nc_session_free(session, NULL);
     }
