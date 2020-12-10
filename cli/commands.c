@@ -4431,7 +4431,7 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
     struct stat config_stat;
     char *filter = NULL, *config_m = NULL, *start = NULL, *stop = NULL;
     const char *stream = NULL;
-    struct nc_rpc *rpc;
+    struct nc_rpc *rpc = NULL;
     time_t t;
     FILE *output = NULL;
     struct arglist cmd;
@@ -4588,15 +4588,8 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
-    nc_rpc_free(rpc);
-
-    if (ret) {
-        goto fail;
-    }
-
+    /* create notification thread so that notifications can immediately be received */
     if (!nc_session_ntf_thread_running(session)) {
-        /* create notification thread */
         if (!output) {
             output = stdout;
         }
@@ -4606,13 +4599,18 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
             ERROR(__func__, "Failed to create notification thread.");
             goto fail;
         }
+    }
 
-        if (!nc_session_cpblt(session, NC_CAP_INTERLEAVE_ID)) {
-            fprintf(output, "NETCONF server does not support interleave, you\n"
-                            "cannot issue any RPCs during the subscription.\n"
-                            "Close the session with \"disconnect\".\n");
-            interleave = 0;
-        }
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    if (ret) {
+        goto fail;
+    }
+
+    if (!nc_session_cpblt(session, NC_CAP_INTERLEAVE_ID)) {
+        fprintf(output, "NETCONF server does not support interleave, you\n"
+                        "cannot issue any RPCs during the subscription.\n"
+                        "Close the session with \"disconnect\".\n");
+        interleave = 0;
     }
 
 fail:
@@ -4623,6 +4621,7 @@ fail:
     free(filter);
     free(start);
     free(stop);
+    nc_rpc_free(rpc);
 
     return ret;
 }
