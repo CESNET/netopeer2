@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.9)
+cmake_minimum_required(VERSION 2.8.12)
 
 project(netopeer2 C)
 set(NETOPEER2_DESC "NETCONF tools suite including a server and command-line client")
