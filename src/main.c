@@ -440,8 +440,8 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
     /* get this user session with its NC id (but not user name) */
     sr_sess = nc_session_get_data(ncs);
 
-    /* sysrepo API */
-    rc = sr_rpc_send_tree(sr_sess, rpc, NP2SRV_RPC_TIMEOUT, &output);
+    /* sysrepo API, use the default timeout or slightly higher than the configured one */
+    rc = sr_rpc_send_tree(sr_sess, rpc, np2srv.sr_timeout ? np2srv.sr_timeout + 2000 : 0, &output);
     if (rc != SR_ERR_OK) {
         ERR("Failed to send an RPC (%s).", sr_strerror(rc));
         goto cleanup;
@@ -1048,30 +1048,32 @@ print_version(void)
 static void
 print_usage(char* progname)
 {
-    fprintf(stdout, "Usage: %s [-dhV] [-p pid] [-U (path)] [-m mode] [-u uid] [-g gid] [-v level] [-c category]\n", progname);
-    fprintf(stdout, " -d        debug mode (do not daemonize and print verbose messages to stderr instead of syslog)\n");
-    fprintf(stdout, " -h        display help\n");
-    fprintf(stdout, " -V        show program version\n");
-    fprintf(stdout, " -p path   path to pidfile (default path is \"%s\")\n", NP2SRV_PID_FILE_PATH);
-    fprintf(stdout, " -U[path]  listen on a local UNIX socket (default path is \"%s\")\n", NP2SRV_UNIX_SOCK_PATH);
-    fprintf(stdout, " -m mode   set mode for the listening UNIX socket\n");
-    fprintf(stdout, " -u uid    set UID/user for the listening UNIX socket\n");
-    fprintf(stdout, " -g gid    set GID/group for the listening UNIX socket\n");
-    fprintf(stdout, " -v level  verbose output level:\n");
-    fprintf(stdout, "               0 - errors\n");
-    fprintf(stdout, "               1 - errors and warnings\n");
-    fprintf(stdout, "               2 - errors, warnings, and verbose messages\n");
+    fprintf(stdout, "Usage: %s [-dhV] [-p path] [-U (path)] [-m mode] [-u uid] [-g gid] [-t timeout] [-v level] [-c category]\n", progname);
+    fprintf(stdout, " -d         debug mode (do not daemonize and print verbose messages to stderr instead of syslog)\n");
+    fprintf(stdout, " -h         display help\n");
+    fprintf(stdout, " -V         show program version\n");
+    fprintf(stdout, " -p path    path to pidfile (default path is \"%s\")\n", NP2SRV_PID_FILE_PATH);
+    fprintf(stdout, " -U[path]   listen on a local UNIX socket (default path is \"%s\")\n", NP2SRV_UNIX_SOCK_PATH);
+    fprintf(stdout, " -m mode    set mode for the listening UNIX socket\n");
+    fprintf(stdout, " -u uid     set UID/user for the listening UNIX socket\n");
+    fprintf(stdout, " -g gid     set GID/group for the listening UNIX socket\n");
+    fprintf(stdout, " -t timeout timeout in seconds of all sysrepo functions (applying edit-config, reading data, ...),\n");
+    fprintf(stdout, "            if 0 (default), the default sysrepo timeouts are used\n");
+    fprintf(stdout, " -v level   verbose output level:\n");
+    fprintf(stdout, "                0 - errors\n");
+    fprintf(stdout, "                1 - errors and warnings\n");
+    fprintf(stdout, "                2 - errors, warnings, and verbose messages\n");
 #ifndef NDEBUG
     fprintf(stdout, " -c category[,category]*\n");
-    fprintf(stdout, "           verbose debug level, print only these debug message categories\n");
+    fprintf(stdout, "            verbose debug level, print only these debug message categories\n");
 # ifdef NC_ENABLED_SSH
-    fprintf(stdout, "           categories: DICT, YANG, YIN, XPATH, DIFF, MSG, LN2DBG, SSH, SYSREPO\n");
+    fprintf(stdout, "            categories: DICT, YANG, YIN, XPATH, DIFF, MSG, LN2DBG, SSH, SYSREPO\n");
 # else
-    fprintf(stdout, "           categories: DICT, YANG, YIN, XPATH, DIFF, MSG, LN2DBG, SYSREPO\n");
+    fprintf(stdout, "            categories: DICT, YANG, YIN, XPATH, DIFF, MSG, LN2DBG, SYSREPO\n");
 # endif
 #else
     fprintf(stdout, " -c category[,category]*\n");
-    fprintf(stdout, "           verbose debug level, NOT SUPPORTED in release build type\n");
+    fprintf(stdout, "            verbose debug level, NOT SUPPORTED in release build type\n");
 #endif
     fprintf(stdout, "\n");
 }
@@ -1097,7 +1099,7 @@ main(int argc, char *argv[])
     np2_stderr_log = 1;
 
     /* process command line options */
-    while ((c = getopt(argc, argv, "dhVU::m:u:g:v:c:p:")) != -1) {
+    while ((c = getopt(argc, argv, "dhVp:U::m:u:g:t:v:c:")) != -1) {
         switch (c) {
         case 'd':
             daemonize = 0;
@@ -1138,6 +1140,9 @@ main(int argc, char *argv[])
         case 'V':
             print_version();
             return EXIT_SUCCESS;
+        case 'p':
+            pidfile = optarg;
+            break;
         case 'U':
             np2srv.unix_path = optarg ? optarg : NP2SRV_UNIX_SOCK_PATH;
             break;
@@ -1170,8 +1175,12 @@ main(int argc, char *argv[])
                 np2srv.unix_gid = grp->gr_gid;
             }
             break;
-        case 'p':
-            pidfile = optarg;
+        case 't':
+            np2srv.sr_timeout = strtoul(optarg, &ptr, 10);
+            if (*ptr) {
+                ERR("Invalid timeout value \"%s\".", optarg);
+                return EXIT_FAILURE;
+            }
             break;
         case 'c':
 #ifndef NDEBUG
