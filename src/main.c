@@ -1181,6 +1181,9 @@ main(int argc, char *argv[])
                 ERR("Invalid timeout value \"%s\".", optarg);
                 return EXIT_FAILURE;
             }
+
+            /* make ms from s */
+            np2srv.sr_timeout *= 1000;
             break;
         case 'c':
 #ifndef NDEBUG

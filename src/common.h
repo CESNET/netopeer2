@@ -38,7 +38,7 @@ struct np2srv {
     mode_t unix_mode;               /**< UNIX socket mode */
     uid_t unix_uid;                 /**< UNIX socket UID */
     gid_t unix_gid;                 /**< UNIX socket GID */
-    uint32_t sr_timeout;            /**< timeout for all sysrepo functions */
+    uint32_t sr_timeout;            /**< timeout in ms for all sysrepo functions */
 
     struct nc_pollsession *nc_ps;   /**< libnetconf2 pollsession structure */
     uint16_t nc_max_sessions;       /**< maximum number of running sessions */
