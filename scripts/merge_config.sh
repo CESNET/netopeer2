@@ -14,7 +14,7 @@ fi
 KS_KEY_NAME=genkey
 
 # check that there is no listen/Call Home configuration yet
-SERVER_CONFIG=`$SYSREPOCFG -X -x "/ietf-netconf-server:netconf-server/listen/endpoint[1]/name | /ietf-netconf-server:netconf-server/call-home/netconf-client[1]/name"`
+SERVER_CONFIG=`$SYSREPOCFG -d startup -X -x "/ietf-netconf-server:netconf-server/listen/endpoint[1]/name | /ietf-netconf-server:netconf-server/call-home/netconf-client[1]/name"`
 if [ -z "$SERVER_CONFIG" ]; then
 
 # import default config
@@ -55,9 +55,8 @@ CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\
 </netconf-server>"
 TMPFILE=`mktemp -u`
 printf -- "$CONFIG" > $TMPFILE
-# apply it to startup and running
+# apply it to startup
 $SYSREPOCFG --edit=$TMPFILE -d startup -f xml -m ietf-netconf-server -v2
-$SYSREPOCFG -C startup -m ietf-netconf-server -v2
 # remove the tmp file
 rm $TMPFILE
 
