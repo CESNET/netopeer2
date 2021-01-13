@@ -120,7 +120,7 @@ np2srv_get_rpc_data(sr_session_ctx_t *session, char **filters, int filter_count,
     char **mod_filters = NULL;
     int mod_filter_count = 0, i, rc = SR_ERR_OK;
     uint32_t j;
-    struct ly_set *set;
+    struct ly_set *set = NULL;
 
     /* get generic filters to allow retrieving all possibly needed data first, which are then filtered again
      * (once we have merged config and state data) */
