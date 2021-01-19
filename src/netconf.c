@@ -160,6 +160,11 @@ get_sr_data:
         goto get_sr_data;
     }
 
+    if (!ds_data) {
+        /* no data to filter */
+        goto cleanup;
+    }
+
     /* now filter only the requested data from the created running data + state data */
     for (i = 0; i < filter_count; ++i) {
         set = lyd_find_path(ds_data, filters[i]);
