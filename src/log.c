@@ -46,7 +46,7 @@ np2log(int priority, const char *src, const char *fmt, ...)
     if (np2_stderr_log) {
         format = malloc(11 + strlen(fmt) + 2);
         if (!format) {
-            fprintf(stderr, "[ERR]: Memory allocation failed (%s:%d)", __FILE__, __LINE__);
+            fprintf(stderr, "[ERR]: Memory allocation failed (%s:%d), src: %s, fmt: %s\n", __FILE__, __LINE__, src, fmt);
             return;
         }
 
@@ -64,7 +64,7 @@ np2log(int priority, const char *src, const char *fmt, ...)
             sprintf(format, "[DBG]: %s: %s\n", src, fmt);
             break;
         default:
-            sprintf(format, "[UNKNOWN]: %s: %s\n", src, fmt);
+            sprintf(format, "[UNK]: %s: %s\n", src, fmt);
             break;
         }
 
