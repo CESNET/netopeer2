@@ -98,4 +98,9 @@
  */
 #define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
 
+/** @brief printf-like pattern for path to the authorized_keys file */
+#define NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN "@NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN@"
+/** @brief Replace %s in NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN by username (1), or by the home dir (0) */
+#cmakedefine01 NP2SRV_SSH_AUTHORIZED_KEYS_ARG_IS_USERNAME
+
 #endif /* NP2SRV_CONFIG_H_ */

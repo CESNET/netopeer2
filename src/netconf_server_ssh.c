@@ -29,6 +29,7 @@
 #include <libyang/libyang.h>
 #include <sysrepo.h>
 
+#include "config.h"
 #include "common.h"
 #include "log.h"
 #include "netconf_server.h"
@@ -97,7 +98,7 @@ np2srv_pubkey_auth_cb(const struct nc_session *session, ssh_key key, void *UNUSE
     }
 
     /* check any authorized keys */
-    r = asprintf(&line, "%s/.ssh/authorized_keys", pwd->pw_dir);
+    r = asprintf(&line, NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN, NP2SRV_SSH_AUTHORIZED_KEYS_ARG_IS_USERNAME ? pwd->pw_name : pwd->pw_dir);
     if (r == -1) {
         EMEM;
         line = NULL;
@@ -425,7 +426,7 @@ np2srv_endpt_ssh_auth_users_oper_cb(sr_session_ctx_t *UNUSED(session), const cha
         lyd_new_leaf(user, NULL, "name", pwd->pw_name);
 
         /* check any authorized keys */
-        if (asprintf(&path, "%s/.ssh/authorized_keys", pwd->pw_dir) == -1) {
+        if (asprintf(&path, NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN, NP2SRV_SSH_AUTHORIZED_KEYS_ARG_IS_USERNAME ? pwd->pw_name : pwd->pw_dir) == -1) {
             EMEM;
             goto cleanup;
         }

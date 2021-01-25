@@ -88,6 +88,12 @@ if(NOT PIDFILE_PREFIX)
     set(PIDFILE_PREFIX "/var/run")
 endif()
 
+set(NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN "%s/.ssh/authorized_keys" CACHE STRING "printf-like pattern for determining path to users' SSH authorized_keys file. Must contain exactly one '%s'.")
+set(NP2SRV_SSH_AUTHORIZED_KEYS_ARG_IS_USERNAME 0 CACHE STRING "If true, replace '%s' by username. If not set, replace '%s' by home directory. By default, unset.")
+if(NOT NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN MATCHES "^[^%]*%s[^%]*$")
+    message(FATAL_ERROR "Wrong format string given for NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN: exactly one '%s' expected.")
+endif()
+
 # check that lnc2 supports np2srv thread count
 find_package(PkgConfig)
 if(PKG_CONFIG_FOUND)
