@@ -725,6 +725,12 @@ ncac_rule_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const c
     return SR_ERR_OK;
 }
 
+enum ncac_access {
+    NCAC_ACCESS_DENY = 1,       /**< access to the node is denied */
+    NCAC_ACCESS_PARTIAL = 2,    /**< access to the node is denied but it is a prefix of a matching rule */
+    NCAC_ACCESS_PERMIT = 3      /**< access to the node is permitted */
+};
+
 void
 ncac_init(void)
 {
@@ -979,53 +985,51 @@ cleanup:
  *
  * @param[in] rule_target Rule target instance-identifier.
  * @param[in] node_path Node data path.
- * @return non-zero if the target matches, 0 if not.
+ * @return NCAC access enum.
  */
-static int
+static enum ncac_access
 ncac_allowed_path(const char *rule_target, const char *node_path)
 {
-    const char *target_ptr, *path_ptr;
+    const char *rule_ptr, *node_ptr;
 
-    target_ptr = rule_target;
-    path_ptr = node_path;
+    rule_ptr = rule_target;
+    node_ptr = node_path;
 
-    while (target_ptr[0] && path_ptr[0]) {
-        if (target_ptr[0] == path_ptr[0]) {
-            ++target_ptr;
-            ++path_ptr;
-        } else if ((target_ptr[0] == '/') && (path_ptr[0] == '[')) {
+    while (rule_ptr[0] && node_ptr[0]) {
+        if (rule_ptr[0] == node_ptr[0]) {
+            ++rule_ptr;
+            ++node_ptr;
+        } else if ((rule_ptr[0] == '/') && (node_ptr[0] == '[')) {
             /* target has no predicate, skip it in path as well because it matches any value */
-            while (path_ptr[0] != ']') {
-                if (path_ptr[0] == '\'') {
+            while (node_ptr[0] != ']') {
+                if (node_ptr[0] == '\'') {
                     do {
-                        ++path_ptr;
-                    } while (path_ptr[0] != '\'');
+                        ++node_ptr;
+                    } while (node_ptr[0] != '\'');
                 }
 
-                ++path_ptr;
+                ++node_ptr;
             }
 
-            ++path_ptr;
+            ++node_ptr;
         } else {
             /* not a match */
-            return 0;
+            return NCAC_ACCESS_DENY;
         }
     }
 
-    if (!target_ptr[0] && !path_ptr[0]) {
+    if (!rule_ptr[0] && !node_ptr[0]) {
         /* full match */
-        return 1;
-    } else if (target_ptr[0]) {
-        assert(!path_ptr[0]);
-        /* if the target continues, it cannot match */
-        return 0;
-    } else if ((path_ptr[0] == '/') || (path_ptr[0] == '[')) {
-        /* prefix match */
-        return 1;
+        return NCAC_ACCESS_PERMIT;
+    } else if (rule_ptr[0]) {
+        assert(!node_ptr[0]);
+        /* rule continues, it is a partial match */
+        return NCAC_ACCESS_PARTIAL;
+    } else {
+        assert(!rule_ptr[0]);
+        /* node continues, prefix (descendant) match */
+        return NCAC_ACCESS_PERMIT;
     }
-
-    /* last target node is a prefix of a path node, not a match */
-    return 0;
 }
 
 /**
@@ -1034,9 +1038,9 @@ ncac_allowed_path(const char *rule_target, const char *node_path)
  * @param[in] node Node to check.
  * @param[in] user User, whose access to check.
  * @param[in] oper Operation to check.
- * @return non-zero if access allowed, 0 if not.
+ * @return NCAC access enum.
  */
-static int
+static enum ncac_access
 ncac_allowed_node(const struct lyd_node *node, const char *user, uint8_t oper)
 {
     struct ncac_rule_list *rlist;
@@ -1044,7 +1048,9 @@ ncac_allowed_node(const struct lyd_node *node, const char *user, uint8_t oper)
     struct ly_ctx *ly_ctx;
     char **groups, *path;
     uint32_t i, j, group_count;
-    int allowed = 0, ret;
+    enum ncac_access node_access, access = NCAC_ACCESS_DENY;
+
+    assert(oper);
 
     ly_ctx = lyd_node_module(node)->ctx;
 
@@ -1092,6 +1098,8 @@ ncac_allowed_node(const struct lyd_node *node, const char *user, uint8_t oper)
                 continue;
             }
 
+            node_access = NCAC_ACCESS_PERMIT;
+
             /* target (rule) type matching */
             switch (rule->target_type) {
             case NCAC_TARGET_RPC:
@@ -1121,10 +1129,10 @@ ncac_allowed_node(const struct lyd_node *node, const char *user, uint8_t oper)
             case NCAC_TARGET_ANY:
                 if (rule->target) {
                     path = lyd_path(node);
-                    /* exact match or is a descendant (specified in RFC 8341 page 27) */
-                    ret = ncac_allowed_path(rule->target, path);
+                    /* exact match or is a descendant (specified in RFC 8341 page 27) for full tree access */
+                    node_access = ncac_allowed_path(rule->target, path);
                     free(path);
-                    if (!ret) {
+                    if (node_access == NCAC_ACCESS_DENY) {
                         continue;
                     }
                 }
@@ -1138,7 +1146,7 @@ ncac_allowed_node(const struct lyd_node *node, const char *user, uint8_t oper)
 
             /* 8) rule matched */
             if (!rule->action_deny) {
-                allowed = 1;
+                access = node_access;
             }
             goto cleanup;
         }
@@ -1154,7 +1162,7 @@ step10:
                 goto cleanup;
             }
             if ((oper & (NCAC_OP_CREATE | NCAC_OP_UPDATE | NCAC_OP_DELETE))
-                        && !strcmp(node->schema->ext[i]->def->name, "default-deny-write")) {
+                    && !strcmp(node->schema->ext[i]->def->name, "default-deny-write")) {
                 goto cleanup;
             }
         }
@@ -1187,14 +1195,14 @@ step10:
     }
 
     /* success */
-    allowed = 1;
+    access = NCAC_ACCESS_PERMIT;
 
 cleanup:
     for (i = 0; i < group_count; ++i) {
         lydict_remove(ly_ctx, groups[i]);
     }
     free(groups);
-    return allowed;
+    return access;
 }
 
 const struct lyd_node *
@@ -1249,21 +1257,21 @@ ncac_check_operation(const struct lyd_node *data, const char *user)
 
     if (op->schema->nodetype & (LYS_RPC | LYS_ACTION)) {
         /* check X access on the RPC/action */
-        if (!ncac_allowed_node(op, user, NCAC_OP_EXEC)) {
+        if (ncac_allowed_node(op, user, NCAC_OP_EXEC) != NCAC_ACCESS_PERMIT) {
             goto cleanup;
         }
     } else {
         assert(op->schema->nodetype == LYS_NOTIF);
 
         /* check R access on the notification */
-        if (!ncac_allowed_node(op, user, NCAC_OP_READ)) {
+        if (ncac_allowed_node(op, user, NCAC_OP_READ) != NCAC_ACCESS_PERMIT) {
             goto cleanup;
         }
     }
 
-    for (data = op->parent; data; data = data->parent) {
-        /* check R access on the parents */
-        if (!ncac_allowed_node(data, user, NCAC_OP_READ)) {
+    if (op->parent) {
+        /* check R access on the parents, the last parent must be enough */
+        if (ncac_allowed_node(op->parent, user, NCAC_OP_READ) != NCAC_ACCESS_PERMIT) {
             goto cleanup;
         }
     }
@@ -1289,27 +1297,47 @@ cleanup:
  *
  * @param[in,out] first First sibling to filter.
  * @param[in] user User for the NACM filtering.
+ * @return Highest access among descendants (recursively), permit is the highest.
  */
-static void
+static enum ncac_access
 ncac_check_data_read_filter_r(struct lyd_node **first, const char *user)
 {
     struct lyd_node *next, *elem;
+    enum ncac_access node_access, ret_access = NCAC_ACCESS_DENY;
 
     LY_TREE_FOR_SAFE(*first, next, elem) {
-        /* check access for each sibling */
-        if (!ncac_allowed_node(elem, user, NCAC_OP_READ)) {
-            if ((elem == *first) && !(*first)->parent) {
-                *first = (*first)->next;
+        /* check access of the node */
+        node_access = ncac_allowed_node(elem, user, NCAC_OP_READ);
+
+        if (node_access == NCAC_ACCESS_PARTIAL) {
+            /* only partial access granted, we must check children recursively */
+            if (!(elem->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYDATA))) {
+                node_access = ncac_check_data_read_filter_r(&elem->child, user);
             }
-            lyd_free(elem);
+
+            if (node_access != NCAC_ACCESS_PERMIT) {
+                /* none of the descendants are actually permitted, access denied */
+                node_access = NCAC_ACCESS_DENY;
+            }
+        }
+
+        /* access denied, free the subtree */
+        if (node_access == NCAC_ACCESS_DENY) {
+            /* never free keys */
+            if (!lys_is_key((struct lys_node_leaf *)elem->schema, NULL)) {
+                if ((elem == *first) && !(*first)->parent) {
+                    *first = (*first)->next;
+                }
+                lyd_free(elem);
+            }
             continue;
         }
 
-        /* check children recursively */
-        if (!(elem->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYDATA)) && elem->child) {
-            ncac_check_data_read_filter_r(&elem->child, user);
-        }
+        /* access is permitted, update return access and check the next sibling */
+        ret_access = NCAC_ACCESS_PERMIT;
     }
+
+    return ret_access;
 }
 
 void
@@ -1381,8 +1409,8 @@ ncac_check_diff_r(const struct lyd_node *diff, const char *user, const char *par
             return NULL;
         }
 
-        /* check access for the node */
-        if (oper && !ncac_allowed_node(diff, user, oper)) {
+        /* check access for the node, none operation is always allowed, and partial access is relevant only for read operation */
+        if (oper && (ncac_allowed_node(diff, user, oper) != NCAC_ACCESS_PERMIT)) {
             node = diff;
             break;
         }
