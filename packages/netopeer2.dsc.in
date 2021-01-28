@@ -7,4 +7,4 @@ Architecture: any
 Standards-Version: 3.8.2
 Homepage: @GITHUB_URL@
 Vcs-Git: @GITHUB_URL@
-Build-Depends: debhelper (>= 9), make, gcc, cmake, libyang-dev (>= 1.0), sysrepo-dev (>= 1.4.103), libnetconf2-dev (>= 1.1.36), libssh-dev (>= 0.7.1), openssl
+Build-Depends: debhelper (>= 9), make, gcc, cmake, libyang-dev (>= 1.0), sysrepo-dev (>= 1.4.104), libnetconf2-dev (>= 1.1.36), libssh-dev (>= 0.7.1), openssl

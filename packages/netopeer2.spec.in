@@ -14,7 +14,7 @@ Requires:  libssh >= 0.7.1
 %endif
 
 Requires:  libyang@LIBYANG_DEP_SOVERSION_MAJOR@
-Requires:  sysrepo >= 1.4.103
+Requires:  sysrepo >= 1.4.104
 Requires:  libnetconf2 >= 1.1.36
 Requires:  openssl
 
@@ -22,7 +22,7 @@ BuildRequires:  cmake
 BuildRequires:  gcc
 BuildRequires:  libssh-devel >= 0.7.1
 BuildRequires:  libyang-devel >= 1.0
-BuildRequires:  sysrepo-devel >= 1.4.103
+BuildRequires:  sysrepo-devel >= 1.4.104
 BuildRequires:  libnetconf2-devel >= 1.1.36
 BuildRequires:  openssl-devel
 
