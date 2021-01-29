@@ -892,7 +892,7 @@ op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_coun
 
         ret = op_filter_build_xpath_from_subtree(ly_ctx, subtree_filter, filters, filter_count);
         if (free_filter) {
-            lyxml_free(ly_ctx, subtree_filter);
+            lyxml_free_withsiblings(ly_ctx, subtree_filter);
         }
         if (ret) {
             return -1;
