@@ -190,6 +190,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
 {
     struct lyd_node *node, *data_get = NULL;
     struct np2_filter filter = {0};
+    const char *username;
     int rc = SR_ERR_OK;
     struct ly_set *nodeset;
     sr_datastore_t ds = 0;
@@ -249,8 +250,15 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
         goto cleanup;
     }
 
+    username = np_get_nc_sess_user(session);
+    if (!username) {
+        /* NC session was disconnected while waiting for sysrepo data */
+        EINT;
+        rc = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
     /* perform correct NACM filtering */
-    ncac_check_data_read_filter(&data_get, np_get_nc_sess_user(session));
+    ncac_check_data_read_filter(&data_get, username);
 
     /* add output */
     node = lyd_new_output_anydata(output, NULL, "data", data_get, LYD_ANYDATA_DATATREE);
@@ -457,13 +465,21 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
 
     /* NACM checks */
     if (!config && !run_to_start) {
+        const char *username;
         /* get source datastore data and filter them */
         sr_session_switch_ds(session, sds);
         rc = sr_get_data(session, "/*", 0, np2srv.sr_timeout, 0, &config);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
-        ncac_check_data_read_filter(&config, np_get_nc_sess_user(session));
+        username = np_get_nc_sess_user(session);
+        if (!username) {
+            /* NC session was disconnected while waiting for sysrepo data */
+            EINT;
+            rc = SR_ERR_INTERNAL;
+            goto cleanup;
+        }
+        ncac_check_data_read_filter(&config, username);
     }
 
     /* update sysrepo session datastore */

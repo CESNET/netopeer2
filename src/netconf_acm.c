@@ -786,6 +786,10 @@ ncac_getpwnam(const char *user, uid_t *uid, gid_t *gid)
     ssize_t buflen;
     int ret;
 
+    if (user == NULL) {
+        ERR("Cannot get user NULL pwd entry");
+        return -1;
+    }
     buflen = sysconf(_SC_GETPW_R_SIZE_MAX);
     if (buflen == -1) {
         buflen = 2048;

@@ -76,6 +76,7 @@ np2srv_ntf_new_cb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t no
     struct nc_server_notif *nc_ntf = NULL;
     struct nc_session *ncs = (struct nc_session *)private_data;
     struct lyd_node *ly_ntf = NULL;
+    const char *username;
     NC_MSG_TYPE msg_type;
     char buf[26], *datetime;
 
@@ -94,7 +95,12 @@ np2srv_ntf_new_cb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t no
     }
 
     /* check NACM */
-    if (ncac_check_operation(notif, nc_session_get_username(ncs))) {
+    username = nc_session_get_username(ncs);
+    if (!username) {
+        EINT;
+        goto cleanup;
+    }
+    if (ncac_check_operation(notif, username)) {
         goto cleanup;
     }
 

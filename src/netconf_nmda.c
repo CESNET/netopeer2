@@ -98,6 +98,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     int i, rc = SR_ERR_OK;
     uint32_t max_depth = 0;
     struct ly_set *nodeset;
+    const char *username;
     sr_datastore_t ds;
     NC_WD_MODE nc_wd;
     sr_get_oper_options_t get_opts = 0;
@@ -215,8 +216,15 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     }
     ly_set_free(nodeset);
 
+    username = np_get_nc_sess_user(session);
+    if (!username) {
+        /* NC session was disconnected while waiting for sysrepo data */
+        EINT;
+        rc = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
     /* perform correct NACM filtering */
-    ncac_check_data_read_filter(&data, np_get_nc_sess_user(session));
+    ncac_check_data_read_filter(&data, username);
 
     /* add output */
     node = lyd_new_output_anydata(output, NULL, "data", data, LYD_ANYDATA_DATATREE);
