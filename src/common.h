@@ -69,6 +69,27 @@ int op_export_url(const char *url, struct lyd_node *data, int options, int *rc, 
 
 struct lyd_node *op_parse_config(struct lyd_node_anydata *config, int options, int *rc, sr_session_ctx_t *sr_sess);
 
-int op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_count);
+struct np2_filter {
+    struct {
+        char *str;
+        int selection;  /**< selection or content filter */
+    } *filters;
+    int count;
+};
+
+void op_filter_erase(struct np2_filter *filter);
+
+int op_filter_create(struct lyd_node *filter_node, struct np2_filter *filter);
+
+/**
+ * @brief Get all data matching the selection filters.
+ */
+int op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_oper_options_t get_opts,
+        const struct np2_filter *filter, struct lyd_node **data);
+
+/**
+ * @brief Filter out only the data matching the content filters.
+ */
+int op_filter_data_filter(struct lyd_node **data, const struct np2_filter *filter, struct lyd_node **filtered_data);
 
 #endif /* NP2SRV_COMMON_H_ */

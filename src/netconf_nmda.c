@@ -93,9 +93,9 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
         sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *output, void *UNUSED(private_data))
 {
     struct lyd_node_leaf_list *leaf;
-    struct lyd_node *node, *data_get = NULL;
-    char **filters = NULL;
-    int filter_count = 0, i, rc = SR_ERR_OK;
+    struct lyd_node *node, *select_data = NULL, *data = NULL;
+    struct np2_filter filter = {0};
+    int i, rc = SR_ERR_OK;
     uint32_t max_depth = 0;
     struct ly_set *nodeset;
     sr_datastore_t ds;
@@ -128,24 +128,25 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     node = nodeset->number ? nodeset->set.d[0] : NULL;
     ly_set_free(nodeset);
     if (node && !strcmp(node->schema->name, "subtree-filter")) {
-        if (op_filter_create(node, &filters, &filter_count)) {
+        if (op_filter_create(node, &filter)) {
             rc = SR_ERR_INTERNAL;
             goto cleanup;
         }
     } else {
-        filters = malloc(sizeof *filters);
-        if (!filters) {
+        filter.filters = malloc(sizeof *filter.filters);
+        if (!filter.filters) {
             EMEM;
             rc = SR_ERR_NOMEM;
             goto cleanup;
         }
-        filter_count = 1;
-        filters[0] = node ? strdup(((struct lyd_node_leaf_list *)node)->value_str) : strdup("/*");
-        if (!filters[0]) {
+        filter.count = 1;
+        filter.filters[0].str = node ? strdup(((struct lyd_node_leaf_list *)node)->value_str) : strdup("/*");
+        if (!filter.filters[0].str) {
             EMEM;
             rc = SR_ERR_NOMEM;
             goto cleanup;
         }
+        filter.filters[0].selection = 1;
     }
 
     /* config filter */
@@ -199,48 +200,37 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     /*
      * create the data tree for the data reply
      */
-    for (i = 0; i < filter_count; i++) {
-        rc = sr_get_data(session, filters[i], max_depth, np2srv.sr_timeout, get_opts, &node);
-        if (rc != SR_ERR_OK) {
-            ERR("Getting data \"%s\" from sysrepo failed (%s).", filters[i], sr_strerror(rc));
-            goto cleanup;
-        }
-
-        if (!data_get) {
-            data_get = node;
-        } else if (node && lyd_merge(data_get, node, LYD_OPT_DESTRUCT | LYD_OPT_EXPLICIT)) {
-            lyd_free_withsiblings(node);
-            rc = SR_ERR_LY;
-            goto cleanup;
-        }
+    if ((rc = op_filter_data_get(session, max_depth, get_opts, &filter, &select_data))) {
+        goto cleanup;
+    }
+    if ((rc = op_filter_data_filter(&select_data, &filter, &data))) {
+        goto cleanup;
     }
 
     /* origin filter */
     nodeset = lyd_find_path(input, "origin-filter | negated-origin-filter");
     for (i = 0; i < (signed)nodeset->number; ++i) {
         leaf = (struct lyd_node_leaf_list *)nodeset->set.d[i];
-        op_data_filter_origin(&data_get, leaf->value.ident, strcmp(leaf->schema->name, "origin-filter"));
+        op_data_filter_origin(&data, leaf->value.ident, strcmp(leaf->schema->name, "origin-filter"));
     }
     ly_set_free(nodeset);
 
     /* perform correct NACM filtering */
-    ncac_check_data_read_filter(&data_get, np_get_nc_sess_user(session));
+    ncac_check_data_read_filter(&data, np_get_nc_sess_user(session));
 
     /* add output */
-    node = lyd_new_output_anydata(output, NULL, "data", data_get, LYD_ANYDATA_DATATREE);
+    node = lyd_new_output_anydata(output, NULL, "data", data, LYD_ANYDATA_DATATREE);
     if (!node) {
         goto cleanup;
     }
-    data_get = NULL;
+    data = NULL;
 
     /* success */
 
 cleanup:
-    for (i = 0; i < filter_count; ++i) {
-        free(filters[i]);
-    }
-    free(filters);
-    lyd_free_withsiblings(data_get);
+    op_filter_erase(&filter);
+    lyd_free_withsiblings(select_data);
+    lyd_free_withsiblings(data);
     return rc;
 }
 

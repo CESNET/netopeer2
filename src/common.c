@@ -461,18 +461,19 @@ strws(const char *str)
 }
 
 static int
-op_filter_xpath_add_filter(char *new_filter, char ***filters, int *filter_count)
+op_filter_xpath_add_filter(char *new_filter, int selection, struct np2_filter *filter)
 {
-    char **filters_new;
+    void *mem;
 
-    filters_new = realloc(*filters, (*filter_count + 1) * sizeof **filters);
-    if (!filters_new) {
+    mem = realloc(filter->filters, (filter->count + 1) * sizeof *filter->filters);
+    if (!mem) {
         EMEM;
         return -1;
     }
-    ++(*filter_count);
-    *filters = filters_new;
-    (*filters)[*filter_count - 1] = new_filter;
+    filter->filters = mem;
+    filter->filters[filter->count].str = new_filter;
+    filter->filters[filter->count].selection = selection;
+    ++filter->count;
 
     return 0;
 }
@@ -539,7 +540,7 @@ filter_xpath_buf_get_content(struct ly_ctx *ctx, struct lyxml_elem *elem)
 /* top-level content node with optional namespace and attributes */
 static int
 filter_xpath_buf_add_top_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name,
-                                char ***filters, int *filter_count)
+                                 struct np2_filter *filter)
 {
     int size;
     char *buf, *content;
@@ -565,7 +566,7 @@ filter_xpath_buf_add_top_content(struct ly_ctx *ctx, struct lyxml_elem *elem, co
         return -1;
     }
 
-    if (op_filter_xpath_add_filter(buf, filters, filter_count)) {
+    if (op_filter_xpath_add_filter(buf, 0, filter)) {
         free(buf);
         return -1;
     }
@@ -672,14 +673,13 @@ filter_xpath_buf_add_node(struct ly_ctx *ctx, struct lyxml_elem *elem, const cha
 /* buf is spent in the function, removes content match nodes from elem->child list! */
 static int
 filter_xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name, const char *last_ns,
-                    char **buf, int size, char ***filters, int *filter_count)
+        char **buf, int size, struct np2_filter *filter)
 {
     struct lyxml_elem *temp, *child;
     int new_size;
     char *buf_new;
-    int only_content_match_node = 1;
 
-    /* containment node, selection node */
+    /* containment node or selection node */
     size = filter_xpath_buf_add_node(ctx, elem, elem_module_name, last_ns, buf, size);
     if (!size) {
         free(*buf);
@@ -689,7 +689,16 @@ filter_xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *el
         goto error;
     }
 
-    /* content match node */
+    if (!elem->child) {
+        /* just a selection node */
+        if (op_filter_xpath_add_filter(*buf, 1, filter)) {
+            goto error;
+        }
+        *buf = NULL;
+        return 0;
+    }
+
+    /* child content match node */
     LY_TREE_FOR_SAFE(elem->child, temp, child) {
         if (!child->child && child->content && !strws(child->content)) {
             size = filter_xpath_buf_add_content(ctx, child, elem_module_name, last_ns, buf, size);
@@ -700,18 +709,7 @@ filter_xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *el
             } else if (size < 1) {
                 goto error;
             }
-        } else {
-            only_content_match_node = 0;
         }
-    }
-
-    /* that is it, it seems */
-    if (only_content_match_node) {
-        if (op_filter_xpath_add_filter(*buf, filters, filter_count)) {
-            goto error;
-        }
-        *buf = NULL;
-        return 0;
     }
 
     /* that is it for this filter depth, now we branch with every new node except last */
@@ -731,9 +729,9 @@ filter_xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *el
 
         /* child containment node */
         if (child->child) {
-            filter_xpath_buf_add(ctx, child, NULL, last_ns, &buf_new, new_size, filters, filter_count);
+            filter_xpath_buf_add(ctx, child, NULL, last_ns, &buf_new, new_size, filter);
 
-        /* child selection node or content match node */
+        /* child selection node */
         } else {
             new_size = filter_xpath_buf_add_node(ctx, child, NULL, last_ns, &buf_new, new_size);
             if (!new_size) {
@@ -744,7 +742,7 @@ filter_xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *el
                 goto error;
             }
 
-            if (op_filter_xpath_add_filter(buf_new, filters, filter_count)) {
+            if (op_filter_xpath_add_filter(buf_new, 1, filter)) {
                 goto error;
             }
         }
@@ -759,26 +757,26 @@ error:
 
 /* modifies elem XML tree! */
 static int
-op_filter_build_xpath_from_subtree(struct ly_ctx *ctx, struct lyxml_elem *elem, char ***filters, int *filter_count)
+op_filter_build_xpath_from_subtree(struct ly_ctx *ctx, struct lyxml_elem *elem, struct np2_filter *filter)
 {
     const struct lys_module *module, **modules, **modules_new;
     const struct lys_node *node;
-    struct lyxml_elem *next;
+    struct lyxml_elem *iter;
     char *buf;
     uint32_t i, module_count;
 
-    LY_TREE_FOR(elem, next) {
+    LY_TREE_FOR(elem, iter) {
         /* first filter node, it must always have a namespace */
         modules = NULL;
         module_count = 0;
-        if (next->ns && strcmp(next->ns->value, "urn:ietf:params:xml:ns:netconf:base:1.0")) {
+        if (iter->ns && strcmp(iter->ns->value, "urn:ietf:params:xml:ns:netconf:base:1.0")) {
             modules = malloc(sizeof *modules);
             if (!modules) {
                 EMEM;
                 goto error;
             }
             module_count = 1;
-            modules[0] = ly_ctx_get_module_by_ns(ctx, next->ns->value, NULL, 1);
+            modules[0] = ly_ctx_get_module_by_ns(ctx, iter->ns->value, NULL, 1);
             if (!modules[0]) {
                 /* not really an error */
                 free(modules);
@@ -789,7 +787,7 @@ op_filter_build_xpath_from_subtree(struct ly_ctx *ctx, struct lyxml_elem *elem, 
             while ((module = ly_ctx_get_module_iter(ctx, &i))) {
                 node = NULL;
                 while ((node = lys_getnext(node, NULL, module, 0))) {
-                    if (!strcmp(node->name, next->name)) {
+                    if (!strcmp(node->name, iter->name)) {
                         modules_new = realloc(modules, (module_count + 1) * sizeof *modules);
                         if (!modules_new) {
                             EMEM;
@@ -806,14 +804,14 @@ op_filter_build_xpath_from_subtree(struct ly_ctx *ctx, struct lyxml_elem *elem, 
 
         buf = NULL;
         for (i = 0; i < module_count; ++i) {
-            if (!next->child && next->content && !strws(next->content)) {
+            if (!iter->child && iter->content && !strws(iter->content)) {
                 /* special case of top-level content match node */
-                if (filter_xpath_buf_add_top_content(ctx, next, modules[i]->name, filters, filter_count)) {
+                if (filter_xpath_buf_add_top_content(ctx, iter, modules[i]->name, filter)) {
                     goto error;
                 }
             } else {
                 /* containment or selection node */
-                if (filter_xpath_buf_add(ctx, next, modules[i]->name, modules[i]->ns, &buf, 1, filters, filter_count)) {
+                if (filter_xpath_buf_add(ctx, iter, modules[i]->name, modules[i]->ns, &buf, 1, filter)) {
                     goto error;
                 }
             }
@@ -825,15 +823,25 @@ op_filter_build_xpath_from_subtree(struct ly_ctx *ctx, struct lyxml_elem *elem, 
 
 error:
     free(modules);
-    for (i = 0; (signed)i < *filter_count; ++i) {
-        free((*filters)[i]);
-    }
-    free(*filters);
+    op_filter_erase(filter);
     return -1;
 }
 
+void
+op_filter_erase(struct np2_filter *filter)
+{
+    int i;
+
+    for (i = 0; i < filter->count; ++i) {
+        free(filter->filters[i].str);
+    }
+    free(filter->filters);
+    filter->filters = NULL;
+    filter->count = 0;
+}
+
 int
-op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_count)
+op_filter_create(struct lyd_node *filter_node, struct np2_filter *filter)
 {
     struct lyd_attr *attr;
     struct lyxml_elem *subtree_filter;
@@ -890,7 +898,7 @@ op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_coun
             return -1;
         }
 
-        ret = op_filter_build_xpath_from_subtree(ly_ctx, subtree_filter, filters, filter_count);
+        ret = op_filter_build_xpath_from_subtree(ly_ctx, subtree_filter, filter);
         if (free_filter) {
             lyxml_free_withsiblings(ly_ctx, subtree_filter);
         }
@@ -908,11 +916,105 @@ op_filter_create(struct lyd_node *filter_node, char ***filters, int *filter_coun
             EMEM;
             return -1;
         }
-        if (op_filter_xpath_add_filter(path, filters, filter_count)) {
+        if (op_filter_xpath_add_filter(path, 1, filter)) {
             free(path);
             return -1;
         }
     }
 
     return 0;
+}
+
+int
+op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_oper_options_t get_opts,
+        const struct np2_filter *filter, struct lyd_node **data)
+{
+    const sr_error_info_t *err_info;
+    struct lyd_node *node;
+    int i, rc;
+
+    for (i = 0; i < filter->count; ++i) {
+        /* get the selected data */
+        rc = sr_get_data(session, filter->filters[i].str, max_depth, np2srv.sr_timeout, get_opts, &node);
+        if (rc) {
+            ERR("Getting data \"%s\" from sysrepo failed (%s).", filter->filters[i].str, sr_strerror(rc));
+            sr_get_error(session, &err_info);
+            sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
+            return rc;
+        }
+
+        /* merge */
+        if (!*data) {
+            *data = node;
+        } else if (node && lyd_merge(*data, node, LYD_OPT_DESTRUCT | LYD_OPT_EXPLICIT)) {
+            lyd_free_withsiblings(node);
+            return SR_ERR_LY;
+        }
+    }
+
+    return SR_ERR_OK;
+}
+
+int
+op_filter_data_filter(struct lyd_node **data, const struct np2_filter *filter, struct lyd_node **filtered_data)
+{
+    struct lyd_node *node;
+    int i, has_content_filter = 0, rc = SR_ERR_OK;
+    struct ly_set *set = NULL;
+    uint32_t j;
+
+    if (!*data) {
+        /* nothing to filter */
+        return SR_ERR_OK;
+    }
+
+    for (i = 0; i < filter->count; i++) {
+        if (filter->filters[i].selection) {
+            continue;
+        }
+        has_content_filter = 1;
+
+        /* apply content filter */
+        set = lyd_find_path(*data, filter->filters[i].str);
+        if (!set) {
+            rc = SR_ERR_LY;
+            goto cleanup;
+        }
+
+        for (j = 0; j < set->number; ++j) {
+            node = lyd_dup(set->set.d[j], LYD_DUP_OPT_RECURSIVE | LYD_DUP_OPT_WITH_PARENTS | LYD_DUP_OPT_WITH_KEYS |
+                    LYD_DUP_OPT_WITH_WHEN);
+            if (!node) {
+                rc = SR_ERR_LY;
+                goto cleanup;
+            }
+
+            /* always find parent */
+            while (node->parent) {
+                node = node->parent;
+            }
+
+            /* merge */
+            if (!*filtered_data) {
+                *filtered_data = node;
+            } else if (node && lyd_merge(*filtered_data, node, LYD_OPT_DESTRUCT | LYD_OPT_EXPLICIT)) {
+                lyd_free_withsiblings(node);
+                rc = SR_ERR_LY;
+                goto cleanup;
+            }
+        }
+
+        ly_set_free(set);
+        set = NULL;
+    }
+
+    if (!has_content_filter) {
+        /* no content filter, just use all the data */
+        *filtered_data = *data;
+        *data = NULL;
+    }
+
+cleanup:
+    ly_set_free(set);
+    return rc;
 }

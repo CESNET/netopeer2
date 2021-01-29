@@ -62,24 +62,23 @@ np2srv_get_first_ns(const char *expr, const char **start, int *len)
  * @brief Get generic filters in the form of "/module:*" from exact xpath filters.
  */
 static int
-np2srv_get_rpc_module_filters(char **filters, int filter_count, char ***mod_filters, int *mod_filter_count)
+np2srv_get_rpc_module_filters(const struct np2_filter *filter, struct np2_filter *mod_filter)
 {
-    int i, j, len;
+    int i, j, len, selection;
     const char *start;
     char *str;
 
-    *mod_filters = NULL;
-    *mod_filter_count = 0;
-
-    for (i = 0; i < filter_count; ++i) {
-        if (np2srv_get_first_ns(filters[i], &start, &len)) {
+    for (i = 0; i < filter->count; ++i) {
+        if (np2srv_get_first_ns(filter->filters[i].str, &start, &len)) {
             /* not the simple format, use it as it is */
-            str = strdup(filters[i]);
+            str = strdup(filter->filters[i].str);
+            selection = filter->filters[i].selection;
         } else {
             /* get all the data of a module */
             if (asprintf(&str, "/%.*s:*", len, start) == -1) {
                 str = NULL;
             }
+            selection = 1;
         }
 
         if (!str) {
@@ -88,20 +87,21 @@ np2srv_get_rpc_module_filters(char **filters, int filter_count, char ***mod_filt
         }
 
         /* check for a duplicity */
-        for (j = 0; j < *mod_filter_count; ++j) {
-            if (!strcmp(str, (*mod_filters)[j])) {
+        for (j = 0; j < mod_filter->count; ++j) {
+            if (!strcmp(str, mod_filter->filters[j].str)) {
                 break;
             }
         }
-        if (j < *mod_filter_count) {
+        if (j < mod_filter->count) {
             free(str);
             continue;
         }
 
         /* add a new module filter */
-        ++(*mod_filter_count);
-        *mod_filters = realloc(*mod_filters, *mod_filter_count * sizeof **mod_filters);
-        (*mod_filters)[*mod_filter_count - 1] = str;
+        mod_filter->filters = realloc(mod_filter->filters, (mod_filter->count + 1) * sizeof *mod_filter->filters);
+        mod_filter->filters[mod_filter->count].str = str;
+        mod_filter->filters[mod_filter->count].selection = selection;
+        ++mod_filter->count;
     }
 
     return SR_ERR_OK;
@@ -111,20 +111,18 @@ np2srv_get_rpc_module_filters(char **filters, int filter_count, char ***mod_filt
  * @brief Get data for a get RPC.
  */
 static int
-np2srv_get_rpc_data(sr_session_ctx_t *session, char **filters, int filter_count, struct lyd_node **data)
+np2srv_get_rpc_data(sr_session_ctx_t *session, const struct np2_filter *filter, struct lyd_node **data)
 {
-    struct lyd_node *node, *ds_data = NULL;
+    struct lyd_node *select_data = NULL;
     sr_datastore_t ds;
     sr_get_oper_options_t get_opts = 0;
-    const sr_error_info_t *err_info;
-    char **mod_filters = NULL;
-    int mod_filter_count = 0, i, rc = SR_ERR_OK;
-    uint32_t j;
+    struct np2_filter mod_filter = {0};
+    int rc = SR_ERR_OK;
     struct ly_set *set = NULL;
 
     /* get generic filters to allow retrieving all possibly needed data first, which are then filtered again
      * (once we have merged config and state data) */
-    rc = np2srv_get_rpc_module_filters(filters, filter_count, &mod_filters, &mod_filter_count);
+    rc = np2srv_get_rpc_module_filters(filter, &mod_filter);
     if (rc) {
         goto cleanup;
     }
@@ -135,22 +133,8 @@ np2srv_get_rpc_data(sr_session_ctx_t *session, char **filters, int filter_count,
 get_sr_data:
     sr_session_switch_ds(session, ds);
 
-    for (i = 0; i < mod_filter_count; ++i) {
-        rc = sr_get_data(session, mod_filters[i], 0, np2srv.sr_timeout, get_opts, &node);
-        if (rc) {
-            ERR("Getting data \"%s\" from sysrepo failed (%s).", mod_filters[i], sr_strerror(rc));
-            sr_get_error(session, &err_info);
-            sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
-            goto cleanup;
-        }
-
-        if (!ds_data) {
-            ds_data = node;
-        } else if (node && lyd_merge(ds_data, node, LYD_OPT_DESTRUCT | LYD_OPT_EXPLICIT)) {
-            lyd_free_withsiblings(node);
-            rc = SR_ERR_LY;
-            goto cleanup;
-        }
+    if ((rc = op_filter_data_get(session, 0, get_opts, &mod_filter, &select_data))) {
+        goto cleanup;
     }
 
     if (ds == SR_DS_RUNNING) {
@@ -160,53 +144,15 @@ get_sr_data:
         goto get_sr_data;
     }
 
-    if (!ds_data) {
-        /* no data to filter */
-        goto cleanup;
-    }
-
     /* now filter only the requested data from the created running data + state data */
-    for (i = 0; i < filter_count; ++i) {
-        set = lyd_find_path(ds_data, filters[i]);
-        if (!set) {
-            rc = SR_ERR_LY;
-            goto cleanup;
-        }
-
-        for (j = 0; j < set->number; ++j) {
-            node = lyd_dup(set->set.d[j], LYD_DUP_OPT_RECURSIVE | LYD_DUP_OPT_WITH_PARENTS | LYD_DUP_OPT_WITH_KEYS |
-                    LYD_DUP_OPT_WITH_WHEN);
-            if (!node) {
-                rc = SR_ERR_LY;
-                goto cleanup;
-            }
-
-            /* always find parent */
-            while (node->parent) {
-                node = node->parent;
-            }
-
-            /* merge */
-            if (!*data) {
-                *data = node;
-            } else if (node && lyd_merge(*data, node, LYD_OPT_DESTRUCT | LYD_OPT_EXPLICIT)) {
-                lyd_free_withsiblings(node);
-                rc = SR_ERR_LY;
-                goto cleanup;
-            }
-        }
-
-        ly_set_free(set);
-        set = NULL;
+    if ((rc = op_filter_data_filter(&select_data, filter, data))) {
+        goto cleanup;
     }
 
 cleanup:
     ly_set_free(set);
-    lyd_free_withsiblings(ds_data);
-    for (i = 0; i < mod_filter_count; ++i) {
-        free(mod_filters[i]);
-    }
-    free(mod_filters);
+    lyd_free_withsiblings(select_data);
+    op_filter_erase(&mod_filter);
     return rc;
 }
 
@@ -214,12 +160,10 @@ cleanup:
  * @brief get data for a get-config RPC.
  */
 static int
-np2srv_getconfig_rpc_data(sr_session_ctx_t *session, char **filters, int filter_count, sr_datastore_t ds,
-        struct lyd_node **data)
+np2srv_getconfig_rpc_data(sr_session_ctx_t *session, const struct np2_filter *filter, sr_datastore_t ds, struct lyd_node **data)
 {
-    struct lyd_node *node;
-    const sr_error_info_t *err_info;
-    int i, rc;
+    struct lyd_node *select_data = NULL;
+    int rc = SR_ERR_OK;
 
     /* update sysrepo session datastore */
     sr_session_switch_ds(session, ds);
@@ -227,24 +171,17 @@ np2srv_getconfig_rpc_data(sr_session_ctx_t *session, char **filters, int filter_
     /*
      * create the data tree for the data reply
      */
-    for (i = 0; i < filter_count; i++) {
-        rc = sr_get_data(session, filters[i], 0, np2srv.sr_timeout, 0, &node);
-        if (rc != SR_ERR_OK) {
-            ERR("Getting data \"%s\" from sysrepo failed (%s).", filters[i], sr_strerror(rc));
-            sr_get_error(session, &err_info);
-            sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
-            return rc;
-        }
-
-        if (!*data) {
-            *data = node;
-        } else if (node && lyd_merge(*data, node, LYD_OPT_DESTRUCT | LYD_OPT_EXPLICIT)) {
-            lyd_free_withsiblings(node);
-            return SR_ERR_LY;
-        }
+    if ((rc = op_filter_data_get(session, 0, 0, filter, &select_data))) {
+        goto cleanup;
     }
 
-    return SR_ERR_OK;
+    if ((rc = op_filter_data_filter(&select_data, filter, data))) {
+        goto cleanup;
+    }
+
+cleanup:
+    lyd_free_withsiblings(select_data);
+    return rc;
 }
 
 int
@@ -252,8 +189,8 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
         uint32_t UNUSED(request_id), struct lyd_node *output, void *UNUSED(private_data))
 {
     struct lyd_node *node, *data_get = NULL;
-    char **filters = NULL;
-    int filter_count = 0, i, rc = SR_ERR_OK;
+    struct np2_filter filter = {0};
+    int rc = SR_ERR_OK;
     struct ly_set *nodeset;
     sr_datastore_t ds = 0;
 
@@ -277,22 +214,23 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
     if (nodeset->number) {
         node = nodeset->set.d[0];
         ly_set_free(nodeset);
-        if (op_filter_create(node, &filters, &filter_count)) {
+        if (op_filter_create(node, &filter)) {
             rc = SR_ERR_INTERNAL;
             goto cleanup;
         }
     } else {
         ly_set_free(nodeset);
 
-        filters = malloc(sizeof *filters);
-        if (!filters) {
+        filter.filters = malloc(sizeof *filter.filters);
+        if (!filter.filters) {
             EMEM;
             rc = SR_ERR_NOMEM;
             goto cleanup;
         }
-        filter_count = 1;
-        filters[0] = strdup("/*");
-        if (!filters[0]) {
+        filter.count = 1;
+        filter.filters[0].str = strdup("/*");
+        filter.filters[0].selection = 1;
+        if (!filter.filters[0].str) {
             EMEM;
             rc = SR_ERR_NOMEM;
             goto cleanup;
@@ -303,9 +241,9 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
 
     /* get filtered data */
     if (!strcmp(op_path, "/ietf-netconf:get-config")) {
-        rc = np2srv_getconfig_rpc_data(session, filters, filter_count, ds, &data_get);
+        rc = np2srv_getconfig_rpc_data(session, &filter, ds, &data_get);
     } else {
-        rc = np2srv_get_rpc_data(session, filters, filter_count, &data_get);
+        rc = np2srv_get_rpc_data(session, &filter, &data_get);
     }
     if (rc) {
         goto cleanup;
@@ -324,10 +262,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
     /* success */
 
 cleanup:
-    for (i = 0; i < filter_count; ++i) {
-        free(filters[i]);
-    }
-    free(filters);
+    op_filter_erase(&filter);
     lyd_free_withsiblings(data_get);
     return rc;
 }
@@ -837,6 +772,32 @@ cleanup:
     return rc;
 }
 
+static int
+np2srv_rpc_subscribe_append_str(const char *str, char **ret)
+{
+    void *mem;
+    int len;
+
+    if (!*ret) {
+        *ret = strdup(str);
+        if (!*ret) {
+            EMEM;
+            return SR_ERR_NOMEM;
+        }
+    } else {
+        len = strlen(*ret);
+        mem = realloc(*ret, len + strlen(str) + 1);
+        if (!mem) {
+            EMEM;
+            return SR_ERR_NOMEM;
+        }
+        *ret = mem;
+        strcat(*ret + len, str);
+    }
+
+    return SR_ERR_OK;
+}
+
 int
 np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
         sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
@@ -846,9 +807,10 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
     struct lys_node *root, *next, *elem, *parent;
     struct nc_session *ncs;
     const char *stream;
-    char **filters = NULL, *xp = NULL, *mem;
+    struct np2_filter filter = {0};
+    char *xp = NULL;
     time_t start = 0, stop = 0;
-    int rc = SR_ERR_OK, i, len, filter_count = 0;
+    int rc = SR_ERR_OK, i;
     uint32_t idx;
 
     /* find this NETCONF session */
@@ -868,33 +830,61 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
     stream = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
     ly_set_free(nodeset);
 
-    /* filter */
+    /* filter, join all into one xpath */
     nodeset = lyd_find_path(input, "filter");
     if (nodeset->number) {
-        if (op_filter_create(nodeset->set.d[0], &filters, &filter_count)) {
+        if (op_filter_create(nodeset->set.d[0], &filter)) {
             rc = SR_ERR_INTERNAL;
             goto cleanup;
         }
 
-        /* join all filters into one xpath */
-        for (i = 0; i < filter_count; ++i) {
+        /* all selection filters first */
+        for (i = 0; i < filter.count; ++i) {
+            if (!filter.filters[i].selection) {
+                continue;
+            }
+
+            /* put all selection filters into parentheses */
             if (!xp) {
-                xp = strdup(filters[0]);
-                if (!xp) {
-                    EMEM;
-                    rc = SR_ERR_NOMEM;
+                if ((rc = np2srv_rpc_subscribe_append_str("(", &xp))) {
+                    goto cleanup;
+                }
+
+                if ((rc = np2srv_rpc_subscribe_append_str(filter.filters[i].str, &xp))) {
                     goto cleanup;
                 }
             } else {
-                len = strlen(xp);
-                mem = realloc(xp, len + 5 + strlen(filters[i]) + 1);
-                if (!mem) {
-                    EMEM;
-                    rc = SR_ERR_NOMEM;
+                if ((rc = np2srv_rpc_subscribe_append_str(" or ", &xp))) {
                     goto cleanup;
                 }
-                xp = mem;
-                sprintf(xp + len, " and %s", filters[i]);
+
+                if ((rc = np2srv_rpc_subscribe_append_str(filter.filters[i].str, &xp))) {
+                    goto cleanup;
+                }
+            }
+        }
+
+        if (xp) {
+            /* finish parentheses */
+            if ((rc = np2srv_rpc_subscribe_append_str(")", &xp))) {
+                goto cleanup;
+            }
+        }
+
+        /* now append all content filters */
+        for (i = 0; i < filter.count; ++i) {
+            if (filter.filters[i].selection) {
+                continue;
+            }
+
+            if (xp) {
+                if ((rc = np2srv_rpc_subscribe_append_str(" and ", &xp))) {
+                    goto cleanup;
+                }
+            }
+
+            if ((rc = np2srv_rpc_subscribe_append_str(filter.filters[i].str, &xp))) {
+                goto cleanup;
             }
         }
     }
@@ -958,10 +948,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
     /* success */
 
 cleanup:
-    for (i = 0; i < filter_count; ++i) {
-        free(filters[i]);
-    }
-    free(filters);
+    op_filter_erase(&filter);
     free(xp);
     if (ncs && rc) {
         nc_session_set_notif_status(ncs, 0);
