@@ -40,10 +40,6 @@
  */
 #define NP2SRV_NACM_RECOVERY_UID @NACM_RECOVERY_UID@
 
-/** @brief Whether to wait on sysrepo data change calls for all the events to be processed
- */
-#define NP2SRV_DATA_CHANGE_WAIT @DATA_CHANGE_WAIT_BOOL@
-
 /** @brief Timeout for nc_ps_poll() call
  */
 #define NP2SRV_POLL_IO_TIMEOUT @POLL_IO_TIMEOUT@

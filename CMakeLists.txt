@@ -51,12 +51,6 @@ option(ENABLE_URL "Enable URL capability" ON)
 set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
 set(NACM_RECOVERY_UID 0 CACHE STRING "NACM recovery session UID that has unrestricted access")
 set(POLL_IO_TIMEOUT 10 CACHE STRING "Timeout in milliseconds of polling sessions for new data. It is also used for synchronization of low level IO such as sending a reply while a notification is being sent")
-option(DATA_CHANGE_WAIT "Whether to wait for all events on any (sysrepo) data changes" OFF)
-if(DATA_CHANGE_WAIT)
-    set(DATA_CHANGE_WAIT_BOOL 1)
-else()
-    set(DATA_CHANGE_WAIT_BOOL 0)
-endif()
 set(YANG_MODULE_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/yang/modules/netopeer2" CACHE STRING "Directory where to copy the YANG modules to")
 
 # script options

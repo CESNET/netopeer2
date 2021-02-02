@@ -309,7 +309,7 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
         goto cleanup;
     }
 
-    rc = sr_apply_changes(session, np2srv.sr_timeout, NP2SRV_DATA_CHANGE_WAIT);
+    rc = sr_apply_changes(session, np2srv.sr_timeout, 1);
     if (rc != SR_ERR_OK) {
         sr_get_error(session, &err_info);
         sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
