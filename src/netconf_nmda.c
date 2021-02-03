@@ -101,18 +101,18 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     sr_datastore_t ds;
     NC_WD_MODE nc_wd;
     sr_get_oper_options_t get_opts = 0;
-    const char *user;
+    char *user = NULL;
 
     /* get default value for with-defaults */
     nc_server_get_capab_withdefaults(&nc_wd, NULL);
 
     /* remember the user name */
-    user = np_get_nc_sess_user(session);
-    if (!user) {
+    if (!np_get_nc_sess_user(session)) {
         rc = SR_ERR_INTERNAL;
         sr_set_error(session, NULL, "Internal error (%s:%u).", __FILE__, __LINE__);
         goto cleanup;
     }
+    user = strdup(np_get_nc_sess_user(session));
 
     /* get know which datastore is being affected */
     nodeset = lyd_find_path(input, "datastore");
@@ -237,6 +237,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     /* success */
 
 cleanup:
+    free(user);
     op_filter_erase(&filter);
     lyd_free_withsiblings(select_data);
     lyd_free_withsiblings(data);

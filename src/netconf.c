@@ -193,15 +193,15 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
     int rc = SR_ERR_OK;
     struct ly_set *nodeset;
     sr_datastore_t ds = 0;
-    const char *user;
+    char *user = NULL;
 
     /* remember the user name */
-    user = np_get_nc_sess_user(session);
-    if (!user) {
+    if (!np_get_nc_sess_user(session)) {
         rc = SR_ERR_INTERNAL;
         sr_set_error(session, NULL, "Internal error (%s:%u).", __FILE__, __LINE__);
         goto cleanup;
     }
+    user = strdup(np_get_nc_sess_user(session));
 
     /* get know which datastore is being affected for get-config */
     if (!strcmp(op_path, "/ietf-netconf:get-config")) {
@@ -271,6 +271,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
     /* success */
 
 cleanup:
+    free(user);
     op_filter_erase(&filter);
     lyd_free_withsiblings(data_get);
     return rc;
@@ -390,7 +391,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     const sr_error_info_t *err_info;
     struct lyd_node *config = NULL;
     int rc = SR_ERR_OK, run_to_start = 0;
-    const char *user;
+    char *user = NULL;
 #ifdef NP2SRV_URL_CAPAB
     struct lyd_node_leaf_list *leaf;
     const char *trg_url = NULL;
@@ -398,12 +399,12 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
 #endif
 
     /* remember the user name */
-    user = np_get_nc_sess_user(session);
-    if (!user) {
+    if (!np_get_nc_sess_user(session)) {
         rc = SR_ERR_INTERNAL;
         sr_set_error(session, NULL, "Internal error (%s:%u).", __FILE__, __LINE__);
         goto cleanup;
     }
+    user = strdup(np_get_nc_sess_user(session));
 
     /* get know which datastores are affected */
     nodeset = lyd_find_path(input, "target/*");
@@ -536,6 +537,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     /* success */
 
 cleanup:
+    free(user);
     lyd_free_withsiblings(config);
     return rc;
 }
