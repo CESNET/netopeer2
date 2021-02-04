@@ -90,6 +90,7 @@ int op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_ope
 /**
  * @brief Filter out only the data matching the content filters.
  */
-int op_filter_data_filter(struct lyd_node **data, const struct np2_filter *filter, struct lyd_node **filtered_data);
+int op_filter_data_filter(struct lyd_node **data, const struct np2_filter *filter, int with_selection,
+        struct lyd_node **filtered_data);
 
 #endif /* NP2SRV_COMMON_H_ */

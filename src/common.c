@@ -956,10 +956,11 @@ op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_oper_op
 }
 
 int
-op_filter_data_filter(struct lyd_node **data, const struct np2_filter *filter, struct lyd_node **filtered_data)
+op_filter_data_filter(struct lyd_node **data, const struct np2_filter *filter, int with_selection,
+        struct lyd_node **filtered_data)
 {
     struct lyd_node *node;
-    int i, has_content_filter = 0, rc = SR_ERR_OK;
+    int i, has_filter = 0, rc = SR_ERR_OK;
     struct ly_set *set = NULL;
     uint32_t j;
 
@@ -969,12 +970,12 @@ op_filter_data_filter(struct lyd_node **data, const struct np2_filter *filter, s
     }
 
     for (i = 0; i < filter->count; i++) {
-        if (filter->filters[i].selection) {
+        if (!with_selection && filter->filters[i].selection) {
             continue;
         }
-        has_content_filter = 1;
+        has_filter = 1;
 
-        /* apply content filter */
+        /* apply content (or even selection) filter */
         set = lyd_find_path(*data, filter->filters[i].str);
         if (!set) {
             rc = SR_ERR_LY;
@@ -1008,8 +1009,8 @@ op_filter_data_filter(struct lyd_node **data, const struct np2_filter *filter, s
         set = NULL;
     }
 
-    if (!has_content_filter) {
-        /* no content filter, just use all the data */
+    if (!has_filter) {
+        /* no filter, just use all the data */
         *filtered_data = *data;
         *data = NULL;
     }

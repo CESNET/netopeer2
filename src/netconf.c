@@ -113,7 +113,7 @@ np2srv_get_rpc_module_filters(const struct np2_filter *filter, struct np2_filter
 static int
 np2srv_get_rpc_data(sr_session_ctx_t *session, const struct np2_filter *filter, struct lyd_node **data)
 {
-    struct lyd_node *select_data = NULL;
+    struct lyd_node *all_data = NULL;
     sr_datastore_t ds;
     sr_get_oper_options_t get_opts = 0;
     struct np2_filter mod_filter = {0};
@@ -133,7 +133,7 @@ np2srv_get_rpc_data(sr_session_ctx_t *session, const struct np2_filter *filter, 
 get_sr_data:
     sr_session_switch_ds(session, ds);
 
-    if ((rc = op_filter_data_get(session, 0, get_opts, &mod_filter, &select_data))) {
+    if ((rc = op_filter_data_get(session, 0, get_opts, &mod_filter, &all_data))) {
         goto cleanup;
     }
 
@@ -145,13 +145,13 @@ get_sr_data:
     }
 
     /* now filter only the requested data from the created running data + state data */
-    if ((rc = op_filter_data_filter(&select_data, filter, data))) {
+    if ((rc = op_filter_data_filter(&all_data, filter, 1, data))) {
         goto cleanup;
     }
 
 cleanup:
     ly_set_free(set);
-    lyd_free_withsiblings(select_data);
+    lyd_free_withsiblings(all_data);
     op_filter_erase(&mod_filter);
     return rc;
 }
@@ -175,7 +175,7 @@ np2srv_getconfig_rpc_data(sr_session_ctx_t *session, const struct np2_filter *fi
         goto cleanup;
     }
 
-    if ((rc = op_filter_data_filter(&select_data, filter, data))) {
+    if ((rc = op_filter_data_filter(&select_data, filter, 0, data))) {
         goto cleanup;
     }
 

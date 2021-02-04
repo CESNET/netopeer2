@@ -203,7 +203,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     if ((rc = op_filter_data_get(session, max_depth, get_opts, &filter, &select_data))) {
         goto cleanup;
     }
-    if ((rc = op_filter_data_filter(&select_data, &filter, &data))) {
+    if ((rc = op_filter_data_filter(&select_data, &filter, 0, &data))) {
         goto cleanup;
     }
 
