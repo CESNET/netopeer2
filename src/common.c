@@ -461,7 +461,7 @@ strws(const char *str)
 }
 
 static int
-op_filter_xpath_add_filter(char *new_filter, int selection, struct np2_filter *filter)
+op_filter_xpath_add_filter(const char *new_filter, int selection, struct np2_filter *filter)
 {
     void *mem;
 
@@ -471,7 +471,7 @@ op_filter_xpath_add_filter(char *new_filter, int selection, struct np2_filter *f
         return -1;
     }
     filter->filters = mem;
-    filter->filters[filter->count].str = new_filter;
+    filter->filters[filter->count].str = strdup(new_filter);
     filter->filters[filter->count].selection = selection;
     ++filter->count;
 
@@ -479,10 +479,10 @@ op_filter_xpath_add_filter(char *new_filter, int selection, struct np2_filter *f
 }
 
 static int
-filter_xpath_buf_add_attrs(struct ly_ctx *ctx, struct lyxml_attr *attr, char **buf, int size)
+filter_xpath_buf_append_attrs(struct ly_ctx *ctx, const struct lyxml_attr *attr, char **buf, int size)
 {
     const struct lys_module *module;
-    struct lyxml_attr *next;
+    const struct lyxml_attr *next;
     int new_size;
     char *buf_new;
 
@@ -513,7 +513,7 @@ filter_xpath_buf_add_attrs(struct ly_ctx *ctx, struct lyxml_attr *attr, char **b
 }
 
 static char *
-filter_xpath_buf_get_content(struct ly_ctx *ctx, struct lyxml_elem *elem)
+filter_xpath_buf_get_content(struct ly_ctx *ctx, const struct lyxml_elem *elem)
 {
     const char *start;
     size_t len;
@@ -526,7 +526,7 @@ filter_xpath_buf_get_content(struct ly_ctx *ctx, struct lyxml_elem *elem)
     start = lydict_insert(ctx, start, len);
 
     ly_log_options(0);
-    ret = ly_path_xml2json(ctx, start, elem);
+    ret = ly_path_xml2json(ctx, start, (struct lyxml_elem *)elem);
     ly_log_options(LY_LOLOG | LY_LOSTORE_LAST);
 
     if (!ret) {
@@ -539,7 +539,7 @@ filter_xpath_buf_get_content(struct ly_ctx *ctx, struct lyxml_elem *elem)
 
 /* top-level content node with optional namespace and attributes */
 static int
-filter_xpath_buf_add_top_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name,
+filter_xpath_buf_add_top_content(struct ly_ctx *ctx, const struct lyxml_elem *elem, const char *elem_module_name,
                                  struct np2_filter *filter)
 {
     int size;
@@ -548,7 +548,7 @@ filter_xpath_buf_add_top_content(struct ly_ctx *ctx, struct lyxml_elem *elem, co
     content = filter_xpath_buf_get_content(ctx, elem);
 
     size = 1 + strlen(elem_module_name) + 1 + strlen(elem->name) + 9 + strlen(content) + 3;
-    buf = malloc(size * sizeof(char));
+    buf = malloc(size);
     if (!buf) {
         EMEM;
         free(content);
@@ -557,7 +557,7 @@ filter_xpath_buf_add_top_content(struct ly_ctx *ctx, struct lyxml_elem *elem, co
     sprintf(buf, "/%s:%s[text()='%s']", elem_module_name, elem->name, content);
     free(content);
 
-    size = filter_xpath_buf_add_attrs(ctx, elem->attr, &buf, size);
+    size = filter_xpath_buf_append_attrs(ctx, elem->attr, &buf, size);
     if (!size) {
         free(buf);
         return 0;
@@ -571,13 +571,14 @@ filter_xpath_buf_add_top_content(struct ly_ctx *ctx, struct lyxml_elem *elem, co
         return -1;
     }
 
+    free(buf);
     return 0;
 }
 
 /* content node with optional namespace and attributes */
 static int
-filter_xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name,
-                            const char *last_ns, char **buf, int size)
+filter_xpath_buf_append_content(struct ly_ctx *ctx, const struct lyxml_elem *elem, const char *elem_module_name,
+                                const char *last_ns, char **buf, int size)
 {
     const struct lys_module *module;
     int new_size;
@@ -595,7 +596,7 @@ filter_xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const 
     }
 
     new_size = size + 1 + (elem_module_name ? strlen(elem_module_name) + 1 : 0) + strlen(elem->name);
-    buf_new = realloc(*buf, new_size * sizeof(char));
+    buf_new = realloc(*buf, new_size);
     if (!buf_new) {
         EMEM;
         return -1;
@@ -605,17 +606,15 @@ filter_xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const 
             elem->name);
     size = new_size;
 
-    size = filter_xpath_buf_add_attrs(ctx, elem->attr, buf, size);
-    if (!size) {
-        return 0;
-    } else if (size < 1) {
-        return -1;
+    size = filter_xpath_buf_append_attrs(ctx, elem->attr, buf, size);
+    if (size < 1) {
+        return size;
     }
 
     content = filter_xpath_buf_get_content(ctx, elem);
 
     new_size = size + 2 + strlen(content) + 2;
-    buf_new = realloc(*buf, new_size * sizeof(char));
+    buf_new = realloc(*buf, new_size);
     if (!buf_new) {
         EMEM;
         free(content);
@@ -636,8 +635,8 @@ filter_xpath_buf_add_content(struct ly_ctx *ctx, struct lyxml_elem *elem, const 
 
 /* containment/selection node with optional namespace and attributes */
 static int
-filter_xpath_buf_add_node(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name,
-                         const char *last_ns, char **buf, int size)
+filter_xpath_buf_append_node(struct ly_ctx *ctx, const struct lyxml_elem *elem, const char *elem_module_name,
+                             const char *last_ns, char **buf, int size)
 {
     const struct lys_module *module;
     int new_size;
@@ -655,7 +654,7 @@ filter_xpath_buf_add_node(struct ly_ctx *ctx, struct lyxml_elem *elem, const cha
     }
 
     new_size = size + 1 + (elem_module_name ? strlen(elem_module_name) + 1 : 0) + strlen(elem->name);
-    buf_new = realloc(*buf, new_size * sizeof(char));
+    buf_new = realloc(*buf, new_size);
     if (!buf_new) {
         EMEM;
         return -1;
@@ -665,104 +664,86 @@ filter_xpath_buf_add_node(struct ly_ctx *ctx, struct lyxml_elem *elem, const cha
             elem->name);
     size = new_size;
 
-    size = filter_xpath_buf_add_attrs(ctx, elem->attr, buf, size);
-
+    size = filter_xpath_buf_append_attrs(ctx, elem->attr, buf, size);
     return size;
 }
 
-/* buf is spent in the function, removes content match nodes from elem->child list! */
 static int
-filter_xpath_buf_add(struct ly_ctx *ctx, struct lyxml_elem *elem, const char *elem_module_name, const char *last_ns,
-        char **buf, int size, struct np2_filter *filter)
+filter_xpath_buf_add(struct ly_ctx *ctx, const struct lyxml_elem *elem, const char *elem_module_name,
+                     const char *last_ns, char **buf, int size, struct np2_filter *filter)
 {
-    struct lyxml_elem *temp, *child;
-    int new_size;
-    char *buf_new;
+    struct lyxml_elem *child;
+    int old_size;
 
     /* containment node or selection node */
-    size = filter_xpath_buf_add_node(ctx, elem, elem_module_name, last_ns, buf, size);
-    if (!size) {
-        free(*buf);
-        *buf = NULL;
-        return 0;
-    } else if (size < 1) {
-        goto error;
+    size = filter_xpath_buf_append_node(ctx, elem, elem_module_name, last_ns, buf, size);
+    if (size < 1) {
+        return size;
     }
 
     if (!elem->child) {
         /* just a selection node */
         if (op_filter_xpath_add_filter(*buf, 1, filter)) {
-            goto error;
+            return -1;
         }
-        *buf = NULL;
         return 0;
     }
 
-    /* child content match node */
-    LY_TREE_FOR_SAFE(elem->child, temp, child) {
+    /* child content match nodes */
+    old_size = size;
+    LY_TREE_FOR(elem->child, child) {
         if (!child->child && child->content && !strws(child->content)) {
-            size = filter_xpath_buf_add_content(ctx, child, elem_module_name, last_ns, buf, size);
-            if (!size) {
-                free(*buf);
-                *buf = NULL;
-                return 0;
-            } else if (size < 1) {
-                goto error;
+            /* there is a content filter, append all of them */
+            size = filter_xpath_buf_append_content(ctx, child, elem_module_name, last_ns, buf, size);
+            if (size < 1) {
+                return size;
             }
         }
     }
 
-    /* that is it for this filter depth, now we branch with every new node except last */
+    if (old_size < size) {
+        /* add a new filter */
+        if (op_filter_xpath_add_filter(*buf, 0, filter)) {
+            return -1;
+        }
+        size = old_size;
+
+        /* continue with the created path treating it as a selection node */
+    }
+
+    /* that is it for this filter depth, now we branch with every new node */
     LY_TREE_FOR(elem->child, child) {
-        if (!child->next) {
-            buf_new = *buf;
-            *buf = NULL;
-        } else {
-            buf_new = malloc(size * sizeof(char));
-            if (!buf_new) {
-                EMEM;
-                goto error;
-            }
-            memcpy(buf_new, *buf, size * sizeof(char));
-        }
-        new_size = size;
+        /* restore size */
+        size = old_size;
 
-        /* child containment node */
         if (child->child) {
-            filter_xpath_buf_add(ctx, child, NULL, last_ns, &buf_new, new_size, filter);
-
-        /* child selection node */
-        } else {
-            new_size = filter_xpath_buf_add_node(ctx, child, NULL, last_ns, &buf_new, new_size);
-            if (!new_size) {
-                free(buf_new);
+            /* child containment node */
+            filter_xpath_buf_add(ctx, child, NULL, last_ns, buf, size, filter);
+        } else if (!child->content || strws(child->content)) {
+            /* child selection node */
+            size = filter_xpath_buf_append_node(ctx, child, NULL, last_ns, buf, size);
+            if (!size) {
                 continue;
-            } else if (new_size < 1) {
-                free(buf_new);
-                goto error;
+            } else if (size < 0) {
+                return size;
             }
 
-            if (op_filter_xpath_add_filter(buf_new, 1, filter)) {
-                goto error;
+            if (op_filter_xpath_add_filter(*buf, 1, filter)) {
+                return -1;
             }
-        }
+        } /* else child content node, already handled */
     }
 
     return 0;
-
-error:
-    free(*buf);
-    return -1;
 }
 
-/* modifies elem XML tree! */
 static int
-op_filter_build_xpath_from_subtree(struct ly_ctx *ctx, struct lyxml_elem *elem, struct np2_filter *filter)
+op_filter_build_xpath_from_subtree(struct ly_ctx *ctx, const struct lyxml_elem *elem, struct np2_filter *filter)
 {
     const struct lys_module *module, **modules, **modules_new;
     const struct lys_node *node;
-    struct lyxml_elem *iter;
-    char *buf;
+    const struct lyxml_elem *iter;
+    char *buf = NULL;
     uint32_t i, module_count;
 
     LY_TREE_FOR(elem, iter) {
@@ -802,7 +783,6 @@ op_filter_build_xpath_from_subtree(struct ly_ctx *ctx, struct lyxml_elem *elem, 
             }
         }
 
-        buf = NULL;
         for (i = 0; i < module_count; ++i) {
             if (!iter->child && iter->content && !strws(iter->content)) {
                 /* special case of top-level content match node */
@@ -819,9 +799,11 @@ op_filter_build_xpath_from_subtree(struct ly_ctx *ctx, struct lyxml_elem *elem, 
         free(modules);
     }
 
+    free(buf);
     return 0;
 
 error:
+    free(buf);
     free(modules);
     op_filter_erase(filter);
     return -1;
@@ -847,7 +829,6 @@ op_filter_create(struct lyd_node *filter_node, struct np2_filter *filter)
     struct lyxml_elem *subtree_filter;
     struct ly_ctx *ly_ctx;
     int free_filter, ret;
-    char *path;
 
     ly_ctx = lyd_node_module(filter_node)->ctx;
 
@@ -911,13 +892,7 @@ op_filter_create(struct lyd_node *filter_node, struct np2_filter *filter)
             /* empty select, okay, I guess... */
             return 0;
         }
-        path = strdup(attr->value_str);
-        if (!path) {
-            EMEM;
-            return -1;
-        }
-        if (op_filter_xpath_add_filter(path, 1, filter)) {
-            free(path);
+        if (op_filter_xpath_add_filter(attr->value_str, 1, filter)) {
             return -1;
         }
     }
