@@ -726,10 +726,13 @@ ncac_rule_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const c
 }
 
 enum ncac_access {
-    NCAC_ACCESS_DENY = 1,       /**< access to the node is denied */
-    NCAC_ACCESS_PARTIAL = 2,    /**< access to the node is denied but it is a prefix of a matching rule */
-    NCAC_ACCESS_PERMIT = 3      /**< access to the node is permitted */
+    NCAC_ACCESS_DENY = 1,           /**< access to the node is denied */
+    NCAC_ACCESS_PARTIAL_DENY = 2,   /**< access to the node is denied but it is a prefix of a matching rule */
+    NCAC_ACCESS_PARTIAL_PERMIT = 3, /**< access to the node is permitted but any children must still be checked */
+    NCAC_ACCESS_PERMIT = 4          /**< access to the node is permitted with any children */
 };
+
+#define NCAC_ACCESS_IS_NODE_PERMIT(x) ((x) > 2)
 
 void
 ncac_init(void)
@@ -1026,7 +1029,7 @@ ncac_allowed_path(const char *rule_target, const char *node_path)
     } else if (rule_ptr[0]) {
         assert(!node_ptr[0]);
         /* rule continues, it is a partial match */
-        return NCAC_ACCESS_PARTIAL;
+        return NCAC_ACCESS_PARTIAL_DENY;
     } else {
         assert(!rule_ptr[0]);
         /* node continues, prefix (descendant) match */
@@ -1196,8 +1199,8 @@ step10:
         goto cleanup;
     }
 
-    /* success */
-    access = NCAC_ACCESS_PERMIT;
+    /* permit, but not by an explicit rule */
+    access = NCAC_ACCESS_PARTIAL_PERMIT;
 
 cleanup:
     for (i = 0; i < group_count; ++i) {
@@ -1259,21 +1262,21 @@ ncac_check_operation(const struct lyd_node *data, const char *user)
 
     if (op->schema->nodetype & (LYS_RPC | LYS_ACTION)) {
         /* check X access on the RPC/action */
-        if (ncac_allowed_node(op, user, NCAC_OP_EXEC) != NCAC_ACCESS_PERMIT) {
+        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(op, user, NCAC_OP_EXEC))) {
             goto cleanup;
         }
     } else {
         assert(op->schema->nodetype == LYS_NOTIF);
 
         /* check R access on the notification */
-        if (ncac_allowed_node(op, user, NCAC_OP_READ) != NCAC_ACCESS_PERMIT) {
+        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(op, user, NCAC_OP_READ))) {
             goto cleanup;
         }
     }
 
     if (op->parent) {
         /* check R access on the parents, the last parent must be enough */
-        if (ncac_allowed_node(op->parent, user, NCAC_OP_READ) != NCAC_ACCESS_PERMIT) {
+        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(op->parent, user, NCAC_OP_READ))) {
             goto cleanup;
         }
     }
@@ -1311,8 +1314,8 @@ ncac_check_data_read_filter_r(struct lyd_node **first, const char *user)
         /* check access of the node */
         node_access = ncac_allowed_node(elem, user, NCAC_OP_READ);
 
-        if (node_access == NCAC_ACCESS_PARTIAL) {
-            /* only partial access granted, we must check children recursively */
+        if (node_access == NCAC_ACCESS_PARTIAL_DENY) {
+            /* only partial deny access, we must check children recursively to learn whether this node is allowed or not */
             if (!(elem->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYDATA))) {
                 node_access = ncac_check_data_read_filter_r(&elem->child, user);
             }
@@ -1321,6 +1324,12 @@ ncac_check_data_read_filter_r(struct lyd_node **first, const char *user)
                 /* none of the descendants are actually permitted, access denied */
                 node_access = NCAC_ACCESS_DENY;
             }
+        } else if (node_access == NCAC_ACCESS_PARTIAL_PERMIT) {
+            /* partial permit, the node will be included in the reply but we must check children as well */
+            if (!(elem->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYDATA))) {
+                ncac_check_data_read_filter_r(&elem->child, user);
+            }
+            node_access = NCAC_ACCESS_PERMIT;
         }
 
         /* access denied, free the subtree */
@@ -1412,7 +1421,7 @@ ncac_check_diff_r(const struct lyd_node *diff, const char *user, const char *par
         }
 
         /* check access for the node, none operation is always allowed, and partial access is relevant only for read operation */
-        if (oper && (ncac_allowed_node(diff, user, oper) != NCAC_ACCESS_PERMIT)) {
+        if (oper && !NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(diff, user, oper))) {
             node = diff;
             break;
         }
