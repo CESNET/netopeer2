@@ -506,15 +506,15 @@ np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
     char *path;
     const char *user;
 
-    if (ATOMIC_LOAD_RELAXED(skip_nacm_sr_sid) == sr_session_get_id(session)) {
-        /* skip the NACM check */
-        return SR_ERR_OK;
-    }
-
     user = np_get_nc_sess_user(session);
     if (!user) {
         EINT;
         return SR_ERR_INTERNAL;
+    }
+
+    if (ATOMIC_LOAD_RELAXED(skip_nacm_sr_sid) == sr_session_get_id(session)) {
+        /* skip the NACM check */
+        return SR_ERR_OK;
     }
 
     if ((node = ncac_check_diff(diff, user))) {

@@ -101,6 +101,22 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     sr_datastore_t ds;
     NC_WD_MODE nc_wd;
     sr_get_oper_options_t get_opts = 0;
+    char *username = NULL;
+
+    /* Get username. It is assumed that right now the NETCONF session cannot end
+     * due to the RPC lock held while np2srv_rpc_cb() is executing (which called this callback).
+     */
+    if ((username = (char *)np_get_nc_sess_user(session))) {
+        if (!(username = strdup(username))) {
+            EMEM;
+            rc = SR_ERR_NOMEM;
+            goto cleanup;
+        }
+    } else {
+        EINT;
+        rc = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
 
     /* get default value for with-defaults */
     nc_server_get_capab_withdefaults(&nc_wd, NULL);
@@ -216,7 +232,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     ly_set_free(nodeset);
 
     /* perform correct NACM filtering */
-    ncac_check_data_read_filter(&data, np_get_nc_sess_user(session));
+    ncac_check_data_read_filter(&data, username);
 
     /* add output */
     node = lyd_new_output_anydata(output, NULL, "data", data, LYD_ANYDATA_DATATREE);
@@ -231,6 +247,7 @@ cleanup:
     op_filter_erase(&filter);
     lyd_free_withsiblings(select_data);
     lyd_free_withsiblings(data);
+    free(username);
     return rc;
 }
 
