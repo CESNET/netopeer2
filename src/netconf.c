@@ -674,7 +674,7 @@ np2srv_rpc_kill_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const
     kill_sid = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value.uint32;
     ly_set_free(nodeset);
 
-    if (kill_sid == sr_session_get_nc_id(session)) {
+    if (kill_sid == sr_session_get_event_nc_id(session)) {
         rc = SR_ERR_INVAL_ARG;
         sr_set_error(session, NULL, "It is forbidden to kill own session.");
         goto cleanup;
@@ -694,7 +694,7 @@ np2srv_rpc_kill_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const
     /* kill the session */
     nc_session_set_status(kill_sess, NC_STATUS_INVALID);
     nc_session_set_term_reason(kill_sess, NC_SESSION_TERM_KILLED);
-    nc_session_set_killed_by(kill_sess, sr_session_get_nc_id(session));
+    nc_session_set_killed_by(kill_sess, kill_sid);
 
     /* success */
 
@@ -851,12 +851,12 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
 
     /* find this NETCONF session */
     for (i = 0; (ncs = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
-        if (nc_session_get_id(ncs) == sr_session_get_nc_id(session)) {
+        if (nc_session_get_id(ncs) == sr_session_get_event_nc_id(session)) {
             break;
         }
     }
     if (!ncs) {
-        ERR("Failed to find NETCONF session SID %u.", sr_session_get_nc_id(session));
+        ERR("Failed to find NETCONF session SID %u.", sr_session_get_event_nc_id(session));
         rc = SR_ERR_INTERNAL;
         goto cleanup;
     }

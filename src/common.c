@@ -56,7 +56,7 @@ np_get_nc_sess_user(sr_session_ctx_t *session)
     struct nc_session *nc_sess = NULL;
     uint32_t nc_sid, i;
 
-    nc_sid = sr_session_get_nc_id(session);
+    nc_sid = sr_session_get_event_nc_id(session);
     for (i = 0; (nc_sess = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
         if (nc_session_get_id(nc_sess) == nc_sid) {
             break;
