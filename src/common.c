@@ -669,11 +669,11 @@ filter_xpath_buf_append_node(struct ly_ctx *ctx, const struct lyxml_elem *elem, 
 }
 
 static int
-filter_xpath_buf_add(struct ly_ctx *ctx, const struct lyxml_elem *elem, const char *elem_module_name,
+filter_xpath_buf_add_r(struct ly_ctx *ctx, const struct lyxml_elem *elem, const char *elem_module_name,
                      const char *last_ns, char **buf, int size, struct np2_filter *filter)
 {
     struct lyxml_elem *child;
-    int old_size;
+    int s, only_content_match;
 
     /* containment node or selection node */
     size = filter_xpath_buf_append_node(ctx, elem, elem_module_name, last_ns, buf, size);
@@ -689,8 +689,8 @@ filter_xpath_buf_add(struct ly_ctx *ctx, const struct lyxml_elem *elem, const ch
         return 0;
     }
 
-    /* child content match nodes */
-    old_size = size;
+    /* append child content match nodes */
+    only_content_match = 1;
     LY_TREE_FOR(elem->child, child) {
         if (!child->child && child->content && !strws(child->content)) {
             /* there is a content filter, append all of them */
@@ -698,34 +698,34 @@ filter_xpath_buf_add(struct ly_ctx *ctx, const struct lyxml_elem *elem, const ch
             if (size < 1) {
                 return size;
             }
+        } else {
+            only_content_match = 0;
         }
     }
 
-    if (old_size < size) {
-        /* add a new filter */
+    if (only_content_match) {
+        /* there are only content match nodes so we retrieve this filter as a subtree */
         if (op_filter_xpath_add_filter(*buf, 0, filter)) {
             return -1;
         }
-        size = old_size;
 
-        /* continue with the created path treating it as a selection node */
+        return 0;
     }
+    /* else there are some other filters so the current filter just restricts all the nested ones, is not retrieved
+     * as a standalone subtree */
 
     /* that is it for this filter depth, now we branch with every new node */
     LY_TREE_FOR(elem->child, child) {
-        /* restore size */
-        size = old_size;
-
         if (child->child) {
             /* child containment node */
-            filter_xpath_buf_add(ctx, child, NULL, last_ns, buf, size, filter);
+            filter_xpath_buf_add_r(ctx, child, NULL, last_ns, buf, size, filter);
         } else if (!child->content || strws(child->content)) {
             /* child selection node */
-            size = filter_xpath_buf_append_node(ctx, child, NULL, last_ns, buf, size);
-            if (!size) {
+            s = filter_xpath_buf_append_node(ctx, child, NULL, last_ns, buf, size);
+            if (!s) {
                 continue;
-            } else if (size < 0) {
-                return size;
+            } else if (s < 0) {
+                return s;
             }
 
             if (op_filter_xpath_add_filter(*buf, 1, filter)) {
@@ -791,7 +791,7 @@ op_filter_build_xpath_from_subtree(struct ly_ctx *ctx, const struct lyxml_elem *
                 }
             } else {
                 /* containment or selection node */
-                if (filter_xpath_buf_add(ctx, iter, modules[i]->name, modules[i]->ns, &buf, 1, filter)) {
+                if (filter_xpath_buf_add_r(ctx, iter, modules[i]->name, modules[i]->ns, &buf, 1, filter)) {
                     goto error;
                 }
             }
