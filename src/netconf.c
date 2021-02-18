@@ -185,7 +185,7 @@ cleanup:
 }
 
 int
-np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct lyd_node *input, sr_event_t UNUSED(event),
+np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct lyd_node *input, sr_event_t event,
         uint32_t UNUSED(request_id), struct lyd_node *output, void *UNUSED(private_data))
 {
     struct lyd_node *node, *data_get = NULL;
@@ -194,6 +194,11 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
     struct ly_set *nodeset;
     sr_datastore_t ds = 0;
     char *username = NULL;
+
+    if (event == SR_EV_ABORT) {
+        /* ignore in this case */
+        return SR_ERR_OK;
+    }
 
     /* Get username. It is assumed that right now the NETCONF session cannot end
      * due to the RPC lock held while np2srv_rpc_cb() is executing (which called this callback).
@@ -286,7 +291,7 @@ cleanup:
 
 int
 np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds = 0;
     struct ly_set *nodeset;
@@ -294,6 +299,11 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     const sr_error_info_t *err_info;
     const char *str, *defop = "merge", *testop = "test-then-set";
     int rc = SR_ERR_OK;
+
+    if (event == SR_EV_ABORT) {
+        /* ignore in this case */
+        return SR_ERR_OK;
+    }
 
     /* get know which datastore is being affected */
     nodeset = lyd_find_path(input, "target/*");
@@ -391,7 +401,7 @@ cleanup:
 
 int
 np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds = SR_DS_OPERATIONAL, sds = SR_DS_OPERATIONAL;
     struct ly_set *nodeset;
@@ -404,6 +414,11 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     const char *trg_url = NULL;
     int lyp_wd_flag;
 #endif
+
+    if (event == SR_EV_ABORT) {
+        /* ignore in this case */
+        return SR_ERR_OK;
+    }
 
     /* Get username. It is assumed that right now the NETCONF session cannot end
      * due to the RPC lock held while np2srv_rpc_cb() is executing (which called this callback).
@@ -560,7 +575,7 @@ cleanup:
 
 int
 np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds = 0;
     struct ly_set *nodeset;
@@ -569,6 +584,11 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path
     struct lyd_node *config;
     const char *trg_url = NULL;
 #endif
+
+    if (event == SR_EV_ABORT) {
+        /* ignore in this case */
+        return SR_ERR_OK;
+    }
 
     /* get know which datastore is affected */
     nodeset = lyd_find_path(input, "target/*");
@@ -621,12 +641,17 @@ cleanup:
 
 int
 np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds = 0;
     struct ly_set *nodeset;
     const sr_error_info_t *err_info;
     int rc = SR_ERR_OK;
+
+    if (event == SR_EV_ABORT) {
+        /* ignore in this case */
+        return SR_ERR_OK;
+    }
 
     /* get know which datastore is being affected */
     nodeset = lyd_find_path(input, "target/*");
@@ -663,12 +688,17 @@ cleanup:
 
 int
 np2srv_rpc_kill_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     struct nc_session *kill_sess;
     struct ly_set *nodeset;
     uint32_t kill_sid, i;
     int rc = SR_ERR_OK;
+
+    if (event == SR_EV_ABORT) {
+        /* ignore in this case */
+        return SR_ERR_OK;
+    }
 
     nodeset = lyd_find_path(input, "session-id");
     kill_sid = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value.uint32;
@@ -704,10 +734,15 @@ cleanup:
 
 int
 np2srv_rpc_commit_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *UNUSED(input),
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     int rc = SR_ERR_OK;;
     const sr_error_info_t *err_info;
+
+    if (event == SR_EV_ABORT) {
+        /* ignore in this case */
+        return SR_ERR_OK;
+    }
 
     /* update sysrepo session datastore */
     sr_session_switch_ds(session, SR_DS_RUNNING);
@@ -728,8 +763,13 @@ cleanup:
 
 int
 np2srv_rpc_discard_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *UNUSED(input),
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
+    if (event == SR_EV_ABORT) {
+        /* ignore in this case */
+        return SR_ERR_OK;
+    }
+
     int rc = SR_ERR_OK;
 
     /* update sysrepo session datastore */
@@ -749,12 +789,17 @@ cleanup:
 
 int
 np2srv_rpc_validate_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds;
     struct lyd_node *config = NULL;
     struct ly_set *nodeset;
     int rc = SR_ERR_OK;
+
+    if (event == SR_EV_ABORT) {
+        /* ignore in this case */
+        return SR_ERR_OK;
+    }
 
     /* get know which datastore is affected */
     nodeset = lyd_find_path(input, "source/*");
