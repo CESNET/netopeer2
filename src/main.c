@@ -512,7 +512,7 @@ np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
         return SR_ERR_INTERNAL;
     }
 
-    if (ATOMIC_LOAD_RELAXED(skip_nacm_sr_sid) == sr_session_get_id(session)) {
+    if (ATOMIC_LOAD_RELAXED(skip_nacm_sr_sid) == sr_session_get_event_sr_id(session)) {
         /* skip the NACM check */
         return SR_ERR_OK;
     }
