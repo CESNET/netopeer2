@@ -963,7 +963,7 @@ np2srv_rpc_subscribe_append_str(const char *str, char **ret)
 
 int
 np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     struct ly_set *nodeset;
     const struct lys_module *ly_mod;
@@ -975,6 +975,11 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
     time_t start = 0, stop = 0;
     int rc = SR_ERR_OK, i;
     uint32_t idx;
+
+    if (event == SR_EV_ABORT) {
+        /* ignore in this case (not supported) */
+        return SR_ERR_OK;
+    }
 
     /* find this NETCONF session */
     for (i = 0; (ncs = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {

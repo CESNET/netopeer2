@@ -90,7 +90,7 @@ op_data_filter_origin(struct lyd_node **data, const struct lys_ident *filter, in
 
 int
 np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *output, void *UNUSED(private_data))
+        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *output, void *UNUSED(private_data))
 {
     struct lyd_node_leaf_list *leaf;
     struct lyd_node *node, *select_data = NULL, *data = NULL;
@@ -103,6 +103,11 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     NC_WD_MODE nc_wd;
     sr_get_oper_options_t get_opts = 0;
     char *username = NULL;
+
+    if (event == SR_EV_ABORT) {
+        /* ignore in this case */
+        return SR_ERR_OK;
+    }
 
     /* Get username. It is assumed that right now the NETCONF session cannot end
      * due to the RPC lock held while np2srv_rpc_cb() is executing (which called this callback).
@@ -262,7 +267,7 @@ cleanup:
 
 int
 np2srv_rpc_editdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds;
     struct ly_set *nodeset;
@@ -272,6 +277,11 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
     sr_session_ctx_t *user_sess;
     const char *defop;
     int rc = SR_ERR_OK;
+
+    if (event == SR_EV_ABORT) {
+        /* ignore in this case */
+        return SR_ERR_OK;
+    }
 
     /* get know which datastore is being affected */
     nodeset = lyd_find_path(input, "datastore");
