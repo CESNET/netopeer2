@@ -745,7 +745,6 @@ error:
 static int
 server_rpc_subscribe(void)
 {
-    const char *xpath;
     int rc;
 
 #define SR_RPC_SUBSCR(xpath, cb) \
@@ -773,14 +772,8 @@ server_rpc_subscribe(void)
     SR_RPC_SUBSCR("/ietf-netconf:discard-changes", np2srv_rpc_discard_cb);
     SR_RPC_SUBSCR("/ietf-netconf:validate", np2srv_rpc_validate_cb);
 
-    xpath = "/notifications:create-subscription";
-    /* subscribes to notifications, needs special flag */
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, np2srv_rpc_subscribe_cb, NULL, 0, SR_SUBSCR_UNLOCKED | SR_SUBSCR_CTX_REUSE,
-            &np2srv.sr_rpc_sub);
-    if (rc != SR_ERR_OK) {
-        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc));
-        goto error;
-    }
+    /* subscribe to create-subscription */
+    SR_RPC_SUBSCR("/notifications:create-subscription", np2srv_rpc_subscribe_cb);
 
     /* subscribe to NMDA RPCs */
     SR_RPC_SUBSCR("/ietf-netconf-nmda:get-data", np2srv_rpc_getdata_cb);
