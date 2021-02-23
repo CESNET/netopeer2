@@ -367,6 +367,10 @@ err_access_denied:
             e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
             nc_err_set_msg(e, message, "en");
             break;
+        } else if (strstr(message, "already subscribed")) {
+            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_PROT);
+            nc_err_set_msg(e, message, "en");
+            break;
         }
         e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
         nc_err_set_msg(e, message, "en");

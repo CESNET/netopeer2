@@ -928,6 +928,13 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
         goto cleanup;
     }
 
+    /* RFC 5277 section 6.5 */
+    if (nc_session_get_notif_status(ncs)) {
+        sr_set_error(session, NULL, "Session already subscribed.");
+        rc = SR_ERR_EXISTS;
+        goto cleanup;
+    }
+
     /* learn stream */
     nodeset = lyd_find_path(input, "stream");
     stream = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
