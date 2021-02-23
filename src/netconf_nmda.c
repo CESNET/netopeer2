@@ -96,6 +96,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     struct lyd_node *node, *select_data = NULL, *data = NULL;
     struct np2_filter filter = {0};
     int i, rc = SR_ERR_OK;
+    sr_session_ctx_t *user_sess;
     uint32_t max_depth = 0;
     struct ly_set *nodeset;
     sr_datastore_t ds;
@@ -210,13 +211,21 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
         }
     }
 
+    /* get the user session */
+    user_sess = np_get_user_sess(session);
+    if (!user_sess) {
+        EINT;
+        rc = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
+
     /* update sysrepo session datastore */
-    sr_session_switch_ds(session, ds);
+    sr_session_switch_ds(user_sess, ds);
 
     /*
      * create the data tree for the data reply
      */
-    if ((rc = op_filter_data_get(session, max_depth, get_opts, &filter, &select_data))) {
+    if ((rc = op_filter_data_get(user_sess, max_depth, get_opts, &filter, &select_data))) {
         goto cleanup;
     }
     if ((rc = op_filter_data_filter(&select_data, &filter, 0, &data))) {
@@ -260,6 +269,7 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
     struct lyd_node_leaf_list *leaf;
     struct lyd_node *node, *config = NULL;
     const sr_error_info_t *err_info;
+    sr_session_ctx_t *user_sess;
     const char *defop;
     int rc = SR_ERR_OK;
 
@@ -308,18 +318,26 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
 #endif
     }
 
+    /* get the user session */
+    user_sess = np_get_user_sess(session);
+    if (!user_sess) {
+        EINT;
+        rc = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
+
     /* update sysrepo session datastore */
-    sr_session_switch_ds(session, ds);
+    sr_session_switch_ds(user_sess, ds);
 
     /* sysrepo API */
-    rc = sr_edit_batch(session, config, defop);
+    rc = sr_edit_batch(user_sess, config, defop);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
 
-    rc = sr_apply_changes(session, np2srv.sr_timeout, 1);
+    rc = sr_apply_changes(user_sess, np2srv.sr_timeout, 1);
     if (rc != SR_ERR_OK) {
-        sr_get_error(session, &err_info);
+        sr_get_error(user_sess, &err_info);
         sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
         goto cleanup;
     }

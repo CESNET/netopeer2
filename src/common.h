@@ -52,6 +52,8 @@ int np_sleep(uint32_t ms);
 
 const char *np_get_nc_sess_user(sr_session_ctx_t *session);
 
+sr_session_ctx_t *np_get_user_sess(sr_session_ctx_t *ev_sess);
+
 void np2srv_ntf_new_cb(sr_session_ctx_t *session, const sr_ev_notif_type_t notif_type, const struct lyd_node *notif,
         time_t timestamp, void *private_data);
 

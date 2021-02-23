@@ -69,6 +69,25 @@ np_get_nc_sess_user(sr_session_ctx_t *session)
     return nc_session_get_username(nc_sess);
 }
 
+sr_session_ctx_t *
+np_get_user_sess(sr_session_ctx_t *ev_sess)
+{
+    struct nc_session *nc_sess = NULL;
+    uint32_t nc_sid, i;
+
+    nc_sid = sr_session_get_event_nc_id(ev_sess);
+    for (i = 0; (nc_sess = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
+        if (nc_session_get_id(nc_sess) == nc_sid) {
+            break;
+        }
+    }
+    if (!nc_sess) {
+        return NULL;
+    }
+
+    return nc_session_get_data(nc_sess);
+}
+
 void
 np2srv_ntf_new_cb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t notif_type, const struct lyd_node *notif,
         time_t timestamp, void *private_data)
