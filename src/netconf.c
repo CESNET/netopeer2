@@ -645,6 +645,9 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
 {
     sr_datastore_t ds = 0;
     struct ly_set *nodeset;
+    struct nc_session *nc_sess;
+    sr_session_ctx_t *glob_sess = NULL;
+    uint32_t i;
     const sr_error_info_t *err_info;
     int rc = SR_ERR_OK;
 
@@ -665,17 +668,32 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     }
     ly_set_free(nodeset);
 
+    /* find our NC session */
+    for (i = 0; (nc_sess = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
+        if (nc_session_get_id(nc_sess) == sr_session_get_event_nc_id(session)) {
+            break;
+        }
+    }
+    if (!nc_sess) {
+        EINT;
+        rc = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
+
+    /* get the global session of the user so the locks persist */
+    glob_sess = nc_session_get_data(nc_sess);
+
     /* update sysrepo session datastore */
-    sr_session_switch_ds(session, ds);
+    sr_session_switch_ds(glob_sess, ds);
 
     /* sysrepo API */
     if (!strcmp(input->schema->name, "lock")) {
-        rc = sr_lock(session, NULL);
+        rc = sr_lock(glob_sess, NULL);
     } else if (!strcmp(input->schema->name, "unlock")) {
-        rc = sr_unlock(session, NULL);
+        rc = sr_unlock(glob_sess, NULL);
     }
     if (rc != SR_ERR_OK) {
-        sr_get_error(session, &err_info);
+        sr_get_error(glob_sess, &err_info);
         sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
         goto cleanup;
     }
@@ -683,6 +701,10 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     /* success */
 
 cleanup:
+    if (glob_sess) {
+        /* switch the datastore back */
+        sr_session_switch_ds(glob_sess, SR_DS_RUNNING);
+    }
     return rc;
 }
 
