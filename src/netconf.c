@@ -996,8 +996,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
     /* RFC 5277 section 6.5 */
     if (nc_session_get_notif_status(ncs)) {
         sr_set_error(session, NULL, "Session already subscribed.");
-        rc = SR_ERR_EXISTS;
-        goto cleanup;
+        return SR_ERR_EXISTS;
     }
 
     /* learn stream */
