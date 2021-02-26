@@ -979,8 +979,7 @@ worker_thread(void *arg)
 
     while (ATOMIC_LOAD_RELAXED(loop_continue)) {
         /* try to accept new NETCONF sessions */
-        if (nc_server_endpt_count()
-                && (!np2srv.nc_max_sessions || (nc_ps_session_count(np2srv.nc_ps) < np2srv.nc_max_sessions))) {
+        if (nc_server_endpt_count()) {
             msgtype = nc_accept(0, &ncs);
             if (msgtype == NC_MSG_HELLO) {
                 np2srv_new_session_cb(NULL, ncs);

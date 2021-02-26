@@ -41,7 +41,6 @@ struct np2srv {
     uint32_t sr_timeout;            /**< timeout in ms for all sysrepo functions */
 
     struct nc_pollsession *nc_ps;   /**< libnetconf2 pollsession structure */
-    uint16_t nc_max_sessions;       /**< maximum number of running sessions */
     pthread_t workers[NP2SRV_THREAD_COUNT]; /**< worker threads handling sessions */
 };
 extern struct np2srv np2srv;
