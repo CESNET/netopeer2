@@ -306,7 +306,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     struct ly_set *nodeset;
     struct lyd_node *config = NULL;
     const sr_error_info_t *err_info;
-    sr_session_ctx_t *user_sess;
+    sr_session_ctx_t *user_sess = NULL;
     const char *str, *defop = "merge", *testop = "test-then-set";
     int rc = SR_ERR_OK;
 
@@ -413,6 +413,10 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     /* success */
 
 cleanup:
+    if (user_sess) {
+        /* discard any changes that possibly failed to be applied */
+        sr_discard_changes(user_sess);
+    }
     lyd_free_withsiblings(config);
     return rc;
 }
