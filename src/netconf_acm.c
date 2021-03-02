@@ -38,6 +38,7 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), 
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
+    const struct lyd_node_term *term;
     const char *prev_val, *prev_list;
     char *xpath2;
     bool prev_dflt;
@@ -57,9 +58,10 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), 
     pthread_mutex_lock(&nacm.lock);
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+        term = (struct lyd_node_term *)node;
         if (!strcmp(node->schema->name, "enable-nacm")) {
             if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-                if (((struct lyd_node_leaf_list *)node)->value.bln) {
+                if (term->value.boolean) {
                     nacm.enabled = 1;
                 } else {
                     nacm.enabled = 0;
@@ -67,7 +69,7 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), 
             }
         } else if (!strcmp(node->schema->name, "read-default")) {
             if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-                if (!strcmp(((struct lyd_node_leaf_list *)node)->value_str, "permit")) {
+                if (!strcmp(term->value.canonical, "permit")) {
                     nacm.default_read_deny = 0;
                 } else {
                     nacm.default_read_deny = 1;
@@ -75,7 +77,7 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), 
             }
         } else if (!strcmp(node->schema->name, "write-default")) {
             if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-                if (!strcmp(((struct lyd_node_leaf_list *)node)->value_str, "permit")) {
+                if (!strcmp(term->value.canonical, "permit")) {
                     nacm.default_write_deny = 0;
                 } else {
                     nacm.default_write_deny = 1;
@@ -83,7 +85,7 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), 
             }
         } else if (!strcmp(node->schema->name, "exec-default")) {
             if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-                if (!strcmp(((struct lyd_node_leaf_list *)node)->value_str, "permit")) {
+                if (!strcmp(term->value.canonical, "permit")) {
                     nacm.default_exec_deny = 0;
                 } else {
                     nacm.default_exec_deny = 1;
@@ -91,7 +93,7 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), 
             }
         } else if (!strcmp(node->schema->name, "enable-external-groups")) {
             if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-                if (((struct lyd_node_leaf_list *)node)->value.bln) {
+                if (term->value.boolean) {
                     nacm.enable_external_groups = 1;
                 } else {
                     nacm.enable_external_groups = 0;
@@ -116,7 +118,7 @@ int
 ncac_state_data_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name), const char *path,
         const char *UNUSED(request_xpath), uint32_t UNUSED(request_id), struct lyd_node **parent, void *UNUSED(private_data))
 {
-    struct lyd_node *node;
+    LY_ERR lyrc;
     char num_str[11];
 
     assert(*parent);
@@ -125,19 +127,19 @@ ncac_state_data_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_
 
     if (!strcmp(path, "/ietf-netconf-acm:nacm/denied-operations")) {
         sprintf(num_str, "%u", nacm.denied_operations);
-        node = lyd_new_path(*parent, NULL, "denied-operations", num_str, 0, 0);
+        lyrc = lyd_new_path(*parent, NULL, "denied-operations", num_str, 0, NULL);
     } else if (!strcmp(path, "/ietf-netconf-acm:nacm/denied-data-writes")) {
         sprintf(num_str, "%u", nacm.denied_data_writes);
-        node = lyd_new_path(*parent, NULL, "denied-data-writes", num_str, 0, 0);
+        lyrc = lyd_new_path(*parent, NULL, "denied-data-writes", num_str, 0, NULL);
     } else {
         assert(!strcmp(path, "/ietf-netconf-acm:nacm/denied-notifications"));
         sprintf(num_str, "%u", nacm.denied_notifications);
-        node = lyd_new_path(*parent, NULL, "denied-notifications", num_str, 0, 0);
+        lyrc = lyd_new_path(*parent, NULL, "denied-notifications", num_str, 0, NULL);
     }
 
     pthread_mutex_unlock(&nacm.lock);
 
-    if (!node) {
+    if (lyrc) {
         return SR_ERR_INTERNAL;
     }
 
@@ -179,8 +181,8 @@ ncac_group_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
         if (!strcmp(node->schema->name, "group")) {
             /* name must be present */
-            assert(!strcmp(node->child->schema->name, "name"));
-            group_name = ((struct lyd_node_leaf_list *)node->child)->value_str;
+            assert(!strcmp(lyd_child(node)->schema->name, "name"));
+            group_name = LYD_CANON_VALUE(lyd_child(node));
 
             switch (op) {
             case SR_OP_CREATED:
@@ -195,7 +197,7 @@ ncac_group_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const 
                 group = &nacm.groups[nacm.group_count];
                 ++nacm.group_count;
 
-                group->name = lydict_insert(ly_ctx, group_name, 0);
+                lydict_insert(ly_ctx, group_name, 0, &group->name);
                 group->users = NULL;
                 group->user_count = 0;
                 break;
@@ -235,7 +237,7 @@ ncac_group_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const 
         } else {
             /* name must be present */
             assert(!strcmp(node->parent->child->schema->name, "name"));
-            group_name = ((struct lyd_node_leaf_list *)node->parent->child)->value_str;
+            group_name = LYD_CANON_VALUE(node->parent->child);
             group = NULL;
             for (i = 0; i < nacm.group_count; ++i) {
                 /* both in dictionary */
@@ -251,7 +253,7 @@ ncac_group_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const 
                 }
 
                 assert(group);
-                user_name = ((struct lyd_node_leaf_list *)node)->value_str;
+                user_name = LYD_CANON_VALUE(node);
 
                 if (op == SR_OP_CREATED) {
                     mem = realloc(group->users, (group->user_count + 1) * sizeof *group->users);
@@ -261,7 +263,7 @@ ncac_group_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const 
                         return SR_ERR_NOMEM;
                     }
                     group->users = mem;
-                    group->users[group->user_count] = (char *)lydict_insert(ly_ctx, user_name, 0);
+                    lydict_insert(ly_ctx, user_name, 0, (const char **)&group->users[group->user_count]);
                     ++group->user_count;
                 } else {
                     assert(op == SR_OP_DELETED);
@@ -307,7 +309,7 @@ ncac_remove_rules(struct ncac_rule_list *list)
 
     ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
 
-    LY_TREE_FOR_SAFE(list->rules, tmp, rule) {
+    LY_LIST_FOR_SAFE(list->rules, tmp, rule) {
         lydict_remove(ly_ctx, rule->name);
         lydict_remove(ly_ctx, rule->module_name);
         lydict_remove(ly_ctx, rule->target);
@@ -352,8 +354,8 @@ ncac_rule_list_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), co
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
         if (!strcmp(node->schema->name, "rule-list")) {
             /* name must be present */
-            assert(!strcmp(node->child->schema->name, "name"));
-            rlist_name = ((struct lyd_node_leaf_list *)node->child)->value_str;
+            assert(!strcmp(lyd_child(node)->schema->name, "name"));
+            rlist_name = LYD_CANON_VALUE(lyd_child(node));
 
             switch (op) {
             case SR_OP_MOVED:
@@ -380,7 +382,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), co
                         pthread_mutex_unlock(&nacm.lock);
                         return SR_ERR_NOMEM;
                     }
-                    rlist->name = lydict_insert(ly_ctx, rlist_name, 0);
+                    lydict_insert(ly_ctx, rlist_name, 0, &rlist->name);
                 }
 
                 /* find previous list */
@@ -438,7 +440,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), co
         } else {
             /* name must be present */
             assert(!strcmp(node->parent->child->schema->name, "name"));
-            rlist_name = ((struct lyd_node_leaf_list *)node->parent->child)->value_str;
+            rlist_name = LYD_CANON_VALUE(node->parent->child);
             for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next);
 
             if (!strcmp(node->schema->name, "group")) {
@@ -447,7 +449,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), co
                 }
 
                 assert(rlist);
-                group_name = ((struct lyd_node_leaf_list *)node)->value_str;
+                group_name = LYD_CANON_VALUE(node);
 
                 if (op == SR_OP_CREATED) {
                     mem = realloc(rlist->groups, (rlist->group_count + 1) * sizeof *rlist->groups);
@@ -457,7 +459,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), co
                         return SR_ERR_NOMEM;
                     }
                     rlist->groups = mem;
-                    rlist->groups[rlist->group_count] = (char *)lydict_insert(ly_ctx, group_name, 0);
+                    lydict_insert(ly_ctx, group_name, 0, (const char **)&rlist->groups[rlist->group_count]);
                     ++rlist->group_count;
                 } else {
                     assert(op == SR_OP_DELETED);
@@ -530,7 +532,7 @@ ncac_rule_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const c
         if (!strcmp(node->schema->name, "rule")) {
             /* find parent rule list */
             assert(!strcmp(node->parent->child->schema->name, "name"));
-            rlist_name = ((struct lyd_node_leaf_list *)node->parent->child)->value_str;
+            rlist_name = LYD_CANON_VALUE(node->parent->child);
             for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next);
             if ((op == SR_OP_DELETED) && !rlist) {
                 /* even parent rule-list was deleted */
@@ -539,8 +541,8 @@ ncac_rule_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const c
             assert(rlist);
 
             /* name must be present */
-            assert(!strcmp(node->child->schema->name, "name"));
-            rule_name = ((struct lyd_node_leaf_list *)node->child)->value_str;
+            assert(!strcmp(lyd_child(node)->schema->name, "name"));
+            rule_name = LYD_CANON_VALUE(lyd_child(node));
 
             switch (op) {
             case SR_OP_MOVED:
@@ -567,7 +569,7 @@ ncac_rule_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const c
                         pthread_mutex_unlock(&nacm.lock);
                         return SR_ERR_NOMEM;
                     }
-                    rule->name = lydict_insert(ly_ctx, rule_name, 0);
+                    lydict_insert(ly_ctx, rule_name, 0, &rule->name);
                     rule->target_type = NCAC_TARGET_ANY;
                 }
                 assert(rule);
@@ -624,7 +626,7 @@ ncac_rule_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const c
         } else {
             /* find parent rule list */
             assert(!strcmp(node->parent->parent->child->schema->name, "name"));
-            rlist_name = ((struct lyd_node_leaf_list *)node->parent->parent->child)->value_str;
+            rlist_name = LYD_CANON_VALUE(node->parent->parent->child);
             for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next);
             if ((op == SR_OP_DELETED) && !rlist) {
                 /* even parent rule-list was deleted */
@@ -634,7 +636,7 @@ ncac_rule_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const c
 
             /* name must be present */
             assert(!strcmp(node->parent->child->schema->name, "name"));
-            rule_name = ((struct lyd_node_leaf_list *)node->parent->child)->value_str;
+            rule_name = LYD_CANON_VALUE(node->parent->child);
             for (rule = rlist->rules; rule && (rule->name != rule_name); rule = rule->next);
             if ((op == SR_OP_DELETED) && !rule) {
                 /* even parent rule was deleted */
@@ -643,12 +645,12 @@ ncac_rule_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const c
             assert(rule);
 
             if (!strcmp(node->schema->name, "module-name")) {
-                str = ((struct lyd_node_leaf_list *)node)->value_str;
+                str = LYD_CANON_VALUE(node);
                 lydict_remove(ly_ctx, rule->module_name);
                 if (!strcmp(str, "*")) {
                     rule->module_name = NULL;
                 } else {
-                    rule->module_name = lydict_insert(ly_ctx, str, 0);
+                    lydict_insert(ly_ctx, str, 0, &rule->module_name);
                 }
             } else if (!strcmp(node->schema->name, "rpc-name") || !strcmp(node->schema->name, "notification-name")
                         || !strcmp(node->schema->name, "path")) {
@@ -657,12 +659,12 @@ ncac_rule_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const c
                     rule->target = NULL;
                     rule->target_type = NCAC_TARGET_ANY;
                 } else {
-                    str = ((struct lyd_node_leaf_list *)node)->value_str;
+                    str = LYD_CANON_VALUE(node);
                     lydict_remove(ly_ctx, rule->target);
                     if (!strcmp(str, "*")) {
                         rule->target = NULL;
                     } else {
-                        rule->target = lydict_insert(ly_ctx, str, 0);
+                        lydict_insert(ly_ctx, str, 0, &rule->target);
                     }
                     if (!strcmp(node->schema->name, "rpc-name")) {
                         rule->target_type = NCAC_TARGET_RPC;
@@ -674,7 +676,7 @@ ncac_rule_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const c
                     }
                 }
             } else if (!strcmp(node->schema->name, "access-operations")) {
-                str = ((struct lyd_node_leaf_list *)node)->value_str;
+                str = LYD_CANON_VALUE(node);
                 rule->operations = 0;
                 if (!strcmp(str, "*")) {
                     rule->operations = NCAC_OP_ALL;
@@ -696,7 +698,7 @@ ncac_rule_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const c
                     }
                 }
             } else if (!strcmp(node->schema->name, "action")) {
-                if (!strcmp(((struct lyd_node_leaf_list *)node)->value_str, "permit")) {
+                if (!strcmp(LYD_CANON_VALUE(node), "permit")) {
                     rule->action_deny = 0;
                 } else {
                     rule->action_deny = 1;
@@ -708,7 +710,7 @@ ncac_rule_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const c
                 } else {
                     assert((op == SR_OP_MODIFIED) || (op == SR_OP_CREATED));
                     lydict_remove(ly_ctx, rule->comment);
-                    rule->comment = lydict_insert(ly_ctx, ((struct lyd_node_leaf_list *)node)->value_str, 0);
+                    lydict_insert(ly_ctx, LYD_CANON_VALUE(node), 0, &rule->comment);
                 }
             }
         }
@@ -760,7 +762,7 @@ ncac_destroy(void)
     }
     free(nacm.groups);
 
-    LY_TREE_FOR_SAFE(nacm.rule_lists, tmp, rule_list) {
+    LY_LIST_FOR_SAFE(nacm.rule_lists, tmp, rule_list) {
         lydict_remove(ly_ctx, rule_list->name);
         for (i = 0; i < rule_list->group_count; ++i) {
             lydict_remove(ly_ctx, rule_list->groups[i]);
@@ -829,12 +831,12 @@ ncac_getpwnam(const char *user, uid_t *uid, gid_t *gid)
  * @return non-zero if access allowed, 0 if more checks are required.
  */
 static int
-ncac_allowed_tree(const struct lys_node *top_node, const char *user)
+ncac_allowed_tree(const struct lysc_node *top_node, const char *user)
 {
-    struct lys_node *parent;
+    struct lysc_node *parent;
     uid_t user_uid;
 
-    for (parent = lys_parent(top_node); parent && (parent->nodetype & (LYS_USES | LYS_CASE | LYS_CHOICE)); parent = lys_parent(parent));
+    for (parent = top_node->parent; parent && (parent->nodetype & (LYS_CASE | LYS_CHOICE)); parent = parent->parent) {}
     if (parent) {
         EINT;
         return 0;
@@ -851,10 +853,10 @@ ncac_allowed_tree(const struct lys_node *top_node, const char *user)
     }
 
     /* 3) <close-session> and notifications <replayComplete>, <notificationComplete> always allowed */
-    if ((top_node->nodetype == LYS_RPC) && !strcmp(top_node->name, "close-session")
-                && !strcmp(lys_node_module(top_node)->name, "ietf-netconf")) {
+    if ((top_node->nodetype == LYS_RPC) && !strcmp(top_node->name, "close-session") &&
+            !strcmp(top_node->module->name, "ietf-netconf")) {
         return 1;
-    } else if ((top_node->nodetype == LYS_NOTIF) && !strcmp(lys_node_module(top_node)->name, "nc-notifications")) {
+    } else if ((top_node->nodetype == LYS_NOTIF) && !strcmp(top_node->module->name, "nc-notifications")) {
         return 1;
     }
 
@@ -871,7 +873,7 @@ ncac_allowed_tree(const struct lys_node *top_node, const char *user)
  * @return 0 on success, -1 on error.
  */
 static int
-ncac_collect_groups(struct ly_ctx *ly_ctx, const char *user, char ***groups, uint32_t *group_count)
+ncac_collect_groups(const struct ly_ctx *ly_ctx, const char *user, char ***groups, uint32_t *group_count)
 {
     struct group grp, *grp_p;
     gid_t user_gid;
@@ -883,7 +885,7 @@ ncac_collect_groups(struct ly_ctx *ly_ctx, const char *user, char ***groups, uin
     void *mem;
     int gid_count = 0, ret, rc = -1;
 
-    user_dict = lydict_insert(ly_ctx, user, 0);
+    lydict_insert(ly_ctx, user, 0, &user_dict);
 
     *groups = NULL;
     *group_count = 0;
@@ -898,7 +900,7 @@ ncac_collect_groups(struct ly_ctx *ly_ctx, const char *user, char ***groups, uin
                     goto cleanup;
                 }
                 *groups = mem;
-                (*groups)[*group_count] = (char *)lydict_insert(ly_ctx, nacm.groups[i].name, 0);
+                lydict_insert(ly_ctx, nacm.groups[i].name, 0, (const char **)&(*groups)[*group_count]);
                 ++(*group_count);
             }
         }
@@ -948,7 +950,7 @@ ncac_collect_groups(struct ly_ctx *ly_ctx, const char *user, char ***groups, uin
                 ERR("Getting GID grp entry failed (Group not found).");
                 goto cleanup;
             }
-            grp_dict = lydict_insert(ly_ctx, grp.gr_name, 0);
+            lydict_insert(ly_ctx, grp.gr_name, 0, &grp_dict);
 
             /* check for duplicates */
             for (j = 0; j < *group_count; ++j) {
@@ -1050,21 +1052,19 @@ ncac_allowed_node(const struct lyd_node *node, const char *user, uint8_t oper)
 {
     struct ncac_rule_list *rlist;
     struct ncac_rule *rule;
-    struct ly_ctx *ly_ctx;
     char **groups, *path;
     uint32_t i, j, group_count;
     enum ncac_access node_access, access = NCAC_ACCESS_DENY;
+    LY_ARRAY_COUNT_TYPE u;
 
     assert(oper);
-
-    ly_ctx = lyd_node_module(node)->ctx;
 
     /*
      * ref https://tools.ietf.org/html/rfc8341#section-3.4.4
      */
 
     /* 4) collect groups */
-    if (ncac_collect_groups(ly_ctx, user, &groups, &group_count)) {
+    if (ncac_collect_groups(LYD_CTX(node), user, &groups, &group_count)) {
         goto cleanup;
     }
 
@@ -1099,7 +1099,7 @@ ncac_allowed_node(const struct lyd_node *node, const char *user, uint8_t oper)
         /* 7) find matching rules */
         for (rule = rlist->rules; rule; rule = rule->next) {
             /* module name matching */
-            if (rule->module_name && (rule->module_name != lyd_node_module(node)->name)) {
+            if (rule->module_name && (rule->module_name != node->schema->module->name)) {
                 continue;
             }
 
@@ -1118,7 +1118,7 @@ ncac_allowed_node(const struct lyd_node *node, const char *user, uint8_t oper)
                 break;
             case NCAC_TARGET_NOTIF:
                 /* only top-level notification */
-                if (lys_parent(node->schema) || (node->schema->nodetype != LYS_NOTIF)) {
+                if (node->schema->parent || (node->schema->nodetype != LYS_NOTIF)) {
                     continue;
                 }
                 if (rule->target && (rule->target != node->schema->name)) {
@@ -1133,7 +1133,7 @@ ncac_allowed_node(const struct lyd_node *node, const char *user, uint8_t oper)
                 /* fallthrough */
             case NCAC_TARGET_ANY:
                 if (rule->target) {
-                    path = lyd_path(node);
+                    path = lyd_path(node, LYD_PATH_STD, NULL, 0);
                     /* exact match or is a descendant (specified in RFC 8341 page 27) for full tree access */
                     node_access = ncac_allowed_path(rule->target, path);
                     free(path);
@@ -1161,13 +1161,13 @@ ncac_allowed_node(const struct lyd_node *node, const char *user, uint8_t oper)
 
 step10:
     /* 10) check default-deny-all extension */
-    for (i = 0; i < node->schema->ext_size; ++i) {
-        if (!strcmp(node->schema->ext[i]->def->module->name, "ietf-netconf-acm")) {
-            if (!strcmp(node->schema->ext[i]->def->name, "default-deny-all")) {
+    LY_ARRAY_FOR(node->schema->exts, u) {
+        if (!strcmp(node->schema->exts[u].def->module->name, "ietf-netconf-acm")) {
+            if (!strcmp(node->schema->exts[u].def->name, "default-deny-all")) {
                 goto cleanup;
             }
             if ((oper & (NCAC_OP_CREATE | NCAC_OP_UPDATE | NCAC_OP_DELETE))
-                    && !strcmp(node->schema->ext[i]->def->name, "default-deny-write")) {
+                    && !strcmp(node->schema->exts[u].def->name, "default-deny-write")) {
                 goto cleanup;
             }
         }
@@ -1204,7 +1204,7 @@ step10:
 
 cleanup:
     for (i = 0; i < group_count; ++i) {
-        lydict_remove(ly_ctx, groups[i]);
+        lydict_remove(LYD_CTX(node), groups[i]);
     }
     free(groups);
     return access;
@@ -1234,15 +1234,15 @@ ncac_check_operation(const struct lyd_node *data, const char *user)
         switch (op->schema->nodetype) {
         case LYS_CONTAINER:
         case LYS_LIST:
-            if (!op->child) {
+            if (!lyd_child(op)) {
                 /* list/container without children, invalid */
                 op = NULL;
             } else {
-                op = op->child;
+                op = lyd_child(op);
             }
             break;
         case LYS_LEAF:
-            assert(lys_is_key((struct lys_node_leaf *)op->schema, NULL));
+            assert(lysc_is_key(op->schema));
             if (!op->next) {
                 /* last key of the last in-depth list, invalid */
                 op = NULL;
@@ -1276,7 +1276,7 @@ ncac_check_operation(const struct lyd_node *data, const char *user)
 
     if (op->parent) {
         /* check R access on the parents, the last parent must be enough */
-        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(op->parent, user, NCAC_OP_READ))) {
+        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(lyd_parent(op), user, NCAC_OP_READ))) {
             goto cleanup;
         }
     }
@@ -1310,14 +1310,14 @@ ncac_check_data_read_filter_r(struct lyd_node **first, const char *user)
     struct lyd_node *next, *elem;
     enum ncac_access node_access, ret_access = NCAC_ACCESS_DENY;
 
-    LY_TREE_FOR_SAFE(*first, next, elem) {
+    LY_LIST_FOR_SAFE(*first, next, elem) {
         /* check access of the node */
         node_access = ncac_allowed_node(elem, user, NCAC_OP_READ);
 
         if (node_access == NCAC_ACCESS_PARTIAL_DENY) {
             /* only partial deny access, we must check children recursively to learn whether this node is allowed or not */
-            if (!(elem->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYDATA))) {
-                node_access = ncac_check_data_read_filter_r(&elem->child, user);
+            if (elem->schema->nodetype & LYD_NODE_INNER) {
+                node_access = ncac_check_data_read_filter_r(&((struct lyd_node_inner *)elem)->child, user);
             }
 
             if (node_access != NCAC_ACCESS_PERMIT) {
@@ -1326,8 +1326,8 @@ ncac_check_data_read_filter_r(struct lyd_node **first, const char *user)
             }
         } else if (node_access == NCAC_ACCESS_PARTIAL_PERMIT) {
             /* partial permit, the node will be included in the reply but we must check children as well */
-            if (!(elem->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYDATA))) {
-                ncac_check_data_read_filter_r(&elem->child, user);
+            if (elem->schema->nodetype & LYD_NODE_INNER) {
+                ncac_check_data_read_filter_r(&((struct lyd_node_inner *)elem)->child, user);
             }
             node_access = NCAC_ACCESS_PERMIT;
         }
@@ -1335,11 +1335,11 @@ ncac_check_data_read_filter_r(struct lyd_node **first, const char *user)
         /* access denied, free the subtree */
         if (node_access == NCAC_ACCESS_DENY) {
             /* never free keys */
-            if (!lys_is_key((struct lys_node_leaf *)elem->schema, NULL)) {
+            if (!lysc_is_key(elem->schema)) {
                 if ((elem == *first) && !(*first)->parent) {
                     *first = (*first)->next;
                 }
-                lyd_free(elem);
+                lyd_free_tree(elem);
             }
             continue;
         }
@@ -1377,20 +1377,21 @@ static const struct lyd_node *
 ncac_check_diff_r(const struct lyd_node *diff, const char *user, const char *parent_op)
 {
     const char *op;
-    struct lyd_attr *attr;
+    struct lyd_meta *meta;
     const struct lyd_node *node = NULL;
     uint8_t oper;
 
-    LY_TREE_FOR(diff, diff) {
+    LY_LIST_FOR(diff, diff) {
         /* find operation */
-        LY_TREE_FOR(diff->attr, attr) {
-            if (!strcmp(attr->name, "operation")) {
-                assert(!strcmp(attr->annotation->module->name, "ietf-netconf") || !strcmp(attr->annotation->module->name, "sysrepo"));
+        LY_LIST_FOR(diff->meta, meta) {
+            if (!strcmp(meta->name, "operation")) {
+                assert(!strcmp(meta->annotation->module->name, "ietf-netconf") ||
+                        !strcmp(meta->annotation->module->name, "sysrepo"));
                 break;
             }
         }
-        if (attr) {
-            op = attr->value_str;
+        if (meta) {
+            op = meta->value.canonical;
         } else {
             op = parent_op;
         }
@@ -1427,8 +1428,8 @@ ncac_check_diff_r(const struct lyd_node *diff, const char *user, const char *par
         }
 
         /* go recursively */
-        if (!(diff->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST | LYS_ANYDATA)) && diff->child) {
-            node = ncac_check_diff_r(diff->child, user, op);
+        if (lyd_child(diff)) {
+            node = ncac_check_diff_r(lyd_child(diff), user, op);
         }
     }
 

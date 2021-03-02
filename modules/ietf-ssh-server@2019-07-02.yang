@@ -226,7 +226,6 @@
            }
          }
          choice local-or-external {
-           mandatory true;
            description
              "Indicates if the client credentials are configured
               locally or externally.";

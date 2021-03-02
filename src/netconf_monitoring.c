@@ -216,123 +216,98 @@ ncm_bad_hello(struct nc_session *session)
     pthread_mutex_unlock(&stats.lock);
 }
 
+static void
+ncm_data_add_ds_lock(sr_conn_ctx_t *conn, const char *ds_str, sr_datastore_t ds, struct lyd_node *parent)
+{
+    struct lyd_node *list, *cont, *cont2;
+    char buf[26];
+    int rc, is_locked;
+    uint32_t nc_id;
+    time_t ts;
+
+    lyd_new_list(parent, NULL, "datastore", 0, &list, ds_str);
+    rc = sr_get_lock(conn, ds, NULL, &is_locked, NULL, &nc_id, &ts);
+    if (rc != SR_ERR_OK) {
+        WRN("Failed to learn about %s lock (%s).", ds_str, sr_strerror(rc));
+    } else if (is_locked) {
+        lyd_new_inner(list, NULL, "locks", 0, &cont);
+        lyd_new_inner(cont, NULL, "global-lock", 0, &cont2);
+        sprintf(buf, "%u", nc_id);
+        lyd_new_term(cont2, NULL, "locked-by-session", buf, 0, NULL);
+        nc_time2datetime(ts, NCM_TIMEZONE, buf);
+        lyd_new_term(cont2, NULL, "locked-time", buf, 0, NULL);
+    }
+}
+
 struct lyd_node *
 ncm_get_data(sr_conn_ctx_t *conn)
 {
-    struct lyd_node *root = NULL, *cont, *list, *cont2, *cont3;
+    struct lyd_node *root = NULL, *cont, *list;
     const struct lys_module *mod;
     struct ly_ctx *ly_ctx;
     const char **cpblts;
     char buf[26];
-    uint32_t i, nc_id;
-    int rc, is_locked;
-    time_t ts;
+    uint32_t i;
 
     ly_ctx = (struct ly_ctx *)sr_get_context(conn);
 
-    root = lyd_new_path(NULL, ly_ctx, "/ietf-netconf-monitoring:netconf-state", NULL, 0, 0);
-    if (!root) {
+    if (lyd_new_path(NULL, ly_ctx, "/ietf-netconf-monitoring:netconf-state", NULL, 0, &root)) {
         goto error;
     }
 
     /* capabilities */
-    cont = lyd_new(root, NULL, "capabilities");
+    lyd_new_inner(root, NULL, "capabilities", 0, &cont);
 
-    cpblts = nc_server_get_cpblts_version(ly_ctx, LYS_VERSION_1);
+    cpblts = nc_server_get_cpblts_version(ly_ctx, LYS_VERSION_1_0);
     if (!cpblts) {
         goto error;
     }
 
     for (i = 0; cpblts[i]; ++i) {
-        lyd_new_leaf(cont, NULL, "capability", cpblts[i]);
+        lyd_new_term(cont, NULL, "capability", cpblts[i], 0, NULL);
         lydict_remove(ly_ctx, cpblts[i]);
     }
     free(cpblts);
 
-    cont = lyd_new(root, NULL, "datastores");
-
-    list = lyd_new(cont, NULL, "datastore");
-    lyd_new_leaf(list, NULL, "name", "running");
-    rc = sr_get_lock(conn, SR_DS_RUNNING, NULL, &is_locked, NULL, &nc_id, &ts);
-    if (rc != SR_ERR_OK) {
-        WRN("Failed to learn about running lock (%s).", sr_strerror(rc));
-    } else if (is_locked) {
-        cont2 = lyd_new(list, NULL, "locks");
-        cont3 = lyd_new(cont2, NULL, "global-lock");
-        sprintf(buf, "%u", nc_id);
-        lyd_new_leaf(cont3, NULL, "locked-by-session", buf);
-        nc_time2datetime(ts, NCM_TIMEZONE, buf);
-        lyd_new_leaf(cont3, NULL, "locked-time", buf);
-    }
-
-    list = lyd_new(cont, NULL, "datastore");
-    lyd_new_leaf(list, NULL, "name", "startup");
-    rc = sr_get_lock(conn, SR_DS_STARTUP, NULL, &is_locked, NULL, &nc_id, &ts);
-    if (rc != SR_ERR_OK) {
-        WRN("Failed to learn about startup lock (%s).", sr_strerror(rc));
-    } else if (is_locked) {
-        cont2 = lyd_new(list, NULL, "locks");
-        cont3 = lyd_new(cont2, NULL, "global-lock");
-        sprintf(buf, "%u", nc_id);
-        lyd_new_leaf(cont3, NULL, "locked-by-session", buf);
-        nc_time2datetime(ts, NCM_TIMEZONE, buf);
-        lyd_new_leaf(cont3, NULL, "locked-time", buf);
-    }
-
-    list = lyd_new(cont, NULL, "datastore");
-    lyd_new_leaf(list, NULL, "name", "candidate");
-    rc = sr_get_lock(conn, SR_DS_CANDIDATE, NULL, &is_locked, NULL, &nc_id, &ts);
-    if (rc != SR_ERR_OK) {
-        WRN("Failed to learn about candidate lock (%s).", sr_strerror(rc));
-    } else if (is_locked) {
-        cont2 = lyd_new(list, NULL, "locks");
-        cont3 = lyd_new(cont2, NULL, "global-lock");
-        sprintf(buf, "%u", nc_id);
-        lyd_new_leaf(cont3, NULL, "locked-by-session", buf);
-        nc_time2datetime(ts, NCM_TIMEZONE, buf);
-        lyd_new_leaf(cont3, NULL, "locked-time", buf);
-    }
+    /* datastore locks */
+    lyd_new_inner(root, NULL, "datastores", 0, &cont);
+    ncm_data_add_ds_lock(conn, "running", SR_DS_RUNNING, cont);
+    ncm_data_add_ds_lock(conn, "startup", SR_DS_STARTUP, cont);
+    ncm_data_add_ds_lock(conn, "candidate", SR_DS_CANDIDATE, cont);
 
     /* schemas */
-    cont = lyd_new(root, NULL, "schemas");
+    lyd_new_inner(root, NULL, "schemas", 0, &cont);
 
     i = 0;
     while ((mod = ly_ctx_get_module_iter(ly_ctx, &i))) {
-        list = lyd_new(cont, NULL, "schema");
-        lyd_new_leaf(list, NULL, "identifier", mod->name);
-        lyd_new_leaf(list, NULL, "version", (mod->rev ? mod->rev[0].date : NULL));
-        lyd_new_leaf(list, NULL, "format", "yang");
-        lyd_new_leaf(list, NULL, "namespace", lys_main_module(mod)->ns);
-        lyd_new_leaf(list, NULL, "location", "NETCONF");
+        lyd_new_list(cont, NULL, "schema", 0, &list, mod->name, mod->revision ? mod->revision : "", "yang");
+        lyd_new_term(list, NULL, "namespace", mod->ns, 0, NULL);
+        lyd_new_term(list, NULL, "location", "NETCONF", 0, NULL);
 
-        list = lyd_new(cont, NULL, "schema");
-        lyd_new_leaf(list, NULL, "identifier", mod->name);
-        lyd_new_leaf(list, NULL, "version", (mod->rev ? mod->rev[0].date : NULL));
-        lyd_new_leaf(list, NULL, "format", "yin");
-        lyd_new_leaf(list, NULL, "namespace", lys_main_module(mod)->ns);
-        lyd_new_leaf(list, NULL, "location", "NETCONF");
+        lyd_new_list(cont, NULL, "schema", 0, &list, mod->name, mod->revision ? mod->revision : "", "yin");
+        lyd_new_term(list, NULL, "namespace", mod->ns, 0, NULL);
+        lyd_new_term(list, NULL, "location", "NETCONF", 0, NULL);
     }
 
     /* sessions */
     pthread_mutex_lock(&stats.lock);
 
     if (stats.session_count) {
-        cont = lyd_new(root, NULL, "sessions");
+        lyd_new_inner(root, NULL, "sessions", 0, &cont);
 
         for (i = 0; i < stats.session_count; ++i) {
-            list = lyd_new(cont, NULL, "session");
-
             sprintf(buf, "%u", nc_session_get_id(stats.sessions[i]));
-            lyd_new_leaf(list, NULL, "session-id", buf);
+            lyd_new_list(cont, NULL, "session", 0, &list, buf);
+
             switch (nc_session_get_ti(stats.sessions[i])) {
 #ifdef NC_ENABLED_SSH
             case NC_TI_LIBSSH:
-                lyd_new_leaf(list, NULL, "transport", "netconf-ssh");
+                lyd_new_term(list, NULL, "transport", "netconf-ssh", 0, NULL);
                 break;
 #endif
 #ifdef NC_ENABLED_TLS
             case NC_TI_OPENSSL:
-                lyd_new_leaf(list, NULL, "transport", "netconf-tls");
+                lyd_new_term(list, NULL, "transport", "netconf-tls", 0, NULL);
                 break;
 #endif
             default: /* NC_TI_FD, NC_TI_NONE */
@@ -340,51 +315,51 @@ ncm_get_data(sr_conn_ctx_t *conn)
                 pthread_mutex_unlock(&stats.lock);
                 goto error;
             }
-            lyd_new_leaf(list, NULL, "username", nc_session_get_username(stats.sessions[i]));
-            lyd_new_leaf(list, NULL, "source-host", nc_session_get_host(stats.sessions[i]));
+            lyd_new_term(list, NULL, "username", nc_session_get_username(stats.sessions[i]), 0, NULL);
+            lyd_new_term(list, NULL, "source-host", nc_session_get_host(stats.sessions[i]), 0, NULL);
             nc_time2datetime(nc_session_get_start_time(stats.sessions[i]), NCM_TIMEZONE, buf);
-            lyd_new_leaf(list, NULL, "login-time", buf);
+            lyd_new_term(list, NULL, "login-time", buf, 0, NULL);
 
             sprintf(buf, "%u", stats.session_stats[i].in_rpcs);
-            lyd_new_leaf(list, NULL, "in-rpcs", buf);
+            lyd_new_term(list, NULL, "in-rpcs", buf, 0, NULL);
             sprintf(buf, "%u", stats.session_stats[i].in_bad_rpcs);
-            lyd_new_leaf(list, NULL, "in-bad-rpcs", buf);
+            lyd_new_term(list, NULL, "in-bad-rpcs", buf, 0, NULL);
             sprintf(buf, "%u", stats.session_stats[i].out_rpc_errors);
-            lyd_new_leaf(list, NULL, "out-rpc-errors", buf);
+            lyd_new_term(list, NULL, "out-rpc-errors", buf, 0, NULL);
             sprintf(buf, "%u", stats.session_stats[i].out_notifications);
-            lyd_new_leaf(list, NULL, "out-notifications", buf);
+            lyd_new_term(list, NULL, "out-notifications", buf, 0, NULL);
         }
     }
 
     /* statistics */
-    cont = lyd_new(root, NULL, "statistics");
+    lyd_new_inner(root, NULL, "statistics", 0, &cont);
 
     nc_time2datetime(stats.netconf_start_time, NCM_TIMEZONE, buf);
-    lyd_new_leaf(cont, NULL, "netconf-start-time", buf);
+    lyd_new_term(cont, NULL, "netconf-start-time", buf, 0, NULL);
     sprintf(buf, "%u", stats.in_bad_hellos);
-    lyd_new_leaf(cont, NULL, "in-bad-hellos", buf);
+    lyd_new_term(cont, NULL, "in-bad-hellos", buf, 0, NULL);
     sprintf(buf, "%u", stats.in_sessions);
-    lyd_new_leaf(cont, NULL, "in-sessions", buf);
+    lyd_new_term(cont, NULL, "in-sessions", buf, 0, NULL);
     sprintf(buf, "%u", stats.dropped_sessions);
-    lyd_new_leaf(cont, NULL, "dropped-sessions", buf);
+    lyd_new_term(cont, NULL, "dropped-sessions", buf, 0, NULL);
     sprintf(buf, "%u", stats.global_stats.in_rpcs);
-    lyd_new_leaf(cont, NULL, "in-rpcs", buf);
+    lyd_new_term(cont, NULL, "in-rpcs", buf, 0, NULL);
     sprintf(buf, "%u", stats.global_stats.in_bad_rpcs);
-    lyd_new_leaf(cont, NULL, "in-bad-rpcs", buf);
+    lyd_new_term(cont, NULL, "in-bad-rpcs", buf, 0, NULL);
     sprintf(buf, "%u", stats.global_stats.out_rpc_errors);
-    lyd_new_leaf(cont, NULL, "out-rpc-errors", buf);
+    lyd_new_term(cont, NULL, "out-rpc-errors", buf, 0, NULL);
     sprintf(buf, "%u", stats.global_stats.out_notifications);
-    lyd_new_leaf(cont, NULL, "out-notifications", buf);
+    lyd_new_term(cont, NULL, "out-notifications", buf, 0, NULL);
 
     pthread_mutex_unlock(&stats.lock);
 
-    if (lyd_validate(&root, LYD_OPT_NOSIBLINGS, NULL)) {
+    if (lyd_validate_all(&root, NULL, LYD_VALIDATE_PRESENT, NULL)) {
         goto error;
     }
 
     return root;
 
 error:
-    lyd_free(root);
+    lyd_free_tree(root);
     return NULL;
 }

@@ -37,12 +37,13 @@
  * @return Sysrepo error value.
  */
 static int
-op_data_filter_origin(struct lyd_node **data, const struct lys_ident *filter, int negated)
+op_data_filter_origin(struct lyd_node **data, const struct lysc_ident *filter, int negated)
 {
     struct ly_set *set;
     struct lyd_node *node;
     char *xpath;
     int ret;
+    LY_ERR lyrc;
     uint32_t i;
 
     if (!*data) {
@@ -59,18 +60,18 @@ op_data_filter_origin(struct lyd_node **data, const struct lys_ident *filter, in
         return SR_ERR_NOMEM;
     }
 
-    set = lyd_find_path(*data, xpath);
+    lyrc = lyd_find_xpath(*data, xpath, &set);
     free(xpath);
-    if (!set) {
+    if (lyrc) {
         return SR_ERR_INTERNAL;
     }
 
-    if (set->number) {
+    if (set->count) {
         /* go backwards to allow safe node freeing */
-        i = set->number;
+        i = set->count;
         do {
             --i;
-            node = set->set.d[i];
+            node = set->dnodes[i];
             if (node->schema->flags & LYS_CONFIG_R) {
                 /* state nodes are not affected */
                 continue;
@@ -80,10 +81,10 @@ op_data_filter_origin(struct lyd_node **data, const struct lys_ident *filter, in
             if (node == *data) {
                 *data = (*data)->next;
             }
-            lyd_free(node);
+            lyd_free_tree(node);
         } while (i);
     }
-    ly_set_free(set);
+    ly_set_free(set, NULL);
 
     return SR_ERR_OK;
 }
@@ -92,12 +93,12 @@ int
 np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
         sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *output, void *UNUSED(private_data))
 {
-    struct lyd_node_leaf_list *leaf;
+    struct lyd_node_term *leaf;
     struct lyd_node *node, *select_data = NULL, *data = NULL;
     struct np2_filter filter = {0};
-    int i, rc = SR_ERR_OK;
+    int rc = SR_ERR_OK;
     sr_session_ctx_t *user_sess;
-    uint32_t max_depth = 0;
+    uint32_t i, max_depth = 0;
     struct ly_set *nodeset;
     sr_datastore_t ds;
     NC_WD_MODE nc_wd;
@@ -128,9 +129,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     nc_server_get_capab_withdefaults(&nc_wd, NULL);
 
     /* get know which datastore is being affected */
-    nodeset = lyd_find_path(input, "datastore");
-    leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
-    ly_set_free(nodeset);
+    lyd_find_path(input, "datastore", 0, (struct lyd_node **)&leaf);
     if (!strcmp(leaf->value.ident->name, "running")) {
         ds = SR_DS_RUNNING;
     } else if (!strcmp(leaf->value.ident->name, "startup")) {
@@ -141,14 +140,14 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
         ds = SR_DS_OPERATIONAL;
     } else {
         rc = SR_ERR_INVAL_ARG;
-        sr_set_error(session, NULL, "Datastore \"%s\" is not supported.", leaf->value_str);
+        sr_set_error(session, NULL, "Datastore \"%s\" is not supported.", leaf->value.canonical);
         goto cleanup;
     }
 
     /* create filters */
-    nodeset = lyd_find_path(input, "subtree-filter | xpath-filter");
-    node = nodeset->number ? nodeset->set.d[0] : NULL;
-    ly_set_free(nodeset);
+    lyd_find_xpath(input, "subtree-filter | xpath-filter", &nodeset);
+    node = nodeset->count ? nodeset->dnodes[0] : NULL;
+    ly_set_free(nodeset, NULL);
     if (node && !strcmp(node->schema->name, "subtree-filter")) {
         if (op_filter_create(node, &filter)) {
             rc = SR_ERR_INTERNAL;
@@ -162,7 +161,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
             goto cleanup;
         }
         filter.count = 1;
-        filter.filters[0].str = node ? strdup(((struct lyd_node_leaf_list *)node)->value_str) : strdup("/*");
+        filter.filters[0].str = node ? strdup(LYD_CANON_VALUE(node)) : strdup("/*");
         if (!filter.filters[0].str) {
             EMEM;
             rc = SR_ERR_NOMEM;
@@ -172,11 +171,9 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     }
 
     /* config filter */
-    nodeset = lyd_find_path(input, "config-filter");
-    leaf = nodeset->number ? (struct lyd_node_leaf_list *)nodeset->set.d[0] : NULL;
-    ly_set_free(nodeset);
+    lyd_find_path(input, "config-filter", 0, (struct lyd_node **)&leaf);
     if (leaf) {
-        if (!strcmp(leaf->value_str, "false")) {
+        if (!strcmp(leaf->value.canonical, "false")) {
             get_opts |= SR_OPER_NO_CONFIG;
         } else {
             get_opts |= SR_OPER_NO_STATE;
@@ -184,34 +181,28 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     }
 
     /* depth */
-    nodeset = lyd_find_path(input, "max-depth");
-    leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
-    ly_set_free(nodeset);
-    if (leaf && strcmp(leaf->value_str, "unbounded")) {
+    lyd_find_path(input, "max-depth", 0, (struct lyd_node **)&leaf);
+    if (leaf && strcmp(leaf->value.canonical, "unbounded")) {
         max_depth = leaf->value.uint16;
     }
 
     /* origin */
-    nodeset = lyd_find_path(input, "with-origin");
-    leaf = nodeset->number ? (struct lyd_node_leaf_list *)nodeset->set.d[0] : NULL;
-    ly_set_free(nodeset);
+    lyd_find_path(input, "with-origin", 0, (struct lyd_node **)&leaf);
     if (leaf) {
         get_opts |= SR_OPER_WITH_ORIGIN;
     }
 
     /* get with-defaults mode */
-    nodeset = lyd_find_path(input, "ietf-netconf-with-defaults:with-defaults");
-    leaf = nodeset->number ? (struct lyd_node_leaf_list *)nodeset->set.d[0] : NULL;
-    ly_set_free(nodeset);
+    lyd_find_path(input, "with-defaults", 0, (struct lyd_node **)&leaf);
     if (leaf) {
-        if (!strcmp(leaf->value_str, "report-all")) {
+        if (!strcmp(leaf->value.canonical, "report-all")) {
             nc_wd = NC_WD_ALL;
-        } else if (!strcmp(leaf->value_str, "report-all-tagged")) {
+        } else if (!strcmp(leaf->value.canonical, "report-all-tagged")) {
             nc_wd = NC_WD_ALL_TAG;
-        } else if (!strcmp(leaf->value_str, "trim")) {
+        } else if (!strcmp(leaf->value.canonical, "trim")) {
             nc_wd = NC_WD_TRIM;
         } else {
-            assert(!strcmp(leaf->value_str, "explicit"));
+            assert(!strcmp(leaf->value.canonical, "explicit"));
             nc_wd = NC_WD_EXPLICIT;
         }
     }
@@ -238,19 +229,18 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     }
 
     /* origin filter */
-    nodeset = lyd_find_path(input, "origin-filter | negated-origin-filter");
-    for (i = 0; i < (signed)nodeset->number; ++i) {
-        leaf = (struct lyd_node_leaf_list *)nodeset->set.d[i];
+    lyd_find_xpath(input, "origin-filter | negated-origin-filter", &nodeset);
+    for (i = 0; i < nodeset->count; ++i) {
+        leaf = (struct lyd_node_term *)nodeset->dnodes[i];
         op_data_filter_origin(&data, leaf->value.ident, strcmp(leaf->schema->name, "origin-filter"));
     }
-    ly_set_free(nodeset);
+    ly_set_free(nodeset, NULL);
 
     /* perform correct NACM filtering */
     ncac_check_data_read_filter(&data, username);
 
     /* add output */
-    node = lyd_new_output_anydata(output, NULL, "data", data, LYD_ANYDATA_DATATREE);
-    if (!node) {
+    if (lyd_new_any(output, NULL, "data", data, LYD_ANYDATA_DATATREE, 1, NULL)) {
         goto cleanup;
     }
     data = NULL;
@@ -259,8 +249,8 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
 
 cleanup:
     op_filter_erase(&filter);
-    lyd_free_withsiblings(select_data);
-    lyd_free_withsiblings(data);
+    lyd_free_siblings(select_data);
+    lyd_free_siblings(data);
     free(username);
     return rc;
 }
@@ -271,7 +261,7 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
 {
     sr_datastore_t ds;
     struct ly_set *nodeset;
-    struct lyd_node_leaf_list *leaf;
+    struct lyd_node_term *leaf;
     struct lyd_node *node, *config = NULL;
     const sr_error_info_t *err_info;
     sr_session_ctx_t *user_sess;
@@ -284,9 +274,7 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
     }
 
     /* get know which datastore is being affected */
-    nodeset = lyd_find_path(input, "datastore");
-    leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
-    ly_set_free(nodeset);
+    lyd_find_path(input, "datastore", 0, (struct lyd_node **)&leaf);
     if (!strcmp(leaf->value.ident->name, "running")) {
         ds = SR_DS_RUNNING;
     } else if (!strcmp(leaf->value.ident->name, "startup")) {
@@ -295,29 +283,27 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
         ds = SR_DS_CANDIDATE;
     } else {
         rc = SR_ERR_INVAL_ARG;
-        sr_set_error(session, NULL, "Datastore \"%s\" is not supported or writable.", leaf->value_str);
+        sr_set_error(session, NULL, "Datastore \"%s\" is not supported or writable.", leaf->value.canonical);
         goto cleanup;
     }
 
     /* default-operation */
-    nodeset = lyd_find_path(input, "default-operation");
-    leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
-    ly_set_free(nodeset);
-    defop = leaf->value_str;
+    lyd_find_path(input, "default-operation", 0, (struct lyd_node **)&leaf);
+    defop = leaf->value.canonical;
 
     /* config */
-    nodeset = lyd_find_path(input, "config | url");
-    node = nodeset->set.d[0];
-    ly_set_free(nodeset);
+    lyd_find_xpath(input, "config | url", &nodeset);
+    node = nodeset->dnodes[0];
+    ly_set_free(nodeset, NULL);
     if (!strcmp(node->schema->name, "config")) {
-        config = op_parse_config((struct lyd_node_anydata *)node, LYD_OPT_EDIT | LYD_OPT_STRICT, &rc, session);
+        config = op_parse_config((struct lyd_node_any *)node, LYD_PARSE_OPAQ | LYD_PARSE_ONLY, &rc, session);
         if (rc) {
             goto cleanup;
         }
     } else {
         assert(!strcmp(node->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        config = op_parse_url(((struct lyd_node_leaf_list *)node)->value_str, LYD_OPT_EDIT | LYD_OPT_STRICT, &rc, session);
+        config = op_parse_url(LYD_CANON_VALUE(node), LYD_PARSE_OPAQ | LYD_PARSE_ONLY, &rc, session);
         if (rc) {
             goto cleanup;
         }
@@ -355,6 +341,6 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
     /* success */
 
 cleanup:
-    lyd_free_withsiblings(config);
+    lyd_free_siblings(config);
     return rc;
 }

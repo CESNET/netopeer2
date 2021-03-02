@@ -71,7 +71,7 @@ np2srv_hostkey_cb(const char *name, void *UNUSED(user_data), char **UNUSED(privk
     rc = 0;
 
 cleanup:
-    lyd_free_withsiblings(data);
+    lyd_free_siblings(data);
     sr_session_stop(sr_sess);
     return rc;
 }
@@ -194,7 +194,7 @@ np2srv_endpt_ssh_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), 
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
         /* get name */
-        endpt_name = ((struct lyd_node_leaf_list *)node->parent->child)->value_str;
+        endpt_name = LYD_CANON_VALUE(node->parent->child);
 
         /* ignore other operations */
         if (op == SR_OP_CREATED) {
@@ -239,17 +239,17 @@ np2srv_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, const char *UNUSED(module
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
         /* find name */
-        endpt_name = ((struct lyd_node_leaf_list *)node->parent->parent->parent->parent->parent->parent->child)->value_str;
+        endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->child);
 
         /* ignore other operations */
         if (op == SR_OP_CREATED) {
-            rc = nc_server_ssh_endpt_add_hostkey(endpt_name, ((struct lyd_node_leaf_list *)node)->value_str, -1);
+            rc = nc_server_ssh_endpt_add_hostkey(endpt_name, LYD_CANON_VALUE(node), -1);
         } else if (op == SR_OP_DELETED) {
             if (nc_server_is_endpt(endpt_name)) {
-                rc = nc_server_ssh_endpt_del_hostkey(endpt_name, ((struct lyd_node_leaf_list *)node)->value_str, -1);
+                rc = nc_server_ssh_endpt_del_hostkey(endpt_name, LYD_CANON_VALUE(node), -1);
             }
         } else if (op == SR_OP_MOVED) {
-            rc = nc_server_ssh_endpt_mov_hostkey(endpt_name, ((struct lyd_node_leaf_list *)node)->value_str, prev_val);
+            rc = nc_server_ssh_endpt_mov_hostkey(endpt_name, LYD_CANON_VALUE(node), prev_val);
         }
         if (rc) {
             sr_free_change_iter(iter);
@@ -268,7 +268,6 @@ np2srv_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, const char *UNUSED(module
 static int
 np2srv_ssh_update_auth_method(const struct lyd_node *node, sr_change_oper_t op, int cur_auth)
 {
-    struct lyd_node_leaf_list *leaf;
     int auth;
 
     auth = cur_auth;
@@ -288,15 +287,14 @@ np2srv_ssh_update_auth_method(const struct lyd_node *node, sr_change_oper_t op, 
     } else if (!strcmp(node->schema->name, "hostbased") || !strcmp(node->schema->name, "none")) {
         WRN("SSH authentication \"%s\" not supported.", node->schema->name);
     } else if (!strcmp(node->schema->name, "other")) {
-        leaf = (struct lyd_node_leaf_list *)node;
-        if (!strcmp(leaf->value_str, "interactive")) {
+        if (!strcmp(LYD_CANON_VALUE(node), "interactive")) {
             if (op == SR_OP_CREATED) {
                 auth |= NC_SSH_AUTH_INTERACTIVE;
             } else if (op == SR_OP_DELETED) {
                 auth &= ~NC_SSH_AUTH_INTERACTIVE;
             }
         } else {
-            WRN("SSH authentication \"%s\" not supported.", leaf->value_str);
+            WRN("SSH authentication \"%s\" not supported.", LYD_CANON_VALUE(node));
         }
     }
 
@@ -330,7 +328,7 @@ np2srv_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, const char *UNUSED(m
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
         /* find name */
-        endpt_name = ((struct lyd_node_leaf_list *)node->parent->parent->parent->parent->parent->child)->value_str;
+        endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->child);
 
         if ((op == SR_OP_DELETED) && !nc_server_is_endpt(endpt_name)) {
             /* endpt deleted */
@@ -364,14 +362,13 @@ np2srv_user_add_auth_key(const char *alg, size_t alg_len, const char *key, size_
     char name[7], *str;
     struct lyd_node *authkey;
 
-    authkey = lyd_new(user, NULL, "authorized-key");
-    if (!authkey) {
+    if (lyd_new_inner(user, NULL, "authorized-key", 0, &authkey)) {
         return -1;
     }
 
     /* name */
     sprintf(name, "key%d", (*key_idx)++);
-    if (!lyd_new_leaf(authkey, NULL, "name", name)) {
+    if (lyd_new_term(authkey, NULL, "name", name, 0, NULL)) {
         return -1;
     }
 
@@ -381,7 +378,7 @@ np2srv_user_add_auth_key(const char *alg, size_t alg_len, const char *key, size_
         EMEM;
         return -1;
     }
-    lyd_new_leaf(authkey, NULL, "algorithm", str);
+    lyd_new_term(authkey, NULL, "algorithm", str, 0, NULL);
     free(str);
 
     /* key-data */
@@ -390,7 +387,7 @@ np2srv_user_add_auth_key(const char *alg, size_t alg_len, const char *key, size_
         EMEM;
         return -1;
     }
-    lyd_new_leaf(authkey, NULL, "key-data", str);
+    lyd_new_term(authkey, NULL, "key-data", str, 0, NULL);
     free(str);
 
     return 0;
@@ -412,27 +409,25 @@ np2srv_endpt_ssh_auth_users_oper_cb(sr_session_ctx_t *UNUSED(session), const cha
     int rc = SR_ERR_INTERNAL;
     uint8_t key_idx;
 
-    users = lyd_new(*parent, NULL, "users");
-    if (!users) {
+    if (lyd_new_inner(*parent, NULL, "users", 0, &users)) {
         return SR_ERR_INTERNAL;
     }
 
     while ((pwd = getpwent())) {
         /* create user with name */
-        user = lyd_new(users, NULL, "user");
-        if (!user) {
+        if (lyd_new_list(users, NULL, "user", 0, &user, pwd->pw_name)) {
             return SR_ERR_INTERNAL;
         }
-        lyd_new_leaf(user, NULL, "name", pwd->pw_name);
 
         /* check any authorized keys */
-        if (asprintf(&path, NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN, NP2SRV_SSH_AUTHORIZED_KEYS_ARG_IS_USERNAME ? pwd->pw_name : pwd->pw_dir) == -1) {
+        if (asprintf(&path, NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN, NP2SRV_SSH_AUTHORIZED_KEYS_ARG_IS_USERNAME ?
+                pwd->pw_name : pwd->pw_dir) == -1) {
             EMEM;
             goto cleanup;
         }
         f = fopen(path, "r");
         if (!f) {
-            if (errno != ENOENT && errno != ENOTDIR && errno != EACCES) {
+            if ((errno != ENOENT) && (errno != ENOTDIR) && (errno != EACCES)) {
                 ERR("Opening \"%s\" authorized key file failed (%s).", path, strerror(errno));
                 free(path);
                 goto cleanup;
@@ -527,8 +522,8 @@ np2srv_ch_client_endpt_ssh_cb(sr_session_ctx_t *session, const char *UNUSED(modu
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
         /* get names */
-        endpt_name = ((struct lyd_node_leaf_list *)node->parent->child)->value_str;
-        client_name = ((struct lyd_node_leaf_list *)node->parent->parent->parent->child)->value_str;
+        endpt_name = LYD_CANON_VALUE(node->parent->child);
+        client_name = LYD_CANON_VALUE(node->parent->parent->parent->child);
 
         /* ignore other operations */
         if (op == SR_OP_CREATED) {
@@ -573,21 +568,18 @@ np2srv_ch_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, const char *UNUSED(mod
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
         /* find name */
-        endpt_name = ((struct lyd_node_leaf_list *)node->parent->parent->parent->parent->parent->parent->child)->value_str;
-        client_name = ((struct lyd_node_leaf_list *)node->parent->parent->parent->parent->parent->parent->parent->parent->child)->value_str;
+        endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->child);
+        client_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->parent->parent->child);
 
         /* ignore other operations */
         if (op == SR_OP_CREATED) {
-            rc = nc_server_ssh_ch_client_endpt_add_hostkey(client_name, endpt_name,
-                    ((struct lyd_node_leaf_list *)node)->value_str, -1);
+            rc = nc_server_ssh_ch_client_endpt_add_hostkey(client_name, endpt_name, LYD_CANON_VALUE(node), -1);
         } else if (op == SR_OP_DELETED) {
             if (nc_server_ch_client_is_endpt(client_name, endpt_name)) {
-                rc = nc_server_ssh_ch_client_endpt_del_hostkey(client_name, endpt_name,
-                        ((struct lyd_node_leaf_list *)node)->value_str, -1);
+                rc = nc_server_ssh_ch_client_endpt_del_hostkey(client_name, endpt_name, LYD_CANON_VALUE(node), -1);
             }
         } else if (op == SR_OP_MOVED) {
-            rc = nc_server_ssh_ch_client_endpt_mov_hostkey(client_name, endpt_name,
-                    ((struct lyd_node_leaf_list *)node)->value_str, prev_val);
+            rc = nc_server_ssh_ch_client_endpt_mov_hostkey(client_name, endpt_name, LYD_CANON_VALUE(node), prev_val);
         }
         if (rc) {
             sr_free_change_iter(iter);
@@ -630,8 +622,8 @@ np2srv_ch_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, const char *UNUSE
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
         /* find names */
-        endpt_name = ((struct lyd_node_leaf_list *)node->parent->parent->parent->parent->parent->child)->value_str;
-        client_name = ((struct lyd_node_leaf_list *)node->parent->parent->parent->parent->parent->parent->parent->child)->value_str;
+        endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->child);
+        client_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->parent->child);
 
         if ((op == SR_OP_DELETED) && !nc_server_ch_client_is_endpt(client_name, endpt_name)) {
             continue;

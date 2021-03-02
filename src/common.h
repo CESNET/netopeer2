@@ -62,13 +62,13 @@ int np2srv_url_setcap(void);
 
 #ifdef NP2SRV_URL_CAPAB
 
-struct lyd_node *op_parse_url(const char *url, int options, int *rc, sr_session_ctx_t *sr_sess);
+struct lyd_node *op_parse_url(const char *url, uint32_t parse_options, int *rc, sr_session_ctx_t *sr_sess);
 
 int op_export_url(const char *url, struct lyd_node *data, int options, int *rc, sr_session_ctx_t *sr_sess);
 
 #endif
 
-struct lyd_node *op_parse_config(struct lyd_node_anydata *config, int options, int *rc, sr_session_ctx_t *sr_sess);
+struct lyd_node *op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr_session_ctx_t *sr_sess);
 
 struct np2_filter {
     struct {
@@ -80,7 +80,7 @@ struct np2_filter {
 
 void op_filter_erase(struct np2_filter *filter);
 
-int op_filter_create(struct lyd_node *filter_node, struct np2_filter *filter);
+int op_filter_create(const struct lyd_node *filter_node, struct np2_filter *filter);
 
 /**
  * @brief Get all data matching the selection filters.

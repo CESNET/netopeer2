@@ -90,7 +90,6 @@ static struct lyd_node *
 np2srv_ntf_get_data(sr_conn_ctx_t *sr_conn)
 {
     struct lyd_node *root, *stream, *sr_data = NULL, *sr_mod, *rep_sup;
-    struct ly_set *set;
     const struct ly_ctx *ly_ctx;
     const char *mod_name;
     char buf[26];
@@ -98,22 +97,20 @@ np2srv_ntf_get_data(sr_conn_ctx_t *sr_conn)
 
     ly_ctx = sr_get_context(sr_conn);
 
-    root = lyd_new_path(NULL, ly_ctx, "/nc-notifications:netconf/streams", NULL, 0, 0);
-    if (!root || !root->child) {
+    if (lyd_new_path(NULL, ly_ctx, "/nc-notifications:netconf/streams", NULL, 0, &root)) {
         goto error;
     }
 
     /* generic stream */
-    stream = lyd_new_path(root, ly_ctx, "/nc-notifications:netconf/streams/stream[name='NETCONF']", NULL, 0, 0);
-    if (!stream) {
+    if (lyd_new_path(root, NULL, "/nc-notifications:netconf/streams/stream[name='NETCONF']", NULL, 0, &stream)) {
         goto error;
     }
-    if (!lyd_new_leaf(stream, stream->schema->module, "description",
+    if (lyd_new_term(stream, stream->schema->module, "description",
             "Default NETCONF stream containing notifications from all the modules."
-            " Replays only notifications for modules that support replay.")) {
+            " Replays only notifications for modules that support replay.", 0, NULL)) {
         goto error;
     }
-    if (!lyd_new_leaf(stream, stream->schema->module, "replaySupport", "true")) {
+    if (lyd_new_term(stream, stream->schema->module, "replaySupport", "true", 0, NULL)) {
         goto error;
     }
 
@@ -123,50 +120,35 @@ np2srv_ntf_get_data(sr_conn_ctx_t *sr_conn)
         ERR("Failed to get sysrepo module info data (%s).", sr_strerror(rc));
         goto error;
     }
-    LY_TREE_FOR(sr_data->child, sr_mod) {
-        mod_name = ((struct lyd_node_leaf_list *)sr_mod->child)->value_str;
+    LY_LIST_FOR(lyd_child(sr_data), sr_mod) {
+        mod_name = LYD_CANON_VALUE(lyd_child(sr_mod));
 
         /* generate information about the stream/module */
-        stream = lyd_new(root->child, NULL, "stream");
-        if (!stream) {
+        if (lyd_new_list(lyd_child(root), NULL, "stream", 0, &stream, mod_name)) {
             goto error;
         }
-        if (!lyd_new_leaf(stream, NULL, "name", mod_name)) {
-            goto error;
-        }
-        if (!lyd_new_leaf(stream, NULL, "description", "Stream with all notifications of a module.")) {
+        if (lyd_new_term(stream, NULL, "description", "Stream with all notifications of a module.", 0, NULL)) {
             goto error;
         }
 
-        set = lyd_find_path(sr_mod, "replay-support");
-        if (!set) {
-            EINT;
-            goto error;
-        }
-        if (set->number == 1) {
-            rep_sup = set->set.d[0];
-        } else {
-            rep_sup = NULL;
-        }
-        ly_set_free(set);
-
-        if (!lyd_new_leaf(stream, NULL, "replaySupport", rep_sup ? "true" : "false")) {
+        lyd_find_path(sr_mod, "replay-support", 0, &rep_sup);
+        if (lyd_new_term(stream, NULL, "replaySupport", rep_sup ? "true" : "false", 0, NULL)) {
             goto error;
         }
         if (rep_sup) {
-            nc_time2datetime(((struct lyd_node_leaf_list *)rep_sup)->value.uint64, NULL, buf);
-            if (!lyd_new_leaf(stream, NULL, "replayLogCreationTime", buf)) {
+            nc_time2datetime(((struct lyd_node_term *)rep_sup)->value.uint64, NULL, buf);
+            if (lyd_new_term(stream, NULL, "replayLogCreationTime", buf, 0, NULL)) {
                 goto error;
             }
         }
     }
 
-    lyd_free_withsiblings(sr_data);
+    lyd_free_siblings(sr_data);
     return root;
 
 error:
-    lyd_free(root);
-    lyd_free_withsiblings(sr_data);
+    lyd_free_tree(root);
+    lyd_free_siblings(sr_data);
     return NULL;
 }
 
@@ -190,12 +172,11 @@ np2srv_state_data_cb(sr_session_ctx_t *UNUSED(session), const char *module_name,
     }
 
     /* find the requested top-level subtree */
-    set = lyd_find_path(data, path);
-    if (!set || !set->number) {
+    if (lyd_find_xpath(data, path, &set) || !set->count) {
         ret = SR_ERR_OPERATION_FAILED;
         goto cleanup;
     }
-    node = set->set.d[0];
+    node = set->dnodes[0];
 
     if (node->parent || *parent) {
         EINT;
@@ -207,14 +188,14 @@ np2srv_state_data_cb(sr_session_ctx_t *UNUSED(session), const char *module_name,
     if (node == data) {
         data = data->next;
     }
-    lyd_unlink(node);
+    lyd_unlink_tree(node);
     *parent = node;
 
     /* success */
 
 cleanup:
-    ly_set_free(set);
-    lyd_free_withsiblings(data);
+    ly_set_free(set, NULL);
+    lyd_free_siblings(data);
     return ret;
 }
 
@@ -247,7 +228,7 @@ np2srv_del_session_cb(struct nc_session *session)
     sr_session_stop(sr_sess);
     ncm_session_del(session);
 
-    if ((mod = ly_ctx_get_module(sr_get_context(np2srv.sr_conn), "ietf-netconf-notifications", NULL, 1))) {
+    if ((mod = ly_ctx_get_module_implemented(sr_get_context(np2srv.sr_conn), "ietf-netconf-notifications"))) {
         /* generate ietf-netconf-notification's netconf-session-end event for sysrepo */
         if (nc_session_get_ti(session) != NC_TI_UNIX) {
             host = (char *)nc_session_get_host(session);
@@ -257,7 +238,7 @@ np2srv_del_session_cb(struct nc_session *session)
 
         event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/username";
         event_data[i].type = SR_STRING_T;
-        event_data[i++].data.string_val = (char*)nc_session_get_username(session);
+        event_data[i++].data.string_val = (char *)nc_session_get_username(session);
         event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/session-id";
         event_data[i].type = SR_UINT32_T;
         event_data[i++].data.uint32_val = nc_session_get_id(session);
@@ -302,10 +283,10 @@ np2srv_del_session_cb(struct nc_session *session)
     nc_session_free(session, NULL);
 }
 
-static struct nc_server_error *
+static struct lyd_node *
 np2srv_err_sr(int err_code, const char *message, const char *xpath)
 {
-    struct nc_server_error *e;
+    struct lyd_node *e;
     const char *ptr;
 
     switch (err_code) {
@@ -317,12 +298,12 @@ err_lock_denied:
             return NULL;
         }
         ptr += 7;
-        e = nc_err(NC_ERR_LOCK_DENIED, atoi(ptr));
+        e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_LOCK_DENIED, atoi(ptr));
         nc_err_set_msg(e, message, "en");
         break;
     case SR_ERR_UNAUTHORIZED:
 err_access_denied:
-        e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
+        e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
         nc_err_set_msg(e, message, "en");
         if (xpath) {
             nc_err_set_path(e, xpath);
@@ -334,7 +315,7 @@ err_access_denied:
                 EINT;
                 return NULL;
             }
-            e = nc_err(NC_ERR_UNKNOWN_ELEM, NC_ERR_TYPE_APP, xpath);
+            e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_UNKNOWN_ELEM, NC_ERR_TYPE_APP, xpath);
             nc_err_set_msg(e, message, "en");
             break;
         }
@@ -349,7 +330,7 @@ err_access_denied:
             goto err_lock_denied;
         } else if (strstr(message, "is locked by session")) {
             // in-use
-            e = nc_err(NC_ERR_IN_USE, NC_ERR_TYPE_PROT);
+            e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_IN_USE, NC_ERR_TYPE_PROT);
             nc_err_set_msg(e, message, "en");
             if (xpath) {
                 nc_err_set_path(e, xpath);
@@ -357,22 +338,22 @@ err_access_denied:
             break;
         } else if (strstr(message, "already exists")) {
             // data-exists
-            e = nc_err(NC_ERR_DATA_EXISTS);
+            e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_DATA_EXISTS);
             nc_err_set_msg(e, message, "en");
             if (xpath) {
                 nc_err_set_path(e, xpath);
             }
             break;
         } else if (strstr(message, "Source and target")) {
-            e = nc_err(NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
+            e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
             nc_err_set_msg(e, message, "en");
             break;
         } else if (strstr(message, "already subscribed")) {
-            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_PROT);
+            e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_OP_FAILED, NC_ERR_TYPE_PROT);
             nc_err_set_msg(e, message, "en");
             break;
         }
-        e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
         nc_err_set_msg(e, message, "en");
         if (xpath) {
             nc_err_set_path(e, xpath);
@@ -387,7 +368,7 @@ static struct nc_server_reply *
 np2srv_err_reply_sr(const sr_error_info_t *err_info)
 {
     struct nc_server_reply *reply = NULL;
-    struct nc_server_error *e;
+    struct lyd_node *e;
     size_t i;
 
     for (i = 0; i < err_info->err_count; ++i) {
@@ -413,22 +394,21 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
 {
     sr_session_ctx_t *sr_sess = NULL;
     const struct lyd_node *node;
-    struct lyd_node_leaf_list *leaf;
+    struct lyd_node_term *leaf;
     const sr_error_info_t *err_info;
     struct nc_server_reply *reply = NULL;
     struct lyd_node *output, *child = NULL;
     NC_WD_MODE nc_wd;
-    struct ly_set *nodeset;
-    struct nc_server_error *e;
+    struct lyd_node *e;
     char *str;
     int rc;
 
     /* check NACM */
     if ((node = ncac_check_operation(rpc, nc_session_get_username(ncs)))) {
-        e = nc_err(NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_APP);
+        e = nc_err(LYD_CTX(rpc), NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_APP);
 
         /* set path */
-        str = lys_data_path(node->schema);
+        str = lysc_path(node->schema, LYSC_PATH_LOG, NULL, 0);
         nc_err_set_path(e, str);
         free(str);
 
@@ -453,28 +433,27 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
 
     /* build RPC Reply */
     if (output) {
-        LY_TREE_FOR(output->child, child) {
-            if (!child->dflt) {
+        LY_LIST_FOR(lyd_child(output), child) {
+            if (!(child->flags & LYD_DEFAULT)) {
                 break;
             }
         }
     }
     if (child) {
         /* get with-defaults mode */
-        if (!strcmp(lyd_node_module(rpc)->name, "ietf-netconf")) {
+        if (!strcmp(rpc->schema->module->name, "ietf-netconf")) {
             /* augment */
-            nodeset = lyd_find_path(rpc, "ietf-netconf-with-defaults:with-defaults");
+            lyd_find_path(rpc, "ietf-netconf-with-defaults:with-defaults", 0, (struct lyd_node **)&leaf);
         } else {
             /* grouping */
-            nodeset = lyd_find_path(rpc, "with-defaults");
+            lyd_find_path(rpc, "with-defaults", 0, (struct lyd_node **)&leaf);
         }
-        if (nodeset->number) {
-            leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
-            if (!strcmp(leaf->value_str, "report-all")) {
+        if (leaf) {
+            if (!strcmp(leaf->value.canonical, "report-all")) {
                 nc_wd = NC_WD_ALL;
-            } else if (!strcmp(leaf->value_str, "report-all-tagged")) {
+            } else if (!strcmp(leaf->value.canonical, "report-all-tagged")) {
                 nc_wd = NC_WD_ALL_TAG;
-            } else if (!strcmp(leaf->value_str, "trim")) {
+            } else if (!strcmp(leaf->value.canonical, "trim")) {
                 nc_wd = NC_WD_TRIM;
             } else {
                 nc_wd = NC_WD_EXPLICIT;
@@ -482,11 +461,10 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         } else {
             nc_server_get_capab_withdefaults(&nc_wd, NULL);
         }
-        ly_set_free(nodeset);
 
         reply = nc_server_reply_data(output, nc_wd, NC_PARAMTYPE_FREE);
     } else {
-        lyd_free_withsiblings(output);
+        lyd_free_siblings(output);
         reply = nc_server_reply_ok();
     }
 
@@ -496,7 +474,7 @@ cleanup:
             sr_get_error(sr_sess, &err_info);
             reply = np2srv_err_reply_sr(err_info);
         } else {
-            e = nc_err(NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            e = nc_err(LYD_CTX(rpc), NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
             reply = nc_server_reply_err(e);
         }
     }
@@ -523,9 +501,9 @@ np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
 
     if ((node = ncac_check_diff(diff, user))) {
         /* access denied */
-        path = lys_data_path(node->schema);
+        path = lysc_path(node->schema, LYSC_PATH_LOG, NULL, 0);
         sr_set_error(session, path, "Access to the data model \"%s\" is denied because \"%s\" NACM authorization failed.",
-                lyd_node_module(node)->name, user);
+                node->schema->module->name, user);
         free(path);
         return SR_ERR_UNAUTHORIZED;
     }
@@ -540,113 +518,62 @@ np2srv_check_schemas(sr_session_ctx_t *sr_sess)
     const struct lys_module *mod;
     const struct ly_ctx *ly_ctx;
 
+#define NP2_CHECK_MODULE(name) \
+    mod = ly_ctx_get_module_implemented(ly_ctx, name); \
+    if (!mod) { \
+        ERR("Module \"%s\" not implemented in sysrepo.", name); \
+        return -1; \
+    }
+
+#define NP2_CHECK_FEATURE(name) \
+    if (lys_feature_value(mod, name) != LY_SUCCESS) { \
+        ERR("Module \"%s\" feature \"%s\" not enabled in sysrepo.", mod_name, name); \
+        return -1; \
+    }
+
     ly_ctx = sr_get_context(sr_session_get_connection(sr_sess));
 
     /* check that internally used schemas are implemented and with required features: ietf-netconf, ... */
     mod_name = "ietf-netconf";
-    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
-    if (!mod || !mod->implemented) {
-        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
-        return -1;
-    }
-
-    if (lys_features_state(mod, "writable-running") != 1) {
-        ERR("Module \"%s\" feature \"writable-running\" not enabled in sysrepo.", mod_name);
-        return -1;
-    }
-    if (lys_features_state(mod, "candidate") != 1) {
-        ERR("Module \"%s\" feature \"candidate\" not enabled in sysrepo.", mod_name);
-        return -1;
-    }
-    if (lys_features_state(mod, "rollback-on-error") != 1) {
-        ERR("Module \"%s\" feature \"rollback-on-error\" not enabled in sysrepo.", mod_name);
-        return -1;
-    }
-    if (lys_features_state(mod, "validate") != 1) {
-        ERR("Module \"%s\" feature \"validate\" not enabled in sysrepo.", mod_name);
-        return -1;
-    }
-    if (lys_features_state(mod, "startup") != 1) {
-        ERR("Module \"%s\" feature \"startup\" not enabled in sysrepo.", mod_name);
-        return -1;
-    }
+    NP2_CHECK_MODULE(mod_name);
+    NP2_CHECK_FEATURE("writable-running");
+    NP2_CHECK_FEATURE("candidate");
+    NP2_CHECK_FEATURE("rollback-on-error");
+    NP2_CHECK_FEATURE("validate");
+    NP2_CHECK_FEATURE("startup");
 #ifdef NP2SRV_URL_CAPAB
-    if (lys_features_state(mod, "url") != 1) {
-        ERR("Module \"%s\" feature \"url\" not enabled in sysrepo.", mod_name);
-        return -1;
-    }
+    NP2_CHECK_FEATURE("url");
 #endif
-    if (lys_features_state(mod, "xpath") != 1) {
-        ERR("Module \"%s\" feature \"xpath\" not enabled in sysrepo.", mod_name);
-        return -1;
-    }
+    NP2_CHECK_FEATURE("xpath");
 
     /* ... ietf-netconf-acm, */
     mod_name = "ietf-netconf-acm";
-    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
-    if (!mod || !mod->implemented) {
-        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
-        return -1;
-    }
+    NP2_CHECK_MODULE(mod_name);
 
     /* ... ietf-netconf-monitoring (leave get-schema RPC empty, libnetconf2 will use its callback), */
     mod_name = "ietf-netconf-monitoring";
-    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
-    if (!mod || !mod->implemented) {
-        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
-        return -1;
-    }
+    NP2_CHECK_MODULE(mod_name);
 
     /* ... ietf-netconf-with-defaults, */
     mod_name = "ietf-netconf-with-defaults";
-    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
-    if (!mod || !mod->implemented) {
-        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
-        return -1;
-    }
+    NP2_CHECK_MODULE(mod_name);
 
     /* ... ietf-netconf-notifications (must be implemented in sysrepo), */
     mod_name = "ietf-netconf-notifications";
-    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
-    if (!mod || !mod->implemented) {
-        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
-        return -1;
-    }
+    NP2_CHECK_MODULE(mod_name);
     mod_name = "nc-notifications";
-    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
-    if (!mod || !mod->implemented) {
-        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
-        return -1;
-    }
+    NP2_CHECK_MODULE(mod_name);
     mod_name = "notifications";
-    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
-    if (!mod || !mod->implemented) {
-        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
-        return -1;
-    }
+    NP2_CHECK_MODULE(mod_name);
 
     mod_name = "ietf-yang-library";
-    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
-    if (!mod || !mod->implemented) {
-        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
-        return -1;
-    }
+    NP2_CHECK_MODULE(mod_name);
 
     /* .. ietf-netconf-server */
     mod_name = "ietf-netconf-server";
-    mod = ly_ctx_get_module(ly_ctx, mod_name, NULL, 1);
-    if (!mod || !mod->implemented) {
-        ERR("Module \"%s\" not implemented in sysrepo.", mod_name);
-        return -1;
-    }
-    if (lys_features_state(mod, "ssh-listen") != 1) {
-        ERR("Module \"%s\" feature \"ssh-listen\" not enabled in sysrepo.", mod_name);
-        return -1;
-    }
-    if (lys_features_state(mod, "ssh-call-home") != 1) {
-        ERR("Module \"%s\" feature \"ssh-call-home\" not enabled in sysrepo.", mod_name);
-        return -1;
-    }
+    NP2_CHECK_MODULE(mod_name);
+    NP2_CHECK_FEATURE("ssh-listen");
+    NP2_CHECK_FEATURE("ssh-call-home");
 
     return 0;
 }
@@ -1196,14 +1123,8 @@ main(int argc, char *argv[])
             do {
                 if (!strcmp(ptr, "DICT")) {
                     verb |= LY_LDGDICT;
-                } else if (!strcmp(ptr, "YANG")) {
-                    verb |= LY_LDGYANG;
-                } else if (!strcmp(ptr, "YIN")) {
-                    verb |= LY_LDGYIN;
                 } else if (!strcmp(ptr, "XPATH")) {
                     verb |= LY_LDGXPATH;
-                } else if (!strcmp(ptr, "DIFF")) {
-                    verb |= LY_LDGDIFF;
                 } else if (!strcmp(ptr, "MSG")) {
                     /* NETCONF messages - only lnc2 debug verbosity */
                     np2_verbose_level = NC_VERB_DEBUG;
@@ -1227,8 +1148,8 @@ main(int argc, char *argv[])
             nc_libssh_thread_verbosity(np2_libssh_verbose_level);
 # endif
             if (verb) {
-                ly_verb(LY_LLDBG);
-                ly_verb_dbg(verb);
+                ly_log_level(LY_LLDBG);
+                ly_log_dbg_groups(verb);
             }
 
             verb = 1;

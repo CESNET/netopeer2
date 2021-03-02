@@ -66,7 +66,7 @@ char some_msg[4096];
 COMMAND commands[];
 extern int done;
 LYD_FORMAT output_format = LYD_XML;
-int output_flag = LYP_FORMAT;
+uint32_t output_flag;
 char *config_editor;
 struct nc_session *session;
 volatile int interleave;
@@ -200,7 +200,7 @@ addargs(struct arglist *args, char *format, ...)
 }
 
 static void
-cli_ntf_clb(struct nc_session *session, const struct nc_notif *notif)
+cli_ntf_clb(struct nc_session *session, const struct lyd_node *envp, const struct lyd_node *op)
 {
     FILE *output = nc_session_get_data(session);
     int was_rawmode = 0;
@@ -215,8 +215,8 @@ cli_ntf_clb(struct nc_session *session, const struct nc_notif *notif)
         }
     }
 
-    fprintf(output, "notification (%s)\n", notif->datetime);
-    lyd_print_file(output, notif->tree, output_format, LYP_WITHSIBLINGS | output_flag);
+    fprintf(output, "notification (%s)\n", ((struct lyd_node_opaq *)lyd_child(envp))->value);
+    lyd_print_file(output, op, output_format, LYD_PRINT_WITHSIBLINGS | output_flag);
     fprintf(output, "\n");
     fflush(output);
 
@@ -225,8 +225,7 @@ cli_ntf_clb(struct nc_session *session, const struct nc_notif *notif)
         linenoiseRefreshLine();
     }
 
-    if (!strcmp(notif->tree->schema->name, "notificationComplete")
-            && !strcmp(notif->tree->schema->module->name, "nc-notifications")) {
+    if (!strcmp(op->schema->name, "notificationComplete") && !strcmp(op->schema->module->name, "nc-notifications")) {
         interleave = 1;
     }
 }
@@ -276,16 +275,14 @@ cli_difftimespec(const struct timespec *ts1, const struct timespec *ts2)
 static int
 cli_send_recv(struct nc_rpc *rpc, FILE *output, NC_WD_MODE wd_mode, int timeout_s)
 {
-    char *str, *model_data;
-    int ret = 0, ly_wd, mono;
+    char *model_data;
+    int ret = 0, mono;
     int32_t msec;
-    uint16_t i, j;
+    uint32_t ly_wd;
     uint64_t msgid;
-    struct lyd_node_anydata *any;
+    struct lyd_node *envp, *op, *err, *node, *info;
+    struct lyd_node_any *any;
     NC_MSG_TYPE msgtype;
-    struct nc_reply *reply;
-    struct nc_reply_data *data_rpl;
-    struct nc_reply_error *error;
     struct timespec ts_start, ts_stop;
 
     if (timed) {
@@ -309,8 +306,7 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output, NC_WD_MODE wd_mode, int timeout_
     }
 
 recv_reply:
-    msgtype = nc_recv_reply(session, rpc, msgid, timeout_s * 1000,
-                            LYD_OPT_DESTRUCT | LYD_OPT_NOSIBLINGS, &reply);
+    msgtype = nc_recv_reply(session, rpc, msgid, timeout_s * 1000, &envp, &op);
     if (msgtype == NC_MSG_ERROR) {
         ERROR(__func__, "Failed to receive a reply.");
         if (nc_session_get_status(session) != NC_STATUS_RUNNING) {
@@ -326,7 +322,8 @@ recv_reply:
     } else if (msgtype == NC_MSG_REPLY_ERR_MSGID) {
         /* unexpected message, try reading again to get the correct reply */
         ERROR(__func__, "Unexpected reply received - ignoring and waiting for the correct reply.");
-        nc_reply_free(reply);
+        lyd_free_tree(envp);
+        lyd_free_tree(op);
         goto recv_reply;
     }
 
@@ -334,43 +331,30 @@ recv_reply:
         ret = cli_gettimespec(&ts_stop, &mono);
         if (ret) {
             ERROR(__func__, "Getting current time failed (%s).", strerror(errno));
-            nc_reply_free(reply);
-            return ret;
+            goto cleanup;
         }
     }
 
-    switch (reply->type) {
-    case NC_RPL_OK:
-        fprintf(output, "OK\n");
-        break;
-    case NC_RPL_DATA:
-        data_rpl = (struct nc_reply_data *)reply;
-
-        /* special case */
+    if (op) {
+        /* data reply */
         if (nc_rpc_get_type(rpc) == NC_RPC_GETSCHEMA) {
-            if (!data_rpl->data || (data_rpl->data->schema->nodetype != LYS_RPC) ||
-                (data_rpl->data->child == NULL) ||
-                (data_rpl->data->child->schema->nodetype != LYS_ANYXML)) {
+            /* special case */
+            if (!lyd_child(op) || (lyd_child(op)->schema->nodetype != LYS_ANYXML)) {
                 ERROR(__func__, "Unexpected data reply to <get-schema> RPC.");
                 ret = -1;
-                break;
+                goto cleanup;
             }
             if (output == stdout) {
                 fprintf(output, "MODULE\n");
             }
-            any = (struct lyd_node_anydata *)data_rpl->data->child;
+            any = (struct lyd_node_any *)lyd_child(op);
             switch (any->value_type) {
-            case LYD_ANYDATA_CONSTSTRING:
             case LYD_ANYDATA_STRING:
+            case LYD_ANYDATA_XML:
                 fputs(any->value.str, output);
                 break;
             case LYD_ANYDATA_DATATREE:
-                lyd_print_mem(&model_data, any->value.tree, LYD_XML, LYP_FORMAT | LYP_WITHSIBLINGS);
-                fputs(model_data, output);
-                free(model_data);
-                break;
-            case LYD_ANYDATA_XML:
-                lyxml_print_mem(&model_data, any->value.xml, LYXML_PRINT_SIBLINGS);
+                lyd_print_mem(&model_data, any->value.tree, LYD_XML, LYD_PRINT_WITHSIBLINGS);
                 fputs(model_data, output);
                 free(model_data);
                 break;
@@ -378,119 +362,88 @@ recv_reply:
                 /* none of the others can appear here */
                 ERROR(__func__, "Unexpected anydata value format.");
                 ret = -1;
-                break;
-            }
-            if (ret == -1) {
-                break;
+                goto cleanup;
             }
 
             if (output == stdout) {
                 fprintf(output, "\n");
             }
-            break;
-        }
-
-        if (output == stdout) {
-            fprintf(output, "DATA\n");
         } else {
-            switch (nc_rpc_get_type(rpc)) {
-            case NC_RPC_GETCONFIG:
-                fprintf(output, "<config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n");
+            /* generic data */
+            if (output == stdout) {
+                fprintf(output, "DATA\n");
+            }
+
+            switch (wd_mode) {
+            case NC_WD_ALL:
+                ly_wd = LYD_PRINT_WD_ALL;
                 break;
-            case NC_RPC_GET:
-                fprintf(output, "<data xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n");
+            case NC_WD_ALL_TAG:
+                ly_wd = LYD_PRINT_WD_ALL_TAG;
+                break;
+            case NC_WD_TRIM:
+                ly_wd = LYD_PRINT_WD_TRIM;
+                break;
+            case NC_WD_EXPLICIT:
+                ly_wd = LYD_PRINT_WD_EXPLICIT;
                 break;
             default:
+                ly_wd = 0;
                 break;
             }
-        }
 
-        switch (wd_mode) {
-        case NC_WD_ALL:
-            ly_wd = LYP_WD_ALL;
-            break;
-        case NC_WD_ALL_TAG:
-            ly_wd = LYP_WD_ALL_TAG;
-            break;
-        case NC_WD_TRIM:
-            ly_wd = LYP_WD_TRIM;
-            break;
-        case NC_WD_EXPLICIT:
-            ly_wd = LYP_WD_EXPLICIT;
-            break;
-        default:
-            ly_wd = 0;
-            break;
-        }
-
-        lyd_print_file(output, data_rpl->data, output_format, LYP_WITHSIBLINGS | LYP_NETCONF | ly_wd | output_flag);
-        if (output == stdout) {
-            fprintf(output, "\n");
-        } else {
-            switch (nc_rpc_get_type(rpc)) {
-            case NC_RPC_GETCONFIG:
-                fprintf(output, "</config>\n");
-                break;
-            case NC_RPC_GET:
-                fprintf(output, "</data>\n");
-                break;
-            default:
-                break;
+            lyd_print_file(output, lyd_child(op), output_format, LYD_PRINT_WITHSIBLINGS | ly_wd | output_flag);
+            if (output == stdout) {
+                fprintf(output, "\n");
             }
         }
-        break;
-    case NC_RPL_ERROR:
+    } else if (!strcmp(LYD_NAME(lyd_child(envp)), "ok")) {
+        /* ok reply */
+        fprintf(output, "OK\n");
+    } else {
+        assert(!strcmp(LYD_NAME(lyd_child(envp)), "rpc-error"));
+
         fprintf(output, "ERROR\n");
-        error = (struct nc_reply_error *)reply;
-        for (i = 0; i < error->count; ++i) {
-            if (error->err[i].type) {
-                fprintf(output, "\ttype:     %s\n", error->err[i].type);
+        LY_LIST_FOR(lyd_child(envp), err) {
+            lyd_find_sibling_opaq_next(lyd_child(err), "error-type", &node);
+            if (node) {
+                fprintf(output, "\ttype:     %s\n", ((struct lyd_node_opaq *)node)->value);
             }
-            if (error->err[i].tag) {
-                fprintf(output, "\ttag:      %s\n", error->err[i].tag);
+            lyd_find_sibling_opaq_next(lyd_child(err), "error-tag", &node);
+            if (node) {
+                fprintf(output, "\ttag:      %s\n", ((struct lyd_node_opaq *)node)->value);
             }
-            if (error->err[i].severity) {
-                fprintf(output, "\tseverity: %s\n", error->err[i].severity);
+            lyd_find_sibling_opaq_next(lyd_child(err), "error-severity", &node);
+            if (node) {
+                fprintf(output, "\tseverity: %s\n", ((struct lyd_node_opaq *)node)->value);
             }
-            if (error->err[i].apptag) {
-                fprintf(output, "\tapp-tag:  %s\n", error->err[i].apptag);
+            lyd_find_sibling_opaq_next(lyd_child(err), "error-app-tag", &node);
+            if (node) {
+                fprintf(output, "\tapp-tag:  %s\n", ((struct lyd_node_opaq *)node)->value);
             }
-            if (error->err[i].path) {
-                fprintf(output, "\tpath:     %s\n", error->err[i].path);
+            lyd_find_sibling_opaq_next(lyd_child(err), "error-path", &node);
+            if (node) {
+                fprintf(output, "\tpath:     %s\n", ((struct lyd_node_opaq *)node)->value);
             }
-            if (error->err[i].message) {
-                fprintf(output, "\tmessage:  %s\n", error->err[i].message);
+            lyd_find_sibling_opaq_next(lyd_child(err), "error-message", &node);
+            if (node) {
+                fprintf(output, "\tmessage:  %s\n", ((struct lyd_node_opaq *)node)->value);
             }
-            if (error->err[i].sid) {
-                fprintf(output, "\tSID:      %s\n", error->err[i].sid);
-            }
-            for (j = 0; j < error->err[i].attr_count; ++j) {
-                fprintf(output, "\tbad-attr #%d: %s\n", j + 1, error->err[i].attr[j]);
-            }
-            for (j = 0; j < error->err[i].elem_count; ++j) {
-                fprintf(output, "\tbad-elem #%d: %s\n", j + 1, error->err[i].elem[j]);
-            }
-            for (j = 0; j < error->err[i].ns_count; ++j) {
-                fprintf(output, "\tbad-ns #%d:   %s\n", j + 1, error->err[i].ns[j]);
-            }
-            for (j = 0; j < error->err[i].other_count; ++j) {
-                lyxml_print_mem(&str, error->err[i].other[j], 0);
-                fprintf(output, "\tother #%d:\n%s\n", j + 1, str);
-                free(str);
+
+            info = lyd_child(err);
+            while (!lyd_find_sibling_opaq_next(info, "error-info", &info)) {
+                fprintf(output, "\tinfo:\n");
+                lyd_print_file(stdout, lyd_child(info), LYD_XML, LYD_PRINT_WITHSIBLINGS);
             }
             fprintf(output, "\n");
         }
         ret = 1;
-        break;
-    default:
-        ERROR(__func__, "Internal error.");
-        nc_reply_free(reply);
-        return -1;
     }
-    nc_reply_free(reply);
 
     if (msgtype == NC_MSG_REPLY_ERR_MSGID) {
         ERROR(__func__, "Trying to receive another message...\n");
+        lyd_free_tree(envp);
+        lyd_free_tree(op);
         goto recv_reply;
     }
 
@@ -499,6 +452,9 @@ recv_reply:
         fprintf(output, "%s %2dm%d.%03ds\n", mono ? "mono" : "real", msec / 60000, (msec % 60000) / 1000, msec % 1000);
     }
 
+cleanup:
+    lyd_free_tree(envp);
+    lyd_free_tree(op);
     return ret;
 }
 
@@ -1072,7 +1028,7 @@ cmd_subscribe_help(void)
 void
 cmd_getschema_help(void)
 {
-    if (session && !ly_ctx_get_module(nc_session_get_ctx(session), "ietf-netconf-monitoring", NULL, 1)) {
+    if (session && !ly_ctx_get_module_implemented(nc_session_get_ctx(session), "ietf-netconf-monitoring")) {
         printf("get-schema is not supported by the current session.\n");
         return;
     }
@@ -1087,7 +1043,7 @@ cmd_getdata_help(void)
     const char *defaults, *xpath;
     int origin;
 
-    if (session && !(mod = ly_ctx_get_module(nc_session_get_ctx(session), "ietf-netconf-nmda", NULL, 1))) {
+    if (session && !(mod = ly_ctx_get_module_implemented(nc_session_get_ctx(session), "ietf-netconf-nmda"))) {
         printf("get-data is not supported by the current session.\n");
         return;
     }
@@ -1104,14 +1060,14 @@ cmd_getdata_help(void)
         xpath = "";
     }
 
-    if (mod && !lys_features_state(mod, "origin")) {
+    if (mod && (lys_feature_value(mod, "origin") == LY_ENOT)) {
         origin = 0;
     } else {
         origin = 1;
     }
 
     fprintf(stdout, "get-data [--help] --datastore running|startup|candidate|operational [--filter-subtree[=<file>]%s]"
-                    " [--config true|false]%s [--depth <subtree-depth>]%s%s [--out <file>] [--rpc-timeout <seconds>]\n",
+            " [--config true|false]%s [--depth <subtree-depth>]%s%s [--out <file>] [--rpc-timeout <seconds>]\n",
             xpath, origin ? " [--origin <origin>]* [--negated-origin]" : "", origin ? " [--with-origin]" : "", defaults);
 }
 
@@ -1121,7 +1077,7 @@ cmd_editdata_help(void)
     const struct lys_module *mod;
     const char *url, *bracket;
 
-    if (session && !(mod = ly_ctx_get_module(nc_session_get_ctx(session), "ietf-netconf-nmda", NULL, 1))) {
+    if (session && !(mod = ly_ctx_get_module_implemented(nc_session_get_ctx(session), "ietf-netconf-nmda"))) {
         printf("edit-data is not supported by the current session.\n");
         return;
     }
@@ -1135,7 +1091,7 @@ cmd_editdata_help(void)
     }
 
     fprintf(stdout, "edit-data [--help] --datastore running|startup|candidate %s--config[=<file>]%s"
-                    " [--defop merge|replace|none] [--rpc-timeout <seconds>]\n", bracket, url);
+            " [--defop merge|replace|none] [--rpc-timeout <seconds>]\n", bracket, url);
 }
 
 void
@@ -2560,16 +2516,16 @@ cmd_outputformat(const char *arg, char **UNUSED(tmp_config_file))
 
     if (!strncmp(format, "xml", 3) && ((format[3] == '\0') || (format[3] == ' '))) {
         output_format = LYD_XML;
-        output_flag = LYP_FORMAT;
+        output_flag = 0;
     } else if (!strncmp(format, "xml_noformat", 12) && ((format[12] == '\0') || (format[12] == ' '))) {
         output_format = LYD_XML;
-        output_flag = 0;
+        output_flag = LYD_PRINT_SHRINK;
     } else if (!strncmp(format, "json", 4) && ((format[4] == '\0') || (format[4] == ' '))) {
         output_format = LYD_JSON;
-        output_flag = LYP_FORMAT;
+        output_flag = 0;
     } else if (!strncmp(format, "json_noformat", 13) && ((format[13] == '\0') || (format[13] == ' '))) {
         output_format = LYD_JSON;
-        output_flag = 0;
+        output_flag = LYD_PRINT_SHRINK;
     } else {
         fprintf(stderr, "Unknown output format \"%s\".\n", format);
         return 1;

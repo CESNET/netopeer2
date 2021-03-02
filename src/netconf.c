@@ -150,8 +150,8 @@ get_sr_data:
     }
 
 cleanup:
-    ly_set_free(set);
-    lyd_free_withsiblings(all_data);
+    ly_set_free(set, NULL);
+    lyd_free_siblings(all_data);
     op_filter_erase(&mod_filter);
     return rc;
 }
@@ -180,7 +180,7 @@ np2srv_getconfig_rpc_data(sr_session_ctx_t *session, const struct np2_filter *fi
     }
 
 cleanup:
-    lyd_free_withsiblings(select_data);
+    lyd_free_siblings(select_data);
     return rc;
 }
 
@@ -192,7 +192,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
     struct np2_filter filter = {0};
     int rc = SR_ERR_OK;
     sr_session_ctx_t *user_sess;
-    struct ly_set *nodeset;
+    struct ly_set *nodeset = NULL;
     sr_datastore_t ds = 0;
     char *username = NULL;
 
@@ -218,31 +218,27 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
 
     /* get know which datastore is being affected for get-config */
     if (!strcmp(op_path, "/ietf-netconf:get-config")) {
-        nodeset = lyd_find_path(input, "source/*");
-        if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
+        lyd_find_xpath(input, "source/*", &nodeset);
+        if (!strcmp(nodeset->dnodes[0]->schema->name, "running")) {
             ds = SR_DS_RUNNING;
-        } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
+        } else if (!strcmp(nodeset->dnodes[0]->schema->name, "startup")) {
             ds = SR_DS_STARTUP;
         } else {
-            assert(!strcmp(nodeset->set.d[0]->schema->name, "candidate"));
+            assert(!strcmp(nodeset->dnodes[0]->schema->name, "candidate"));
             ds = SR_DS_CANDIDATE;
         }
 
-        ly_set_free(nodeset);
+        ly_set_free(nodeset, NULL);
     }
 
     /* create filters */
-    nodeset = lyd_find_path(input, "filter");
-    if (nodeset->number) {
-        node = nodeset->set.d[0];
-        ly_set_free(nodeset);
+    lyd_find_path(input, "filter", 0, &node);
+    if (node) {
         if (op_filter_create(node, &filter)) {
             rc = SR_ERR_INTERNAL;
             goto cleanup;
         }
     } else {
-        ly_set_free(nodeset);
-
         filter.filters = malloc(sizeof *filter.filters);
         if (!filter.filters) {
             EMEM;
@@ -283,8 +279,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
     ncac_check_data_read_filter(&data_get, username);
 
     /* add output */
-    node = lyd_new_output_anydata(output, NULL, "data", data_get, LYD_ANYDATA_DATATREE);
-    if (!node) {
+    if (lyd_new_any(output, NULL, "data", data_get, LYD_ANYDATA_DATATREE, 1, &node)) {
         goto cleanup;
     }
     data_get = NULL;
@@ -293,7 +288,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
 
 cleanup:
     op_filter_erase(&filter);
-    lyd_free_withsiblings(data_get);
+    lyd_free_siblings(data_get);
     free(username);
     return rc;
 }
@@ -303,11 +298,11 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
         sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds = 0;
-    struct ly_set *nodeset;
-    struct lyd_node *config = NULL;
+    struct ly_set *nodeset = NULL;
+    struct lyd_node *node, *config = NULL;
     const sr_error_info_t *err_info;
     sr_session_ctx_t *user_sess = NULL;
-    const char *str, *defop = "merge", *testop = "test-then-set";
+    const char *defop = "merge", *testop = "test-then-set";
     int rc = SR_ERR_OK;
 
     if (event == SR_EV_ABORT) {
@@ -316,68 +311,63 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     }
 
     /* get know which datastore is being affected */
-    nodeset = lyd_find_path(input, "target/*");
-    if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
+    lyd_find_xpath(input, "target/*", &nodeset);
+    if (!strcmp(nodeset->dnodes[0]->schema->name, "running")) {
         ds = SR_DS_RUNNING;
     } else {
-        assert(!strcmp(nodeset->set.d[0]->schema->name, "candidate"));
+        assert(!strcmp(nodeset->dnodes[0]->schema->name, "candidate"));
         ds = SR_DS_CANDIDATE;
     }
-    ly_set_free(nodeset);
+    ly_set_free(nodeset, NULL);
 
     /* default-operation */
-    nodeset = lyd_find_path(input, "default-operation");
-    if (nodeset->number) {
-        defop = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
+    lyd_find_path(input, "default-operation", 0, &node);
+    if (node) {
+        defop = LYD_CANON_VALUE(node);
     }
-    ly_set_free(nodeset);
 
     /* test-option */
-    nodeset = lyd_find_path(input, "test-option");
-    if (nodeset->number) {
-        testop = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
+    lyd_find_path(input, "test-option", 0, &node);
+    if (node) {
+        testop = LYD_CANON_VALUE(node);
         if (!strcmp(testop, "set")) {
             VRB("edit-config test-option \"set\" not supported, validation will be performed.");
             testop = "test-then-set";
         }
     }
-    ly_set_free(nodeset);
 
     /* error-option */
-    nodeset = lyd_find_path(input, "error-option");
-    if (nodeset->number) {
-        str = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
-        if (strcmp(str, "rollback-on-error")) {
-            VRB("edit-config error-option \"%s\" not supported, rollback-on-error will be performed.", str);
+    lyd_find_path(input, "error-option", 0, &node);
+    if (node) {
+        if (strcmp(LYD_CANON_VALUE(node), "rollback-on-error")) {
+            VRB("edit-config error-option \"%s\" not supported, rollback-on-error will be performed.", LYD_CANON_VALUE(node));
         }
     }
-    ly_set_free(nodeset);
 
     /* config */
-    nodeset = lyd_find_path(input, "config | url");
-    if (!strcmp(nodeset->set.d[0]->schema->name, "config")) {
-        config = op_parse_config((struct lyd_node_anydata *)nodeset->set.d[0], LYD_OPT_EDIT | LYD_OPT_STRICT, &rc, session);
+    lyd_find_xpath(input, "config | url", &nodeset);
+    if (!strcmp(nodeset->dnodes[0]->schema->name, "config")) {
+        config = op_parse_config((struct lyd_node_any *)nodeset->dnodes[0], LYD_PARSE_OPAQ | LYD_PARSE_ONLY, &rc, session);
         if (rc) {
-            ly_set_free(nodeset);
+            ly_set_free(nodeset, NULL);
             goto cleanup;
         }
     } else {
-        assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
+        assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        config = op_parse_url(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str,
-                LYD_OPT_EDIT | LYD_OPT_STRICT | LYD_OPT_TRUSTED, &rc, session);
+        config = op_parse_url(LYD_CANON_VALUE(nodeset->dnodes[0]), LYD_PARSE_OPAQ | LYD_PARSE_ONLY, &rc, session);
         if (rc) {
-            ly_set_free(nodeset);
+            ly_set_free(nodeset, NULL);
             goto cleanup;
         }
 #else
-        ly_set_free(nodeset);
+        ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
         sr_set_error(session, NULL, "URL not supported.");
         goto cleanup;
 #endif
     }
-    ly_set_free(nodeset);
+    ly_set_free(nodeset, NULL);
 
     /* get the user session */
     user_sess = np_get_user_sess(session);
@@ -417,7 +407,7 @@ cleanup:
         /* discard any changes that possibly failed to be applied */
         sr_discard_changes(user_sess);
     }
-    lyd_free_withsiblings(config);
+    lyd_free_siblings(config);
     return rc;
 }
 
@@ -426,14 +416,13 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
         sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds = SR_DS_OPERATIONAL, sds = SR_DS_OPERATIONAL;
-    struct ly_set *nodeset;
+    struct ly_set *nodeset = NULL;
     const sr_error_info_t *err_info;
-    struct lyd_node *config = NULL;
+    struct lyd_node *node, *config = NULL;
     int rc = SR_ERR_OK, run_to_start = 0;
     sr_session_ctx_t *user_sess;
     char *username = NULL;
 #ifdef NP2SRV_URL_CAPAB
-    struct lyd_node_leaf_list *leaf;
     const char *trg_url = NULL;
     int lyp_wd_flag;
 #endif
@@ -460,66 +449,67 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
 
 
     /* get know which datastores are affected */
-    nodeset = lyd_find_path(input, "target/*");
-    if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
+    lyd_find_xpath(input, "target/*", &nodeset);
+    if (!strcmp(nodeset->dnodes[0]->schema->name, "running")) {
         ds = SR_DS_RUNNING;
-    } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
+    } else if (!strcmp(nodeset->dnodes[0]->schema->name, "startup")) {
         ds = SR_DS_STARTUP;
-    } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
+    } else if (!strcmp(nodeset->dnodes[0]->schema->name, "candidate")) {
         ds = SR_DS_CANDIDATE;
     } else {
-        assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
+        assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        trg_url = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
+        trg_url = LYD_CANON_VALUE(nodeset->dnodes[0]);
 #else
-        ly_set_free(nodeset);
+        ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
         sr_set_error(session, NULL, "URL not supported.");
         goto cleanup;
 #endif
     }
-    ly_set_free(nodeset);
+    ly_set_free(nodeset, NULL);
 
-    nodeset = lyd_find_path(input, "source/*");
-    if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
+    lyd_find_xpath(input, "source/*", &nodeset);
+    if (!strcmp(nodeset->dnodes[0]->schema->name, "running")) {
         sds = SR_DS_RUNNING;
         if (ds == SR_DS_STARTUP) {
             /* special copy-config from running to startup that bypasses NACM */
             run_to_start = 1;
         }
-    } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
+    } else if (!strcmp(nodeset->dnodes[0]->schema->name, "startup")) {
         sds = SR_DS_STARTUP;
-    } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
+    } else if (!strcmp(nodeset->dnodes[0]->schema->name, "candidate")) {
         sds = SR_DS_CANDIDATE;
-    } else if (!strcmp(nodeset->set.d[0]->schema->name, "config")) {
-        config = op_parse_config((struct lyd_node_anydata *)nodeset->set.d[0], LYD_OPT_CONFIG | LYD_OPT_STRICT, &rc, session);
+    } else if (!strcmp(nodeset->dnodes[0]->schema->name, "config")) {
+        config = op_parse_config((struct lyd_node_any *)nodeset->dnodes[0],
+                LYD_PARSE_STRICT | LYD_PARSE_NO_STATE | LYD_PARSE_ONLY, &rc, session);
         if (rc) {
-            ly_set_free(nodeset);
+            ly_set_free(nodeset, NULL);
             goto cleanup;
         }
     } else {
-        assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
+        assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        if (trg_url && !strcmp(trg_url, ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str)) {
+        if (trg_url && !strcmp(trg_url, LYD_CANON_VALUE(nodeset->dnodes[0]))) {
             rc = SR_ERR_INVAL_ARG;
             sr_set_error(session, NULL, "Source and target URLs are the same.");
             goto cleanup;
         }
 
-        config = op_parse_url(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str,
-                LYD_OPT_CONFIG | LYD_OPT_STRICT | LYD_OPT_TRUSTED, &rc, session);
+        config = op_parse_url(LYD_CANON_VALUE(nodeset->dnodes[0]), LYD_PARSE_STRICT | LYD_PARSE_NO_STATE |
+                LYD_PARSE_ONLY, &rc, session);
         if (rc) {
-            ly_set_free(nodeset);
+            ly_set_free(nodeset, NULL);
             goto cleanup;
         }
 #else
-        ly_set_free(nodeset);
+        ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
         sr_set_error(session, NULL, "URL not supported.");
         goto cleanup;
 #endif
     }
-    ly_set_free(nodeset);
+    ly_set_free(nodeset, NULL);
 
     if (ds == sds) {
         rc = SR_ERR_INVAL_ARG;
@@ -554,24 +544,22 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
 #ifdef NP2SRV_URL_CAPAB
     if (trg_url) {
         /* we need with-defaults flag in this case */
-        nodeset = lyd_find_path(input, "ietf-netconf-with-defaults:with-defaults");
+        lyd_find_path(input, "ietf-netconf-with-defaults:with-defaults", 0, &node);
         lyp_wd_flag = 0;
-        if (nodeset->number) {
-            leaf = (struct lyd_node_leaf_list *)nodeset->set.d[0];
-            if (!strcmp(leaf->value_str, "report-all")) {
-                lyp_wd_flag = LYP_WD_ALL;
-            } else if (!strcmp(leaf->value_str, "report-all-tagged")) {
-                lyp_wd_flag = LYP_WD_ALL_TAG;
-            } else if (!strcmp(leaf->value_str, "trim")) {
-                lyp_wd_flag = LYP_WD_TRIM;
+        if (node) {
+            if (!strcmp(LYD_CANON_VALUE(node), "report-all")) {
+                lyp_wd_flag = LYD_PRINT_WD_ALL;
+            } else if (!strcmp(LYD_CANON_VALUE(node), "report-all-tagged")) {
+                lyp_wd_flag = LYD_PRINT_WD_ALL_TAG;
+            } else if (!strcmp(LYD_CANON_VALUE(node), "trim")) {
+                lyp_wd_flag = LYD_PRINT_WD_TRIM;
             } else {
-                assert(!strcmp(leaf->value_str, "explicit"));
-                lyp_wd_flag = LYP_WD_EXPLICIT;
+                assert(!strcmp(LYD_CANON_VALUE(node), "explicit"));
+                lyp_wd_flag = LYD_PRINT_WD_EXPLICIT;
             }
         }
-        ly_set_free(nodeset);
 
-        if (op_export_url(trg_url, config, LYP_FORMAT | LYP_WITHSIBLINGS | lyp_wd_flag, &rc, session)) {
+        if (op_export_url(trg_url, config, LYD_PRINT_WITHSIBLINGS | lyp_wd_flag, &rc, session)) {
             goto cleanup;
         }
     } else
@@ -599,7 +587,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     /* success */
 
 cleanup:
-    lyd_free_withsiblings(config);
+    lyd_free_siblings(config);
     free(username);
     return rc;
 }
@@ -624,21 +612,21 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path
     }
 
     /* get know which datastore is affected */
-    nodeset = lyd_find_path(input, "target/*");
-    if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
+    lyd_find_xpath(input, "target/*", &nodeset);
+    if (!strcmp(nodeset->dnodes[0]->schema->name, "startup")) {
         ds = SR_DS_STARTUP;
     } else {
-        assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
+        assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        trg_url = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
+        trg_url = LYD_CANON_VALUE(nodeset->dnodes[0]);
 #else
-        ly_set_free(nodeset);
+        ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
         sr_set_error(session, NULL, "URL not supported.");
         goto cleanup;
 #endif
     }
-    ly_set_free(nodeset);
+    ly_set_free(nodeset, NULL);
 
     /* get the user session */
     user_sess = np_get_user_sess(session);
@@ -655,11 +643,11 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path
 #ifdef NP2SRV_URL_CAPAB
     if (trg_url) {
         /* import URL to check its validity */
-        config = op_parse_url(trg_url, LYD_OPT_CONFIG | LYD_OPT_STRICT | LYD_OPT_TRUSTED, &rc, session);
+        config = op_parse_url(trg_url, LYD_PARSE_STRICT | LYD_PARSE_NO_STATE | LYD_PARSE_ONLY, &rc, session);
         if (rc) {
             goto cleanup;
         }
-        lyd_free_withsiblings(config);
+        lyd_free_siblings(config);
 
         /* upload empty config */
         if (op_export_url(trg_url, NULL, 0, &rc, session)) {
@@ -687,7 +675,7 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
         sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     sr_datastore_t ds = 0;
-    struct ly_set *nodeset;
+    struct ly_set *nodeset = NULL;
     sr_session_ctx_t *user_sess;
     const sr_error_info_t *err_info;
     int rc = SR_ERR_OK;
@@ -698,16 +686,16 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     }
 
     /* get know which datastore is being affected */
-    nodeset = lyd_find_path(input, "target/*");
-    if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
+    lyd_find_xpath(input, "target/*", &nodeset);
+    if (!strcmp(nodeset->dnodes[0]->schema->name, "running")) {
         ds = SR_DS_RUNNING;
-    } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
+    } else if (!strcmp(nodeset->dnodes[0]->schema->name, "startup")) {
         ds = SR_DS_STARTUP;
     } else {
-        assert(!strcmp(nodeset->set.d[0]->schema->name, "candidate"));
+        assert(!strcmp(nodeset->dnodes[0]->schema->name, "candidate"));
         ds = SR_DS_CANDIDATE;
     }
-    ly_set_free(nodeset);
+    ly_set_free(nodeset, NULL);
 
     /* get the user session */
     user_sess = np_get_user_sess(session);
@@ -743,7 +731,7 @@ np2srv_rpc_kill_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const
         sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     struct nc_session *kill_sess;
-    struct ly_set *nodeset;
+    struct lyd_node *node;
     uint32_t kill_sid, i;
     int rc = SR_ERR_OK;
 
@@ -752,9 +740,8 @@ np2srv_rpc_kill_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const
         return SR_ERR_OK;
     }
 
-    nodeset = lyd_find_path(input, "session-id");
-    kill_sid = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value.uint32;
-    ly_set_free(nodeset);
+    lyd_find_path(input, "session-id", 0, &node);
+    kill_sid = ((struct lyd_node_term *)node)->value.uint32;
 
     if (kill_sid == sr_session_get_event_nc_id(session)) {
         rc = SR_ERR_INVAL_ARG;
@@ -866,7 +853,7 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
 {
     sr_datastore_t ds;
     struct lyd_node *config = NULL;
-    struct ly_set *nodeset;
+    struct ly_set *nodeset = NULL;
     sr_session_ctx_t *user_sess;
     int rc = SR_ERR_OK;
     const sr_error_info_t *err_info;
@@ -877,39 +864,38 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
     }
 
     /* get know which datastore is affected */
-    nodeset = lyd_find_path(input, "source/*");
-    if (nodeset->number) {
-        if (!strcmp(nodeset->set.d[0]->schema->name, "running")) {
-            ds = SR_DS_RUNNING;
-        } else if (!strcmp(nodeset->set.d[0]->schema->name, "startup")) {
-            ds = SR_DS_STARTUP;
-        } else if (!strcmp(nodeset->set.d[0]->schema->name, "candidate")) {
-            ds = SR_DS_CANDIDATE;
-        } else if (!strcmp(nodeset->set.d[0]->schema->name, "config")) {
-            /* config is also validated now */
-            config = op_parse_config((struct lyd_node_anydata *)nodeset->set.d[0], LYD_OPT_CONFIG | LYD_OPT_STRICT, &rc, session);
-            if (rc) {
-                ly_set_free(nodeset);
-                goto cleanup;
-            }
-        } else {
-            assert(!strcmp(nodeset->set.d[0]->schema->name, "url"));
-#ifdef NP2SRV_URL_CAPAB
-            config = op_parse_url(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str,
-                    LYD_OPT_CONFIG | LYD_OPT_STRICT | LYD_OPT_TRUSTED, &rc, session);
-            if (rc) {
-                ly_set_free(nodeset);
-                goto cleanup;
-            }
-#else
-            ly_set_free(nodeset);
-            rc = SR_ERR_UNSUPPORTED;
-            sr_set_error(session, NULL, "URL not supported.");
+    lyd_find_xpath(input, "source/*", &nodeset);
+    if (!strcmp(nodeset->dnodes[0]->schema->name, "running")) {
+        ds = SR_DS_RUNNING;
+    } else if (!strcmp(nodeset->dnodes[0]->schema->name, "startup")) {
+        ds = SR_DS_STARTUP;
+    } else if (!strcmp(nodeset->dnodes[0]->schema->name, "candidate")) {
+        ds = SR_DS_CANDIDATE;
+    } else if (!strcmp(nodeset->dnodes[0]->schema->name, "config")) {
+        /* config is also validated now */
+        config = op_parse_config((struct lyd_node_any *)nodeset->dnodes[0], LYD_PARSE_STRICT | LYD_PARSE_NO_STATE,
+                &rc, session);
+        if (rc) {
+            ly_set_free(nodeset, NULL);
             goto cleanup;
-#endif
         }
+    } else {
+        assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
+#ifdef NP2SRV_URL_CAPAB
+        config = op_parse_url(LYD_CANON_VALUE(nodeset->dnodes[0]), LYD_PARSE_STRICT | LYD_PARSE_NO_STATE |
+                LYD_PARSE_ONLY, &rc, session);
+        if (rc) {
+            ly_set_free(nodeset, NULL);
+            goto cleanup;
+        }
+#else
+        ly_set_free(nodeset, NULL);
+        rc = SR_ERR_UNSUPPORTED;
+        sr_set_error(session, NULL, "URL not supported.");
+        goto cleanup;
+#endif
     }
-    ly_set_free(nodeset);
+    ly_set_free(nodeset, NULL);
 
     if (!config) {
         /* get the user session */
@@ -935,7 +921,7 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
     /* success */
 
 cleanup:
-    lyd_free_withsiblings(config);
+    lyd_free_siblings(config);
     return rc;
 }
 
@@ -965,13 +951,22 @@ np2srv_rpc_subscribe_append_str(const char *str, char **ret)
     return SR_ERR_OK;
 }
 
+static LY_ERR
+no2srv_lysc_has_notif_clb(struct lysc_node *node, void *UNUSED(data), ly_bool *UNUSED(dfs_continue))
+{
+    if (node->nodetype == LYS_NOTIF) {
+        return LY_EEXIST;
+    }
+
+    return LY_SUCCESS;
+}
+
 int
 np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
         sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
-    struct ly_set *nodeset;
     const struct lys_module *ly_mod;
-    struct lys_node *root, *next, *elem, *parent;
+    struct lyd_node *node;
     struct nc_session *ncs;
     const char *stream;
     struct np2_filter filter = {0};
@@ -1004,14 +999,13 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
     }
 
     /* learn stream */
-    nodeset = lyd_find_path(input, "stream");
-    stream = ((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str;
-    ly_set_free(nodeset);
+    lyd_find_path(input, "stream", 0, &node);
+    stream = LYD_CANON_VALUE(node);
 
     /* filter, join all into one xpath */
-    nodeset = lyd_find_path(input, "filter");
-    if (nodeset->number) {
-        if (op_filter_create(nodeset->set.d[0], &filter)) {
+    lyd_find_path(input, "filter", 0, &node);
+    if (node) {
+        if (op_filter_create(node, &filter)) {
             rc = SR_ERR_INTERNAL;
             goto cleanup;
         }
@@ -1066,21 +1060,18 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
             }
         }
     }
-    ly_set_free(nodeset);
 
     /* start time */
-    nodeset = lyd_find_path(input, "startTime");
-    if (nodeset->number) {
-        start = nc_datetime2time(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str);
+    lyd_find_path(input, "startTime", 0, &node);
+    if (node) {
+        start = nc_datetime2time(LYD_CANON_VALUE(node));
     }
-    ly_set_free(nodeset);
 
     /* stop time */
-    nodeset = lyd_find_path(input, "stopTime");
-    if (nodeset->number) {
-        stop = nc_datetime2time(((struct lyd_node_leaf_list *)nodeset->set.d[0])->value_str);
+    lyd_find_path(input, "stopTime", 0, &node);
+    if (node) {
+        stop = nc_datetime2time(LYD_CANON_VALUE(node));
     }
-    ly_set_free(nodeset);
 
     /* set ongoing notifications flag */
     nc_session_set_notif_status(ncs, 1);
@@ -1089,38 +1080,27 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
     if (!strcmp(stream, "NETCONF")) {
         /* subscribe to all modules with notifications */
         idx = 0;
-        while ((ly_mod = ly_ctx_get_module_iter(lyd_node_module(input)->ctx, &idx))) {
-            rc = SR_ERR_OK;
-            LY_TREE_FOR(ly_mod->data, root) {
-                LY_TREE_DFS_BEGIN(root, next, elem) {
-                    if (elem->nodetype == LYS_NOTIF) {
-                        /* check that we are not in a grouping */
-                        parent = lys_parent(elem);
-                        while (parent && (parent->nodetype != LYS_GROUPING)) {
-                            parent = lys_parent(parent);
-                        }
-                        if (!parent) {
-                            rc = sr_event_notif_subscribe_tree(nc_session_get_data(ncs), ly_mod->name, xp, start, stop,
-                                    np2srv_ntf_new_cb, ncs, np2srv.sr_notif_sub ? SR_SUBSCR_CTX_REUSE : 0, &np2srv.sr_notif_sub);
-                            break;
-                        }
-                    }
-                    LY_TREE_DFS_END(root, next, elem);
-                }
-                if (elem && (elem->nodetype == LYS_NOTIF)) {
-                   break;
-                }
+        while ((ly_mod = ly_ctx_get_module_iter(LYD_CTX(input), &idx))) {
+            if (!ly_mod->implemented) {
+                continue;
             }
-            if (rc != SR_ERR_OK) {
-                goto cleanup;
+
+            if (lysc_module_dfs_full(ly_mod, no2srv_lysc_has_notif_clb, NULL) == LY_EEXIST) {
+                /* a notification was found, subscribe to the module */
+                rc = sr_event_notif_subscribe_tree(nc_session_get_data(ncs), ly_mod->name, xp, start, stop,
+                        np2srv_ntf_new_cb, ncs, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
+                if (rc != SR_ERR_OK) {
+                    goto cleanup;
+                }
             }
         }
     } else {
+        /* subscribe to the specific module (stream) */
         rc = sr_event_notif_subscribe_tree(nc_session_get_data(ncs), stream, xp, start, stop, np2srv_ntf_new_cb, ncs,
-                np2srv.sr_notif_sub ? SR_SUBSCR_CTX_REUSE : 0, &np2srv.sr_notif_sub);
-    }
-    if (rc != SR_ERR_OK) {
-        goto cleanup;
+                SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
+        if (rc != SR_ERR_OK) {
+            goto cleanup;
+        }
     }
 
     /* success */

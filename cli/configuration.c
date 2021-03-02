@@ -250,12 +250,12 @@ void
 load_config(void)
 {
     char *netconf_dir, *history_file, *config_file = NULL;
-    struct lyxml_elem *config_xml = NULL, *child;
+    struct lyd_node *config = NULL, *child;
     struct ly_ctx *ctx;
 
 #ifdef NC_ENABLED_SSH
     const char *key_pub, *key_priv;
-    struct lyxml_elem *auth_child, *pref_child, *key_child, *pair_child;
+    struct lyd_node *auth_child, *pref_child, *key_child, *pair_child;
 #endif
 
     if ((netconf_dir = get_netconf_dir()) == NULL) {
@@ -274,8 +274,7 @@ load_config(void)
         }
     }
 
-    ctx = ly_ctx_new(NULL, 0);
-    if (!ctx) {
+    if (ly_ctx_new(NULL, 0, &ctx)) {
         ERROR(__func__, "Failed to create context.");
         ERROR(__func__, "Unable to load configuration due to the previous error.");
         ctx = NULL;
@@ -287,67 +286,67 @@ load_config(void)
         } else if (eaccess(config_file, F_OK) && (errno == ENOENT)) {
             ERROR(__func__, "No saved configuration.");
         } else {
-            if ((config_xml = lyxml_parse_path(ctx, config_file, 0)) == NULL) {
+            if (lyd_parse_data_path(ctx, config_file, LYD_XML, LYD_PARSE_ONLY | LYD_PARSE_OPAQ, 0, &config)) {
                 ERROR(__func__, "Failed to load configuration of NETCONF client (lyxml_read_path failed).");
-                config_xml = NULL;
+                config = NULL;
             } else {
                 /* doc -> <netconf-client/>*/
-                if (!strcmp(config_xml->name, "netconf-client")) {
-                    LY_TREE_FOR(config_xml->child, child) {
-                        if (!strcmp(child->name, "editor")) {
+                if (!strcmp(LYD_NAME(config), "netconf-client")) {
+                    LY_LIST_FOR(lyd_child(config), child) {
+                        if (!strcmp(LYD_NAME(child), "editor")) {
                             /* doc -> <netconf-client> -> <editor> */
                             if (config_editor) {
                                 free(config_editor);
                             }
-                            config_editor = strdup(child->content);
-                        } else if (!strcmp(child->name, "searchpath")) {
+                            config_editor = strdup(LYD_OPAQ_VALUE(child));
+                        } else if (!strcmp(LYD_NAME(child), "searchpath")) {
                             /* doc -> <netconf-client> -> <searchpath> */
                             errno = 0;
-                            if (!mkdir(child->content, 00700) || (errno == EEXIST)) {
+                            if (!mkdir(LYD_OPAQ_VALUE(child), 00700) || (errno == EEXIST)) {
                                 if (errno == 0) {
-                                    ERROR(__func__, "Search path \"%s\" did not exist, created.", child->content);
+                                    ERROR(__func__, "Search path \"%s\" did not exist, created.", LYD_OPAQ_VALUE(child));
                                 }
-                                nc_client_set_schema_searchpath(child->content);
+                                nc_client_set_schema_searchpath(LYD_OPAQ_VALUE(child));
                             } else {
-                                ERROR(__func__, "Search path \"%s\" cannot be created: %s", child->content, strerror(errno));
+                                ERROR(__func__, "Search path \"%s\" cannot be created: %s", LYD_OPAQ_VALUE(child), strerror(errno));
                             }
-                        } else if (!strcmp(child->name, "output-format")) {
+                        } else if (!strcmp(LYD_NAME(child), "output-format")) {
                             /* doc -> <netconf-client> -> <output-format> */
-                            if (!strcmp(child->content, "json")) {
-                                output_format = LYD_JSON;
-                                output_flag = LYP_FORMAT;
-                            } else if (!strcmp(child->content, "json_noformat")) {
+                            if (!strcmp(LYD_OPAQ_VALUE(child), "json")) {
                                 output_format = LYD_JSON;
                                 output_flag = 0;
-                            } else if (!strcmp(child->content, "xml_noformat")) {
+                            } else if (!strcmp(LYD_OPAQ_VALUE(child), "json_noformat")) {
+                                output_format = LYD_JSON;
+                                output_flag = LYD_PRINT_SHRINK;
+                            } else if (!strcmp(LYD_OPAQ_VALUE(child), "xml_noformat")) {
                                 output_format = LYD_XML;
-                                output_flag = 0;
+                                output_flag = LYD_PRINT_SHRINK;
                             } /* else default (formatted XML) */
                         }
 #ifdef NC_ENABLED_SSH
-                        else if (!strcmp(child->name, "authentication")) {
+                        else if (!strcmp(LYD_NAME(child), "authentication")) {
                             /* doc -> <netconf-client> -> <authentication> */
-                            LY_TREE_FOR(child->child, auth_child) {
-                                if (!strcmp(auth_child->name, "pref")) {
-                                    LY_TREE_FOR(auth_child->child, pref_child) {
-                                        if (!strcmp(pref_child->name, "publickey")) {
-                                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PUBLICKEY, atoi(pref_child->content));
-                                        } else if (!strcmp(pref_child->name, "interactive")) {
-                                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_INTERACTIVE, atoi(pref_child->content));
-                                        } else if (!strcmp(pref_child->name, "password")) {
-                                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PASSWORD, atoi(pref_child->content));
+                            LY_LIST_FOR(lyd_child(child), auth_child) {
+                                if (!strcmp(LYD_NAME(auth_child), "pref")) {
+                                    LY_LIST_FOR(lyd_child(auth_child), pref_child) {
+                                        if (!strcmp(LYD_NAME(pref_child), "publickey")) {
+                                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PUBLICKEY, atoi(LYD_OPAQ_VALUE(pref_child)));
+                                        } else if (!strcmp(LYD_NAME(pref_child), "interactive")) {
+                                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_INTERACTIVE, atoi(LYD_OPAQ_VALUE(pref_child)));
+                                        } else if (!strcmp(LYD_NAME(pref_child), "password")) {
+                                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PASSWORD, atoi(LYD_OPAQ_VALUE(pref_child)));
                                         }
                                     }
-                                } else if (!strcmp(auth_child->name, "keys")) {
-                                    LY_TREE_FOR(auth_child->child, key_child) {
-                                        if (!strcmp(key_child->name, "pair")) {
+                                } else if (!strcmp(LYD_NAME(auth_child), "keys")) {
+                                    LY_LIST_FOR(lyd_child(auth_child), key_child) {
+                                        if (!strcmp(LYD_NAME(key_child), "pair")) {
                                             key_pub = NULL;
                                             key_priv = NULL;
-                                            LY_TREE_FOR(key_child->child, pair_child) {
-                                                if (!strcmp(pair_child->name, "public")) {
-                                                    key_pub = pair_child->content;
-                                                } else if (!strcmp(pair_child->name, "private")) {
-                                                    key_priv = pair_child->content;
+                                            LY_LIST_FOR(lyd_child(key_child), pair_child) {
+                                                if (!strcmp(LYD_NAME(pair_child), "public")) {
+                                                    key_pub = LYD_OPAQ_VALUE(pair_child);
+                                                } else if (!strcmp(LYD_NAME(pair_child), "private")) {
+                                                    key_priv = LYD_OPAQ_VALUE(pair_child);
                                                 }
                                             }
                                             if (key_pub && key_priv) {
@@ -366,7 +365,7 @@ load_config(void)
         }
     }
 
-    lyxml_free(ctx, config_xml);
+    lyd_free_tree(config);
     ly_ctx_destroy(ctx, NULL);
     free(config_file);
     free(history_file);
@@ -403,7 +402,7 @@ store_config(void)
         ERROR(__func__, "Unable to store configuration due to the previous error.");
     } else {
         indent = 0;
-        fprintf(config_f, "%*.s<netconf-client>\n", indent, "");
+        fprintf(config_f, "%*.s<netconf-client xmlns=\"urn:cesnet:netconf-client\">\n", indent, "");
         ++indent;
 
         /* editor */
