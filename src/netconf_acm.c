@@ -990,9 +990,11 @@ cleanup:
  *
  * @param[in] rule_target Rule target instance-identifier.
  * @param[in] node_path Node data path.
- * @return NCAC access enum.
+ * @return 0 if does not match.
+ * @return 1 if the rule path matches.
+ * @return 2 if the path is a partial match.
  */
-static enum ncac_access
+static int
 ncac_allowed_path(const char *rule_target, const char *node_path)
 {
     const char *rule_ptr, *node_ptr;
@@ -1019,21 +1021,21 @@ ncac_allowed_path(const char *rule_target, const char *node_path)
             ++node_ptr;
         } else {
             /* not a match */
-            return NCAC_ACCESS_DENY;
+            return 0;
         }
     }
 
     if (!rule_ptr[0] && !node_ptr[0]) {
         /* full match */
-        return NCAC_ACCESS_PERMIT;
+        return 1;
     } else if (rule_ptr[0]) {
         assert(!node_ptr[0]);
         /* rule continues, it is a partial match */
-        return NCAC_ACCESS_PARTIAL_DENY;
+        return 2;
     } else {
         assert(!rule_ptr[0]);
         /* node continues, prefix (descendant) match */
-        return NCAC_ACCESS_PERMIT;
+        return 1;
     }
 }
 
@@ -1053,7 +1055,8 @@ ncac_allowed_node(const struct lyd_node *node, const char *user, uint8_t oper)
     struct ly_ctx *ly_ctx;
     char **groups, *path;
     uint32_t i, j, group_count;
-    enum ncac_access node_access, access = NCAC_ACCESS_DENY;
+    enum ncac_access access = NCAC_ACCESS_DENY, partial_access = NCAC_ACCESS_DENY;
+    int path_match;
 
     assert(oper);
 
@@ -1103,7 +1106,10 @@ ncac_allowed_node(const struct lyd_node *node, const char *user, uint8_t oper)
                 continue;
             }
 
-            node_access = NCAC_ACCESS_PERMIT;
+            /* access operation matching */
+            if (!(rule->operations & oper)) {
+                continue;
+            }
 
             /* target (rule) type matching */
             switch (rule->target_type) {
@@ -1135,24 +1141,22 @@ ncac_allowed_node(const struct lyd_node *node, const char *user, uint8_t oper)
                 if (rule->target) {
                     path = lyd_path(node);
                     /* exact match or is a descendant (specified in RFC 8341 page 27) for full tree access */
-                    node_access = ncac_allowed_path(rule->target, path);
+                    path_match = ncac_allowed_path(rule->target, path);
                     free(path);
-                    if (node_access == NCAC_ACCESS_DENY) {
+                    if (!path_match) {
+                        continue;
+                    } else if (path_match == 2) {
+                        /* partial match, continue searching for a full match (only partial permit has some meaning,
+                         * do not overwrite it) */
+                        partial_access = rule->action_deny ? partial_access : NCAC_ACCESS_PARTIAL_PERMIT;
                         continue;
                     }
                 }
                 break;
             }
 
-            /* access operation matching */
-            if (!(rule->operations & oper)) {
-                continue;
-            }
-
             /* 8) rule matched */
-            if (!rule->action_deny) {
-                access = node_access;
-            }
+            access = rule->action_deny ? NCAC_ACCESS_DENY : NCAC_ACCESS_PERMIT;
             goto cleanup;
         }
     }
@@ -1179,19 +1183,28 @@ step10:
     switch (oper) {
     case NCAC_OP_READ:
         if (nacm.default_read_deny) {
-            goto cleanup;
+            access = NCAC_ACCESS_DENY;
+        } else {
+            /* permit, but not by an explicit rule */
+            access = NCAC_ACCESS_PARTIAL_PERMIT;
         }
         break;
     case NCAC_OP_CREATE:
     case NCAC_OP_UPDATE:
     case NCAC_OP_DELETE:
         if (nacm.default_write_deny) {
-            goto cleanup;
+            access = NCAC_ACCESS_DENY;
+        } else {
+            /* permit, but not by an explicit rule */
+            access = NCAC_ACCESS_PARTIAL_PERMIT;
         }
         break;
     case NCAC_OP_EXEC:
         if (nacm.default_exec_deny) {
-            goto cleanup;
+            access = NCAC_ACCESS_DENY;
+        } else {
+            /* permit, but not by an explicit rule */
+            access = NCAC_ACCESS_PARTIAL_PERMIT;
         }
         break;
     default:
@@ -1199,8 +1212,10 @@ step10:
         goto cleanup;
     }
 
-    /* permit, but not by an explicit rule */
-    access = NCAC_ACCESS_PARTIAL_PERMIT;
+    if ((access == NCAC_ACCESS_DENY) && (partial_access == NCAC_ACCESS_PARTIAL_PERMIT)) {
+        /* node itself is not allowed but a rule allows access to some descendants so it may be allowed at the end */
+        access = NCAC_ACCESS_PARTIAL_DENY;
+    }
 
 cleanup:
     for (i = 0; i < group_count; ++i) {
