@@ -458,11 +458,10 @@ np2srv_ch_connection_type_cb(sr_session_ctx_t *session, const char *UNUSED(modul
                     return SR_ERR_INTERNAL;
                 }
             }
+        }
 
         /* periodic connection type params */
-        } else if (op == SR_OP_MODIFIED) {
-            assert(!strcmp(node->schema->name, "periodic"));
-
+        if (!strcmp(node->schema->name, "periodic")) {
             if (asprintf(&xpath2, "%s/periodic/*", xpath) == -1) {
                 EMEM;
                 return SR_ERR_NOMEM;
