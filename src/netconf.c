@@ -111,7 +111,8 @@ np2srv_get_rpc_module_filters(const struct np2_filter *filter, struct np2_filter
  * @brief Get data for a get RPC.
  */
 static int
-np2srv_get_rpc_data(sr_session_ctx_t *session, const struct np2_filter *filter, struct lyd_node **data)
+np2srv_get_rpc_data(sr_session_ctx_t *session, const struct np2_filter *filter, sr_session_ctx_t *ev_sess,
+        struct lyd_node **data)
 {
     struct lyd_node *all_data = NULL;
     sr_datastore_t ds;
@@ -133,7 +134,7 @@ np2srv_get_rpc_data(sr_session_ctx_t *session, const struct np2_filter *filter, 
 get_sr_data:
     sr_session_switch_ds(session, ds);
 
-    if ((rc = op_filter_data_get(session, 0, get_opts, &mod_filter, &all_data))) {
+    if ((rc = op_filter_data_get(session, 0, get_opts, &mod_filter, ev_sess, &all_data))) {
         goto cleanup;
     }
 
@@ -160,7 +161,8 @@ cleanup:
  * @brief get data for a get-config RPC.
  */
 static int
-np2srv_getconfig_rpc_data(sr_session_ctx_t *session, const struct np2_filter *filter, sr_datastore_t ds, struct lyd_node **data)
+np2srv_getconfig_rpc_data(sr_session_ctx_t *session, const struct np2_filter *filter, sr_datastore_t ds,
+        sr_session_ctx_t *ev_sess, struct lyd_node **data)
 {
     struct lyd_node *select_data = NULL;
     int rc = SR_ERR_OK;
@@ -171,7 +173,7 @@ np2srv_getconfig_rpc_data(sr_session_ctx_t *session, const struct np2_filter *fi
     /*
      * create the data tree for the data reply
      */
-    if ((rc = op_filter_data_get(session, 0, 0, filter, &select_data))) {
+    if ((rc = op_filter_data_get(session, 0, 0, filter, ev_sess, &select_data))) {
         goto cleanup;
     }
 
@@ -267,9 +269,9 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
 
     /* get filtered data */
     if (!strcmp(op_path, "/ietf-netconf:get-config")) {
-        rc = np2srv_getconfig_rpc_data(user_sess, &filter, ds, &data_get);
+        rc = np2srv_getconfig_rpc_data(user_sess, &filter, ds, session, &data_get);
     } else {
-        rc = np2srv_get_rpc_data(user_sess, &filter, &data_get);
+        rc = np2srv_get_rpc_data(user_sess, &filter, session, &data_get);
     }
     if (rc) {
         goto cleanup;

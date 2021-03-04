@@ -797,7 +797,7 @@ op_filter_create(const struct lyd_node *filter_node, struct np2_filter *filter)
 
 int
 op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_oper_options_t get_opts,
-        const struct np2_filter *filter, struct lyd_node **data)
+        const struct np2_filter *filter, sr_session_ctx_t *ev_sess, struct lyd_node **data)
 {
     const sr_error_info_t *err_info;
     struct lyd_node *node;
@@ -809,7 +809,7 @@ op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_oper_op
         if (rc) {
             ERR("Getting data \"%s\" from sysrepo failed (%s).", filter->filters[i].str, sr_strerror(rc));
             sr_get_error(session, &err_info);
-            sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
+            sr_set_error(ev_sess, err_info->err[0].xpath, err_info->err[0].message);
             return rc;
         }
 
