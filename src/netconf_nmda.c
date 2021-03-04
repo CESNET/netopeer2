@@ -230,7 +230,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     /*
      * create the data tree for the data reply
      */
-    if ((rc = op_filter_data_get(user_sess, max_depth, get_opts, &filter, &select_data))) {
+    if ((rc = op_filter_data_get(user_sess, max_depth, get_opts, &filter, session, &select_data))) {
         goto cleanup;
     }
     if ((rc = op_filter_data_filter(&select_data, &filter, 0, &data))) {

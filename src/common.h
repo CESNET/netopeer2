@@ -86,7 +86,7 @@ int op_filter_create(struct lyd_node *filter_node, struct np2_filter *filter);
  * @brief Get all data matching the selection filters.
  */
 int op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_oper_options_t get_opts,
-        const struct np2_filter *filter, struct lyd_node **data);
+        const struct np2_filter *filter, sr_session_ctx_t *ev_sess, struct lyd_node **data);
 
 /**
  * @brief Filter out only the data matching the content filters.
