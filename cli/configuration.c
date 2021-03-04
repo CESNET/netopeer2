@@ -38,7 +38,7 @@
 #include "linenoise/linenoise.h"
 
 extern LYD_FORMAT output_format;
-extern int output_flag;
+extern uint32_t output_flag;
 extern char *config_editor;
 
 /* NetConf Client home (appended to ~/) */
@@ -417,15 +417,15 @@ store_config(void)
         fprintf(config_f, "%*.s<output-format>", indent, "");
         if (output_format == LYD_JSON) {
             if (output_flag) {
-                fprintf(config_f, "json");
-            } else {
                 fprintf(config_f, "json_noformat");
+            } else {
+                fprintf(config_f, "json");
             }
         } else {
             if (output_flag) {
-                fprintf(config_f, "xml");
-            } else {
                 fprintf(config_f, "xml_noformat");
+            } else {
+                fprintf(config_f, "xml");
             }
         }
         fprintf(config_f, "</output-format>\n");

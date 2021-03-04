@@ -1400,8 +1400,7 @@ ncac_check_diff_r(const struct lyd_node *diff, const char *user, const char *par
         /* find operation */
         LY_LIST_FOR(diff->meta, meta) {
             if (!strcmp(meta->name, "operation")) {
-                assert(!strcmp(meta->annotation->module->name, "ietf-netconf") ||
-                        !strcmp(meta->annotation->module->name, "sysrepo"));
+                assert(!strcmp(meta->annotation->module->name, "yang"));
                 break;
             }
         }

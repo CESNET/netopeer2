@@ -362,13 +362,9 @@ np2srv_user_add_auth_key(const char *alg, size_t alg_len, const char *key, size_
     char name[7], *str;
     struct lyd_node *authkey;
 
-    if (lyd_new_inner(user, NULL, "authorized-key", 0, &authkey)) {
-        return -1;
-    }
-
-    /* name */
+    /* list with name */
     sprintf(name, "key%d", (*key_idx)++);
-    if (lyd_new_term(authkey, NULL, "name", name, 0, NULL)) {
+    if (lyd_new_list(user, NULL, "authorized-key", 0, &authkey, name)) {
         return -1;
     }
 

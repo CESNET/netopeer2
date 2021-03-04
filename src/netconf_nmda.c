@@ -240,7 +240,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     ncac_check_data_read_filter(&data, username);
 
     /* add output */
-    if (lyd_new_any(output, NULL, "data", data, LYD_ANYDATA_DATATREE, 1, NULL)) {
+    if (lyd_new_any(output, NULL, "data", data, 1, LYD_ANYDATA_DATATREE, 1, NULL)) {
         goto cleanup;
     }
     data = NULL;
