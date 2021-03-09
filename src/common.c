@@ -90,8 +90,8 @@ np_get_user_sess(sr_session_ctx_t *ev_sess)
 }
 
 void
-np2srv_ntf_new_cb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t notif_type, const struct lyd_node *notif,
-        time_t timestamp, void *private_data)
+np2srv_ntf_new_cb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t notif_type, uint32_t UNUSED(sub_id),
+        const struct lyd_node *notif, time_t timestamp, void *private_data)
 {
     struct nc_server_notif *nc_ntf = NULL;
     struct nc_session *ncs = (struct nc_session *)private_data;

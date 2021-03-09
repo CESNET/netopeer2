@@ -53,8 +53,8 @@ const char *np_get_nc_sess_user(sr_session_ctx_t *session);
 
 sr_session_ctx_t *np_get_user_sess(sr_session_ctx_t *ev_sess);
 
-void np2srv_ntf_new_cb(sr_session_ctx_t *session, const sr_ev_notif_type_t notif_type, const struct lyd_node *notif,
-        time_t timestamp, void *private_data);
+void np2srv_ntf_new_cb(sr_session_ctx_t *session, const sr_ev_notif_type_t notif_type, uint32_t sub_id,
+        const struct lyd_node *notif, time_t timestamp, void *private_data);
 
 void np2srv_new_session_cb(const char *client_name, struct nc_session *new_session);
 
