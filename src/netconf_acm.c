@@ -852,9 +852,17 @@ ncac_allowed_tree(const struct lys_node *top_node, const char *user)
 
     /* 3) <close-session> and notifications <replayComplete>, <notificationComplete> always allowed */
     if ((top_node->nodetype == LYS_RPC) && !strcmp(top_node->name, "close-session")
-                && !strcmp(lys_node_module(top_node)->name, "ietf-netconf")) {
+            && !strcmp(lys_node_module(top_node)->name, "ietf-netconf")) {
         return 1;
     } else if ((top_node->nodetype == LYS_NOTIF) && !strcmp(lys_node_module(top_node)->name, "nc-notifications")) {
+        return 1;
+    }
+
+    /* 4) <get>, <get-config>, and <get-data> not checked for execute permission - RFC 8341 section 3.2.4
+     * (assume it is the same for <get-data>) */
+    if ((top_node->nodetype == LYS_RPC) && (((!strcmp(top_node->name, "get") || !strcmp(top_node->name, "get-config"))
+            && !strcmp(lys_node_module(top_node)->name, "ietf-netconf")) || (!strcmp(top_node->name, "get-data")
+            && !strcmp(lys_node_module(top_node)->name, "ietf-netconf-nmda")))) {
         return 1;
     }
 
