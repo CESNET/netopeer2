@@ -6,7 +6,7 @@ Build-Depends: debhelper (>= 9), gcc
 Homepage: @GITHUB_URL@
 
 Package: @PACKAGE@
-Depends: libyang@LIBYANG_DEP_SOVERSION_MAJOR@, sysrepo (>= 1.4.104), libnetconf2 (>= 1.1.36), libssh-4 (>= 0.7.1), openssl, ${shlibs:Depends}
+Depends: libyang@LIBYANG_DEP_SOVERSION_MAJOR@, sysrepo (>= 1.4.122), libnetconf2 (>= 1.1.43), libssh-4 (>= 0.7.1), openssl, ${shlibs:Depends}
 Section: libs
 Architecture: any
 Description: @PACKAGE_DESC@

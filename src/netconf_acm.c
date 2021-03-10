@@ -860,6 +860,14 @@ ncac_allowed_tree(const struct lysc_node *top_node, const char *user)
         return 1;
     }
 
+    /* 4) <get>, <get-config>, and <get-data> not checked for execute permission - RFC 8341 section 3.2.4
+     * (assume it is the same for <get-data>) */
+    if ((top_node->nodetype == LYS_RPC) && (((!strcmp(top_node->name, "get") || !strcmp(top_node->name, "get-config")) &&
+            !strcmp(top_node->module->name, "ietf-netconf")) || (!strcmp(top_node->name, "get-data") &&
+            !strcmp(top_node->module->name, "ietf-netconf-nmda")))) {
+        return 1;
+    }
+
     return 0;
 }
 
