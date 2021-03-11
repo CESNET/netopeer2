@@ -1063,7 +1063,12 @@ ncac_allowed_node(const struct lyd_node *node, const char *user, uint8_t oper)
     struct ly_ctx *ly_ctx;
     char **groups, *path;
     uint32_t i, j, group_count;
-    enum ncac_access access = NCAC_ACCESS_DENY, partial_access = NCAC_ACCESS_DENY;
+    enum ncac_access access = NCAC_ACCESS_DENY;
+    enum {
+        RULE_PARTIAL_MATCH_NONE   = 0,
+        RULE_PARTIAL_MATCH_PERMIT = 1,
+        RULE_PARTIAL_MATCH_DENY   = 2
+    } partial_access = RULE_PARTIAL_MATCH_NONE;
     int path_match;
 
     assert(oper);
@@ -1154,9 +1159,8 @@ ncac_allowed_node(const struct lyd_node *node, const char *user, uint8_t oper)
                     if (!path_match) {
                         continue;
                     } else if (path_match == 2) {
-                        /* partial match, continue searching for a full match (only partial permit has some meaning,
-                         * do not overwrite it) */
-                        partial_access = rule->action_deny ? partial_access : NCAC_ACCESS_PARTIAL_PERMIT;
+                        /* partial match, continue searching for a full match */
+                        partial_access |= rule->action_deny ? RULE_PARTIAL_MATCH_DENY : RULE_PARTIAL_MATCH_PERMIT;
                         continue;
                     }
                 }
@@ -1220,12 +1224,16 @@ step10:
         goto cleanup;
     }
 
-    if ((access == NCAC_ACCESS_DENY) && (partial_access == NCAC_ACCESS_PARTIAL_PERMIT)) {
+cleanup:
+    if ((access == NCAC_ACCESS_DENY) && (partial_access & RULE_PARTIAL_MATCH_PERMIT)) {
         /* node itself is not allowed but a rule allows access to some descendants so it may be allowed at the end */
         access = NCAC_ACCESS_PARTIAL_DENY;
     }
+    else if ((access == NCAC_ACCESS_PERMIT) && (partial_access & RULE_PARTIAL_MATCH_DENY)) {
+        /* node itself is allowed but a rule denies access to some descendants */
+        access = NCAC_ACCESS_PARTIAL_PERMIT;
+    }
 
-cleanup:
     for (i = 0; i < group_count; ++i) {
         lydict_remove(ly_ctx, groups[i]);
     }
