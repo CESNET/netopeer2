@@ -1027,6 +1027,21 @@ ncac_allowed_path(const char *rule_target, const char *node_path)
             }
 
             ++node_ptr;
+        } else if ((rule_ptr[0] == ']') && (node_ptr[0] == '=')) {
+            /* There is a key/value contained in the node_path but a only the key-name in the rule target. */
+            while (node_ptr[0] != ']') {
+                if (node_ptr[0] == '\'') {
+                    do {
+                        ++node_ptr;
+                    } while (node_ptr[0] != '\'');
+                }
+
+                ++node_ptr;
+            }
+
+            ++node_ptr;
+            /* Proceed to the character after the closing bracket. */
+            ++rule_ptr;
         } else {
             /* not a match */
             return 0;
