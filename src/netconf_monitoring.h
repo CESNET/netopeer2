@@ -52,6 +52,9 @@ void ncm_session_add(struct nc_session *session);
 void ncm_session_del(struct nc_session *session);
 void ncm_bad_hello(struct nc_session *session);
 
-struct lyd_node *ncm_get_data(sr_conn_ctx_t *conn);
+uint32_t ncm_session_get_notification(struct nc_session *session);
+
+int np2srv_ncm_oper_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath,
+        uint32_t request_id, struct lyd_node **parent, void *private_data);
 
 #endif /* NP2SRV_NETCONF_MONITORING_H_ */

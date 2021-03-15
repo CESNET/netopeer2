@@ -46,6 +46,7 @@
 #include "netconf_acm.h"
 #include "netconf_monitoring.h"
 #include "netconf_nmda.h"
+#include "netconf_subscribed_notifications.h"
 
 /** @brief flag for main loop */
 ATOMIC_T loop_continue = 1;
@@ -54,8 +55,6 @@ ATOMIC_T loop_continue = 1;
 ATOMIC_T skip_nacm_sr_sid;
 
 static void *worker_thread(void *arg);
-static int np2srv_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path,
-        const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
 /**
  * @brief Signal handler to control the process
@@ -85,130 +84,6 @@ signal_handler(int sig)
         exit(EXIT_FAILURE);
     }
 }
-
-static struct lyd_node *
-np2srv_ntf_get_data(sr_conn_ctx_t *sr_conn)
-{
-    struct lyd_node *root, *stream, *sr_data = NULL, *sr_mod, *rep_sup;
-    const struct ly_ctx *ly_ctx;
-    const char *mod_name;
-    char buf[26];
-    int rc;
-
-    ly_ctx = sr_get_context(sr_conn);
-
-    if (lyd_new_path(NULL, ly_ctx, "/nc-notifications:netconf/streams", NULL, 0, &root)) {
-        goto error;
-    }
-
-    /* generic stream */
-    if (lyd_new_path(root, NULL, "/nc-notifications:netconf/streams/stream[name='NETCONF']", NULL, 0, &stream)) {
-        goto error;
-    }
-    if (lyd_new_term(stream, stream->schema->module, "description",
-            "Default NETCONF stream containing notifications from all the modules."
-            " Replays only notifications for modules that support replay.", 0, NULL)) {
-        goto error;
-    }
-    if (lyd_new_term(stream, stream->schema->module, "replaySupport", "true", 0, NULL)) {
-        goto error;
-    }
-
-    /* go through all the sysrepo modules */
-    rc = sr_get_module_info(sr_conn, &sr_data);
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to get sysrepo module info data (%s).", sr_strerror(rc));
-        goto error;
-    }
-    LY_LIST_FOR(lyd_child(sr_data), sr_mod) {
-        mod_name = LYD_CANON_VALUE(lyd_child(sr_mod));
-
-        /* generate information about the stream/module */
-        if (lyd_new_list(lyd_child(root), NULL, "stream", 0, &stream, mod_name)) {
-            goto error;
-        }
-        if (lyd_new_term(stream, NULL, "description", "Stream with all notifications of a module.", 0, NULL)) {
-            goto error;
-        }
-
-        lyd_find_path(sr_mod, "replay-support", 0, &rep_sup);
-        if (lyd_new_term(stream, NULL, "replaySupport", rep_sup ? "true" : "false", 0, NULL)) {
-            goto error;
-        }
-        if (rep_sup) {
-            nc_time2datetime(((struct lyd_node_term *)rep_sup)->value.uint64, NULL, buf);
-            if (lyd_new_term(stream, NULL, "replayLogCreationTime", buf, 0, NULL)) {
-                goto error;
-            }
-        }
-    }
-
-    lyd_free_siblings(sr_data);
-    return root;
-
-error:
-    lyd_free_tree(root);
-    lyd_free_siblings(sr_data);
-    return NULL;
-}
-
-static int
-np2srv_state_data_cb(sr_session_ctx_t *UNUSED(session), const char *module_name, const char *path,
-        const char *UNUSED(request_xpath), uint32_t UNUSED(request_id), struct lyd_node **parent, void *UNUSED(private_data))
-{
-    struct lyd_node *data = NULL, *node;
-    struct ly_set *set = NULL;
-    int ret = SR_ERR_OK;
-
-    /* get the full module state data tree */
-    if (!strcmp(module_name, "ietf-netconf-monitoring")) {
-        data = ncm_get_data(np2srv.sr_conn);
-    } else if (!strcmp(module_name, "nc-notifications")) {
-        data = np2srv_ntf_get_data(np2srv.sr_conn);
-    } else {
-        EINT;
-        ret = SR_ERR_OPERATION_FAILED;
-        goto cleanup;
-    }
-
-    /* find the requested top-level subtree */
-    if (lyd_find_xpath(data, path, &set) || !set->count) {
-        ret = SR_ERR_OPERATION_FAILED;
-        goto cleanup;
-    }
-    node = set->dnodes[0];
-
-    if (node->parent || *parent) {
-        EINT;
-        ret = SR_ERR_OPERATION_FAILED;
-        goto cleanup;
-    }
-
-    /* return the subtree */
-    if (node == data) {
-        data = data->next;
-    }
-    lyd_unlink_tree(node);
-    *parent = node;
-
-    /* success */
-
-cleanup:
-    ly_set_free(set, NULL);
-    lyd_free_siblings(data);
-    return ret;
-}
-
-#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
-
-static int
-np2srv_dummy_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name), const char *UNUSED(xpath),
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
-{
-    return SR_ERR_OK;
-}
-
-#endif
 
 static void
 np2srv_del_session_cb(struct nc_session *session)
@@ -444,6 +319,9 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         if (!strcmp(rpc->schema->module->name, "ietf-netconf")) {
             /* augment */
             lyd_find_path(rpc, "ietf-netconf-with-defaults:with-defaults", 0, (struct lyd_node **)&leaf);
+        } else if (!lys_find_child(rpc->schema, rpc->schema->module, "with-defaults", 0, LYS_LEAF, 0)) {
+            /* no with-defaults mode */
+            leaf = NULL;
         } else {
             /* grouping */
             lyd_find_path(rpc, "with-defaults", 0, (struct lyd_node **)&leaf);
@@ -669,6 +547,17 @@ error:
     return -1;
 }
 
+#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+
+static int
+np2srv_dummy_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name), const char *UNUSED(xpath),
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+{
+    return SR_ERR_OK;
+}
+
+#endif
+
 static int
 server_rpc_subscribe(void)
 {
@@ -706,6 +595,12 @@ server_rpc_subscribe(void)
     SR_RPC_SUBSCR("/ietf-netconf-nmda:get-data", np2srv_rpc_getdata_cb);
     SR_RPC_SUBSCR("/ietf-netconf-nmda:edit-data", np2srv_rpc_editdata_cb);
 
+    /* subscribe to ietf-subscribed-notifications RPCs */
+    SR_RPC_SUBSCR("/ietf-subscribed-notifications:establish-subscription", np2srv_rpc_establish_sub_cb);
+    SR_RPC_SUBSCR("/ietf-subscribed-notifications:modify-subscription", np2srv_rpc_modify_sub_cb);
+    SR_RPC_SUBSCR("/ietf-subscribed-notifications:delete-subscription", np2srv_rpc_delete_sub_cb);
+    SR_RPC_SUBSCR("/ietf-subscribed-notifications:kill-subscription", np2srv_rpc_kill_sub_cb);
+
     return 0;
 
 error:
@@ -740,10 +635,21 @@ server_data_subscribe(void)
         goto error;
     }
     mod_name = "ietf-netconf-monitoring";
-    SR_OPER_SUBSCR(mod_name, "/ietf-netconf-monitoring:netconf-state", np2srv_state_data_cb);
+    SR_OPER_SUBSCR(mod_name, "/ietf-netconf-monitoring:netconf-state", np2srv_ncm_oper_cb);
 
     mod_name = "nc-notifications";
-    SR_OPER_SUBSCR(mod_name, "/nc-notifications:netconf", np2srv_state_data_cb);
+    SR_OPER_SUBSCR(mod_name, "/nc-notifications:netconf", np2srv_nc_ntf_oper_cb);
+
+    /*
+     * ietf-subscribed-notifications
+     */
+    mod_name = "ietf-subscribed-notifications";
+    xpath = "/ietf-subscribed-notifications:filters";
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_sub_ntf_filters_cb);
+
+    /* operational data */
+    SR_OPER_SUBSCR(mod_name, "/ietf-subscribed-notifications:streams", np2srv_sub_ntf_streams_oper_cb);
+    SR_OPER_SUBSCR(mod_name, "/ietf-subscribed-notifications:subscriptions", np2srv_sub_ntf_subscriptions_oper_cb);
 
     /*
      * ietf-netconf-server
@@ -878,13 +784,13 @@ server_data_subscribe(void)
 
     /* state data */
     xpath = "/ietf-netconf-acm:nacm/denied-operations";
-    SR_OPER_SUBSCR(mod_name, xpath, ncac_state_data_cb);
+    SR_OPER_SUBSCR(mod_name, xpath, ncac_oper_cb);
 
     xpath = "/ietf-netconf-acm:nacm/denied-data-writes";
-    SR_OPER_SUBSCR(mod_name, xpath, ncac_state_data_cb);
+    SR_OPER_SUBSCR(mod_name, xpath, ncac_oper_cb);
 
     xpath = "/ietf-netconf-acm:nacm/denied-notifications";
-    SR_OPER_SUBSCR(mod_name, xpath, ncac_state_data_cb);
+    SR_OPER_SUBSCR(mod_name, xpath, ncac_oper_cb);
 
     return 0;
 
@@ -1292,6 +1198,9 @@ cleanup:
 
     /* NACM cleanup */
     ncac_destroy();
+
+    /* ietf-subscribed-notifications cleanup */
+    np2srv_sub_ntf_destroy();
 
     /* removes the context and clears all the sessions */
     sr_disconnect(np2srv.sr_conn);

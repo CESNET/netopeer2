@@ -14,6 +14,8 @@
 
 #define _GNU_SOURCE
 
+#include "netconf_nmda.h"
+
 #include <stdio.h>
 #include <assert.h>
 #include <inttypes.h>
@@ -149,7 +151,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     node = nodeset->count ? nodeset->dnodes[0] : NULL;
     ly_set_free(nodeset, NULL);
     if (node && !strcmp(node->schema->name, "subtree-filter")) {
-        if (op_filter_create(node, &filter)) {
+        if (op_filter_subtree2xpath(((struct lyd_node_any *)node)->value.tree, &filter)) {
             rc = SR_ERR_INTERNAL;
             goto cleanup;
         }

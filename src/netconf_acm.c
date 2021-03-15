@@ -14,6 +14,8 @@
 #define _GNU_SOURCE
 #define _DEFAULT_SOURCE
 
+#include "netconf_acm.h"
+
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
@@ -26,7 +28,6 @@
 
 #include "common.h"
 #include "log.h"
-#include "netconf_acm.h"
 
 static struct ncac nacm;
 
@@ -115,7 +116,7 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), 
 
 /* /ietf-netconf-acm:nacm/denied-* */
 int
-ncac_state_data_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name), const char *path,
+ncac_oper_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name), const char *path,
         const char *UNUSED(request_xpath), uint32_t UNUSED(request_id), struct lyd_node **parent, void *UNUSED(private_data))
 {
     LY_ERR lyrc;

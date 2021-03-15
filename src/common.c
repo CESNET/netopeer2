@@ -51,18 +51,88 @@ np_sleep(uint32_t ms)
     return nanosleep(&ts, NULL);
 }
 
-const char *
-np_get_nc_sess_user(sr_session_ctx_t *session)
+int
+np_ly_schema_dup_r(struct lyd_node *parent, const struct lyd_node *child, int strict)
 {
-    struct nc_session *nc_sess = NULL;
-    uint32_t nc_sid, i;
+    const struct lysc_node *schema;
+    const struct lyd_node *child2, *key;
+    struct lyd_node *dup;
+    char *key_pred;
+    int len;
 
-    nc_sid = sr_session_get_event_nc_id(session);
-    for (i = 0; (nc_sess = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
-        if (nc_session_get_id(nc_sess) == nc_sid) {
+    /* find the corresponding schema node */
+    schema = lys_find_child(parent->schema, parent->schema->module, child->schema->name, 0, child->schema->nodetype, 0);
+    if (!schema) {
+        return strict ? -1 : 0;
+    }
+
+    if (schema->nodetype == LYS_LIST) {
+        /* create keys predicate */
+        key_pred = NULL;
+        for (key = lyd_child(child); key && lysc_is_key(key->schema); key = key->next) {
+            len = strlen(key_pred);
+            key_pred = realloc(key_pred, len + 1 + strlen(key->schema->name) + 2 + strlen(LYD_CANON_VALUE(key)) + 3);
+            sprintf(key_pred + len, "[%s='%s']", key->schema->name, LYD_CANON_VALUE(key));
+        }
+
+        if (lyd_new_list2(parent, NULL, schema->name, key_pred, 0, NULL)) {
+            free(key_pred);
+            return -1;
+        }
+        free(key_pred);
+    } else if (schema->nodetype & LYD_NODE_INNER) {
+        if (lyd_new_inner(parent, NULL, schema->name, 0, &dup)) {
+            return -1;
+        }
+
+        /* recursive for children */
+        LY_LIST_FOR(lyd_child_no_keys(child), child2) {
+            if (np_ly_schema_dup_r(dup, child2, strict)) {
+                lyd_free_tree(dup);
+                return -1;
+            }
+        }
+    } else if (schema->nodetype & LYD_NODE_TERM) {
+        if (lyd_new_term(parent, NULL, schema->name, LYD_CANON_VALUE(child), 0, NULL)) {
+            return -1;
+        }
+    } else if (schema->nodetype & LYD_NODE_ANY) {
+        if (lyd_new_any(parent, NULL, schema->name, ((struct lyd_node_any *)child)->value.tree, 0,
+                ((struct lyd_node_any *)child)->value_type, 0, NULL)) {
+            return -1;
+        }
+    } else {
+        EINT;
+        return -1;
+    }
+
+    return 0;
+}
+
+struct nc_session *
+np_get_nc_sess(uint32_t nc_id)
+{
+    uint32_t i;
+    struct nc_session *ncs;
+
+    for (i = 0; (ncs = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
+        if (nc_session_get_id(ncs) == nc_id) {
             break;
         }
     }
+
+    if (!ncs) {
+        ERR("Failed to find NETCONF session SID %u.", nc_id);
+    }
+    return ncs;
+}
+
+const char *
+np_get_nc_sess_user(sr_session_ctx_t *session)
+{
+    struct nc_session *nc_sess;
+
+    nc_sess = np_get_nc_sess(sr_session_get_event_nc_id(session));
     if (!nc_sess) {
         return NULL;
     }
@@ -73,71 +143,14 @@ np_get_nc_sess_user(sr_session_ctx_t *session)
 sr_session_ctx_t *
 np_get_user_sess(sr_session_ctx_t *ev_sess)
 {
-    struct nc_session *nc_sess = NULL;
-    uint32_t nc_sid, i;
+    struct nc_session *nc_sess;
 
-    nc_sid = sr_session_get_event_nc_id(ev_sess);
-    for (i = 0; (nc_sess = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
-        if (nc_session_get_id(nc_sess) == nc_sid) {
-            break;
-        }
-    }
+    nc_sess = np_get_nc_sess(sr_session_get_event_nc_id(ev_sess));
     if (!nc_sess) {
         return NULL;
     }
 
     return nc_session_get_data(nc_sess);
-}
-
-void
-np2srv_ntf_new_cb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t notif_type, uint32_t UNUSED(sub_id),
-        const struct lyd_node *notif, time_t timestamp, void *private_data)
-{
-    struct nc_server_notif *nc_ntf = NULL;
-    struct nc_session *ncs = (struct nc_session *)private_data;
-    struct lyd_node *ly_ntf = NULL;
-    NC_MSG_TYPE msg_type;
-    char buf[26], *datetime;
-
-    /* create these notifications, sysrepo only emulates them */
-    if (notif_type == SR_EV_NOTIF_REPLAY_COMPLETE) {
-        lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/nc-notifications:replayComplete", NULL, 0, &ly_ntf);
-        notif = ly_ntf;
-    } else if (notif_type == SR_EV_NOTIF_STOP) {
-        lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/nc-notifications:notificationComplete", NULL, 0, &ly_ntf);
-        notif = ly_ntf;
-    }
-
-    /* find the top-level node */
-    while (notif->parent) {
-        notif = lyd_parent(notif);
-    }
-
-    /* check NACM */
-    if (ncac_check_operation(notif, nc_session_get_username(ncs))) {
-        goto cleanup;
-    }
-
-    /* create the notification object */
-    datetime = nc_time2datetime(timestamp, NULL, buf);
-    nc_ntf = nc_server_notif_new((struct lyd_node *)notif, datetime, NC_PARAMTYPE_CONST);
-
-    /* send the notification */
-    msg_type = nc_server_notif_send(ncs, nc_ntf, NP2SRV_NOTIF_SEND_TIMEOUT);
-    if ((msg_type == NC_MSG_ERROR) || (msg_type == NC_MSG_WOULDBLOCK)) {
-        ERR("Sending a notification to session %d %s.", nc_session_get_id(ncs), msg_type == NC_MSG_ERROR ? "failed" : "timed out");
-        goto cleanup;
-    }
-    ncm_session_notification(ncs);
-
-    if (notif_type == SR_EV_NOTIF_STOP) {
-        /* subscription finished */
-        nc_session_set_notif_status(ncs, 0);
-    }
-
-cleanup:
-    nc_server_notif_free(nc_ntf);
-    lyd_free_all(ly_ntf);
 }
 
 void
@@ -713,8 +726,8 @@ filter_xpath_buf_add_r(const struct lyd_node *node, char **buf, int size, struct
     return 0;
 }
 
-static int
-op_filter_build_xpath_from_subtree(const struct lyd_node *node, struct np2_filter *filter)
+int
+op_filter_subtree2xpath(const struct lyd_node *node, struct np2_filter *filter)
 {
     const struct lyd_node *iter;
     char *buf = NULL;
@@ -745,7 +758,7 @@ error:
 void
 op_filter_erase(struct np2_filter *filter)
 {
-    int i;
+    uint32_t i;
 
     for (i = 0; i < filter->count; ++i) {
         free(filter->filters[i].str);
@@ -755,44 +768,95 @@ op_filter_erase(struct np2_filter *filter)
     filter->count = 0;
 }
 
-int
-op_filter_create(const struct lyd_node *filter_node, struct np2_filter *filter)
+static int
+np_append_str(const char *str, char **ret)
 {
-    struct lyd_meta *meta;
+    void *mem;
+    int len;
 
-    meta = lyd_find_meta(filter_node->meta, NULL, "type");
-    if (meta && !strcmp(meta->value.canonical, "xpath")) {
-        meta = lyd_find_meta(filter_node->meta, NULL, "select");
-        if (!meta) {
-            ERR("RPC with an XPath filter without the \"select\" attribute.");
+    if (!*ret) {
+        *ret = strdup(str);
+        if (!*ret) {
+            EMEM;
             return -1;
         }
     } else {
-        meta = NULL;
+        len = strlen(*ret);
+        mem = realloc(*ret, len + strlen(str) + 1);
+        if (!mem) {
+            EMEM;
+            return -1;
+        }
+        *ret = mem;
+        strcat(*ret + len, str);
     }
 
-    if (!meta) {
-        /* subtree */
-        if (((struct lyd_node_any *)filter_node)->value_type != LYD_ANYDATA_DATATREE) {
-            /* empty filter, fair enough */
-            return 0;
+    return 0;
+}
+
+int
+op_filter_filter2xpath(const struct np2_filter *filter, char **xpath)
+{
+    uint32_t i;
+
+    *xpath = NULL;
+
+    /* all selection filters first */
+    for (i = 0; i < filter->count; ++i) {
+        if (!filter->filters[i].selection) {
+            continue;
         }
 
-        if (op_filter_build_xpath_from_subtree(((struct lyd_node_any *)filter_node)->value.tree, filter)) {
-            return -1;
+        /* put all selection filters into parentheses */
+        if (!*xpath) {
+            if (np_append_str("(", xpath)) {
+                goto error;
+            }
+
+            if (np_append_str(filter->filters[i].str, xpath)) {
+                goto error;
+            }
+        } else {
+            if (np_append_str(" or ", xpath)) {
+                goto error;
+            }
+
+            if (np_append_str(filter->filters[i].str, xpath)) {
+                goto error;
+            }
         }
-    } else {
-        /* xpath */
-        if (!meta->value.canonical || !strlen(meta->value.canonical)) {
-            /* empty select, okay, I guess... */
-            return 0;
+    }
+
+    if (*xpath) {
+        /* finish parentheses */
+        if (np_append_str(")", xpath)) {
+            goto error;
         }
-        if (op_filter_xpath_add_filter(meta->value.canonical, 1, filter)) {
-            return -1;
+    }
+
+    /* now append all content filters */
+    for (i = 0; i < filter->count; ++i) {
+        if (filter->filters[i].selection) {
+            continue;
+        }
+
+        if (*xpath) {
+            if (np_append_str(" and ", xpath)) {
+                goto error;
+            }
+        }
+
+        if (np_append_str(filter->filters[i].str, xpath)) {
+            goto error;
         }
     }
 
     return 0;
+
+error:
+    free(*xpath);
+    *xpath = NULL;
+    return -1;
 }
 
 int
@@ -801,7 +865,8 @@ op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_oper_op
 {
     const sr_error_info_t *err_info;
     struct lyd_node *node;
-    int i, rc;
+    uint32_t i;
+    int rc;
 
     for (i = 0; i < filter->count; ++i) {
         /* get the selected data */
@@ -828,9 +893,9 @@ op_filter_data_filter(struct lyd_node **data, const struct np2_filter *filter, i
         struct lyd_node **filtered_data)
 {
     struct lyd_node *node;
-    int i, has_filter = 0, rc = SR_ERR_OK;
+    int has_filter = 0, rc = SR_ERR_OK;
     struct ly_set *set = NULL;
-    uint32_t j;
+    uint32_t i, j;
 
     if (!*data) {
         /* nothing to filter */

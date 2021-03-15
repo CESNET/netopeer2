@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include <libyang/libyang.h>
+#include <sysrepo.h>
 
 #define NCAC_OP_CREATE 0x01 /**< NACM operation create */
 #define NCAC_OP_READ   0x02 /**< NACM operation read */
@@ -92,7 +93,7 @@ struct ncac {
 int ncac_nacm_params_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event,
         uint32_t request_id, void *private_data);
 
-int ncac_state_data_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath,
+int ncac_oper_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath,
         uint32_t request_id, struct lyd_node **parent, void *private_data);
 
 int ncac_group_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event,

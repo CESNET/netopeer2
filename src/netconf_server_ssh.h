@@ -15,8 +15,8 @@
 #ifndef NP2SRV_NETCONF_SERVER_SSH_H_
 #define NP2SRV_NETCONF_SERVER_SSH_H_
 
-#include <libssh/libssh.h>
 #include <sysrepo.h>
+#include <nc_server.h>
 
 int np2srv_hostkey_cb(const char *name, void *user_data, char **privkey_path, char **privkey_data,
         NC_SSH_KEY_TYPE *privkey_type);

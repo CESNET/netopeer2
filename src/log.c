@@ -11,7 +11,10 @@
  *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
+
 #define _DEFAULT_SOURCE
+
+#include "log.h"
 
 #include <errno.h>
 #include <stdarg.h>
@@ -26,7 +29,6 @@
 #include <sysrepo.h>
 
 #include "common.h"
-#include "log.h"
 
 volatile uint8_t np2_verbose_level;
 uint8_t np2_libssh_verbose_level;

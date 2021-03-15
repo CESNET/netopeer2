@@ -11,9 +11,12 @@
  *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
+
 #define _GNU_SOURCE /* asprintf() */
 #define _DEFAULT_SOURCE /* getpwent() */
 #define _POSIX_C_SOURCE 200809L /* getline() */
+
+#include "netconf_server_ssh.h"
 
 #include <stdio.h>
 #include <stdint.h>

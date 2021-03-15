@@ -16,6 +16,7 @@
 #define NP2SRV_NETCONF_SERVER_H_
 
 #include <sysrepo.h>
+#include <nc_server.h>
 
 int np2srv_sr_get_privkey(const struct lyd_node *asym_key, char **privkey_data, NC_SSH_KEY_TYPE *privkey_type);
 

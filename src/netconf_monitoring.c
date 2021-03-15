@@ -11,6 +11,9 @@
  *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
+
+#include "netconf_monitoring.h"
+
 #include <time.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -22,7 +25,6 @@
 
 #include "common.h"
 #include "log.h"
-#include "netconf_monitoring.h"
 
 #define NCM_TIMEZONE "CET"
 
@@ -216,6 +218,24 @@ ncm_bad_hello(struct nc_session *session)
     pthread_mutex_unlock(&stats.lock);
 }
 
+uint32_t
+ncm_session_get_notification(struct nc_session *session)
+{
+    uint32_t count;
+
+    if (!ncm_is_monitored(session)) {
+        return 0;
+    }
+
+    pthread_mutex_lock(&stats.lock);
+
+    count = stats.session_stats[find_session_idx(session)].out_notifications;
+
+    pthread_mutex_unlock(&stats.lock);
+
+    return count;
+}
+
 static void
 ncm_data_add_ds_lock(sr_conn_ctx_t *conn, const char *ds_str, sr_datastore_t ds, struct lyd_node *parent)
 {
@@ -239,16 +259,19 @@ ncm_data_add_ds_lock(sr_conn_ctx_t *conn, const char *ds_str, sr_datastore_t ds,
     }
 }
 
-struct lyd_node *
-ncm_get_data(sr_conn_ctx_t *conn)
+int
+np2srv_ncm_oper_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *UNUSED(path),
+        const char *UNUSED(request_xpath), uint32_t UNUSED(request_id), struct lyd_node **parent, void *UNUSED(private_data))
 {
     struct lyd_node *root = NULL, *cont, *list;
     const struct lys_module *mod;
+    sr_conn_ctx_t *conn;
     struct ly_ctx *ly_ctx;
     const char **cpblts;
     char buf[26];
     uint32_t i;
 
+    conn = sr_session_get_connection(session);
     ly_ctx = (struct ly_ctx *)sr_get_context(conn);
 
     if (lyd_new_path(NULL, ly_ctx, "/ietf-netconf-monitoring:netconf-state", NULL, 0, &root)) {
@@ -357,9 +380,10 @@ ncm_get_data(sr_conn_ctx_t *conn)
         goto error;
     }
 
-    return root;
+    *parent = root;
+    return SR_ERR_OK;
 
 error:
     lyd_free_tree(root);
-    return NULL;
+    return SR_ERR_INTERNAL;
 }

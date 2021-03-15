@@ -136,6 +136,8 @@ set(SERVER_SRC
     src/netconf_monitoring.c
     src/netconf_acm.c
     src/netconf_nmda.c
+    src/netconf_subscribed_notifications.c
+    src/netconf_yang_push.c
     src/log.c)
 
 # at least some remote transport is enabled

@@ -48,4 +48,7 @@ int np2srv_rpc_validate_cb(sr_session_ctx_t *session, const char *op_path, const
 int np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *op_path, const struct lyd_node *input,
         sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
 
+int np2srv_nc_ntf_oper_cb(sr_session_ctx_t *session, const char *module_name, const char *path,
+        const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
+
 #endif /* NP2SRV_NETCONF_H_ */
