@@ -72,7 +72,7 @@ struct nc_session *session;
 volatile int interleave;
 int timed;
 
-int cmd_disconnect(const char *arg, char **tmp_config_file);
+static int cmd_disconnect(const char *arg, char **tmp_config_file);
 
 struct arglist {
     char** list;
@@ -624,25 +624,25 @@ trim_top_elem(char *data, const char *top_elem, const char *top_elem_ns)
     return data;
 }
 
-void
+static void
 cmd_searchpath_help(void)
 {
     printf("searchpath [<model-dir-path>]\n");
 }
 
-void
+static void
 cmd_outputformat_help(void)
 {
     printf("outputformat (xml | xml_noformat | json | json_noformat)\n");
 }
 
-void
+static void
 cmd_verb_help(void)
 {
     printf("verb (error/0 | warning/1 | verbose/2 | debug/3)\n");
 }
 
-void
+static void
 cmd_connect_help(void)
 {
 #if defined(NC_ENABLED_SSH) && defined(NC_ENABLED_TLS)
@@ -656,7 +656,7 @@ cmd_connect_help(void)
     printf("connect [--help] --unix [--socket <path>]\n");
 }
 
-void
+static void
 cmd_listen_help(void)
 {
 #if defined(NC_ENABLED_SSH) && defined(NC_ENABLED_TLS)
@@ -670,13 +670,13 @@ cmd_listen_help(void)
 #endif
 }
 
-void
+static void
 cmd_editor_help(void)
 {
     printf("editor [--help] [<path/name-of-the-editor>]\n");
 }
 
-void
+static void
 cmd_cancelcommit_help(void)
 {
     if (session && !nc_session_cpblt(session, NC_CAP_CONFIRMEDCOMMIT_ID)) {
@@ -686,7 +686,7 @@ cmd_cancelcommit_help(void)
     }
 }
 
-void
+static void
 cmd_commit_help(void)
 {
     const char *confirmed;
@@ -704,7 +704,7 @@ cmd_commit_help(void)
     printf("commit [--help]%s [--rpc-timeout <seconds>]\n", confirmed);
 }
 
-void
+static void
 cmd_copyconfig_help(void)
 {
     int ds = 0;
@@ -772,7 +772,7 @@ cmd_copyconfig_help(void)
            running, startup, candidate, url, defaults);
 }
 
-void
+static void
 cmd_deleteconfig_help(void)
 {
     const char *startup, *url;
@@ -802,7 +802,7 @@ cmd_deleteconfig_help(void)
     printf("delete-config [--help] --target %s%s [--rpc-timeout <seconds>]\n", startup, url);
 }
 
-void
+static void
 cmd_discardchanges_help(void)
 {
     if (!session || nc_session_cpblt(session, NC_CAP_CANDIDATE_ID)) {
@@ -812,7 +812,7 @@ cmd_discardchanges_help(void)
     }
 }
 
-void
+static void
 cmd_editconfig_help(void)
 {
     const char *rollback, *validate, *running, *candidate, *url, *bracket;
@@ -864,7 +864,7 @@ cmd_editconfig_help(void)
            "%s[--error stop|continue%s] [--rpc-timeout <seconds>]\n", running, candidate, bracket, url, validate, rollback);
 }
 
-void
+static void
 cmd_get_help(void)
 {
     const char *defaults, *xpath;
@@ -884,7 +884,7 @@ cmd_get_help(void)
     fprintf(stdout, "get [--help] [--filter-subtree[=<file>]%s] %s[--out <file>] [--rpc-timeout <seconds>]\n", xpath, defaults);
 }
 
-void
+static void
 cmd_getconfig_help(void)
 {
     const char *defaults, *xpath, *candidate, *startup;
@@ -918,13 +918,13 @@ cmd_getconfig_help(void)
            startup, candidate, xpath, defaults);
 }
 
-void
+static void
 cmd_killsession_help(void)
 {
     printf("killsession [--help] --sid <sesion-ID> [--rpc-timeout <seconds>]\n");
 }
 
-void
+static void
 cmd_lock_help(void)
 {
     const char *candidate, *startup;
@@ -944,7 +944,7 @@ cmd_lock_help(void)
     printf("lock [--help] --target running%s%s [--rpc-timeout <seconds>]\n", startup, candidate);
 }
 
-void
+static void
 cmd_unlock_help(void)
 {
     const char *candidate, *startup;
@@ -964,7 +964,7 @@ cmd_unlock_help(void)
     printf("unlock [--help] --target running%s%s [--rpc-timeout <seconds>]\n", startup, candidate);
 }
 
-void
+static void
 cmd_validate_help(void)
 {
     const char *startup, *candidate, *url;
@@ -1001,7 +1001,7 @@ cmd_validate_help(void)
            startup, candidate, url);
 }
 
-void
+static void
 cmd_subscribe_help(void)
 {
     const char *xpath;
@@ -1025,7 +1025,7 @@ cmd_subscribe_help(void)
     printf("\t\t-<num>  - current time minus the given number of seconds.\n");
 }
 
-void
+static void
 cmd_getschema_help(void)
 {
     if (session && !ly_ctx_get_module_implemented(nc_session_get_ctx(session), "ietf-netconf-monitoring")) {
@@ -1036,7 +1036,7 @@ cmd_getschema_help(void)
     printf("get-schema [--help] --model <identifier> [--version <version>] [--format <format>] [--out <file>] [--rpc-timeout <seconds>]\n");
 }
 
-void
+static void
 cmd_getdata_help(void)
 {
     const struct lys_module *mod = NULL;
@@ -1071,7 +1071,7 @@ cmd_getdata_help(void)
             xpath, origin ? " [--origin <origin>]* [--negated-origin]" : "", origin ? " [--with-origin]" : "", defaults);
 }
 
-void
+static void
 cmd_editdata_help(void)
 {
     const struct lys_module *mod;
@@ -1094,13 +1094,89 @@ cmd_editdata_help(void)
             " [--defop merge|replace|none] [--rpc-timeout <seconds>]\n", bracket, url);
 }
 
-void
+static void
+cmd_establishsub_help(void)
+{
+    const struct lys_module *mod = NULL;
+    const char *xpath;
+
+    if (session && !(mod = ly_ctx_get_module_implemented(nc_session_get_ctx(session), "ietf-subscribed-notifications"))) {
+        printf("establish-sub is not supported by the current session.\n");
+        return;
+    }
+
+    if (!session || nc_session_cpblt(session, NC_CAP_XPATH_ID)) {
+        xpath = " | --filter-xpath <XPath>";
+    } else {
+        xpath = "";
+    }
+
+    printf("establish-sub [--help] --stream <stream> [--filter-subtree[=<file>]%s | --filter-ref <name>] [--begin <time>]"
+            " [--end <time>] [--encoding <encoding>] [--out <file>] [--rpc-timeout <seconds>]\n", xpath);
+    printf("\t<time> has following format:\n");
+    printf("\t\t+<num>  - current time plus the given number of seconds.\n");
+    printf("\t\t<num>   - absolute time as number of seconds since 1970-01-01.\n");
+    printf("\t\t-<num>  - current time minus the given number of seconds.\n");
+}
+
+static void
+cmd_modifysub_help(void)
+{
+    const struct lys_module *mod = NULL;
+    const char *xpath;
+
+    if (session && !(mod = ly_ctx_get_module_implemented(nc_session_get_ctx(session), "ietf-subscribed-notifications"))) {
+        printf("modify-sub is not supported by the current session.\n");
+        return;
+    }
+
+    if (!session || nc_session_cpblt(session, NC_CAP_XPATH_ID)) {
+        xpath = " | --filter-xpath <XPath>";
+    } else {
+        xpath = "";
+    }
+
+    printf("modify-sub [--help] --id <sub-ID> [--filter-subtree[=<file>]%s | --filter-ref <name>] [--end <time>]"
+            " [--out <file>] [--rpc-timeout <seconds>]\n", xpath);
+    printf("\t<time> has following format:\n");
+    printf("\t\t+<num>  - current time plus the given number of seconds.\n");
+    printf("\t\t<num>   - absolute time as number of seconds since 1970-01-01.\n");
+    printf("\t\t-<num>  - current time minus the given number of seconds.\n");
+}
+
+static void
+cmd_deletesub_help(void)
+{
+    const struct lys_module *mod = NULL;
+
+    if (session && !(mod = ly_ctx_get_module_implemented(nc_session_get_ctx(session), "ietf-subscribed-notifications"))) {
+        printf("delete-sub is not supported by the current session.\n");
+        return;
+    }
+
+    printf("delete-sub [--help] --id <sub-ID> [--out <file>] [--rpc-timeout <seconds>]\n");
+}
+
+static void
+cmd_killsub_help(void)
+{
+    const struct lys_module *mod = NULL;
+
+    if (session && !(mod = ly_ctx_get_module_implemented(nc_session_get_ctx(session), "ietf-subscribed-notifications"))) {
+        printf("kill-sub is not supported by the current session.\n");
+        return;
+    }
+
+    printf("kill-sub [--help] --id <sub-ID> [--out <file>] [--rpc-timeout <seconds>]\n");
+}
+
+static void
 cmd_userrpc_help(void)
 {
     printf("user-rpc [--help] [--content <file>] [--out <file>] [--rpc-timeout <seconds>]\n");
 }
 
-void
+static void
 cmd_timed_help(void)
 {
     printf("timed [--help] [on | off]\n");
@@ -1108,13 +1184,13 @@ cmd_timed_help(void)
 
 #ifdef NC_ENABLED_SSH
 
-void
+static void
 cmd_auth_help(void)
 {
     printf("auth (--help | pref [(publickey | interactive | password) <preference>] | keys [add <public_key_path> <private_key_path>] [remove <key_index>])\n");
 }
 
-void
+static void
 cmd_knownhosts_help(void)
 {
     printf("knownhosts [--help] [--del <key_index>]\n");
@@ -1124,13 +1200,13 @@ cmd_knownhosts_help(void)
 
 #ifdef NC_ENABLED_TLS
 
-void
+static void
 cmd_cert_help(void)
 {
     printf("cert [--help | display | add <cert_path> | remove <cert_name> | displayown | replaceown (<cert_path.pem> | <cert_path.crt> <key_path.key>)]\n");
 }
 
-void
+static void
 cmd_crl_help(void)
 {
     printf("crl [--help | display | add <crl_path> | remove <crl_name>]\n");
@@ -1140,7 +1216,7 @@ cmd_crl_help(void)
 
 #ifdef NC_ENABLED_SSH
 
-int
+static int
 cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
 {
     int i;
@@ -1267,7 +1343,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
     return EXIT_SUCCESS;
 }
 
-int
+static int
 cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
 {
     char* ptr, *kh_file, *line = NULL, **pkeys = NULL, *text;
@@ -1751,7 +1827,7 @@ parse_cert(const char *name, const char *path)
     fclose(fp);
 }
 
-void
+static void
 parse_crl(const char *name, const char *path)
 {
     int i;
@@ -1830,7 +1906,7 @@ parse_crl(const char *name, const char *path)
     fclose(fp);
 }
 
-int
+static int
 cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
 {
     int ret;
@@ -2102,7 +2178,7 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
     return EXIT_SUCCESS;
 }
 
-int
+static int
 cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
 {
     int ret;
@@ -2475,7 +2551,7 @@ error_cleanup:
     return ret;
 }
 
-int
+static int
 cmd_searchpath(const char *arg, char **UNUSED(tmp_config_file))
 {
     const char *path;
@@ -2497,7 +2573,7 @@ cmd_searchpath(const char *arg, char **UNUSED(tmp_config_file))
     return 0;
 }
 
-int
+static int
 cmd_outputformat(const char *arg, char **UNUSED(tmp_config_file))
 {
     const char *format;
@@ -2534,7 +2610,7 @@ cmd_outputformat(const char *arg, char **UNUSED(tmp_config_file))
     return 0;
 }
 
-int
+static int
 cmd_version(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 {
     fprintf(stdout, "Netopeer2 CLI %s\n", CLI_VERSION);
@@ -2542,7 +2618,7 @@ cmd_version(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
     return 0;
 }
 
-int
+static int
 cmd_verb(const char *arg, char **UNUSED(tmp_config_file))
 {
     const char *verb;
@@ -2580,7 +2656,7 @@ cmd_verb(const char *arg, char **UNUSED(tmp_config_file))
     return 0;
 }
 
-int
+static int
 cmd_disconnect(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 {
     if (session == NULL) {
@@ -2593,7 +2669,7 @@ cmd_disconnect(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
     return EXIT_SUCCESS;
 }
 
-int
+static int
 cmd_status(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 {
     const char *s;
@@ -2747,26 +2823,26 @@ cmd_connect_listen(const char *arg, int is_connect)
     return ret;
 }
 
-int
+static int
 cmd_connect(const char *arg, char **UNUSED(tmp_config_file))
 {
     return cmd_connect_listen(arg, 1);
 }
 
-int
+static int
 cmd_listen(const char *arg, char **UNUSED(tmp_config_file))
 {
     return cmd_connect_listen(arg, 0);
 }
 
-int
+static int
 cmd_quit(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 {
     done = 1;
     return 0;
 }
 
-int
+static int
 cmd_help(const char *arg, char **UNUSED(tmp_config_file))
 {
     int i;
@@ -2811,7 +2887,7 @@ generic_help:
     return 0;
 }
 
-int
+static int
 cmd_editor(const char *arg, char **UNUSED(tmp_config_file))
 {
     char *cmd, *args = strdupa(arg), *ptr = NULL;
@@ -2831,7 +2907,7 @@ cmd_editor(const char *arg, char **UNUSED(tmp_config_file))
     return EXIT_SUCCESS;
 }
 
-int
+static int
 cmd_cancelcommit(const char *arg, char **UNUSED(tmp_config_file))
 {
     struct nc_rpc *rpc;
@@ -2910,7 +2986,7 @@ fail:
     return ret;
 }
 
-int
+static int
 cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
 {
     struct nc_rpc *rpc;
@@ -3001,7 +3077,7 @@ fail:
     return ret;
 }
 
-int
+static int
 cmd_copyconfig(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
@@ -3200,7 +3276,7 @@ fail:
     return ret;
 }
 
-int
+static int
 cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
 {
     int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
@@ -3293,7 +3369,7 @@ fail:
     return ret;
 }
 
-int
+static int
 cmd_discardchanges(const char *arg, char **UNUSED(tmp_config_file))
 {
     struct nc_rpc *rpc;
@@ -3367,7 +3443,7 @@ fail:
     return ret;
 }
 
-int
+static int
 cmd_editconfig(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE, content_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
@@ -3571,7 +3647,7 @@ fail:
     return ret;
 }
 
-int
+static int
 cmd_get(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE, filter_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
@@ -3745,7 +3821,7 @@ fail:
     return ret;
 }
 
-int
+static int
 cmd_getconfig(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE, filter_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
@@ -3939,7 +4015,7 @@ fail:
     return ret;
 }
 
-int
+static int
 cmd_killsession(const char *arg, char **UNUSED(tmp_config_file))
 {
     struct nc_rpc *rpc;
@@ -4028,7 +4104,7 @@ fail:
     return ret;
 }
 
-int
+static int
 cmd_lock(const char *arg, char **UNUSED(tmp_config_file))
 {
     int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
@@ -4121,7 +4197,7 @@ fail:
     return ret;
 }
 
-int
+static int
 cmd_unlock(const char *arg, char **UNUSED(tmp_config_file))
 {
     int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
@@ -4214,7 +4290,7 @@ fail:
     return ret;
 }
 
-int
+static int
 cmd_validate(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
@@ -4380,7 +4456,7 @@ fail:
     return ret;
 }
 
-int
+static int
 cmd_subscribe(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE, filter_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
@@ -4582,7 +4658,7 @@ fail:
     return ret;
 }
 
-int
+static int
 cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
 {
     int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
@@ -4694,7 +4770,7 @@ fail:
     return ret;
 }
 
-int
+static int
 cmd_getdata(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE;
@@ -4936,7 +5012,7 @@ fail:
     return ret;
 }
 
-int
+static int
 cmd_editdata(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE, content_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
@@ -5119,7 +5195,586 @@ fail:
     return ret;
 }
 
-int
+static int
+cmd_establishsub(const char *arg, char **tmp_config_file)
+{
+    int c, config_fd, ret = EXIT_FAILURE, filter_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
+    struct stat config_stat;
+    char *filter = NULL, *config_m = NULL, *start = NULL, *stop = NULL;
+    const char *stream = NULL, *encoding = NULL;
+    struct nc_rpc *rpc = NULL;
+    time_t t;
+    FILE *output = NULL;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"stream", 1, 0, 't'},
+            {"filter-subtree", 2, 0, 's'},
+            {"filter-xpath", 1, 0, 'x'},
+            {"filter-ref", 1, 0, 'f'},
+            {"begin", 1, 0, 'b'},
+            {"end", 1, 0, 'e'},
+            {"encoding", 1, 0, 'n'},
+            {"out", 1, 0, 'o'},
+            {"rpc-timeout", 1, 0, 'r'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
+
+    while ((c = getopt_long(cmd.count, cmd.list, "ht:s::x:f:b:e:n:o:r:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_establishsub_help();
+            ret = EXIT_SUCCESS;
+            goto fail;
+        case 't':
+            stream = optarg;
+            break;
+        case 's':
+            if (filter_param) {
+                ERROR(__func__, "Mixing filter parameters is not allowed.");
+                goto fail;
+            }
+
+            filter_param = 1;
+
+            if (optarg) {
+                /* open edit configuration data from the file */
+                config_fd = open(optarg, O_RDONLY);
+                if (config_fd == -1) {
+                    ERROR(__func__, "Unable to open the local datastore file \"%s\" (%s).", optarg, strerror(errno));
+                    goto fail;
+                }
+
+                /* map content of the file into the memory */
+                if (fstat(config_fd, &config_stat) != 0) {
+                    ERROR(__func__, "fstat failed (%s).", strerror(errno));
+                    close(config_fd);
+                    goto fail;
+                }
+                config_m = mmap(NULL, config_stat.st_size, PROT_READ, MAP_PRIVATE, config_fd, 0);
+                if (config_m == MAP_FAILED) {
+                    ERROR(__func__, "mmap of the local datastore file failed (%s).", strerror(errno));
+                    close(config_fd);
+                    goto fail;
+                }
+
+                /* make a copy of the content to allow closing the file */
+                filter = strdup(config_m);
+
+                /* unmap local datastore file and close it */
+                munmap(config_m, config_stat.st_size);
+                close(config_fd);
+            }
+            break;
+        case 'x':
+        case 'f':
+            if (filter_param) {
+                ERROR(__func__, "Mixing filter parameters is not allowed.");
+                goto fail;
+            }
+
+            filter_param = 1;
+
+            filter = strdup(optarg);
+            break;
+        case 'b':
+        case 'e':
+            if (optarg[0] == '-' || optarg[0] == '+') {
+                t = time(NULL);
+                t += atol(optarg);
+            } else {
+                t = atol(optarg);
+            }
+
+            if (c == 'b') {
+                if (t > time(NULL)) {
+                    /* begin time is in future */
+                    ERROR(__func__, "Begin time cannot be set to future.");
+                    goto fail;
+                }
+                start = nc_time2datetime(t, NULL, NULL);
+            } else { /* c == 'e' */
+                stop = nc_time2datetime(t, NULL, NULL);
+            }
+            break;
+        case 'n':
+            encoding = optarg;
+            break;
+        case 'o':
+            if (output) {
+                ERROR(__func__, "Duplicated \"out\" option.");
+                cmd_establishsub_help();
+                goto fail;
+            }
+            output = fopen(optarg, "w");
+            if (!output) {
+                ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
+                goto fail;
+            }
+            break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_establishsub_help();
+            goto fail;
+        }
+    }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_establishsub_help();
+        goto fail;
+    }
+
+    if (!stream) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_establishsub_help();
+        goto fail;
+    }
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    /* check if edit configuration data were specified */
+    if (filter_param && !filter) {
+        /* let user write edit data interactively */
+        filter = readinput("Type the content of the subtree filter.", *tmp_config_file, tmp_config_file);
+        if (!filter) {
+            ERROR(__func__, "Reading filter data failed.");
+            goto fail;
+        }
+    }
+
+    /* create requests */
+    rpc = nc_rpc_establishsub(filter, stream, start, stop, encoding, NC_PARAMTYPE_CONST);
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        goto fail;
+    }
+
+    /* create notification thread so that notifications can immediately be received */
+    if (!nc_session_ntf_thread_running(session)) {
+        if (!output) {
+            output = stdout;
+        }
+        nc_session_set_data(session, output);
+        ret = nc_recv_notif_dispatch(session, cli_ntf_clb);
+        if (ret) {
+            ERROR(__func__, "Failed to create notification thread.");
+            goto fail;
+        }
+    }
+
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    if (ret) {
+        goto fail;
+    }
+
+fail:
+    clear_arglist(&cmd);
+    if (output && (output != stdout)) {
+        fclose(output);
+    }
+    free(filter);
+    free(start);
+    free(stop);
+    nc_rpc_free(rpc);
+
+    return ret;
+}
+
+static int
+cmd_modifysub(const char *arg, char **tmp_config_file)
+{
+    int c, config_fd, ret = EXIT_FAILURE, filter_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
+    struct stat config_stat;
+    char *filter = NULL, *config_m = NULL, *stop = NULL;
+    struct nc_rpc *rpc = NULL;
+    time_t t;
+    uint32_t id = 0;
+    FILE *output = NULL;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"id", 1, 0, 'i'},
+            {"filter-subtree", 2, 0, 's'},
+            {"filter-xpath", 1, 0, 'x'},
+            {"filter-ref", 1, 0, 'f'},
+            {"end", 1, 0, 'e'},
+            {"out", 1, 0, 'o'},
+            {"rpc-timeout", 1, 0, 'r'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
+
+    while ((c = getopt_long(cmd.count, cmd.list, "hi:s::x:f:e:o:r:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_modifysub_help();
+            ret = EXIT_SUCCESS;
+            goto fail;
+        case 'i':
+            id = atoi(optarg);
+            break;
+        case 's':
+            if (filter_param) {
+                ERROR(__func__, "Mixing filter parameters is not allowed.");
+                goto fail;
+            }
+
+            filter_param = 1;
+
+            if (optarg) {
+                /* open edit configuration data from the file */
+                config_fd = open(optarg, O_RDONLY);
+                if (config_fd == -1) {
+                    ERROR(__func__, "Unable to open the local datastore file \"%s\" (%s).", optarg, strerror(errno));
+                    goto fail;
+                }
+
+                /* map content of the file into the memory */
+                if (fstat(config_fd, &config_stat) != 0) {
+                    ERROR(__func__, "fstat failed (%s).", strerror(errno));
+                    close(config_fd);
+                    goto fail;
+                }
+                config_m = mmap(NULL, config_stat.st_size, PROT_READ, MAP_PRIVATE, config_fd, 0);
+                if (config_m == MAP_FAILED) {
+                    ERROR(__func__, "mmap of the local datastore file failed (%s).", strerror(errno));
+                    close(config_fd);
+                    goto fail;
+                }
+
+                /* make a copy of the content to allow closing the file */
+                filter = strdup(config_m);
+
+                /* unmap local datastore file and close it */
+                munmap(config_m, config_stat.st_size);
+                close(config_fd);
+            }
+            break;
+        case 'x':
+        case 'f':
+            if (filter_param) {
+                ERROR(__func__, "Mixing filter parameters is not allowed.");
+                goto fail;
+            }
+
+            filter_param = 1;
+
+            filter = strdup(optarg);
+            break;
+        case 'e':
+            if (optarg[0] == '-' || optarg[0] == '+') {
+                t = time(NULL);
+                t += atol(optarg);
+            } else {
+                t = atol(optarg);
+            }
+
+            stop = nc_time2datetime(t, NULL, NULL);
+            break;
+        case 'o':
+            if (output) {
+                ERROR(__func__, "Duplicated \"out\" option.");
+                cmd_modifysub_help();
+                goto fail;
+            }
+            output = fopen(optarg, "w");
+            if (!output) {
+                ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
+                goto fail;
+            }
+            break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_modifysub_help();
+            goto fail;
+        }
+    }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_modifysub_help();
+        goto fail;
+    }
+
+    if (!id) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_modifysub_help();
+        goto fail;
+    }
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    /* check if edit configuration data were specified */
+    if (filter_param && !filter) {
+        /* let user write edit data interactively */
+        filter = readinput("Type the content of the subtree filter.", *tmp_config_file, tmp_config_file);
+        if (!filter) {
+            ERROR(__func__, "Reading filter data failed.");
+            goto fail;
+        }
+    }
+
+    /* create requests */
+    rpc = nc_rpc_modifysub(id, filter, stop, NC_PARAMTYPE_CONST);
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        goto fail;
+    }
+
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    if (ret) {
+        goto fail;
+    }
+
+fail:
+    clear_arglist(&cmd);
+    if (output && (output != stdout)) {
+        fclose(output);
+    }
+    free(filter);
+    free(stop);
+    nc_rpc_free(rpc);
+
+    return ret;
+}
+
+static int
+cmd_deletesub(const char *arg, char **UNUSED(tmp_config_file))
+{
+    int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
+    struct nc_rpc *rpc = NULL;
+    uint32_t id = 0;
+    FILE *output = NULL;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"id", 1, 0, 'i'},
+            {"out", 1, 0, 'o'},
+            {"rpc-timeout", 1, 0, 'r'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
+
+    while ((c = getopt_long(cmd.count, cmd.list, "hi:o:r:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_deletesub_help();
+            ret = EXIT_SUCCESS;
+            goto fail;
+        case 'i':
+            id = atoi(optarg);
+            break;
+        case 'o':
+            if (output) {
+                ERROR(__func__, "Duplicated \"out\" option.");
+                cmd_deletesub_help();
+                goto fail;
+            }
+            output = fopen(optarg, "w");
+            if (!output) {
+                ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
+                goto fail;
+            }
+            break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_deletesub_help();
+            goto fail;
+        }
+    }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_deletesub_help();
+        goto fail;
+    }
+
+    if (!id) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_deletesub_help();
+        goto fail;
+    }
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    /* create requests */
+    rpc = nc_rpc_deletesub(id);
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        goto fail;
+    }
+
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    if (ret) {
+        goto fail;
+    }
+
+fail:
+    clear_arglist(&cmd);
+    if (output && (output != stdout)) {
+        fclose(output);
+    }
+    nc_rpc_free(rpc);
+
+    return ret;
+}
+
+static int
+cmd_killsub(const char *arg, char **UNUSED(tmp_config_file))
+{
+    int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
+    struct nc_rpc *rpc = NULL;
+    uint32_t id = 0;
+    FILE *output = NULL;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"id", 1, 0, 'i'},
+            {"out", 1, 0, 'o'},
+            {"rpc-timeout", 1, 0, 'r'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
+
+    while ((c = getopt_long(cmd.count, cmd.list, "hi:o:r:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_killsub_help();
+            ret = EXIT_SUCCESS;
+            goto fail;
+        case 'i':
+            id = atoi(optarg);
+            break;
+        case 'o':
+            if (output) {
+                ERROR(__func__, "Duplicated \"out\" option.");
+                cmd_killsub_help();
+                goto fail;
+            }
+            output = fopen(optarg, "w");
+            if (!output) {
+                ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
+                goto fail;
+            }
+            break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_killsub_help();
+            goto fail;
+        }
+    }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_killsub_help();
+        goto fail;
+    }
+
+    if (!id) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_killsub_help();
+        goto fail;
+    }
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    /* create requests */
+    rpc = nc_rpc_killsub(id);
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        goto fail;
+    }
+
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    if (ret) {
+        goto fail;
+    }
+
+fail:
+    clear_arglist(&cmd);
+    if (output && (output != stdout)) {
+        fclose(output);
+    }
+    nc_rpc_free(rpc);
+
+    return ret;
+}
+
+static int
 cmd_userrpc(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
@@ -5260,7 +5915,7 @@ fail:
     return ret;
 }
 
-int
+static int
 cmd_timed(const char *arg, char **UNUSED(tmp_config_file))
 {
     char *args = strdupa(arg);
@@ -5319,8 +5974,14 @@ COMMAND commands[] = {
         {"get-schema", cmd_getschema, cmd_getschema_help, "ietf-netconf-monitoring <get-schema> operation"},
         {"get-data", cmd_getdata, cmd_getdata_help, "ietf-netconf-nmda <get-data> operation"},
         {"edit-data", cmd_editdata, cmd_editdata_help, "ietf-netconf-nmda <edit-data> operation"},
+        {"establish-sub", cmd_establishsub, cmd_establishsub_help,
+                "ietf-subscribed-notifications <establish-subscription> operation"},
+        {"modify-sub", cmd_modifysub, cmd_modifysub_help, "ietf-subscribed-notifications <modify-subscription> operation"},
+        {"delete-sub", cmd_deletesub, cmd_deletesub_help, "ietf-subscribed-notifications <delete-subscription> operation"},
+        {"kill-sub", cmd_killsub, cmd_killsub_help, "ietf-subscribed-notifications <kill-subscription> operation"},
         {"user-rpc", cmd_userrpc, cmd_userrpc_help, "Send your own content in an RPC envelope"},
-        {"timed", cmd_timed, cmd_timed_help, "Time all the commands (that communicate with a server) from issuing a RPC to getting a reply"},
+        {"timed", cmd_timed, cmd_timed_help, "Time all the commands (that communicate with a server) from issuing an RPC"
+                    " to getting a reply"},
         /* synonyms for previous commands */
         {"?", cmd_help, NULL, "Display commands description"},
         {"exit", cmd_quit, NULL, "Quit the program"},
