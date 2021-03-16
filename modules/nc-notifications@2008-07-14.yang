@@ -75,6 +75,16 @@ module nc-notifications {
                supported.";
             type yang:date-and-time;   // xsd:dateTime is wrong!
           }
+
+          leaf replayLogAgedTime {
+            description
+              "The timestamp of the last notification
+               aged out of the log. This
+               object MUST be present if replay is
+               supported and any notifications
+               have been aged out of the log.";
+            type yang:date-and-time;
+          }
         }
       }
     }
