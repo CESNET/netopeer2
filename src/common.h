@@ -49,24 +49,13 @@ extern ATOMIC_T skip_nacm_sr_sid;
 
 int np_sleep(uint32_t ms);
 
-/**
- * @brief Duplicate a child to a parent when the schema tree does not exactly match but the schema name and type does.
- * Generally, when a grouping was used at 2 places in the schema tree, this function can be used to copy data nodes
- * instantiated at one place the grouping was used to another.
- *
- * @param[in] parent Parent of the duplicated nodes.
- * @param[in] child Child to duplicate to @p parent.
- * @param[in] strict Whether to silently skip nodes for which the matching schema as @p parent child is not found.
- * @return 0 on success.
- * @return -1 on error.
- */
-int np_ly_schema_dup_r(struct lyd_node *parent, const struct lyd_node *child, int strict);
-
 struct nc_session *np_get_nc_sess(uint32_t nc_id);
 
 const char *np_get_nc_sess_user(sr_session_ctx_t *session);
 
 sr_session_ctx_t *np_get_user_sess(sr_session_ctx_t *ev_sess);
+
+int np_ly_mod_has_notif(const struct lys_module *mod);
 
 void np2srv_new_session_cb(const char *client_name, struct nc_session *new_session);
 

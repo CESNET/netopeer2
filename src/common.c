@@ -51,64 +51,6 @@ np_sleep(uint32_t ms)
     return nanosleep(&ts, NULL);
 }
 
-int
-np_ly_schema_dup_r(struct lyd_node *parent, const struct lyd_node *child, int strict)
-{
-    const struct lysc_node *schema;
-    const struct lyd_node *child2, *key;
-    struct lyd_node *dup;
-    char *key_pred;
-    int len;
-
-    /* find the corresponding schema node */
-    schema = lys_find_child(parent->schema, parent->schema->module, child->schema->name, 0, child->schema->nodetype, 0);
-    if (!schema) {
-        return strict ? -1 : 0;
-    }
-
-    if (schema->nodetype == LYS_LIST) {
-        /* create keys predicate */
-        key_pred = NULL;
-        for (key = lyd_child(child); key && lysc_is_key(key->schema); key = key->next) {
-            len = strlen(key_pred);
-            key_pred = realloc(key_pred, len + 1 + strlen(key->schema->name) + 2 + strlen(LYD_CANON_VALUE(key)) + 3);
-            sprintf(key_pred + len, "[%s='%s']", key->schema->name, LYD_CANON_VALUE(key));
-        }
-
-        if (lyd_new_list2(parent, NULL, schema->name, key_pred, 0, NULL)) {
-            free(key_pred);
-            return -1;
-        }
-        free(key_pred);
-    } else if (schema->nodetype & LYD_NODE_INNER) {
-        if (lyd_new_inner(parent, NULL, schema->name, 0, &dup)) {
-            return -1;
-        }
-
-        /* recursive for children */
-        LY_LIST_FOR(lyd_child_no_keys(child), child2) {
-            if (np_ly_schema_dup_r(dup, child2, strict)) {
-                lyd_free_tree(dup);
-                return -1;
-            }
-        }
-    } else if (schema->nodetype & LYD_NODE_TERM) {
-        if (lyd_new_term(parent, NULL, schema->name, LYD_CANON_VALUE(child), 0, NULL)) {
-            return -1;
-        }
-    } else if (schema->nodetype & LYD_NODE_ANY) {
-        if (lyd_new_any(parent, NULL, schema->name, ((struct lyd_node_any *)child)->value.tree, 0,
-                ((struct lyd_node_any *)child)->value_type, 0, NULL)) {
-            return -1;
-        }
-    } else {
-        EINT;
-        return -1;
-    }
-
-    return 0;
-}
-
 struct nc_session *
 np_get_nc_sess(uint32_t nc_id)
 {
@@ -151,6 +93,25 @@ np_get_user_sess(sr_session_ctx_t *ev_sess)
     }
 
     return nc_session_get_data(nc_sess);
+}
+
+static LY_ERR
+sub_ntf_lysc_has_notif_clb(struct lysc_node *node, void *UNUSED(data), ly_bool *UNUSED(dfs_continue))
+{
+    if (node->nodetype == LYS_NOTIF) {
+        return LY_EEXIST;
+    }
+
+    return LY_SUCCESS;
+}
+
+int
+np_ly_mod_has_notif(const struct lys_module *mod)
+{
+    if (lysc_module_dfs_full(mod, sub_ntf_lysc_has_notif_clb, NULL) == LY_EEXIST) {
+        return 1;
+    }
+    return 0;
 }
 
 void

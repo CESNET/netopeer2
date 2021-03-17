@@ -1179,6 +1179,7 @@ np2srv_nc_ntf_oper_cb(sr_session_ctx_t *session, const char *UNUSED(module_name)
     struct lyd_node *root, *stream, *sr_data = NULL, *sr_mod, *rep_sup;
     sr_conn_ctx_t *conn;
     const struct ly_ctx *ly_ctx;
+    const struct lys_module *mod;
     const char *mod_name;
     char buf[26];
     int rc;
@@ -1211,6 +1212,15 @@ np2srv_nc_ntf_oper_cb(sr_session_ctx_t *session, const char *UNUSED(module_name)
     }
     LY_LIST_FOR(lyd_child(sr_data), sr_mod) {
         mod_name = LYD_CANON_VALUE(lyd_child(sr_mod));
+
+        /* get the module */
+        mod = ly_ctx_get_module_implemented(ly_ctx, mod_name);
+        assert(mod);
+
+        if (!np_ly_mod_has_notif(mod)) {
+            /* no notifications in the module so do not consider it a stream */
+            continue;
+        }
 
         /* generate information about the stream/module */
         if (lyd_new_list(lyd_child(root), NULL, "stream", 0, &stream, mod_name)) {
