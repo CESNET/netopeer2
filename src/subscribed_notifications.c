@@ -199,7 +199,7 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
                 }
 
                 /* add new sub ID */
-                (*sub_ids)[*sub_id_count] = sr_event_notif_sub_id_get_last(np2srv.sr_notif_sub);
+                (*sub_ids)[*sub_id_count] = sr_subscription_get_last_sub_id(np2srv.sr_notif_sub);
                 ++(*sub_id_count);
             }
         }
@@ -220,7 +220,7 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
         }
 
         /* add new sub ID */
-        (*sub_ids)[0] = sr_event_notif_sub_id_get_last(np2srv.sr_notif_sub);
+        (*sub_ids)[0] = sr_subscription_get_last_sub_id(np2srv.sr_notif_sub);
         *sub_id_count = 1;
     }
 
@@ -228,7 +228,7 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
 
 error:
     for (idx = 0; idx < *sub_id_count; ++idx) {
-        sr_event_notif_sub_unsubscribe(np2srv.sr_notif_sub, (*sub_ids)[idx]);
+        sr_unsubscribe(np2srv.sr_notif_sub, (*sub_ids)[idx]);
     }
     free(*sub_ids);
     *sub_ids = NULL;
@@ -491,7 +491,7 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, ti
         for (i = 0; i < sub->sub_id_count; ++i) {
             /* "pass" the lock to the callback */
             sub_ntf_cb_lock_pass(sub->sub_ids[i]);
-            rc = sr_event_notif_sub_modify_filter(np2srv.sr_notif_sub, sub->sub_ids[i], xp);
+            rc = sr_event_notif_sub_modify_xpath(np2srv.sr_notif_sub, sub->sub_ids[i], xp);
             if (rc != SR_ERR_OK) {
                 goto cleanup;
             }
@@ -601,7 +601,7 @@ sub_ntf_config_filters(const struct lyd_node *filter, sr_change_oper_t op)
             for (i = 0; i < sub->sub_id_count; ++i) {
                 /* "pass" the lock to the callback */
                 sub_ntf_cb_lock_pass(sub->sub_ids[i]);
-                r = sr_event_notif_sub_modify_filter(np2srv.sr_notif_sub, sub->sub_ids[i], xp);
+                r = sr_event_notif_sub_modify_xpath(np2srv.sr_notif_sub, sub->sub_ids[i], xp);
                 if (r != SR_ERR_OK) {
                     rc = r;
                 }
@@ -693,7 +693,7 @@ sub_ntf_terminate_sr_sub(uint32_t sub_id)
 {
     /* "pass" the lock to the callback */
     sub_ntf_cb_lock_pass(sub_id);
-    return sr_event_notif_sub_unsubscribe(np2srv.sr_notif_sub, sub_id);
+    return sr_unsubscribe(np2srv.sr_notif_sub, sub_id);
 }
 
 void

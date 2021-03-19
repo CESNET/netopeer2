@@ -1171,9 +1171,9 @@ cleanup:
     VRB("Server terminated.");
 
     /* stop subscriptions */
-    sr_unsubscribe(np2srv.sr_rpc_sub);
-    sr_unsubscribe(np2srv.sr_data_sub);
-    sr_unsubscribe(np2srv.sr_notif_sub);
+    sr_unsubscribe(np2srv.sr_rpc_sub, 0);
+    sr_unsubscribe(np2srv.sr_data_sub, 0);
+    sr_unsubscribe(np2srv.sr_notif_sub, 0);
 
 #if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
     /* remove all CH clients so they do not reconnect */
