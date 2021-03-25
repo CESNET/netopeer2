@@ -90,23 +90,45 @@ struct ncac {
     pthread_mutex_t lock;
 };
 
-int ncac_nacm_params_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event,
-        uint32_t request_id, void *private_data);
+enum ncac_access {
+    NCAC_ACCESS_DENY = 1,           /**< access to the node is denied */
+    NCAC_ACCESS_PARTIAL_DENY = 2,   /**< access to the node is denied but it is a prefix of a matching rule */
+    NCAC_ACCESS_PARTIAL_PERMIT = 3, /**< access to the node is permitted but any children must still be checked */
+    NCAC_ACCESS_PERMIT = 4          /**< access to the node is permitted with any children */
+};
 
-int ncac_oper_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath,
-        uint32_t request_id, struct lyd_node **parent, void *private_data);
+#define NCAC_ACCESS_IS_NODE_PERMIT(x) ((x) > 2)
 
-int ncac_group_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event,
-        uint32_t request_id, void *private_data);
+int ncac_nacm_params_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
+        sr_event_t event, uint32_t request_id, void *private_data);
 
-int ncac_rule_list_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event,
-        uint32_t request_id, void *private_data);
+int ncac_oper_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *path,
+        const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
-int ncac_rule_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event,
+int ncac_group_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
+        sr_event_t event, uint32_t request_id, void *private_data);
+
+int ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
+        sr_event_t event, uint32_t request_id, void *private_data);
+
+int ncac_rule_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath, sr_event_t event,
         uint32_t request_id, void *private_data);
 
 void ncac_init(void);
 void ncac_destroy(void);
+
+/**
+ * @brief Check NACM access for a single node.
+ *
+ * @param[in] node Node to check. Can be NULL if @p node_path and @p node_schema are set.
+ * @param[in] node_path Node path of the node to check. Can be NULL if @p node is set.
+ * @param[in] node_schema Schema of the node to check. Can be NULL if @p node is set.
+ * @param[in] user User, whose access to check.
+ * @param[in] oper Operation to check.
+ * @return NCAC access enum.
+ */
+enum ncac_access ncac_allowed_node(const struct lyd_node *node, const char *node_path,
+        const struct lysc_node *node_schema, const char *user, uint8_t oper);
 
 /**
  * @brief Check whether an operation is allowed for a user.

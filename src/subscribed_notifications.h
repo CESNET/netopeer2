@@ -22,34 +22,42 @@
 
 #include "common.h"
 
-struct np2srv_sub_ntf_sr;
 struct np2srv_sub_ntf;
+
+/**
+ * @brief Sysrepo notification callback argument.
+ */
+struct sub_ntf_cb_arg {
+    struct nc_session *ncs;
+    struct sub_ntf_data *sn_data;
+    uint32_t nc_sub_id;
+};
 
 /**
  * @brief Type-specific data for these subscriptions.
  */
-struct np2srv_sub_ntf_data {
+struct sub_ntf_data {
+    /* parameters */
     char *stream_filter_name;
     struct lyd_node *stream_subtree_filter;
     char *stream_xpath_filter;
     char *stream;
     time_t replay_start_time;
-    ATOMIC_T denied_count;  /* notifications denied by NACM */
+
+    /* internal data */
+    struct sub_ntf_cb_arg cb_arg;
 };
 
 /**
  * @brief Called on establish-subscription RPC, should create any required sysrepo subscriptions and type-specific data.
+ * sub-ntf lock held.
  *
  * @param[in] ev_sess Event session.
  * @param[in] rpc RPC data.
- * @param[in] stop Subscription stop time.
- * @param[out] sub_ids Array of sub IDs of sysrepo subscriptions.
- * @param[out] sub_id_count Length of @p sub_ids.
- * @param[out] data Type-specific data.
+ * @param[in,out] sub Subscription structure to fill.
  * @return Sysrepo error value.
  */
-int sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, time_t stop, uint32_t **sub_ids,
-        uint32_t *sub_id_count, void **data);
+int sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct np2srv_sub_ntf *sub);
 
 /**
  * @brief Called on modify-subscription RPC, should update sysrepo subscriptions and type-specific data accordingly.
@@ -57,11 +65,12 @@ int sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *
  *
  * @param[in] ev_sess Event session.
  * @param[in] rpc RPC data.
- * @param[in] stop Subscription stop time.
+ * @param[in] stop New stop time, 0 if not modified.
  * @param[in,out] sub sub-ntf subscription to update.
  * @return Sysrepo error value.
  */
-int sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, time_t stop, struct np2srv_sub_ntf *sub);
+int sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct timespec stop,
+        struct np2srv_sub_ntf *sub);
 
 /**
  * @brief Called on subscription-modified notification, should append type-specific YANG nodes.
@@ -77,11 +86,12 @@ int sub_ntf_notif_modified_append_data(struct lyd_node *ntf, void *data);
  * @brief Called for every configuration change in type-specific filters.
  * sub-ntf lock held.
  *
+ * @param[in] ev_sess Event session.
  * @param[in] filter Changed filter node.
  * @param[in] op Sysrepo operation.
  * @return Sysrepo error value.
  */
-int sub_ntf_config_filters(const struct lyd_node *filter, sr_change_oper_t op);
+int sub_ntf_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filter, sr_change_oper_t op);
 
 /**
  * @brief Should append type-specific operational YANG nodes to "subscription" node.
@@ -94,7 +104,7 @@ int sub_ntf_config_filters(const struct lyd_node *filter, sr_change_oper_t op);
 int sub_ntf_oper_subscription(struct lyd_node *subscription, void *data);
 
 /**
- * @brief Get excluded event count for a subscription.
+ * @brief Get excluded notification count for a subscription except for notifications denied by NACM.
  * sub-ntf lock held.
  *
  * @param[in] sub sub-ntf subscription to read from.
@@ -103,13 +113,12 @@ int sub_ntf_oper_subscription(struct lyd_node *subscription, void *data);
 uint32_t sub_ntf_oper_receiver_excluded(struct np2srv_sub_ntf *sub);
 
 /**
- * @brief Terminate a type-specific sysrepo subscription, should delete the sub ID from sub-ntf information data.
- * sub-ntf lock held.
+ * @brief Terminate any asynchronous tasks (except for sysrepo subscriptions) so they cannot be executed
+ * after this function ends. Case when they are being executed now is handled.
  *
- * @param[in] sub_id Sysrepo subscription ID.
- * @return Sysrepo error value.
+ * @param[in] data Type-specific data to free.
  */
-int sub_ntf_terminate_sr_sub(uint32_t sub_id);
+void sub_ntf_terminate_async(void *data);
 
 /**
  * @brief Free type-specific data.

@@ -59,6 +59,11 @@
  */
 #define NP2SRV_PS_BACKOFF_SLEEP 200
 
+/** @brief Sleep time when terminating sub-ntf subscriptions
+ * to give a chance for another threads to wake up (ms).
+ */
+#define NP2SRV_SUB_NTF_TERMINATE_YIELD_SLEEP 50
+
 /** @brief URL capability support
  */
 #cmakedefine NP2SRV_URL_CAPAB

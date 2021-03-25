@@ -260,8 +260,9 @@ ncm_data_add_ds_lock(sr_conn_ctx_t *conn, const char *ds_str, sr_datastore_t ds,
 }
 
 int
-np2srv_ncm_oper_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *UNUSED(path),
-        const char *UNUSED(request_xpath), uint32_t UNUSED(request_id), struct lyd_node **parent, void *UNUSED(private_data))
+np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
+        const char *UNUSED(path), const char *UNUSED(request_xpath), uint32_t UNUSED(request_id),
+        struct lyd_node **parent, void *UNUSED(private_data))
 {
     struct lyd_node *root = NULL, *cont, *list;
     const struct lys_module *mod;

@@ -3,7 +3,7 @@
  * @author Michal Vasko <mvasko@cesnet.cz>
  * @brief netopeer2-cli commands
  *
- * Copyright (c) 2017 CESNET, z.s.p.o.
+ * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -1113,7 +1113,7 @@ cmd_establishsub_help(void)
 
     printf("establish-sub [--help] --stream <stream> [--filter-subtree[=<file>]%s | --filter-ref <name>] [--begin <time>]"
             " [--end <time>] [--encoding <encoding>] [--out <file>] [--rpc-timeout <seconds>]\n", xpath);
-    printf("\t<time> has following format:\n");
+    printf("\t<time> has following format:\n\n");
     printf("\t\t+<num>  - current time plus the given number of seconds.\n");
     printf("\t\t<num>   - absolute time as number of seconds since 1970-01-01.\n");
     printf("\t\t-<num>  - current time minus the given number of seconds.\n");
@@ -1168,6 +1168,78 @@ cmd_killsub_help(void)
     }
 
     printf("kill-sub [--help] --id <sub-ID> [--out <file>] [--rpc-timeout <seconds>]\n");
+}
+
+static void
+cmd_establishpush_help(void)
+{
+    const struct lys_module *mod = NULL;
+    const char *xpath;
+
+    if (session && (!ly_ctx_get_module_implemented(nc_session_get_ctx(session), "ietf-subscribed-notifications") ||
+            !(mod = ly_ctx_get_module_implemented(nc_session_get_ctx(session), "ietf-yang-push")))) {
+        printf("establish-push is not supported by the current session.\n");
+        return;
+    }
+
+    if (!session || nc_session_cpblt(session, NC_CAP_XPATH_ID)) {
+        xpath = " | --filter-xpath <XPath>";
+    } else {
+        xpath = "";
+    }
+
+    printf("establish-push [--help] --datastore running|startup|candidate|operational"
+            " [--filter-subtree[=<file>]%s | --filter-ref <name>] [--end <time>] [--encoding <encoding>]"
+            " (--periodic --period <period> [--anchor-time <time>] | --on-change [--dampening-period <period>]"
+            " [--no-sync-on-start] [--excluded-change <change>]*) [--out <file>] [--rpc-timeout <seconds>]\n\n", xpath);
+    printf("\t<time> has following format:\n");
+    printf("\t\t+<num>  - current time plus the given number of seconds.\n");
+    printf("\t\t<num>   - absolute time as number of seconds since 1970-01-01.\n");
+    printf("\t\t-<num>  - current time minus the given number of seconds.\n");
+    printf("\t<period> is in centiseconds (0.01s).\n");
+    printf("\t<change> can be create, delete, insert, move, or replace.\n");
+}
+
+static void
+cmd_modifypush_help(void)
+{
+    const struct lys_module *mod = NULL;
+    const char *xpath;
+
+    if (session && (!ly_ctx_get_module_implemented(nc_session_get_ctx(session), "ietf-subscribed-notifications") ||
+            !(mod = ly_ctx_get_module_implemented(nc_session_get_ctx(session), "ietf-yang-push")))) {
+        printf("modify-push is not supported by the current session.\n");
+        return;
+    }
+
+    if (!session || nc_session_cpblt(session, NC_CAP_XPATH_ID)) {
+        xpath = " | --filter-xpath <XPath>";
+    } else {
+        xpath = "";
+    }
+
+    printf("modify-push [--help] --id <sub-ID> --datastore running|startup|candidate|operational"
+            " [--filter-subtree[=<file>]%s | --filter-ref <name>] [--end <time>]"
+            " (--periodic --period <period> [--anchor-time <time>] |--on-change [--dampening-period <period>])"
+            " [--out <file>] [--rpc-timeout <seconds>]\n\n", xpath);
+    printf("\t<time> has following format:\n");
+    printf("\t\t+<num>  - current time plus the given number of seconds.\n");
+    printf("\t\t<num>   - absolute time as number of seconds since 1970-01-01.\n");
+    printf("\t\t-<num>  - current time minus the given number of seconds.\n");
+    printf("\t<period> is in centiseconds (0.01s).\n");
+}
+
+static void
+cmd_resyncsub_help(void)
+{
+    const struct lys_module *mod = NULL;
+
+    if (session && !(mod = ly_ctx_get_module_implemented(nc_session_get_ctx(session), "ietf-yang-push"))) {
+        printf("resync-sub is not supported by the current session.\n");
+        return;
+    }
+
+    printf("resync-sub [--help] --id <sub-ID> [--out <file>] [--rpc-timeout <seconds>]\n");
 }
 
 static void
@@ -5017,7 +5089,8 @@ cmd_editdata(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE, content_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct stat config_stat;
-    char *content = NULL, *config_m = NULL, *cont_start, *datastore = NULL;
+    char *content = NULL, *config_m = NULL, *cont_start;
+    const char *datastore = NULL;
     struct nc_rpc *rpc;
     NC_RPC_EDIT_DFLTOP op = NC_RPC_EDIT_DFLTOP_UNKNOWN;
     struct arglist cmd;
@@ -5775,6 +5848,625 @@ fail:
 }
 
 static int
+cmd_establishpush(const char *arg, char **tmp_config_file)
+{
+    int c, config_fd, ret = EXIT_FAILURE, filter_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
+    int periodic = -1, sync_on_start = 1;
+    struct stat config_stat;
+    char *filter = NULL, *config_m = NULL, *stop = NULL, *anchor = NULL, **excluded_change = NULL;
+    const char *encoding = NULL, *datastore = NULL;
+    uint32_t i, period = 0, damp_period = 0;
+    struct nc_rpc *rpc = NULL;
+    time_t t;
+    FILE *output = NULL;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"datastore", 1, 0, 'd'},
+            {"filter-subtree", 2, 0, 's'},
+            {"filter-xpath", 1, 0, 'x'},
+            {"filter-ref", 1, 0, 'f'},
+            {"end", 1, 0, 'e'},
+            {"encoding", 1, 0, 'n'},
+            {"periodic", 0, 0, 'p'},
+            {"period", 1, 0, 'i'},
+            {"anchor-time", 1, 0, 'a'},
+            {"on-change", 0, 0, 'c'},
+            {"dampening-period", 1, 0, 'm'},
+            {"no-sync-on-start", 0, 0, 'y'},
+            {"excluded-change", 1, 0, 'l'},
+            {"out", 1, 0, 'o'},
+            {"rpc-timeout", 1, 0, 'r'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
+
+    while ((c = getopt_long(cmd.count, cmd.list, "hd:s::x:f:e:n:pi:a:cm:yl:o:r:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_establishpush_help();
+            ret = EXIT_SUCCESS;
+            goto fail;
+        case 'd':
+            if (datastore) {
+                ERROR(__func__, "Datastore was already specified.");
+                goto fail;
+            }
+
+            if (!strcmp(optarg, "running")) {
+                datastore = "ietf-datastores:running";
+            } else if (!strcmp(optarg, "startup")) {
+                datastore = "ietf-datastores:startup";
+            } else if (!strcmp(optarg, "candidate")) {
+                datastore = "ietf-datastores:candidate";
+            } else if (!strcmp(optarg, "operational")) {
+                datastore = "ietf-datastores:operational";
+            } else {
+                ERROR(__func__, "Invalid datastore specified (%s).", optarg);
+                goto fail;
+            }
+            break;
+        case 's':
+            if (filter_param) {
+                ERROR(__func__, "Mixing filter parameters is not allowed.");
+                goto fail;
+            }
+
+            filter_param = 1;
+
+            if (optarg) {
+                /* open edit configuration data from the file */
+                config_fd = open(optarg, O_RDONLY);
+                if (config_fd == -1) {
+                    ERROR(__func__, "Unable to open the local datastore file \"%s\" (%s).", optarg, strerror(errno));
+                    goto fail;
+                }
+
+                /* map content of the file into the memory */
+                if (fstat(config_fd, &config_stat) != 0) {
+                    ERROR(__func__, "fstat failed (%s).", strerror(errno));
+                    close(config_fd);
+                    goto fail;
+                }
+                config_m = mmap(NULL, config_stat.st_size, PROT_READ, MAP_PRIVATE, config_fd, 0);
+                if (config_m == MAP_FAILED) {
+                    ERROR(__func__, "mmap of the local datastore file failed (%s).", strerror(errno));
+                    close(config_fd);
+                    goto fail;
+                }
+
+                /* make a copy of the content to allow closing the file */
+                filter = strdup(config_m);
+
+                /* unmap local datastore file and close it */
+                munmap(config_m, config_stat.st_size);
+                close(config_fd);
+            }
+            break;
+        case 'x':
+        case 'f':
+            if (filter_param) {
+                ERROR(__func__, "Mixing filter parameters is not allowed.");
+                goto fail;
+            }
+
+            filter_param = 1;
+
+            filter = strdup(optarg);
+            break;
+        case 'e':
+            if (optarg[0] == '-' || optarg[0] == '+') {
+                t = time(NULL);
+                t += atol(optarg);
+            } else {
+                t = atol(optarg);
+            }
+            stop = nc_time2datetime(t, NULL, NULL);
+            break;
+        case 'n':
+            encoding = optarg;
+            break;
+        case 'p':
+            if (periodic != -1) {
+                ERROR(__func__, "Cannot mix \"periodic\" and \"on-change\" options.");
+                cmd_establishpush_help();
+                goto fail;
+            }
+            periodic = 1;
+            break;
+        case 'i':
+            period = atoi(optarg);
+            break;
+        case 'a':
+            if (optarg[0] == '-' || optarg[0] == '+') {
+                t = time(NULL);
+                t += atol(optarg);
+            } else {
+                t = atol(optarg);
+            }
+            anchor = nc_time2datetime(t, NULL, NULL);
+            break;
+        case 'c':
+            if (periodic != -1) {
+                ERROR(__func__, "Cannot mix \"periodic\" and \"on-change\" options.");
+                cmd_establishpush_help();
+                goto fail;
+            }
+            periodic = 0;
+            break;
+        case 'm':
+            damp_period = atoi(optarg);
+            break;
+        case 'y':
+            sync_on_start = 0;
+            break;
+        case 'l':
+            if (excluded_change) {
+                for (i = 0; excluded_change[i]; ++i) {}
+            } else {
+                i = 0;
+            }
+            excluded_change = realloc(excluded_change, (i + 2) * sizeof *excluded_change);
+            excluded_change[i] = optarg;
+            excluded_change[i + 1] = NULL;
+            break;
+        case 'o':
+            if (output) {
+                ERROR(__func__, "Duplicated \"out\" option.");
+                cmd_establishpush_help();
+                goto fail;
+            }
+            output = fopen(optarg, "w");
+            if (!output) {
+                ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
+                goto fail;
+            }
+            break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_establishpush_help();
+            goto fail;
+        }
+    }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_establishpush_help();
+        goto fail;
+    }
+
+    if (!datastore || (periodic == -1) || (periodic && !period)) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_establishpush_help();
+        goto fail;
+    }
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    /* check if edit configuration data were specified */
+    if (filter_param && !filter) {
+        /* let user write edit data interactively */
+        filter = readinput("Type the content of the subtree filter.", *tmp_config_file, tmp_config_file);
+        if (!filter) {
+            ERROR(__func__, "Reading filter data failed.");
+            goto fail;
+        }
+    }
+
+    /* create request */
+    if (periodic) {
+        rpc = nc_rpc_establishpush_periodic(datastore, filter, stop, encoding, period, anchor, NC_PARAMTYPE_CONST);
+    } else {
+        rpc = nc_rpc_establishpush_onchange(datastore, filter, stop, encoding, damp_period, sync_on_start,
+                (const char **)excluded_change, NC_PARAMTYPE_CONST);
+    }
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        goto fail;
+    }
+
+    /* create notification thread so that notifications can immediately be received */
+    if (!nc_session_ntf_thread_running(session)) {
+        if (!output) {
+            output = stdout;
+        }
+        nc_session_set_data(session, output);
+        ret = nc_recv_notif_dispatch(session, cli_ntf_clb);
+        if (ret) {
+            ERROR(__func__, "Failed to create notification thread.");
+            goto fail;
+        }
+    }
+
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    if (ret) {
+        goto fail;
+    }
+
+fail:
+    clear_arglist(&cmd);
+    if (output && (output != stdout)) {
+        fclose(output);
+    }
+    free(filter);
+    free(stop);
+    free(anchor);
+    free(excluded_change);
+    nc_rpc_free(rpc);
+
+    return ret;
+}
+
+static int
+cmd_modifypush(const char *arg, char **tmp_config_file)
+{
+    int c, config_fd, ret = EXIT_FAILURE, filter_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
+    int periodic = -1;
+    struct stat config_stat;
+    char *filter = NULL, *config_m = NULL, *stop = NULL, *anchor = NULL, **excluded_change = NULL;
+    const char *datastore = NULL;
+    uint32_t id = 0, period = 0, damp_period = 0;
+    struct nc_rpc *rpc = NULL;
+    time_t t;
+    FILE *output = NULL;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"id", 1, 0, 'I'},
+            {"datastore", 1, 0, 'd'},
+            {"filter-subtree", 2, 0, 's'},
+            {"filter-xpath", 1, 0, 'x'},
+            {"filter-ref", 1, 0, 'f'},
+            {"end", 1, 0, 'e'},
+            {"periodic", 0, 0, 'p'},
+            {"period", 1, 0, 'i'},
+            {"anchor-time", 1, 0, 'a'},
+            {"on-change", 0, 0, 'c'},
+            {"dampening-period", 1, 0, 'm'},
+            {"out", 1, 0, 'o'},
+            {"rpc-timeout", 1, 0, 'r'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
+
+    while ((c = getopt_long(cmd.count, cmd.list, "hI:d:s::x:f:e:pi:a:cm:o:r:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_modifypush_help();
+            ret = EXIT_SUCCESS;
+            goto fail;
+        case 'I':
+            id = atoi(optarg);
+            break;
+        case 'd':
+            if (datastore) {
+                ERROR(__func__, "Datastore was already specified.");
+                goto fail;
+            }
+
+            if (!strcmp(optarg, "running")) {
+                datastore = "ietf-datastores:running";
+            } else if (!strcmp(optarg, "startup")) {
+                datastore = "ietf-datastores:startup";
+            } else if (!strcmp(optarg, "candidate")) {
+                datastore = "ietf-datastores:candidate";
+            } else if (!strcmp(optarg, "operational")) {
+                datastore = "ietf-datastores:operational";
+            } else {
+                ERROR(__func__, "Invalid datastore specified (%s).", optarg);
+                goto fail;
+            }
+            break;
+        case 's':
+            if (filter_param) {
+                ERROR(__func__, "Mixing filter parameters is not allowed.");
+                goto fail;
+            }
+
+            filter_param = 1;
+
+            if (optarg) {
+                /* open edit configuration data from the file */
+                config_fd = open(optarg, O_RDONLY);
+                if (config_fd == -1) {
+                    ERROR(__func__, "Unable to open the local datastore file \"%s\" (%s).", optarg, strerror(errno));
+                    goto fail;
+                }
+
+                /* map content of the file into the memory */
+                if (fstat(config_fd, &config_stat) != 0) {
+                    ERROR(__func__, "fstat failed (%s).", strerror(errno));
+                    close(config_fd);
+                    goto fail;
+                }
+                config_m = mmap(NULL, config_stat.st_size, PROT_READ, MAP_PRIVATE, config_fd, 0);
+                if (config_m == MAP_FAILED) {
+                    ERROR(__func__, "mmap of the local datastore file failed (%s).", strerror(errno));
+                    close(config_fd);
+                    goto fail;
+                }
+
+                /* make a copy of the content to allow closing the file */
+                filter = strdup(config_m);
+
+                /* unmap local datastore file and close it */
+                munmap(config_m, config_stat.st_size);
+                close(config_fd);
+            }
+            break;
+        case 'x':
+        case 'f':
+            if (filter_param) {
+                ERROR(__func__, "Mixing filter parameters is not allowed.");
+                goto fail;
+            }
+
+            filter_param = 1;
+
+            filter = strdup(optarg);
+            break;
+        case 'e':
+            if (optarg[0] == '-' || optarg[0] == '+') {
+                t = time(NULL);
+                t += atol(optarg);
+            } else {
+                t = atol(optarg);
+            }
+            stop = nc_time2datetime(t, NULL, NULL);
+            break;
+        case 'p':
+            if (periodic != -1) {
+                ERROR(__func__, "Cannot mix \"periodic\" and \"on-change\" options.");
+                cmd_modifypush_help();
+                goto fail;
+            }
+            periodic = 1;
+            break;
+        case 'i':
+            period = atoi(optarg);
+            break;
+        case 'a':
+            if (optarg[0] == '-' || optarg[0] == '+') {
+                t = time(NULL);
+                t += atol(optarg);
+            } else {
+                t = atol(optarg);
+            }
+            anchor = nc_time2datetime(t, NULL, NULL);
+            break;
+        case 'c':
+            if (periodic != -1) {
+                ERROR(__func__, "Cannot mix \"periodic\" and \"on-change\" options.");
+                cmd_modifypush_help();
+                goto fail;
+            }
+            periodic = 0;
+            break;
+        case 'm':
+            damp_period = atoi(optarg);
+            break;
+        case 'o':
+            if (output) {
+                ERROR(__func__, "Duplicated \"out\" option.");
+                cmd_modifypush_help();
+                goto fail;
+            }
+            output = fopen(optarg, "w");
+            if (!output) {
+                ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
+                goto fail;
+            }
+            break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_modifypush_help();
+            goto fail;
+        }
+    }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_modifypush_help();
+        goto fail;
+    }
+
+    if (!id || !datastore || (periodic == -1) || (periodic && !period)) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_modifypush_help();
+        goto fail;
+    }
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    /* check if edit configuration data were specified */
+    if (filter_param && !filter) {
+        /* let user write edit data interactively */
+        filter = readinput("Type the content of the subtree filter.", *tmp_config_file, tmp_config_file);
+        if (!filter) {
+            ERROR(__func__, "Reading filter data failed.");
+            goto fail;
+        }
+    }
+
+    /* create request */
+    if (periodic) {
+        rpc = nc_rpc_modifypush_periodic(id, datastore, filter, stop, period, anchor, NC_PARAMTYPE_CONST);
+    } else {
+        rpc = nc_rpc_modifypush_onchange(id, datastore, filter, stop, damp_period, NC_PARAMTYPE_CONST);
+    }
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        goto fail;
+    }
+
+    /* create notification thread so that notifications can immediately be received */
+    if (!nc_session_ntf_thread_running(session)) {
+        if (!output) {
+            output = stdout;
+        }
+        nc_session_set_data(session, output);
+        ret = nc_recv_notif_dispatch(session, cli_ntf_clb);
+        if (ret) {
+            ERROR(__func__, "Failed to create notification thread.");
+            goto fail;
+        }
+    }
+
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    if (ret) {
+        goto fail;
+    }
+
+fail:
+    clear_arglist(&cmd);
+    if (output && (output != stdout)) {
+        fclose(output);
+    }
+    free(filter);
+    free(stop);
+    free(anchor);
+    free(excluded_change);
+    nc_rpc_free(rpc);
+
+    return ret;
+}
+
+static int
+cmd_resyncsub(const char *arg, char **UNUSED(tmp_config_file))
+{
+    int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
+    struct nc_rpc *rpc = NULL;
+    uint32_t id = 0;
+    FILE *output = NULL;
+    struct arglist cmd;
+    struct option long_options[] = {
+            {"help", 0, 0, 'h'},
+            {"id", 1, 0, 'i'},
+            {"out", 1, 0, 'o'},
+            {"rpc-timeout", 1, 0, 'r'},
+            {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
+
+    while ((c = getopt_long(cmd.count, cmd.list, "hi:o:r:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_resyncsub_help();
+            ret = EXIT_SUCCESS;
+            goto fail;
+        case 'i':
+            id = atoi(optarg);
+            break;
+        case 'o':
+            if (output) {
+                ERROR(__func__, "Duplicated \"out\" option.");
+                cmd_resyncsub_help();
+                goto fail;
+            }
+            output = fopen(optarg, "w");
+            if (!output) {
+                ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
+                goto fail;
+            }
+            break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_resyncsub_help();
+            goto fail;
+        }
+    }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_resyncsub_help();
+        goto fail;
+    }
+
+    if (!id) {
+        ERROR(__func__, "Mandatory command arguments missing.");
+        cmd_resyncsub_help();
+        goto fail;
+    }
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    /* create request */
+    rpc = nc_rpc_resyncsub(id);
+    if (!rpc) {
+        ERROR(__func__, "RPC creation failed.");
+        goto fail;
+    }
+
+    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    if (ret) {
+        goto fail;
+    }
+
+fail:
+    clear_arglist(&cmd);
+    if (output && (output != stdout)) {
+        fclose(output);
+    }
+    nc_rpc_free(rpc);
+
+    return ret;
+}
+
+static int
 cmd_userrpc(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
@@ -5979,6 +6671,11 @@ COMMAND commands[] = {
         {"modify-sub", cmd_modifysub, cmd_modifysub_help, "ietf-subscribed-notifications <modify-subscription> operation"},
         {"delete-sub", cmd_deletesub, cmd_deletesub_help, "ietf-subscribed-notifications <delete-subscription> operation"},
         {"kill-sub", cmd_killsub, cmd_killsub_help, "ietf-subscribed-notifications <kill-subscription> operation"},
+        {"establish-push", cmd_establishpush, cmd_establishpush_help,
+                "ietf-subscribed-notifications <establish-subscription> operation with ietf-yang-push augments"},
+        {"modify-push", cmd_modifypush, cmd_modifypush_help,
+                "ietf-subscribed-notifications <modify-subscription> operation with ietf-yang-push augments"},
+        {"resync-sub", cmd_resyncsub, cmd_resyncsub_help, "ietf-yang-push <resync-subscription> operation"},
         {"user-rpc", cmd_userrpc, cmd_userrpc_help, "Send your own content in an RPC envelope"},
         {"timed", cmd_timed, cmd_timed_help, "Time all the commands (that communicate with a server) from issuing an RPC"
                     " to getting a reply"},

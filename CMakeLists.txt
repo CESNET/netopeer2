@@ -163,6 +163,12 @@ use_compat()
 add_library(serverobj OBJECT ${SERVER_SRC})
 add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> src/main.c $<TARGET_OBJECTS:compat>)
 
+# dependencies - librt (not required on OSX or QNX)
+find_library(LIBRT rt)
+if(LIBRT)
+    target_link_libraries(netopeer2-server ${LIBRT})
+endif()
+
 # dependencies - libnetconf2 (was already found)
 target_link_libraries(netopeer2-server ${LIBNETCONF2_LIBRARIES})
 

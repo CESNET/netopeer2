@@ -92,8 +92,9 @@ op_data_filter_origin(struct lyd_node **data, const struct lysc_ident *filter, i
 }
 
 int
-np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *output, void *UNUSED(private_data))
+np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
+        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *output,
+        void *UNUSED(private_data))
 {
     struct lyd_node_term *leaf;
     struct lyd_node *node, *select_data = NULL, *data = NULL;
@@ -258,8 +259,9 @@ cleanup:
 }
 
 int
-np2srv_rpc_editdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
+        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
+        void *UNUSED(private_data))
 {
     sr_datastore_t ds;
     struct ly_set *nodeset;

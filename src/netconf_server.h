@@ -20,22 +20,22 @@
 
 int np2srv_sr_get_privkey(const struct lyd_node *asym_key, char **privkey_data, NC_SSH_KEY_TYPE *privkey_type);
 
-int np2srv_idle_timeout_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event,
-        uint32_t request_id, void *private_data);
+int np2srv_idle_timeout_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
+        sr_event_t event, uint32_t request_id, void *private_data);
 
-int np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath,
+int np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
         uint32_t request_id, sr_event_t event, void *private_data);
 
-int np2srv_ch_client_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath, sr_event_t event,
-        uint32_t request_id, void *private_data);
+int np2srv_ch_client_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
+        sr_event_t event, uint32_t request_id, void *private_data);
 
-int np2srv_ch_client_endpt_tcp_params_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath,
+int np2srv_ch_client_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
+        const char *xpath, uint32_t request_id, sr_event_t event, void *private_data);
+
+int np2srv_ch_connection_type_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
         uint32_t request_id, sr_event_t event, void *private_data);
 
-int np2srv_ch_connection_type_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath,
-        uint32_t request_id, sr_event_t event, void *private_data);
-
-int np2srv_ch_reconnect_strategy_cb(sr_session_ctx_t *session, const char *module_name, const char *xpath,
-        uint32_t request_id, sr_event_t event, void *private_data);
+int np2srv_ch_reconnect_strategy_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
+        const char *xpath, uint32_t request_id, sr_event_t event, void *private_data);
 
 #endif /* NP2SRV_NETCONF_SERVER_H_ */

@@ -54,7 +54,7 @@ void ncm_bad_hello(struct nc_session *session);
 
 uint32_t ncm_session_get_notification(struct nc_session *session);
 
-int np2srv_ncm_oper_cb(sr_session_ctx_t *session, const char *module_name, const char *path, const char *request_xpath,
-        uint32_t request_id, struct lyd_node **parent, void *private_data);
+int np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *path,
+        const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
 #endif /* NP2SRV_NETCONF_MONITORING_H_ */

@@ -166,8 +166,8 @@ cleanup:
 
 /* /ietf-netconf-server:netconf-server/listen/endpoint/tls */
 int
-np2srv_endpt_tls_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+np2srv_endpt_tls_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
+        const char *xpath, sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -208,8 +208,8 @@ np2srv_endpt_tls_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), 
 
 /* /ietf-netconf-server:netconf-server/listen/endpoint/tls/tls-server-parameters/server-identity/keystore-reference */
 int
-np2srv_endpt_tls_servercert_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+np2srv_endpt_tls_servercert_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
+        const char *xpath, sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -260,8 +260,8 @@ np2srv_endpt_tls_servercert_cb(sr_session_ctx_t *session, const char *UNUSED(mod
 
 /* /ietf-netconf-server:netconf-server/listen/endpoint/tls/tls-server-parameters/client-authentication */
 int
-np2srv_endpt_tls_client_auth_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+np2srv_endpt_tls_client_auth_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
+        const char *xpath, sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -346,8 +346,8 @@ np2srv_tls_ctn_str2map_type(const char *map_type)
 
 /* /ietf-netconf-server:netconf-server/listen/endpoint/tls/tls-server-parameters/client-authentication/cert-maps */
 int
-np2srv_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+np2srv_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
+        const char *xpath, sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -419,8 +419,8 @@ np2srv_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, const char *UNUSED(mod
 
 /* /ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls */
 int
-np2srv_ch_client_endpt_tls_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+np2srv_ch_client_endpt_tls_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
+        const char *xpath, sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -465,8 +465,9 @@ np2srv_ch_client_endpt_tls_cb(sr_session_ctx_t *session, const char *UNUSED(modu
 /* /ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls/tls-server-parameters/"
  * server-identity/keystore-reference */
 int
-np2srv_ch_client_endpt_tls_servercert_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+np2srv_ch_client_endpt_tls_servercert_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id),
+        const char *UNUSED(module_name), const char *xpath, sr_event_t UNUSED(event), uint32_t UNUSED(request_id),
+        void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -519,8 +520,9 @@ np2srv_ch_client_endpt_tls_servercert_cb(sr_session_ctx_t *session, const char *
 /* /ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls/tls-server-parameters/"
  * client-authentication */
 int
-np2srv_ch_client_endpt_tls_client_auth_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+np2srv_ch_client_endpt_tls_client_auth_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id),
+        const char *UNUSED(module_name), const char *xpath, sr_event_t UNUSED(event), uint32_t UNUSED(request_id),
+        void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;
@@ -580,8 +582,9 @@ np2srv_ch_client_endpt_tls_client_auth_cb(sr_session_ctx_t *session, const char 
 /* /ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls/tls-server-parameters/"
  * client-authentication/cert-maps */
 int
-np2srv_ch_client_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+np2srv_ch_client_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id),
+        const char *UNUSED(module_name), const char *xpath, sr_event_t UNUSED(event), uint32_t UNUSED(request_id),
+        void *UNUSED(private_data))
 {
     sr_change_iter_t *iter;
     sr_change_oper_t op;

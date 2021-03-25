@@ -18,10 +18,10 @@
 #include <libyang/libyang.h>
 #include <sysrepo.h>
 
-int np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *op_path, const struct lyd_node *input,
+int np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,
         sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
 
-int np2srv_rpc_editdata_cb(sr_session_ctx_t *session, const char *op_path, const struct lyd_node *input,
+int np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,
         sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
 
 #endif /* NP2SRV_NMDA_H_ */

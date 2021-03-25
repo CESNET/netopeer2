@@ -47,6 +47,7 @@
 #include "netconf_monitoring.h"
 #include "netconf_nmda.h"
 #include "netconf_subscribed_notifications.h"
+#include "yang_push.h"
 
 /** @brief flag for main loop */
 ATOMIC_T loop_continue = 1;
@@ -97,6 +98,9 @@ np2srv_del_session_cb(struct nc_session *session)
     if (nc_ps_del_session(np2srv.nc_ps, session)) {
         ERR("Removing session from ps failed.");
     }
+
+    /* terminate any subscriptions for the NETCONF session */
+    np2srv_sub_ntf_session_destroy(session);
 
     /* stop sysrepo session (also stop any sysrepo notification subscriptions) */
     sr_sess = nc_session_get_data(session);
@@ -550,8 +554,8 @@ error:
 #if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
 
 static int
-np2srv_dummy_cb(sr_session_ctx_t *UNUSED(session), const char *UNUSED(module_name), const char *UNUSED(xpath),
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+np2srv_dummy_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
+        const char *UNUSED(xpath), sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
     return SR_ERR_OK;
 }
@@ -600,6 +604,9 @@ server_rpc_subscribe(void)
     SR_RPC_SUBSCR("/ietf-subscribed-notifications:modify-subscription", np2srv_rpc_modify_sub_cb);
     SR_RPC_SUBSCR("/ietf-subscribed-notifications:delete-subscription", np2srv_rpc_delete_sub_cb);
     SR_RPC_SUBSCR("/ietf-subscribed-notifications:kill-subscription", np2srv_rpc_kill_sub_cb);
+
+    /* one more yang-push RPC */
+    SR_RPC_SUBSCR("/ietf-yang-push:resync-subscription", np2srv_rpc_resync_sub_cb);
 
     return 0;
 

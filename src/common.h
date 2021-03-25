@@ -26,6 +26,13 @@
 #include "compat.h"
 #include "config.h"
 
+/* define clock ID to use */
+#ifdef _POSIX_MONOTONIC_CLOCK
+# define NP_CLOCK_ID CLOCK_MONOTONIC
+#else
+# define NP_CLOCK_ID CLOCK_REALTIME
+#endif
+
 /* server internal data */
 struct np2srv {
     sr_conn_ctx_t *sr_conn;         /**< sysrepo connection */
@@ -43,11 +50,23 @@ struct np2srv {
     struct nc_pollsession *nc_ps;   /**< libnetconf2 pollsession structure */
     pthread_t workers[NP2SRV_THREAD_COUNT]; /**< worker threads handling sessions */
 };
-extern struct np2srv np2srv;
 
+extern struct np2srv np2srv;
 extern ATOMIC_T skip_nacm_sr_sid;
 
 int np_sleep(uint32_t ms);
+
+struct timespec np_gettimespec(void);
+
+int32_t np_difftimespec(const struct timespec *ts1, const struct timespec *ts2);
+
+void np_addtimespec(struct timespec *ts, uint32_t msec);
+
+struct timespec np_modtimespec(const struct timespec *ts, uint32_t msec);
+
+int np_datetime2timespec(const char *datetime, struct timespec *ts);
+
+char *np_timespec2datetime(const struct timespec *ts, const char *tz);
 
 struct nc_session *np_get_nc_sess(uint32_t nc_id);
 
@@ -56,6 +75,8 @@ const char *np_get_nc_sess_user(sr_session_ctx_t *session);
 sr_session_ctx_t *np_get_user_sess(sr_session_ctx_t *ev_sess);
 
 int np_ly_mod_has_notif(const struct lys_module *mod);
+
+int np_ly_mod_has_data(const struct lys_module *mod, uint32_t config_mask);
 
 void np2srv_new_session_cb(const char *client_name, struct nc_session *new_session);
 

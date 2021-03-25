@@ -11,12 +11,16 @@
  *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
+
+#define _GNU_SOURCE /* asprintf() */
+
 #include "config.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -49,6 +53,109 @@ np_sleep(uint32_t ms)
     ts.tv_sec = ms / 1000;
     ts.tv_nsec = (ms % 1000) * 1000000;
     return nanosleep(&ts, NULL);
+}
+
+struct timespec
+np_gettimespec(void)
+{
+    struct timespec ts;
+
+    clock_gettime(NP_CLOCK_ID, &ts);
+
+    return ts;
+}
+
+/* ts1 < ts2 -> +, ts1 > ts2 -> -, returns milliseconds */
+int32_t
+np_difftimespec(const struct timespec *ts1, const struct timespec *ts2)
+{
+    int64_t nsec_diff = 0;
+
+    nsec_diff += (((int64_t)ts2->tv_sec) - ((int64_t)ts1->tv_sec)) * 1000000000L;
+    nsec_diff += ((int64_t)ts2->tv_nsec) - ((int64_t)ts1->tv_nsec);
+
+    return (nsec_diff ? nsec_diff / 1000000L : 0);
+}
+
+void
+np_addtimespec(struct timespec *ts, uint32_t msec)
+{
+    assert((ts->tv_nsec >= 0) && (ts->tv_nsec < 1000000000L));
+
+    ts->tv_sec += msec / 1000;
+    ts->tv_nsec += (msec % 1000) * 1000000L;
+
+    if (ts->tv_nsec >= 1000000000L) {
+        ++ts->tv_sec;
+        ts->tv_nsec -= 1000000000L;
+    } else if (ts->tv_nsec < 0) {
+        --ts->tv_sec;
+        ts->tv_nsec += 1000000000L;
+    }
+
+    assert((ts->tv_nsec >= 0) && (ts->tv_nsec < 1000000000L));
+}
+
+struct timespec
+np_modtimespec(const struct timespec *ts, uint32_t msec)
+{
+    struct timespec ret;
+    uint64_t ts_msec;
+
+    /* convert ts to msec first */
+    ts_msec = ts->tv_sec * 1000 + ts->tv_nsec / 1000000;
+    ts_msec %= msec;
+
+    ret.tv_sec = ts_msec / 1000;
+    ret.tv_nsec = (ts_msec % 1000) * 1000000;
+
+    return ret;
+}
+
+int
+np_datetime2timespec(const char *datetime, struct timespec *ts)
+{
+    /* first get time_t */
+    ts->tv_sec = nc_datetime2time(datetime);
+    if (!ts->tv_sec) {
+        return -1;
+    }
+
+    /* get nanoseconds ourselves */
+    if (datetime[19] == '.') {
+        ts->tv_nsec = atoi(&datetime[20]);
+    } else {
+        ts->tv_nsec = 0;
+    }
+
+    return 0;
+}
+
+char *
+np_timespec2datetime(const struct timespec *ts, const char *tz)
+{
+    char buf[26], nsec_str[10], *ptr, *datetime = NULL;
+
+    /* yyyy-mm-ddThh:mm:ss[.ssss]... */
+
+    /* first get the datetime without fractions of a second */
+    nc_time2datetime(ts->tv_sec, tz, buf);
+
+    /* add fractions of a second ourselves */
+    if (ts->tv_nsec) {
+        sprintf(nsec_str, "%09ld", ts->tv_nsec);
+
+        /* remove trailing zeros */
+        for (ptr = nsec_str + strlen(nsec_str) - 1; ptr[0] == '0'; --ptr) {};
+        ptr[1] = '\0';
+
+        /* construct the full datetime */
+        asprintf(&datetime, "%.19s.%s%s", buf, nsec_str, buf + 19);
+    } else {
+        datetime = strdup(buf);
+    }
+
+    return datetime;
 }
 
 struct nc_session *
@@ -111,6 +218,24 @@ np_ly_mod_has_notif(const struct lys_module *mod)
     if (lysc_module_dfs_full(mod, sub_ntf_lysc_has_notif_clb, NULL) == LY_EEXIST) {
         return 1;
     }
+    return 0;
+}
+
+int
+np_ly_mod_has_data(const struct lys_module *mod, uint32_t config_mask)
+{
+    const struct lysc_node *root, *node;
+
+    LY_LIST_FOR(mod->compiled->data, root) {
+        LYSC_TREE_DFS_BEGIN(mod->compiled->data, node) {
+            if (node->flags & config_mask) {
+                return 1;
+            }
+
+            LYSC_TREE_DFS_END(mod->compiled->data, node);
+        }
+    }
+
     return 0;
 }
 

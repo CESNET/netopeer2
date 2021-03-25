@@ -192,8 +192,8 @@ cleanup:
 }
 
 int
-np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct lyd_node *input, sr_event_t event,
-        uint32_t UNUSED(request_id), struct lyd_node *output, void *UNUSED(private_data))
+np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *op_path, const struct lyd_node *input,
+        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *output, void *UNUSED(private_data))
 {
     struct lyd_node *node, *data_get = NULL;
     struct lyd_meta *meta;
@@ -330,8 +330,9 @@ cleanup:
 }
 
 int
-np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
+        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
+        void *UNUSED(private_data))
 {
     sr_datastore_t ds = 0;
     struct ly_set *nodeset = NULL;
@@ -448,8 +449,9 @@ cleanup:
 }
 
 int
-np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
+        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
+        void *UNUSED(private_data))
 {
     sr_datastore_t ds = SR_DS_OPERATIONAL, sds = SR_DS_OPERATIONAL;
     struct ly_set *nodeset = NULL;
@@ -629,8 +631,9 @@ cleanup:
 }
 
 int
-np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
+        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
+        void *UNUSED(private_data))
 {
     sr_datastore_t ds = 0;
     struct ly_set *nodeset;
@@ -707,8 +710,9 @@ cleanup:
 }
 
 int
-np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
+        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
+        void *UNUSED(private_data))
 {
     sr_datastore_t ds = 0;
     struct ly_set *nodeset = NULL;
@@ -763,8 +767,9 @@ cleanup:
 }
 
 int
-np2srv_rpc_kill_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_kill_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
+        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
+        void *UNUSED(private_data))
 {
     struct nc_session *kill_sess;
     struct lyd_node *node;
@@ -808,8 +813,9 @@ cleanup:
 }
 
 int
-np2srv_rpc_commit_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *UNUSED(input),
-        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
+        const struct lyd_node *UNUSED(input), sr_event_t event, uint32_t UNUSED(request_id),
+        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     int rc = SR_ERR_OK;
     sr_session_ctx_t *user_sess;
@@ -846,8 +852,9 @@ cleanup:
 }
 
 int
-np2srv_rpc_discard_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *UNUSED(input),
-        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_discard_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
+        const struct lyd_node *UNUSED(input), sr_event_t event, uint32_t UNUSED(request_id),
+        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     int rc = SR_ERR_OK;
     sr_session_ctx_t *user_sess;
@@ -884,8 +891,9 @@ cleanup:
 }
 
 int
-np2srv_rpc_validate_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
+        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
+        void *UNUSED(private_data))
 {
     sr_datastore_t ds;
     struct lyd_node *config = NULL;
@@ -975,7 +983,7 @@ np2srv_lysc_has_notif_clb(struct lysc_node *node, void *UNUSED(data), ly_bool *U
  * @brief New notification callback used for notifications received on subscription made by \<create-subscription\> RPC.
  */
 static void
-np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t notif_type, uint32_t sub_id,
+np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, const sr_ev_notif_type_t notif_type,
         const struct lyd_node *notif, time_t timestamp, void *private_data)
 {
     struct nc_server_notif *nc_ntf = NULL;
@@ -1029,7 +1037,7 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif
 cleanup:
     if (notif_type == SR_EV_NOTIF_TERMINATED) {
         /* subscription finished */
-        nc_session_set_notif_status(ncs, 0);
+        nc_session_dec_notif_status(ncs);
     }
 
     nc_server_notif_free(nc_ntf);
@@ -1037,13 +1045,15 @@ cleanup:
 }
 
 int
-np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
-        sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
+        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
+        void *UNUSED(private_data))
 {
     const struct lys_module *ly_mod;
     struct lyd_node *node;
     struct lyd_meta *meta;
     struct nc_session *ncs;
+    sr_session_ctx_t *user_sess;
     const char *stream;
     struct np2_filter filter = {0};
     char *xp = NULL;
@@ -1057,12 +1067,13 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
         return SR_ERR_OK;
     }
 
-    /* find this NETCONF session */
+    /* find this NETCONF session and sysrepo user session */
     ncs = np_get_nc_sess(sr_session_get_event_nc_id(session));
     if (!ncs) {
         rc = SR_ERR_INTERNAL;
         goto cleanup;
     }
+    user_sess = nc_session_get_data(ncs);
 
     /* RFC 5277 section 6.5 */
     if (nc_session_get_notif_status(ncs)) {
@@ -1128,7 +1139,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
     }
 
     /* set ongoing notifications flag */
-    nc_session_set_notif_status(ncs, 1);
+    nc_session_inc_notif_status(ncs);
 
     /* sysrepo API */
     if (!strcmp(stream, "NETCONF")) {
@@ -1141,24 +1152,29 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
 
             if (lysc_module_dfs_full(ly_mod, np2srv_lysc_has_notif_clb, NULL) == LY_EEXIST) {
                 /* a notification was found, subscribe to the module */
-                rc = sr_event_notif_subscribe_tree(nc_session_get_data(ncs), ly_mod->name, xp, start, stop,
+                rc = sr_event_notif_subscribe_tree(user_sess, ly_mod->name, xp, start, stop,
                         np2srv_rpc_subscribe_ntf_cb, ncs, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
                 if (rc != SR_ERR_OK) {
-                    sr_get_error(nc_session_get_data(ncs), &err_info);
+                    sr_get_error(user_sess, &err_info);
                     sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
-                    goto cleanup;
+                    break;
                 }
             }
         }
     } else {
         /* subscribe to the specific module (stream) */
-        rc = sr_event_notif_subscribe_tree(nc_session_get_data(ncs), stream, xp, start, stop, np2srv_rpc_subscribe_ntf_cb,
+        rc = sr_event_notif_subscribe_tree(user_sess, stream, xp, start, stop, np2srv_rpc_subscribe_ntf_cb,
                 ncs, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {
-            sr_get_error(nc_session_get_data(ncs), &err_info);
+            sr_get_error(user_sess, &err_info);
             sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
-            goto cleanup;
         }
+    }
+
+    if (rc) {
+        /* fail */
+        nc_session_dec_notif_status(ncs);
+        goto cleanup;
     }
 
     /* success */
@@ -1166,15 +1182,13 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
 cleanup:
     op_filter_erase(&filter);
     free(xp);
-    if (ncs && rc) {
-        nc_session_set_notif_status(ncs, 0);
-    }
     return rc;
 }
 
 int
-np2srv_nc_ntf_oper_cb(sr_session_ctx_t *session, const char *UNUSED(module_name), const char *UNUSED(path),
-        const char *UNUSED(request_xpath), uint32_t UNUSED(request_id), struct lyd_node **parent, void *UNUSED(private_data))
+np2srv_nc_ntf_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
+        const char *UNUSED(path), const char *UNUSED(request_xpath), uint32_t UNUSED(request_id),
+        struct lyd_node **parent, void *UNUSED(private_data))
 {
     struct lyd_node *root, *stream, *sr_data = NULL, *sr_mod, *rep_sup;
     sr_conn_ctx_t *conn;
@@ -1197,7 +1211,7 @@ np2srv_nc_ntf_oper_cb(sr_session_ctx_t *session, const char *UNUSED(module_name)
     }
     if (lyd_new_term(stream, stream->schema->module, "description",
             "Default NETCONF stream containing notifications from all the modules."
-            " Replays only notifications for modules that support replay.", 0, NULL)) {
+            " Replays only notifications for modules (streams) that support replay.", 0, NULL)) {
         goto error;
     }
     if (lyd_new_term(stream, stream->schema->module, "replaySupport", "true", 0, NULL)) {
@@ -1226,7 +1240,7 @@ np2srv_nc_ntf_oper_cb(sr_session_ctx_t *session, const char *UNUSED(module_name)
         if (lyd_new_list(lyd_child(root), NULL, "stream", 0, &stream, mod_name)) {
             goto error;
         }
-        if (lyd_new_term(stream, NULL, "description", "Stream with all notifications of a module.", 0, NULL)) {
+        if (lyd_new_term(stream, NULL, "description", "Stream with all the notifications of a module.", 0, NULL)) {
             goto error;
         }
 
