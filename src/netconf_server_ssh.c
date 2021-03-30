@@ -320,7 +320,7 @@ np2srv_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -610,7 +610,7 @@ np2srv_ch_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, uint32_t UNUSED(s
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);

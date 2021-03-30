@@ -324,17 +324,17 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     char id_str[11];
     struct timespec stop = {0};
     int rc, ntf_status = 0;
-    uint32_t nc_sub_id;
+    uint32_t nc_sub_id, *nc_id;
     enum sub_ntf_type type;
     void *data = NULL;
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case (not supported) */
         return SR_ERR_OK;
     }
 
     /* find this NETCONF session */
-    ncs = np_get_nc_sess(sr_session_get_event_nc_id(session));
+    ncs = np_get_nc_sess(session);
     if (!ncs) {
         rc = SR_ERR_INTERNAL;
         goto error;
@@ -376,8 +376,8 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     pthread_rwlock_wrlock(&info.lock);
 
     /* allocate a new subscription */
-    if (sub_ntf_new(sr_session_get_event_nc_id(session), nc_sub_id, "ietf-subscribed-notifications:no-such-subscription",
-            stop, type, &sub)) {
+    sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_id);
+    if (sub_ntf_new(*nc_id, nc_sub_id, "ietf-subscribed-notifications:no-such-subscription", stop, type, &sub)) {
         rc = SR_ERR_INTERNAL;
         goto error_unlock;
     }
@@ -500,9 +500,9 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     char *xp = NULL;
     struct timespec stop = {0};
     int rc = SR_ERR_OK;
-    uint32_t nc_sub_id;
+    uint32_t nc_sub_id, *nc_id;
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case (not supported) */
         return SR_ERR_OK;
     }
@@ -517,11 +517,13 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         np_datetime2timespec(LYD_CANON_VALUE(node), &stop);
     }
 
+    sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_id);
     /* WRITE LOCK */
-    sub = sub_ntf_find(nc_sub_id, sr_session_get_event_nc_id(session), 1, 0);
+    sub = sub_ntf_find(nc_sub_id, *nc_id, 1, 0);
     if (!sub) {
         rc = SR_ERR_INVAL_ARG;
-        sr_set_error(session, NULL, "Subscription with ID %" PRIu32 " for the current receiver does not exist.", nc_sub_id);
+        sr_session_set_error_message(session, "Subscription with ID %" PRIu32 " for the current receiver does not exist.",
+                nc_sub_id);
         goto cleanup;
     }
 
@@ -550,7 +552,7 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     }
 
     /* send the notification */
-    rc = sub_ntf_send_notif(np_get_nc_sess(sr_session_get_event_nc_id(session)), nc_sub_id, 0, &ly_ntf, 1);
+    rc = sub_ntf_send_notif(np_get_nc_sess(session), nc_sub_id, 0, &ly_ntf, 1);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
@@ -650,9 +652,9 @@ np2srv_rpc_delete_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     struct lyd_node *node;
     struct np2srv_sub_ntf *sub;
     int rc = SR_ERR_OK;
-    uint32_t nc_sub_id;
+    uint32_t nc_sub_id, *nc_id;
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case (not supported) */
         return SR_ERR_OK;
     }
@@ -661,15 +663,17 @@ np2srv_rpc_delete_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     lyd_find_path(input, "id", 0, &node);
     nc_sub_id = ((struct lyd_node_term *)node)->value.uint32;
 
+    sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_id);
     /* WRITE LOCK */
-    sub = sub_ntf_find(nc_sub_id, sr_session_get_event_nc_id(session), 1, 0);
+    sub = sub_ntf_find(nc_sub_id, *nc_id, 1, 0);
     if (!sub) {
-        sr_set_error(session, NULL, "Subscription with ID %" PRIu32 " for the current receiver does not exist.", nc_sub_id);
+        sr_session_set_error_message(session, "Subscription with ID %" PRIu32 " for the current receiver does not exist.",
+                nc_sub_id);
         return SR_ERR_INVAL_ARG;
     }
 
     /* terminate the subscription */
-    rc = sub_ntf_terminate_sub(sub, np_get_nc_sess(sr_session_get_event_nc_id(session)));
+    rc = sub_ntf_terminate_sub(sub, np_get_nc_sess(session));
     if (rc != SR_ERR_OK) {
         goto cleanup_unlock;
     }
@@ -691,7 +695,7 @@ np2srv_rpc_kill_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     int rc = SR_ERR_OK;
     uint32_t nc_sub_id;
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case (not supported) */
         return SR_ERR_OK;
     }
@@ -703,16 +707,12 @@ np2srv_rpc_kill_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     /* WRITE LOCK */
     sub = sub_ntf_find(nc_sub_id, 0, 1, 0);
     if (!sub) {
-        sr_set_error(session, NULL, "Subscription with ID %" PRIu32 " does not exist.", nc_sub_id);
-        if (sub) {
-            rc = SR_ERR_INVAL_ARG;
-            goto cleanup_unlock;
-        }
+        sr_session_set_error_message(session, "Subscription with ID %" PRIu32 " does not exist.", nc_sub_id);
         return SR_ERR_INVAL_ARG;
     }
 
     /* terminate the subscription */
-    rc = sub_ntf_terminate_sub(sub, np_get_nc_sess(sr_session_get_event_nc_id(session)));
+    rc = sub_ntf_terminate_sub(sub, np_get_nc_sess(session));
     if (rc != SR_ERR_OK) {
         goto cleanup_unlock;
     }
@@ -927,7 +927,7 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
         /* receivers */
         if (asprintf(&path, "receivers/receiver[name='NETCONF session %u']", sub->nc_id) == -1) {
             EMEM;
-            rc = SR_ERR_NOMEM;
+            rc = SR_ERR_NO_MEMORY;
             goto cleanup;
         }
         if (lyd_new_path(list, NULL, path, NULL, 0, &receiver)) {

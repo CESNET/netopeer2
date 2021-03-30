@@ -159,34 +159,23 @@ np_timespec2datetime(const struct timespec *ts, const char *tz)
 }
 
 struct nc_session *
-np_get_nc_sess(uint32_t nc_id)
+np_get_nc_sess(sr_session_ctx_t *ev_sess)
 {
-    uint32_t i;
+    uint32_t i, *nc_id, size;
     struct nc_session *ncs;
 
+    sr_session_get_orig_data(ev_sess, 0, &size, (const void **)&nc_id);
+
     for (i = 0; (ncs = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
-        if (nc_session_get_id(ncs) == nc_id) {
+        if (nc_session_get_id(ncs) == *nc_id) {
             break;
         }
     }
 
     if (!ncs) {
-        ERR("Failed to find NETCONF session SID %u.", nc_id);
+        ERR("Failed to find NETCONF session SID %u.", *nc_id);
     }
     return ncs;
-}
-
-const char *
-np_get_nc_sess_user(sr_session_ctx_t *session)
-{
-    struct nc_session *nc_sess;
-
-    nc_sess = np_get_nc_sess(sr_session_get_event_nc_id(session));
-    if (!nc_sess) {
-        return NULL;
-    }
-
-    return nc_session_get_username(nc_sess);
 }
 
 sr_session_ctx_t *
@@ -194,7 +183,7 @@ np_get_user_sess(sr_session_ctx_t *ev_sess)
 {
     struct nc_session *nc_sess;
 
-    nc_sess = np_get_nc_sess(sr_session_get_event_nc_id(ev_sess));
+    nc_sess = np_get_nc_sess(ev_sess);
     if (!nc_sess) {
         return NULL;
     }
@@ -247,8 +236,11 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
     sr_session_ctx_t *sr_sess = NULL;
     const struct lys_module *mod;
     char *host = NULL;
+    uint32_t nc_id;
+    const char *username;
 
-    /* start sysrepo session for every NETCONF session (so that it can be used for notification subscriptions) */
+    /* start sysrepo session for every NETCONF session (so that it can be used for notification subscriptions and
+     * held lock persistence) */
     c = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
     if (c != SR_ERR_OK) {
         ERR("Failed to start a sysrepo session (%s).", sr_strerror(c));
@@ -256,7 +248,17 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
         return;
     }
     nc_session_set_data(new_session, sr_sess);
-    sr_session_set_nc_id(sr_sess, nc_session_get_id(new_session));
+    sr_session_set_orig_name(sr_sess, "netopeer2");
+
+    /* set NC ID for the callbacks */
+    nc_id = nc_session_get_id(new_session);
+    sr_session_push_orig_data(sr_sess, sizeof nc_id, &nc_id);
+
+    /* set NETCONF username for the callbacks */
+    username = nc_session_get_username(new_session);
+    sr_session_push_orig_data(sr_sess, strlen(username) + 1, username);
+
+    /* monitor NETCONF session */
     ncm_session_add(new_session);
 
     c = 0;
@@ -445,14 +447,14 @@ op_parse_url(const char *url, uint32_t parse_options, int *rc, sr_session_ctx_t 
     fd = url_open(url);
     if (fd == -1) {
         *rc = SR_ERR_INVAL_ARG;
-        sr_set_error(sr_sess, NULL, "Could not open URL.");
+        sr_session_set_error_message(sr_sess, "Could not open URL.");
         return NULL;
     }
 
     /* do not validate the whole context, we just want to load the config anyxml */
     if (lyd_parse_data_fd(ly_ctx, fd, LYD_XML, LYD_PARSE_ONLY | LYD_PARSE_OPAQ | LYD_PARSE_NO_STATE, 0, &config)) {
         *rc = SR_ERR_LY;
-        sr_set_error(sr_sess, ly_errpath(ly_ctx), ly_errmsg(ly_ctx));
+        sr_session_set_error_message(sr_sess, ly_errmsg(ly_ctx));
         return NULL;
     }
 
@@ -476,7 +478,7 @@ op_export_url(const char *url, struct lyd_node *data, int options, int *rc, sr_s
     /* print the config as expected by the other end */
     if (lyd_new_path2(NULL, ly_ctx, "/ietf-netconf:config", data, data ? LYD_ANYDATA_DATATREE : 0, 0, NULL, &config)) {
         *rc = SR_ERR_LY;
-        sr_set_error(sr_sess, ly_errpath(ly_ctx), ly_errmsg(ly_ctx));
+        sr_session_set_error_message(sr_sess, ly_errmsg(ly_ctx));
         return -1;
     }
     lyd_print_mem(&str_data, config, LYD_XML, options);
@@ -506,7 +508,7 @@ op_export_url(const char *url, struct lyd_node *data, int options, int *rc, sr_s
     if (res != CURLE_OK) {
         ERR("Failed to upload data (curl: %s).", curl_buffer);
         *rc = SR_ERR_SYS;
-        sr_set_error(sr_sess, NULL, curl_buffer);
+        sr_session_set_error_message(sr_sess, curl_buffer);
         return -1;
     }
 
@@ -553,7 +555,7 @@ op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr
     }
     if (lyrc) {
         *rc = SR_ERR_LY;
-        sr_set_error(sr_sess, ly_errpath(ly_ctx), ly_errmsg(ly_ctx));
+        sr_session_set_error_message(sr_sess, ly_errmsg(ly_ctx));
     }
 
     return root;
@@ -959,8 +961,8 @@ op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_oper_op
         rc = sr_get_data(session, filter->filters[i].str, max_depth, np2srv.sr_timeout, get_opts, &node);
         if (rc) {
             ERR("Getting data \"%s\" from sysrepo failed (%s).", filter->filters[i].str, sr_strerror(rc));
-            sr_get_error(session, &err_info);
-            sr_set_error(ev_sess, err_info->err[0].xpath, err_info->err[0].message);
+            sr_session_get_error(session, &err_info);
+            sr_session_set_error_message(ev_sess, err_info->err[0].message);
             return rc;
         }
 

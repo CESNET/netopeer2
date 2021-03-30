@@ -47,7 +47,7 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -168,7 +168,7 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
 
     if (asprintf(&xpath2, "%s//.", xpath) == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -192,7 +192,7 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
                 if (!mem) {
                     EMEM;
                     pthread_mutex_unlock(&nacm.lock);
-                    return SR_ERR_NOMEM;
+                    return SR_ERR_NO_MEMORY;
                 }
                 nacm.groups = mem;
                 group = &nacm.groups[nacm.group_count];
@@ -261,7 +261,7 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
                     if (!mem) {
                         EMEM;
                         pthread_mutex_unlock(&nacm.lock);
-                        return SR_ERR_NOMEM;
+                        return SR_ERR_NO_MEMORY;
                     }
                     group->users = mem;
                     lydict_insert(ly_ctx, user_name, 0, (const char **)&group->users[group->user_count]);
@@ -341,7 +341,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
 
     if (asprintf(&xpath2, "%s//.", xpath) == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -381,7 +381,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
                     if (!rlist) {
                         EMEM;
                         pthread_mutex_unlock(&nacm.lock);
-                        return SR_ERR_NOMEM;
+                        return SR_ERR_NO_MEMORY;
                     }
                     lydict_insert(ly_ctx, rlist_name, 0, &rlist->name);
                 }
@@ -457,7 +457,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
                     if (!mem) {
                         EMEM;
                         pthread_mutex_unlock(&nacm.lock);
-                        return SR_ERR_NOMEM;
+                        return SR_ERR_NO_MEMORY;
                     }
                     rlist->groups = mem;
                     lydict_insert(ly_ctx, group_name, 0, (const char **)&rlist->groups[rlist->group_count]);
@@ -518,7 +518,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
 
     if (asprintf(&xpath2, "%s//.", xpath) == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -568,7 +568,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
                     if (!rule) {
                         EMEM;
                         pthread_mutex_unlock(&nacm.lock);
-                        return SR_ERR_NOMEM;
+                        return SR_ERR_NO_MEMORY;
                     }
                     lydict_insert(ly_ctx, rule_name, 0, &rule->name);
                     rule->target_type = NCAC_TARGET_ANY;

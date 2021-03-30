@@ -33,6 +33,10 @@
 # define NP_CLOCK_ID CLOCK_REALTIME
 #endif
 
+/* macro for ignoring an RPC callback call */
+#define NP_IGNORE_RPC(session, event) (!sr_session_get_orig_name(session) || \
+        strcmp(sr_session_get_orig_name(session), "netopeer2") || (event == SR_EV_ABORT))
+
 /* server internal data */
 struct np2srv {
     sr_conn_ctx_t *sr_conn;         /**< sysrepo connection */
@@ -52,7 +56,7 @@ struct np2srv {
 };
 
 extern struct np2srv np2srv;
-extern ATOMIC_T skip_nacm_sr_sid;
+extern ATOMIC_T skip_nacm_nc_sid;
 
 int np_sleep(uint32_t ms);
 
@@ -68,9 +72,7 @@ int np_datetime2timespec(const char *datetime, struct timespec *ts);
 
 char *np_timespec2datetime(const struct timespec *ts, const char *tz);
 
-struct nc_session *np_get_nc_sess(uint32_t nc_id);
-
-const char *np_get_nc_sess_user(sr_session_ctx_t *session);
+struct nc_session *np_get_nc_sess(sr_session_ctx_t *ev_sess);
 
 sr_session_ctx_t *np_get_user_sess(sr_session_ctx_t *ev_sess);
 

@@ -178,7 +178,7 @@ np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -219,7 +219,7 @@ np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
             /* set specific parameters */
             if (asprintf(&xpath2, "%s/keepalives/*", xpath) == -1) {
                 EMEM;
-                return SR_ERR_NOMEM;
+                return SR_ERR_NO_MEMORY;
             }
             if (np2srv_tcp_keepalives(NULL, endpt_name, session, xpath2)) {
                 failed = 1;
@@ -356,7 +356,7 @@ np2srv_ch_client_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -400,7 +400,7 @@ np2srv_ch_client_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(
             /* set specific parameters */
             if (asprintf(&xpath2, "%s/keepalives/*", xpath) == -1) {
                 EMEM;
-                return SR_ERR_NOMEM;
+                return SR_ERR_NO_MEMORY;
             }
             rc = np2srv_tcp_keepalives(client_name, endpt_name, session, xpath2);
             free(xpath2);
@@ -434,7 +434,7 @@ np2srv_ch_connection_type_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id),
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -466,7 +466,7 @@ np2srv_ch_connection_type_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id),
         if (!strcmp(node->schema->name, "periodic")) {
             if (asprintf(&xpath2, "%s/periodic/*", xpath) == -1) {
                 EMEM;
-                return SR_ERR_NOMEM;
+                return SR_ERR_NO_MEMORY;
             }
             rc = np2srv_ch_periodic_connection_params(client_name, session, xpath2);
             free(xpath2);
@@ -499,7 +499,7 @@ np2srv_ch_reconnect_strategy_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_i
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);

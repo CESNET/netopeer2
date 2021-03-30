@@ -88,7 +88,7 @@ np2srv_get_rpc_module_filters(const struct np2_filter *filter, struct np2_filter
 
         if (!str) {
             EMEM;
-            return SR_ERR_NOMEM;
+            return SR_ERR_NO_MEMORY;
         }
 
         /* check for a duplicity */
@@ -202,27 +202,11 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     sr_session_ctx_t *user_sess;
     struct ly_set *nodeset = NULL;
     sr_datastore_t ds = 0;
-    char *username = NULL;
-    const char *single_filter;
+    const char *single_filter, *username;
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
         return SR_ERR_OK;
-    }
-
-    /* Get username. It is assumed that right now the NETCONF session cannot end
-     * due to the RPC lock held while np2srv_rpc_cb() is executing (which called this callback).
-     */
-    if ((username = (char *)np_get_nc_sess_user(session))) {
-        if (!(username = strdup(username))) {
-            EMEM;
-            rc = SR_ERR_NOMEM;
-            goto cleanup;
-        }
-    } else {
-        EINT;
-        rc = SR_ERR_INTERNAL;
-        goto cleanup;
     }
 
     /* get know which datastore is being affected for get-config */
@@ -278,7 +262,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
         filter.filters = malloc(sizeof *filter.filters);
         if (!filter.filters) {
             EMEM;
-            rc = SR_ERR_NOMEM;
+            rc = SR_ERR_NO_MEMORY;
             goto cleanup;
         }
         filter.count = 1;
@@ -286,7 +270,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
         filter.filters[0].selection = 1;
         if (!filter.filters[0].str) {
             EMEM;
-            rc = SR_ERR_NOMEM;
+            rc = SR_ERR_NO_MEMORY;
             goto cleanup;
         }
     }
@@ -312,6 +296,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     }
 
     /* perform correct NACM filtering */
+    sr_session_get_orig_data(session, 1, NULL, (const void **)&username);
     ncac_check_data_read_filter(&data_get, username);
 
     /* add output */
@@ -325,7 +310,6 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
 cleanup:
     op_filter_erase(&filter);
     lyd_free_siblings(data_get);
-    free(username);
     return rc;
 }
 
@@ -342,7 +326,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     const char *defop = "merge", *testop = "test-then-set";
     int rc = SR_ERR_OK;
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
         return SR_ERR_OK;
     }
@@ -400,7 +384,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 #else
         ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
-        sr_set_error(session, NULL, "URL not supported.");
+        sr_session_set_error_message(session, "URL not supported.");
         goto cleanup;
 #endif
     }
@@ -432,8 +416,8 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         rc = sr_validate(user_sess, NULL, 0);
     }
     if (rc != SR_ERR_OK) {
-        sr_get_error(user_sess, &err_info);
-        sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
+        sr_session_get_error(user_sess, &err_info);
+        sr_session_set_error_message(session, err_info->err[0].message);
         goto cleanup;
     }
 
@@ -459,32 +443,17 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     struct lyd_node *node, *config = NULL;
     int rc = SR_ERR_OK, run_to_start = 0;
     sr_session_ctx_t *user_sess;
-    char *username = NULL;
+    const char *username;
+    uint32_t *nc_sid;
 #ifdef NP2SRV_URL_CAPAB
     const char *trg_url = NULL;
     int lyp_wd_flag;
 #endif
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
         return SR_ERR_OK;
     }
-
-    /* Get username. It is assumed that right now the NETCONF session cannot end
-     * due to the RPC lock held while np2srv_rpc_cb() is executing (which called this callback).
-     */
-    if ((username = (char *)np_get_nc_sess_user(session))) {
-        if (!(username = strdup(username))) {
-            EMEM;
-            rc = SR_ERR_NOMEM;
-            goto cleanup;
-        }
-    } else {
-        EINT;
-        rc = SR_ERR_INTERNAL;
-        goto cleanup;
-    }
-
 
     /* get know which datastores are affected */
     lyd_find_xpath(input, "target/*", &nodeset);
@@ -501,7 +470,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 #else
         ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
-        sr_set_error(session, NULL, "URL not supported.");
+        sr_session_set_error_message(session, "URL not supported.");
         goto cleanup;
 #endif
     }
@@ -530,7 +499,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 #ifdef NP2SRV_URL_CAPAB
         if (trg_url && !strcmp(trg_url, LYD_CANON_VALUE(nodeset->dnodes[0]))) {
             rc = SR_ERR_INVAL_ARG;
-            sr_set_error(session, NULL, "Source and target URLs are the same.");
+            sr_session_set_error_message(session, "Source and target URLs are the same.");
             goto cleanup;
         }
 
@@ -543,7 +512,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 #else
         ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
-        sr_set_error(session, NULL, "URL not supported.");
+        sr_session_set_error_message(session, "URL not supported.");
         goto cleanup;
 #endif
     }
@@ -551,7 +520,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 
     if (ds == sds) {
         rc = SR_ERR_INVAL_ARG;
-        sr_set_error(session, NULL, "Source and target datastores are the same.");
+        sr_session_set_error_message(session, "Source and target datastores are the same.");
         goto cleanup;
     }
 
@@ -564,6 +533,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
             goto cleanup;
         }
 
+        sr_session_get_orig_data(session, 1, NULL, (const void **)&username);
         ncac_check_data_read_filter(&config, username);
     }
 
@@ -611,13 +581,14 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
             assert(run_to_start);
 
             /* set SID to skip NACM check, only one copy-config can be executed at once */
-            ATOMIC_STORE_RELAXED(skip_nacm_sr_sid, sr_session_get_id(user_sess));
+            sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_sid);
+            ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, *nc_sid);
             rc = sr_copy_config(user_sess, NULL, sds, np2srv.sr_timeout, 1);
-            ATOMIC_STORE_RELAXED(skip_nacm_sr_sid, 0);
+            ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, 0);
         }
         if (rc != SR_ERR_OK) {
-            sr_get_error(user_sess, &err_info);
-            sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
+            sr_session_get_error(user_sess, &err_info);
+            sr_session_set_error_message(session, err_info->err[0].message);
             goto cleanup;
         }
     }
@@ -626,7 +597,6 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 
 cleanup:
     lyd_free_siblings(config);
-    free(username);
     return rc;
 }
 
@@ -645,7 +615,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     const char *trg_url = NULL;
 #endif
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
         return SR_ERR_OK;
     }
@@ -661,7 +631,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
 #else
         ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
-        sr_set_error(session, NULL, "URL not supported.");
+        sr_session_set_error_message(session, "URL not supported.");
         goto cleanup;
 #endif
     }
@@ -697,8 +667,8 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     {
         rc = sr_replace_config(user_sess, NULL, NULL, np2srv.sr_timeout, 1);
         if (rc != SR_ERR_OK) {
-            sr_get_error(user_sess, &err_info);
-            sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
+            sr_session_get_error(user_sess, &err_info);
+            sr_session_set_error_message(session, err_info->err[0].message);
             goto cleanup;
         }
     }
@@ -720,7 +690,7 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     const sr_error_info_t *err_info;
     int rc = SR_ERR_OK;
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
         return SR_ERR_OK;
     }
@@ -755,8 +725,8 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         rc = sr_unlock(user_sess, NULL);
     }
     if (rc != SR_ERR_OK) {
-        sr_get_error(user_sess, &err_info);
-        sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
+        sr_session_get_error(user_sess, &err_info);
+        sr_session_set_error_message(session, err_info->err[0].message);
         goto cleanup;
     }
 
@@ -773,10 +743,10 @@ np2srv_rpc_kill_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
 {
     struct nc_session *kill_sess;
     struct lyd_node *node;
-    uint32_t kill_sid, i;
+    uint32_t kill_sid, *nc_sid, i;
     int rc = SR_ERR_OK;
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
         return SR_ERR_OK;
     }
@@ -784,9 +754,10 @@ np2srv_rpc_kill_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
     lyd_find_path(input, "session-id", 0, &node);
     kill_sid = ((struct lyd_node_term *)node)->value.uint32;
 
-    if (kill_sid == sr_session_get_event_nc_id(session)) {
+    sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_sid);
+    if (kill_sid == *nc_sid) {
         rc = SR_ERR_INVAL_ARG;
-        sr_set_error(session, NULL, "It is forbidden to kill own session.");
+        sr_session_set_error_message(session, "It is forbidden to kill own session.");
         goto cleanup;
     }
 
@@ -797,7 +768,7 @@ np2srv_rpc_kill_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
     }
     if (!kill_sess) {
         rc = SR_ERR_INVAL_ARG;
-        sr_set_error(session, NULL, "Session with the specified \"session-id\" not found.");
+        sr_session_set_error_message(session, "Session with the specified \"session-id\" not found.");
         goto cleanup;
     }
 
@@ -821,7 +792,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
     sr_session_ctx_t *user_sess;
     const sr_error_info_t *err_info;
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
         return SR_ERR_OK;
     }
@@ -840,8 +811,8 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
     /* sysrepo API */
     rc = sr_copy_config(user_sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout, 1);
     if (rc != SR_ERR_OK) {
-        sr_get_error(user_sess, &err_info);
-        sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
+        sr_session_get_error(user_sess, &err_info);
+        sr_session_set_error_message(session, err_info->err[0].message);
         goto cleanup;
     }
 
@@ -860,7 +831,7 @@ np2srv_rpc_discard_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     sr_session_ctx_t *user_sess;
     const sr_error_info_t *err_info;
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
         return SR_ERR_OK;
     }
@@ -879,8 +850,8 @@ np2srv_rpc_discard_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     /* sysrepo API */
     rc = sr_copy_config(user_sess, NULL, SR_DS_RUNNING, np2srv.sr_timeout, 1);
     if (rc != SR_ERR_OK) {
-        sr_get_error(user_sess, &err_info);
-        sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
+        sr_session_get_error(user_sess, &err_info);
+        sr_session_set_error_message(session, err_info->err[0].message);
         goto cleanup;
     }
 
@@ -902,7 +873,7 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     int rc = SR_ERR_OK;
     const sr_error_info_t *err_info;
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
         return SR_ERR_OK;
     }
@@ -935,7 +906,7 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
 #else
         ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
-        sr_set_error(session, NULL, "URL not supported.");
+        sr_session_set_error_message(session, "URL not supported.");
         goto cleanup;
 #endif
     }
@@ -956,8 +927,8 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
         /* sysrepo API */
         rc = sr_validate(user_sess, NULL, 0);
         if (rc != SR_ERR_OK) {
-            sr_get_error(user_sess, &err_info);
-            sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
+            sr_session_get_error(user_sess, &err_info);
+            sr_session_set_error_message(session, err_info->err[0].message);
             goto cleanup;
         }
     }
@@ -1062,13 +1033,13 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     const sr_error_info_t *err_info;
     uint32_t idx;
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case (not supported) */
         return SR_ERR_OK;
     }
 
     /* find this NETCONF session and sysrepo user session */
-    ncs = np_get_nc_sess(sr_session_get_event_nc_id(session));
+    ncs = np_get_nc_sess(session);
     if (!ncs) {
         rc = SR_ERR_INTERNAL;
         goto cleanup;
@@ -1077,7 +1048,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
 
     /* RFC 5277 section 6.5 */
     if (nc_session_get_notif_status(ncs)) {
-        sr_set_error(session, NULL, "Session already subscribed.");
+        sr_session_set_error_message(session, "Session already subscribed.");
         return SR_ERR_EXISTS;
     }
 
@@ -1119,7 +1090,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
                 xp = strdup(meta->value.canonical);
                 if (xp) {
                     EMEM;
-                    rc = SR_ERR_NOMEM;
+                    rc = SR_ERR_NO_MEMORY;
                     goto cleanup;
                 }
             }
@@ -1155,8 +1126,8 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
                 rc = sr_event_notif_subscribe_tree(user_sess, ly_mod->name, xp, start, stop,
                         np2srv_rpc_subscribe_ntf_cb, ncs, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
                 if (rc != SR_ERR_OK) {
-                    sr_get_error(user_sess, &err_info);
-                    sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
+                    sr_session_get_error(user_sess, &err_info);
+                    sr_session_set_error_message(session, err_info->err[0].message);
                     break;
                 }
             }
@@ -1166,8 +1137,8 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         rc = sr_event_notif_subscribe_tree(user_sess, stream, xp, start, stop, np2srv_rpc_subscribe_ntf_cb,
                 ncs, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {
-            sr_get_error(user_sess, &err_info);
-            sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
+            sr_session_get_error(user_sess, &err_info);
+            sr_session_set_error_message(session, err_info->err[0].message);
         }
     }
 

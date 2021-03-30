@@ -112,7 +112,7 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
                 mem = realloc(*sub_ids, (*sub_id_count + 1) * sizeof **sub_ids);
                 if (!mem) {
                     EMEM;
-                    rc = SR_ERR_NOMEM;
+                    rc = SR_ERR_NO_MEMORY;
                     goto error;
                 }
                 *sub_ids = mem;
@@ -121,8 +121,8 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
                 rc = sr_event_notif_subscribe_tree(user_sess, ly_mod->name, xpath, start, stop, np2srv_rpc_establish_sub_ntf_cb,
                         private_data, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
                 if (rc != SR_ERR_OK) {
-                    sr_get_error(user_sess, &err_info);
-                    sr_set_error(ev_sess, err_info->err[0].xpath, err_info->err[0].message);
+                    sr_session_get_error(user_sess, &err_info);
+                    sr_session_set_error_message(ev_sess, err_info->err[0].message);
                     goto error;
                 }
 
@@ -142,8 +142,8 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
         rc = sr_event_notif_subscribe_tree(user_sess, stream, xpath, start, stop, np2srv_rpc_establish_sub_ntf_cb, private_data,
                 SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {
-            sr_get_error(user_sess, &err_info);
-            sr_set_error(ev_sess, err_info->err[0].xpath, err_info->err[0].message);
+            sr_session_get_error(user_sess, &err_info);
+            sr_session_set_error_message(ev_sess, err_info->err[0].message);
             goto error;
         }
 
@@ -233,7 +233,7 @@ sub_ntf_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *rpc
         /* first get this filter from sysrepo */
         if (asprintf(&str, "/ietf-subscribed-notifications:filters/stream-filter[name='%s']", LYD_CANON_VALUE(node)) == -1) {
             EMEM;
-            rc = SR_ERR_NOMEM;
+            rc = SR_ERR_NO_MEMORY;
             goto cleanup;
         }
 
@@ -241,8 +241,8 @@ sub_ntf_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *rpc
         rc = sr_get_subtree(user_sess, str, 0, &subtree);
         free(str);
         if (rc != SR_ERR_OK) {
-            sr_get_error(user_sess, &err_info);
-            sr_set_error(ev_sess, err_info->err[0].xpath, err_info->err[0].message);
+            sr_session_get_error(user_sess, &err_info);
+            sr_session_set_error_message(ev_sess, err_info->err[0].message);
             goto cleanup;
         }
 
@@ -273,7 +273,7 @@ sub_ntf_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *rpc
             *xpath = strdup(LYD_CANON_VALUE(node));
             if (*xpath) {
                 EMEM;
-                rc = SR_ERR_NOMEM;
+                rc = SR_ERR_NO_MEMORY;
                 goto cleanup;
             }
         }
@@ -299,7 +299,7 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
     int rc = SR_ERR_OK;
 
     /* find this NETCONF session */
-    ncs = np_get_nc_sess(sr_session_get_event_nc_id(ev_sess));
+    ncs = np_get_nc_sess(ev_sess);
     if (!ncs) {
         rc = SR_ERR_INTERNAL;
         goto cleanup;
@@ -326,7 +326,7 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
     /* allocate specific data */
     sub->data = sn_data = calloc(1, sizeof *sn_data);
     if (!sn_data) {
-        rc = SR_ERR_NOMEM;
+        rc = SR_ERR_NO_MEMORY;
         goto cleanup;
     }
     sn_data->stream_filter_name = stream_filter_name ? strdup(stream_filter_name) : NULL;
@@ -340,7 +340,7 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
     sn_data->replay_start_time = start;
     if ((stream_filter_name && !sn_data->stream_filter_name) || (stream_subtree_filter && !sn_data->stream_subtree_filter) ||
             (stream_xpath_filter && !sn_data->stream_xpath_filter) || !sn_data->stream) {
-        rc = SR_ERR_NOMEM;
+        rc = SR_ERR_NO_MEMORY;
         goto cleanup;
     }
 
@@ -444,7 +444,7 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
     sn_data->stream_xpath_filter = stream_xpath_filter ? strdup(stream_xpath_filter) : NULL;
     if ((stream_filter_name && !sn_data->stream_filter_name) || (stream_subtree_filter && !sn_data->stream_subtree_filter) ||
             (stream_xpath_filter && !sn_data->stream_xpath_filter)) {
-        rc = SR_ERR_NOMEM;
+        rc = SR_ERR_NO_MEMORY;
         goto cleanup;
     }
 
@@ -537,7 +537,7 @@ sub_ntf_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filter,
         while ((sub = sub_ntf_find_next(sub, sub_ntf_stream_filter_match_cb, LYD_CANON_VALUE(lyd_child(filter))))) {
             /* terminate the subscription with the specific term reason */
             sub->term_reason = "ietf-subscribed-notifications:filter-unavailable";
-            r = sub_ntf_terminate_sub(sub, np_get_nc_sess(sr_session_get_event_nc_id(ev_sess)));
+            r = sub_ntf_terminate_sub(sub, np_get_nc_sess(ev_sess));
             if (r != SR_ERR_OK) {
                 rc = r;
             }

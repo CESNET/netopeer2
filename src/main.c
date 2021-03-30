@@ -52,8 +52,8 @@
 /** @brief flag for main loop */
 ATOMIC_T loop_continue = 1;
 
-/* SR SID of session to skip diff check for */
-ATOMIC_T skip_nacm_sr_sid;
+/* NETCONF SID of session to skip diff check for */
+ATOMIC_T skip_nacm_nc_sid;
 
 static void *worker_thread(void *arg);
 
@@ -251,7 +251,7 @@ np2srv_err_reply_sr(const sr_error_info_t *err_info)
     size_t i;
 
     for (i = 0; i < err_info->err_count; ++i) {
-        e = np2srv_err_sr(err_info->err_code, err_info->err[i].message, err_info->err[i].xpath);
+        e = np2srv_err_sr(err_info->err[i].err_code, err_info->err[i].message, NULL);
         if (!e) {
             nc_server_reply_free(reply);
             return NULL;
@@ -353,7 +353,7 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
 cleanup:
     if (!reply) {
         if (sr_sess) {
-            sr_get_error(sr_sess, &err_info);
+            sr_session_get_error(sr_sess, &err_info);
             reply = np2srv_err_reply_sr(err_info);
         } else {
             e = nc_err(LYD_CTX(rpc), NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
@@ -369,23 +369,20 @@ np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
     const struct lyd_node *node;
     char *path;
     const char *user;
+    uint32_t *nc_sid;
 
-    user = np_get_nc_sess_user(session);
-    if (!user) {
-        EINT;
-        return SR_ERR_INTERNAL;
-    }
-
-    if (ATOMIC_LOAD_RELAXED(skip_nacm_sr_sid) == sr_session_get_event_sr_id(session)) {
+    sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_sid);
+    if (ATOMIC_LOAD_RELAXED(skip_nacm_nc_sid) == *nc_sid) {
         /* skip the NACM check */
         return SR_ERR_OK;
     }
 
+    sr_session_get_orig_data(session, 1, NULL, (const void **)&user);
     if ((node = ncac_check_diff(diff, user))) {
         /* access denied */
         path = lysc_path(node->schema, LYSC_PATH_LOG, NULL, 0);
-        sr_set_error(session, path, "Access to the data model \"%s\" is denied because \"%s\" NACM authorization failed.",
-                node->schema->module->name, user);
+        sr_session_set_error_message(session, path, "Access to the data model \"%s\" is denied because \"%s\" "
+                "NACM authorization failed.", node->schema->module->name, user);
         free(path);
         return SR_ERR_UNAUTHORIZED;
     }

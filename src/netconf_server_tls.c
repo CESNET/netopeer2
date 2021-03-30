@@ -221,7 +221,7 @@ np2srv_endpt_tls_servercert_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -273,7 +273,7 @@ np2srv_endpt_tls_client_auth_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_i
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -361,7 +361,7 @@ np2srv_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -479,7 +479,7 @@ np2srv_ch_client_endpt_tls_servercert_cb(sr_session_ctx_t *session, uint32_t UNU
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -534,7 +534,7 @@ np2srv_ch_client_endpt_tls_client_auth_cb(sr_session_ctx_t *session, uint32_t UN
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);
@@ -598,7 +598,7 @@ np2srv_ch_client_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNU
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     rc = sr_get_changes_iter(session, xpath2, &iter);
     free(xpath2);

@@ -219,14 +219,14 @@ yang_push_notif_change_edit_append(struct lyd_node *ly_yp, enum yang_push_op yp_
             assert(prev_value);
             if (prev_value[0]) {
                 if (asprintf(&point, "%s[.='%s']", path, prev_value) == -1) {
-                    rc = SR_ERR_NOMEM;
+                    rc = SR_ERR_NO_MEMORY;
                     goto cleanup;
                 }
             }
         } else {
             if (prev_list[0]) {
                 if (asprintf(&point, "%s%s", path, prev_list) == -1) {
-                    rc = SR_ERR_NOMEM;
+                    rc = SR_ERR_NO_MEMORY;
                     goto cleanup;
                 }
             }
@@ -542,7 +542,7 @@ yang_push_sr_subscribe_mod(const struct lys_module *ly_mod, sr_session_ctx_t *us
     mem = realloc(*sub_ids, (*sub_id_count + 1) * sizeof **sub_ids);
     if (!mem) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
     *sub_ids = mem;
 
@@ -550,8 +550,8 @@ yang_push_sr_subscribe_mod(const struct lys_module *ly_mod, sr_session_ctx_t *us
     rc = sr_module_change_subscribe(user_sess, ly_mod->name, xpath, np2srv_change_yang_push_cb, private_data,
             0, SR_SUBSCR_CTX_REUSE | SR_SUBSCR_PASSIVE | SR_SUBSCR_DONE_ONLY, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
-        sr_get_error(user_sess, &err_info);
-        sr_set_error(ev_sess, err_info->err[0].xpath, err_info->err[0].message);
+        sr_session_get_error(user_sess, &err_info);
+        sr_session_set_error_message(ev_sess, err_info->err[0].message);
         return rc;
     }
 
@@ -771,7 +771,7 @@ yang_push_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *r
         if (asprintf(&str, "/ietf-subscribed-notifications:filters/ietf-yang-push:selection-filter[filter-id='%s']",
                 LYD_CANON_VALUE(node)) == -1) {
             EMEM;
-            rc = SR_ERR_NOMEM;
+            rc = SR_ERR_NO_MEMORY;
             goto cleanup;
         }
 
@@ -779,8 +779,8 @@ yang_push_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *r
         rc = sr_get_subtree(user_sess, str, 0, &subtree);
         free(str);
         if (rc != SR_ERR_OK) {
-            sr_get_error(user_sess, &err_info);
-            sr_set_error(ev_sess, err_info->err[0].xpath, err_info->err[0].message);
+            sr_session_get_error(user_sess, &err_info);
+            sr_session_set_error_message(ev_sess, err_info->err[0].message);
             goto cleanup;
         }
 
@@ -811,7 +811,7 @@ yang_push_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *r
             *xpath = strdup(LYD_CANON_VALUE(node));
             if (!*xpath) {
                 EMEM;
-                rc = SR_ERR_NOMEM;
+                rc = SR_ERR_NO_MEMORY;
                 goto cleanup;
             }
         }
@@ -952,14 +952,14 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
     struct yang_push_data *yp_data = NULL;
     const char *selection_filter_ref = NULL, *datastore_xpath_filter = NULL;
     sr_datastore_t datastore;
-    char *xp = NULL, *path;
+    char *xp = NULL;
     uint32_t i, period, dampening_period, sub_id_count;
     int rc = SR_ERR_OK, periodic, sync_on_start, excluded_change[YP_OP_OPERATION_COUNT] = {0};
     struct itimerspec trspec = {0};
     struct timespec anchor_time = {0};
 
     /* find this NETCONF session */
-    ncs = np_get_nc_sess(sr_session_get_event_nc_id(ev_sess));
+    ncs = np_get_nc_sess(ev_sess);
     if (!ncs) {
         rc = SR_ERR_INTERNAL;
         goto cleanup;
@@ -970,9 +970,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
     lyd_find_path(rpc, "ietf-yang-push:datastore", 0, &node);
     rc = yang_push_ident2ds(LYD_CANON_VALUE(node), &datastore);
     if (rc != SR_ERR_OK) {
-        path = lyd_path(node, LYD_PATH_STD, NULL, 0);
-        sr_set_error(ev_sess, path, "Unsupported datastore \"%s\".", LYD_CANON_VALUE(node));
-        free(path);
+        sr_session_set_error_message(ev_sess, "Unsupported datastore \"%s\".", LYD_CANON_VALUE(node));
         goto cleanup;
     }
 
@@ -1017,7 +1015,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
         }
         ly_set_free(set, NULL);
     } else {
-        sr_set_error(ev_sess, NULL, "Unknown update trigger for the yang-push subscription.");
+        sr_session_set_error_message(ev_sess, "Unknown update trigger for the yang-push subscription.");
         rc = SR_ERR_UNSUPPORTED;
         goto cleanup;
     }
@@ -1025,7 +1023,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
     /* create specific data */
     sub->data = yp_data = calloc(1, sizeof *yp_data);
     if (!yp_data) {
-        rc = SR_ERR_NOMEM;
+        rc = SR_ERR_NO_MEMORY;
         goto cleanup;
     }
     yp_data->datastore = datastore;
@@ -1068,7 +1066,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
     if ((selection_filter_ref && !yp_data->selection_filter_ref) ||
             (datastore_subtree_filter && !yp_data->datastore_subtree_filter) ||
             (datastore_xpath_filter && !yp_data->datastore_xpath_filter)) {
-        rc = SR_ERR_NOMEM;
+        rc = SR_ERR_NO_MEMORY;
         goto cleanup;
     }
 
@@ -1143,7 +1141,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     sr_datastore_t datastore;
     const char *selection_filter_ref = NULL, *datastore_xpath_filter = NULL;
     struct itimerspec trspec;
-    char *xp = NULL, *path, *datetime = NULL;
+    char *xp = NULL, *datetime = NULL;
     struct timespec anchor_time, next_notif;
     int rc = SR_ERR_OK;
     uint32_t i, nc_sub_id, period, dampening_period;
@@ -1168,12 +1166,10 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     lyd_find_path(rpc, "ietf-yang-push:datastore", 0, &node);
     rc = yang_push_ident2ds(LYD_CANON_VALUE(node), &datastore);
     if (rc != SR_ERR_OK) {
-        path = lyd_path(node, LYD_PATH_STD, NULL, 0);
-        sr_set_error(ev_sess, path, "Unsupported datastore \"%s\".", LYD_CANON_VALUE(node));
-        free(path);
+        sr_session_set_error_message(ev_sess, "Unsupported datastore \"%s\".", LYD_CANON_VALUE(node));
         goto cleanup;
     } else if (datastore != yp_data->datastore) {
-        sr_set_error(ev_sess, NULL, "Subscription with ID %" PRIu32 " is not for \"%s\" datastore.", nc_sub_id,
+        sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not for \"%s\" datastore.", nc_sub_id,
                 LYD_CANON_VALUE(node));
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
@@ -1185,7 +1181,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     lyd_find_path(rpc, "ietf-yang-push:periodic", 0, &cont);
     if (cont) {
         if (!yp_data->periodic) {
-            sr_set_error(ev_sess, NULL, "Subscription with ID %" PRIu32 " is not \"periodic\".", nc_sub_id);
+            sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not \"periodic\".", nc_sub_id);
             rc = SR_ERR_INVAL_ARG;
             goto cleanup;
         }
@@ -1235,7 +1231,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     lyd_find_path(rpc, "ietf-yang-push:on-change", 0, &cont);
     if (cont) {
         if (yp_data->periodic) {
-            sr_set_error(ev_sess, NULL, "Subscription with ID %" PRIu32 " is not \"on-change\".", nc_sub_id);
+            sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not \"on-change\".", nc_sub_id);
             rc = SR_ERR_INVAL_ARG;
             goto cleanup;
         }
@@ -1317,7 +1313,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     if ((selection_filter_ref && !yp_data->selection_filter_ref) ||
             (datastore_subtree_filter && !yp_data->datastore_subtree_filter) ||
             (datastore_xpath_filter && !yp_data->datastore_xpath_filter)) {
-        rc = SR_ERR_NOMEM;
+        rc = SR_ERR_NO_MEMORY;
         goto cleanup;
     }
 
@@ -1505,7 +1501,7 @@ yang_push_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filte
         while ((sub = sub_ntf_find_next(sub, yang_push_datastore_filter_match_cb, LYD_CANON_VALUE(lyd_child(filter))))) {
             /* terminate the subscription with the specific term reason */
             sub->term_reason = "ietf-subscribed-notifications:filter-unavailable";
-            r = sub_ntf_terminate_sub(sub, np_get_nc_sess(sr_session_get_event_nc_id(ev_sess)));
+            r = sub_ntf_terminate_sub(sub, np_get_nc_sess(ev_sess));
             if (r != SR_ERR_OK) {
                 rc = r;
             }
@@ -1686,7 +1682,7 @@ np2srv_rpc_resync_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     int rc = SR_ERR_OK;
     uint32_t nc_sub_id;
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case (not supported) */
         return SR_ERR_OK;
     }
@@ -1698,8 +1694,8 @@ np2srv_rpc_resync_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     /* READ LOCK */
     sub = sub_ntf_find_lock(nc_sub_id, 0);
     if (!sub || ((struct yang_push_data *)sub->data)->periodic) {
-        sr_set_error(session, NULL, "On-change subscription with ID %" PRIu32 " for the current receiver does not exist.",
-                nc_sub_id);
+        sr_session_set_error_message(session, "On-change subscription with ID %" PRIu32 " for the current receiver "
+                "does not exist.", nc_sub_id);
         if (sub) {
             rc = SR_ERR_INVAL_ARG;
             goto cleanup_unlock;

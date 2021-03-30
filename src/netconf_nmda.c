@@ -59,7 +59,7 @@ op_data_filter_origin(struct lyd_node **data, const struct lysc_ident *filter, i
     }
     if (ret == -1) {
         EMEM;
-        return SR_ERR_NOMEM;
+        return SR_ERR_NO_MEMORY;
     }
 
     lyrc = lyd_find_xpath(*data, xpath, &set);
@@ -106,26 +106,11 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     sr_datastore_t ds;
     NC_WD_MODE nc_wd;
     sr_get_oper_options_t get_opts = 0;
-    char *username = NULL;
+    const char *username;
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
         return SR_ERR_OK;
-    }
-
-    /* Get username. It is assumed that right now the NETCONF session cannot end
-     * due to the RPC lock held while np2srv_rpc_cb() is executing (which called this callback).
-     */
-    if ((username = (char *)np_get_nc_sess_user(session))) {
-        if (!(username = strdup(username))) {
-            EMEM;
-            rc = SR_ERR_NOMEM;
-            goto cleanup;
-        }
-    } else {
-        EINT;
-        rc = SR_ERR_INTERNAL;
-        goto cleanup;
     }
 
     /* get default value for with-defaults */
@@ -143,7 +128,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         ds = SR_DS_OPERATIONAL;
     } else {
         rc = SR_ERR_INVAL_ARG;
-        sr_set_error(session, NULL, "Datastore \"%s\" is not supported.", leaf->value.canonical);
+        sr_session_set_error_message(session, "Datastore \"%s\" is not supported.", leaf->value.canonical);
         goto cleanup;
     }
 
@@ -160,14 +145,14 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         filter.filters = malloc(sizeof *filter.filters);
         if (!filter.filters) {
             EMEM;
-            rc = SR_ERR_NOMEM;
+            rc = SR_ERR_NO_MEMORY;
             goto cleanup;
         }
         filter.count = 1;
         filter.filters[0].str = node ? strdup(LYD_CANON_VALUE(node)) : strdup("/*");
         if (!filter.filters[0].str) {
             EMEM;
-            rc = SR_ERR_NOMEM;
+            rc = SR_ERR_NO_MEMORY;
             goto cleanup;
         }
         filter.filters[0].selection = 1;
@@ -240,6 +225,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     ly_set_free(nodeset, NULL);
 
     /* perform correct NACM filtering */
+    sr_session_get_orig_data(session, 1, NULL, (const void **)&username);
     ncac_check_data_read_filter(&data, username);
 
     /* add output */
@@ -254,7 +240,6 @@ cleanup:
     op_filter_erase(&filter);
     lyd_free_siblings(select_data);
     lyd_free_siblings(data);
-    free(username);
     return rc;
 }
 
@@ -272,7 +257,7 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     const char *defop;
     int rc = SR_ERR_OK;
 
-    if (event == SR_EV_ABORT) {
+    if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
         return SR_ERR_OK;
     }
@@ -287,7 +272,7 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
         ds = SR_DS_CANDIDATE;
     } else {
         rc = SR_ERR_INVAL_ARG;
-        sr_set_error(session, NULL, "Datastore \"%s\" is not supported or writable.", leaf->value.canonical);
+        sr_session_set_error_message(session, "Datastore \"%s\" is not supported or writable.", leaf->value.canonical);
         goto cleanup;
     }
 
@@ -313,7 +298,7 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
         }
 #else
         rc = SR_ERR_UNSUPPORTED;
-        sr_set_error(session, NULL, "URL not supported.");
+        sr_session_set_error_message(session, "URL not supported.");
         goto cleanup;
 #endif
     }
@@ -337,8 +322,8 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
 
     rc = sr_apply_changes(user_sess, np2srv.sr_timeout, 1);
     if (rc != SR_ERR_OK) {
-        sr_get_error(user_sess, &err_info);
-        sr_set_error(session, err_info->err[0].xpath, err_info->err[0].message);
+        sr_session_get_error(user_sess, &err_info);
+        sr_session_set_error_message(session, err_info->err[0].message);
         goto cleanup;
     }
 
