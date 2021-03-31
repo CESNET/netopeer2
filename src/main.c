@@ -457,6 +457,17 @@ np2srv_check_schemas(sr_session_ctx_t *sr_sess)
     return 0;
 }
 
+static char *
+np2srv_content_id_cb(void *UNUSED(user_data))
+{
+    char buf[11];
+    uint32_t content_id;
+
+    content_id = sr_get_content_id(np2srv.sr_conn);
+    sprintf(buf, "%u", content_id);
+    return strdup(buf);
+}
+
 static int
 server_init(void)
 {
@@ -472,6 +483,9 @@ server_init(void)
     sr_set_diff_check_callback(np2srv.sr_conn, np2srv_diff_check_cb);
 
     ly_ctx = sr_get_context(np2srv.sr_conn);
+
+    /* set the content-id callback */
+    nc_server_set_content_id_clb(np2srv_content_id_cb, NULL, NULL);
 
     /* server session */
     rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &np2srv.sr_sess);
