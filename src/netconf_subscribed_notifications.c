@@ -576,7 +576,7 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
 
     /* unsubscribe all sysrepo subscriptions */
     for (i = 0; i < ATOMIC_LOAD_RELAXED(sub->sub_id_count); ++i) {
-        r = sr_unsubscribe(np2srv.sr_notif_sub, sub->sub_ids[i]);
+        r = sr_unsubscribe_sub(np2srv.sr_notif_sub, sub->sub_ids[i]);
         if (r != SR_ERR_OK) {
             rc = r;
         }
@@ -731,8 +731,6 @@ np2srv_config_sub_ntf_filters_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_
     sr_change_iter_t *iter = NULL;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list;
-    bool prev_dflt;
     int r, rc = SR_ERR_OK;
 
     /* WRITE LOCK */
@@ -745,7 +743,7 @@ np2srv_config_sub_ntf_filters_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_
         goto cleanup;
     }
 
-    while ((r = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((r = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         rc = sub_ntf_config_filters(session, node, op);
         if (rc != SR_ERR_OK) {
             goto cleanup;
@@ -767,7 +765,7 @@ np2srv_config_sub_ntf_filters_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_
         goto cleanup;
     }
 
-    while ((r = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((r = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         rc = yang_push_config_filters(session, node, op);
         if (rc != SR_ERR_OK) {
             goto cleanup;

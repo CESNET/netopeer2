@@ -172,8 +172,7 @@ np2srv_endpt_tls_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *endpt_name;
-    bool prev_dflt;
+    const char *endpt_name;
     int rc;
 
     rc = sr_get_changes_iter(session, xpath, &iter);
@@ -182,7 +181,7 @@ np2srv_endpt_tls_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* get name */
         endpt_name = LYD_CANON_VALUE(node->parent->child);
 
@@ -214,9 +213,8 @@ np2srv_endpt_tls_servercert_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *endpt_name;
+    const char *endpt_name;
     char *xpath2;
-    bool prev_dflt;
     int rc;
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
@@ -230,7 +228,7 @@ np2srv_endpt_tls_servercert_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* find name */
         endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->child);
 
@@ -266,9 +264,8 @@ np2srv_endpt_tls_client_auth_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_i
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *endpt_name;
+    const char *prev_val, *endpt_name;
     char *xpath2;
-    bool prev_dflt;
     int rc;
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
@@ -282,7 +279,7 @@ np2srv_endpt_tls_client_auth_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_i
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, NULL, NULL)) == SR_ERR_OK) {
         /* find name */
         endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->child);
 
@@ -352,9 +349,8 @@ np2srv_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node, *child;
-    const char *prev_val, *prev_list, *endpt_name, *fingerprint, *name;
+    const char *endpt_name, *fingerprint, *name;
     char *xpath2;
-    bool prev_dflt;
     int rc;
     uint32_t id;
     NC_TLS_CTN_MAPTYPE map_type;
@@ -370,7 +366,7 @@ np2srv_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* find name */
         endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->child);
 
@@ -425,8 +421,7 @@ np2srv_ch_client_endpt_tls_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id)
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *endpt_name, *client_name;
-    bool prev_dflt;
+    const char *endpt_name, *client_name;
     int rc;
 
     rc = sr_get_changes_iter(session, xpath, &iter);
@@ -435,7 +430,7 @@ np2srv_ch_client_endpt_tls_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id)
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* get names */
         endpt_name = LYD_CANON_VALUE(node->parent->child);
         client_name = LYD_CANON_VALUE(node->parent->parent->parent->child);
@@ -472,9 +467,8 @@ np2srv_ch_client_endpt_tls_servercert_cb(sr_session_ctx_t *session, uint32_t UNU
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *endpt_name, *client_name;
+    const char *endpt_name, *client_name;
     char *xpath2;
-    bool prev_dflt;
     int rc;
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
@@ -488,7 +482,7 @@ np2srv_ch_client_endpt_tls_servercert_cb(sr_session_ctx_t *session, uint32_t UNU
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* get names */
         endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->child);
         client_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->parent->child);
@@ -527,9 +521,8 @@ np2srv_ch_client_endpt_tls_client_auth_cb(sr_session_ctx_t *session, uint32_t UN
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *endpt_name, *client_name;
+    const char *prev_val, *endpt_name, *client_name;
     char *xpath2;
-    bool prev_dflt;
     int rc;
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
@@ -543,7 +536,7 @@ np2srv_ch_client_endpt_tls_client_auth_cb(sr_session_ctx_t *session, uint32_t UN
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, NULL, NULL)) == SR_ERR_OK) {
         /* get names */
         endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->child);
         client_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->child);
@@ -589,9 +582,8 @@ np2srv_ch_client_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNU
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node, *child;
-    const char *prev_val, *prev_list, *endpt_name, *client_name, *fingerprint, *name;
+    const char *endpt_name, *client_name, *fingerprint, *name;
     char *xpath2;
-    bool prev_dflt;
     int rc;
     uint32_t id;
     NC_TLS_CTN_MAPTYPE map_type;
@@ -607,7 +599,7 @@ np2srv_ch_client_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNU
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* get names */
         endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->child);
         client_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->parent->child);

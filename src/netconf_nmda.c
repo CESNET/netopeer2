@@ -320,7 +320,7 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
         goto cleanup;
     }
 
-    rc = sr_apply_changes(user_sess, np2srv.sr_timeout, 1);
+    rc = sr_apply_changes(user_sess, np2srv.sr_timeout);
     if (rc != SR_ERR_OK) {
         sr_session_get_error(user_sess, &err_info);
         sr_session_set_error_message(session, err_info->err[0].message);

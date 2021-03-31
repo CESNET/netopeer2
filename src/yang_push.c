@@ -430,7 +430,6 @@ np2srv_change_yang_push_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     const struct lyd_node *node;
     struct lyd_node *ly_yp = NULL;
     const char *prev_value, *prev_list;
-    bool prev_dflt;
     enum yang_push_op yp_op;
     int ready, r;
     uint32_t patch_id;
@@ -453,7 +452,7 @@ np2srv_change_yang_push_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     /* NOTIF LOCK */
     pthread_mutex_lock(&arg->yp_data->notif_lock);
 
-    while (sr_get_change_tree_next(session, iter, &op, &node, &prev_value, &prev_list, &prev_dflt) == SR_ERR_OK) {
+    while (sr_get_change_tree_next(session, iter, &op, &node, &prev_value, &prev_list, NULL) == SR_ERR_OK) {
         /* learn yang-push operation */
         yp_op = yang_push_op_sr2yp(op, node);
         if (arg->yp_data->excluded_change[yp_op]) {
@@ -692,7 +691,7 @@ error:
     ly_set_free(mod_set, NULL);
 
     for (idx = 0; idx < *sub_id_count; ++idx) {
-        sr_unsubscribe(np2srv.sr_data_sub, (*sub_ids)[idx]);
+        sr_unsubscribe_sub(np2srv.sr_data_sub, (*sub_ids)[idx]);
     }
     free(*sub_ids);
     *sub_ids = NULL;

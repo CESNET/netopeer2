@@ -75,8 +75,6 @@ np2srv_idle_timeout_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list;
-    bool prev_dflt;
     int rc;
 
     rc = sr_get_changes_iter(session, xpath, &iter);
@@ -85,7 +83,7 @@ np2srv_idle_timeout_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* ignore other operations */
         if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
             nc_server_set_idle_timeout(((struct lyd_node_term *)node)->value.uint16);
@@ -106,8 +104,6 @@ np2srv_tcp_keepalives(const char *client_name, const char *endpt_name, sr_sessio
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list;
-    bool prev_dflt;
     int rc, idle_time = -1, max_probes = -1, probe_interval = -1;
 
     rc = sr_get_changes_iter(session, xpath, &iter);
@@ -116,7 +112,7 @@ np2srv_tcp_keepalives(const char *client_name, const char *endpt_name, sr_sessio
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         if (!strcmp(node->schema->name, "idle-time")) {
             if (op == SR_OP_DELETED) {
                 idle_time = 1;
@@ -171,9 +167,8 @@ np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *endpt_name;
+    const char *endpt_name;
     char *xpath2;
-    bool prev_dflt;
     int rc, failed = 0;
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
@@ -187,7 +182,7 @@ np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* find name */
         endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->child);
 
@@ -242,8 +237,6 @@ np2srv_ch_periodic_connection_params(const char *client_name, sr_session_ctx_t *
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list;
-    bool prev_dflt;
     int rc;
 
     rc = sr_get_changes_iter(session, xpath, &iter);
@@ -252,7 +245,7 @@ np2srv_ch_periodic_connection_params(const char *client_name, sr_session_ctx_t *
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         if (!strcmp(node->schema->name, "period")) {
             if (op == SR_OP_DELETED) {
                 if (nc_server_ch_is_client(client_name)) {
@@ -304,8 +297,7 @@ np2srv_ch_client_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *client_name;
-    bool prev_dflt;
+    const char *client_name;
     int rc;
 
     rc = sr_get_changes_iter(session, xpath, &iter);
@@ -314,7 +306,7 @@ np2srv_ch_client_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* get name */
         client_name = LYD_CANON_VALUE(lyd_child(node));
 
@@ -349,9 +341,8 @@ np2srv_ch_client_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *endpt_name, *client_name;
+    const char *endpt_name, *client_name;
     char *xpath2;
-    bool prev_dflt;
     int rc;
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
@@ -365,7 +356,7 @@ np2srv_ch_client_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* find names */
         endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->child);
         client_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->child);
@@ -427,9 +418,8 @@ np2srv_ch_connection_type_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id),
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *client_name;
+    const char *client_name;
     char *xpath2;
-    bool prev_dflt;
     int rc;
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
@@ -443,7 +433,7 @@ np2srv_ch_connection_type_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id),
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* find names */
         client_name = LYD_CANON_VALUE(node->parent->parent->child);
 
@@ -492,9 +482,8 @@ np2srv_ch_reconnect_strategy_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_i
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *client_name, *str;
+    const char *client_name, *str;
     char *xpath2;
-    bool prev_dflt;
     int rc;
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
@@ -508,7 +497,7 @@ np2srv_ch_reconnect_strategy_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_i
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* find name */
         client_name = LYD_CANON_VALUE(node->parent->parent->child);
 

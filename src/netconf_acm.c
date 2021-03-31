@@ -40,9 +40,7 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
     sr_change_oper_t op;
     const struct lyd_node *node;
     const struct lyd_node_term *term;
-    const char *prev_val, *prev_list;
     char *xpath2;
-    bool prev_dflt;
     int rc;
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
@@ -58,7 +56,7 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
 
     pthread_mutex_lock(&nacm.lock);
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         term = (struct lyd_node_term *)node;
         if (!strcmp(node->schema->name, "enable-nacm")) {
             if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
@@ -155,12 +153,11 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *group_name, *user_name;
+    const char *group_name, *user_name;
     struct ncac_group *group = NULL;
     struct ly_ctx *ly_ctx;
     uint32_t i, j;
     char *xpath2;
-    bool prev_dflt;
     int rc;
     void *mem;
 
@@ -179,7 +176,7 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
 
     pthread_mutex_lock(&nacm.lock);
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         if (!strcmp(node->schema->name, "group")) {
             /* name must be present */
             assert(!strcmp(lyd_child(node)->schema->name, "name"));
@@ -329,10 +326,9 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     sr_change_oper_t op;
     const struct lyd_node *node;
     struct ly_ctx *ly_ctx;
-    const char *prev_val, *prev_list, *rlist_name, *group_name;
+    const char *prev_list, *rlist_name, *group_name;
     struct ncac_rule_list *rlist = NULL, *prev_rlist;
     char *xpath2;
-    bool prev_dflt;
     int rc, len;
     uint32_t i;
     void *mem;
@@ -352,7 +348,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
 
     pthread_mutex_lock(&nacm.lock);
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, &prev_list, NULL)) == SR_ERR_OK) {
         if (!strcmp(node->schema->name, "rule-list")) {
             /* name must be present */
             assert(!strcmp(lyd_child(node)->schema->name, "name"));
@@ -507,11 +503,10 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
     sr_change_oper_t op;
     const struct lyd_node *node;
     struct ly_ctx *ly_ctx;
-    const char *prev_val, *prev_list, *rule_name, *rlist_name, *str;
+    const char *prev_list, *rule_name, *rlist_name, *str;
     struct ncac_rule_list *rlist;
     struct ncac_rule *rule = NULL, *prev_rule;
     char *xpath2;
-    bool prev_dflt;
     int rc, len;
 
     ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
@@ -529,7 +524,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
 
     pthread_mutex_lock(&nacm.lock);
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, &prev_list, NULL)) == SR_ERR_OK) {
         if (!strcmp(node->schema->name, "rule")) {
             /* find parent rule list */
             assert(!strcmp(node->parent->child->schema->name, "name"));

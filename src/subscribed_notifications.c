@@ -156,7 +156,7 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
 
 error:
     for (idx = 0; idx < *sub_id_count; ++idx) {
-        sr_unsubscribe(np2srv.sr_notif_sub, (*sub_ids)[idx]);
+        sr_unsubscribe_sub(np2srv.sr_notif_sub, (*sub_ids)[idx]);
     }
     free(*sub_ids);
     *sub_ids = NULL;

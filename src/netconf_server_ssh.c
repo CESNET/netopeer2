@@ -185,8 +185,7 @@ np2srv_endpt_ssh_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *endpt_name;
-    bool prev_dflt;
+    const char *endpt_name;
     int rc, failed = 0;
 
     rc = sr_get_changes_iter(session, xpath, &iter);
@@ -195,7 +194,7 @@ np2srv_endpt_ssh_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* get name */
         endpt_name = LYD_CANON_VALUE(node->parent->child);
 
@@ -230,8 +229,7 @@ np2srv_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *endpt_name;
-    bool prev_dflt;
+    const char *prev_val, *endpt_name;
     int rc;
 
     rc = sr_get_changes_iter(session, xpath, &iter);
@@ -240,7 +238,7 @@ np2srv_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, NULL, NULL)) == SR_ERR_OK) {
         /* find name */
         endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->child);
 
@@ -313,9 +311,8 @@ np2srv_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *endpt_name;
+    const char *endpt_name;
     char *xpath2;
-    bool prev_dflt;
     int rc, auth;
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
@@ -329,7 +326,7 @@ np2srv_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* find name */
         endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->child);
 
@@ -509,8 +506,7 @@ np2srv_ch_client_endpt_ssh_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id)
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *endpt_name, *client_name;
-    bool prev_dflt;
+    const char *endpt_name, *client_name;
     int rc;
 
     rc = sr_get_changes_iter(session, xpath, &iter);
@@ -519,7 +515,7 @@ np2srv_ch_client_endpt_ssh_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id)
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* get names */
         endpt_name = LYD_CANON_VALUE(node->parent->child);
         client_name = LYD_CANON_VALUE(node->parent->parent->parent->child);
@@ -555,8 +551,7 @@ np2srv_ch_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *endpt_name, *client_name;
-    bool prev_dflt;
+    const char *prev_val, *endpt_name, *client_name;
     int rc;
 
     rc = sr_get_changes_iter(session, xpath, &iter);
@@ -565,7 +560,7 @@ np2srv_ch_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, NULL, NULL)) == SR_ERR_OK) {
         /* find name */
         endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->child);
         client_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->parent->parent->child);
@@ -603,9 +598,8 @@ np2srv_ch_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, uint32_t UNUSED(s
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    const char *prev_val, *prev_list, *endpt_name, *client_name;
+    const char *endpt_name, *client_name;
     char *xpath2;
-    bool prev_dflt;
     int rc, auth;
 
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
@@ -619,7 +613,7 @@ np2srv_ch_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, uint32_t UNUSED(s
         return rc;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, &prev_list, &prev_dflt)) == SR_ERR_OK) {
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* find names */
         endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->child);
         client_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->parent->child);

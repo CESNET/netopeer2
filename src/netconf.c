@@ -410,7 +410,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     }
 
     if (!strcmp(testop, "test-then-set")) {
-        rc = sr_apply_changes(user_sess, np2srv.sr_timeout, 1);
+        rc = sr_apply_changes(user_sess, np2srv.sr_timeout);
     } else {
         assert(!strcmp(testop, "test-only"));
         rc = sr_validate(user_sess, NULL, 0);
@@ -575,7 +575,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     {
         if (config) {
             /* config is spent */
-            rc = sr_replace_config(user_sess, NULL, config, np2srv.sr_timeout, 1);
+            rc = sr_replace_config(user_sess, NULL, config, np2srv.sr_timeout);
             config = NULL;
         } else {
             assert(run_to_start);
@@ -583,7 +583,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
             /* set SID to skip NACM check, only one copy-config can be executed at once */
             sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_sid);
             ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, *nc_sid);
-            rc = sr_copy_config(user_sess, NULL, sds, np2srv.sr_timeout, 1);
+            rc = sr_copy_config(user_sess, NULL, sds, np2srv.sr_timeout);
             ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, 0);
         }
         if (rc != SR_ERR_OK) {
@@ -665,7 +665,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     } else
 #endif
     {
-        rc = sr_replace_config(user_sess, NULL, NULL, np2srv.sr_timeout, 1);
+        rc = sr_replace_config(user_sess, NULL, NULL, np2srv.sr_timeout);
         if (rc != SR_ERR_OK) {
             sr_session_get_error(user_sess, &err_info);
             sr_session_set_error_message(session, err_info->err[0].message);
@@ -809,7 +809,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
     sr_session_switch_ds(user_sess, SR_DS_RUNNING);
 
     /* sysrepo API */
-    rc = sr_copy_config(user_sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout, 1);
+    rc = sr_copy_config(user_sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout);
     if (rc != SR_ERR_OK) {
         sr_session_get_error(user_sess, &err_info);
         sr_session_set_error_message(session, err_info->err[0].message);
@@ -848,7 +848,7 @@ np2srv_rpc_discard_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     sr_session_switch_ds(user_sess, SR_DS_CANDIDATE);
 
     /* sysrepo API */
-    rc = sr_copy_config(user_sess, NULL, SR_DS_RUNNING, np2srv.sr_timeout, 1);
+    rc = sr_copy_config(user_sess, NULL, SR_DS_RUNNING, np2srv.sr_timeout);
     if (rc != SR_ERR_OK) {
         sr_session_get_error(user_sess, &err_info);
         sr_session_set_error_message(session, err_info->err[0].message);
