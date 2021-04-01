@@ -562,6 +562,52 @@ error:
     return -1;
 }
 
+static void
+server_destroy(void)
+{
+    struct nc_session *sess;
+
+    /* stop subscriptions */
+    sr_unsubscribe(np2srv.sr_rpc_sub);
+    sr_unsubscribe(np2srv.sr_data_sub);
+    sr_unsubscribe(np2srv.sr_notif_sub);
+
+#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+    /* remove all CH clients so they do not reconnect */
+    nc_server_ch_del_client(NULL);
+#endif
+
+    /* close all open sessions */
+    if (np2srv.nc_ps) {
+        while (nc_ps_session_count(np2srv.nc_ps)) {
+            sess = nc_ps_get_session(np2srv.nc_ps, 0);
+            nc_session_set_term_reason(sess, NC_SESSION_TERM_OTHER);
+            np2srv_del_session_cb(sess);
+        }
+        nc_ps_free(np2srv.nc_ps);
+    }
+
+    /* libnetconf2 cleanup */
+    nc_server_destroy();
+
+    /* UNIX socket can now be removed */
+    if (np2srv.unix_path) {
+        unlink(np2srv.unix_path);
+    }
+
+    /* monitoring cleanup */
+    ncm_destroy();
+
+    /* NACM cleanup */
+    ncac_destroy();
+
+    /* ietf-subscribed-notifications cleanup */
+    np2srv_sub_ntf_destroy();
+
+    /* removes the context and clears all the sessions */
+    sr_disconnect(np2srv.sr_conn);
+}
+
 #if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
 
 static int
@@ -937,13 +983,27 @@ main(int argc, char *argv[])
     char *ptr;
     struct passwd *pwd;
     struct group *grp;
-    struct nc_session *sess;
     struct sigaction action;
     sigset_t block_mask;
 
     /* until daemonized, write messages to both syslog and stderr */
     openlog("netopeer2-server", LOG_PID, LOG_DAEMON);
     np2_stderr_log = 1;
+
+    /* set the signal handler */
+    sigfillset(&block_mask);
+    action.sa_handler = signal_handler;
+    action.sa_mask = block_mask;
+    action.sa_flags = 0;
+    sigaction(SIGINT, &action, NULL);
+    sigaction(SIGQUIT, &action, NULL);
+    sigaction(SIGABRT, &action, NULL);
+    sigaction(SIGTERM, &action, NULL);
+    sigaction(SIGHUP, &action, NULL);
+
+    /* ignore SIGPIPE */
+    action.sa_handler = SIG_IGN;
+    sigaction(SIGPIPE, &action, NULL);
 
     /* process command line options */
     while ((c = getopt(argc, argv, "dhVp:U::m:u:g:t:v:c:")) != -1) {
@@ -1128,21 +1188,6 @@ main(int argc, char *argv[])
     }
     close(pidfd);
 
-    /* set the signal handler */
-    sigfillset(&block_mask);
-    action.sa_handler = signal_handler;
-    action.sa_mask = block_mask;
-    action.sa_flags = 0;
-    sigaction(SIGINT, &action, NULL);
-    sigaction(SIGQUIT, &action, NULL);
-    sigaction(SIGABRT, &action, NULL);
-    sigaction(SIGTERM, &action, NULL);
-    sigaction(SIGHUP, &action, NULL);
-
-    /* ignore SIGPIPE */
-    action.sa_handler = SIG_IGN;
-    sigaction(SIGPIPE, &action, NULL);
-
     /* set printer callbacks for the used libraries and set proper log levels */
     nc_set_print_clb(np2log_cb_nc2); /* libnetconf2 */
     ly_set_log_clb(np2log_cb_ly, 1); /* libyang */
@@ -1188,40 +1233,11 @@ main(int argc, char *argv[])
 cleanup:
     VRB("Server terminated.");
 
-    /* stop subscriptions */
-    sr_unsubscribe(np2srv.sr_rpc_sub);
-    sr_unsubscribe(np2srv.sr_data_sub);
-    sr_unsubscribe(np2srv.sr_notif_sub);
+    /* remove PID file */
+    unlink(pidfile);
 
-#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
-    /* remove all CH clients so they do not reconnect */
-    nc_server_ch_del_client(NULL);
-#endif
-
-    /* close all open sessions */
-    if (np2srv.nc_ps) {
-        while (nc_ps_session_count(np2srv.nc_ps)) {
-            sess = nc_ps_get_session(np2srv.nc_ps, 0);
-            nc_session_set_term_reason(sess, NC_SESSION_TERM_OTHER);
-            np2srv_del_session_cb(sess);
-        }
-        nc_ps_free(np2srv.nc_ps);
-    }
-
-    /* libnetconf2 cleanup */
-    nc_server_destroy();
-
-    /* monitoring cleanup */
-    ncm_destroy();
-
-    /* NACM cleanup */
-    ncac_destroy();
-
-    /* ietf-subscribed-notifications cleanup */
-    np2srv_sub_ntf_destroy();
-
-    /* removes the context and clears all the sessions */
-    sr_disconnect(np2srv.sr_conn);
+    /* destroy the server */
+    server_destroy();
 
     return ret;
 }
