@@ -1,0 +1,46 @@
+/**
+ * @file test_config.h
+ * @author Michal Vasko <mvasko@cesnet.cz>
+ * @brief test configuration header
+ *
+ * @copyright
+ * Copyright 2021 Deutsche Telekom AG.
+ * Copyright 2021 CESNET, z.s.p.o.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+#ifndef _NP_TEST_CONFIG_H_
+#define _NP_TEST_CONFIG_H_
+
+/* repository root dir */
+#define NP_ROOT_DIR "@ROOT_DIR@"
+
+/* binary dir */
+#define NP_BINARY_DIR "@PROJECT_BINARY_DIR@"
+
+/* sysrepo test repositories directory */
+#define NP_SR_REPOS_DIR "@CMAKE_CURRENT_BINARY_DIR@/repositories"
+
+/* sysrepo SHM prefix */
+#define NP_SR_SHM_PREFIX "_tests_np_"
+
+/* server PID file */
+#define NP_PID_PATH "@CMAKE_CURRENT_BINARY_DIR@/netopeer2-server.pid"
+
+/* server socket path */
+#define NP_SOCKET_PATH "@CMAKE_CURRENT_BINARY_DIR@/netopeer2-server.sock"
+
+/* server log file */
+#define NP_LOG_PATH "@CMAKE_CURRENT_BINARY_DIR@/netopeer2-server.log"
+
+#endif /* _NP_TEST_CONFIG_H_ */

@@ -21,8 +21,9 @@ endif()
 
 # set default build type if not specified by user
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE debug)
+    set(CMAKE_BUILD_TYPE Debug)
 endif()
+string(TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_LOWER)
 
 add_compile_options(-Wall -Wextra -std=gnu99)
 set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
@@ -39,12 +40,12 @@ set(NP2SRV_VERSION 1.1.71)
 set(LIBYANG_DEP_SOVERSION_MAJOR 1)
 
 # build options
-if(CMAKE_BUILD_TYPE STREQUAL debug)
-    option(BUILD_TESTS "Build tests" ON)
-    option(VALGRIND_TESTS "Build tests with valgrind" ON)
+if((CMAKE_BUILD_TYPE_LOWER STREQUAL debug) OR (CMAKE_BUILD_TYPE_LOWER STREQUAL package))
+    option(ENABLE_TESTS "Build tests" ON)
+    option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" ON)
 else()
-    option(BUILD_TESTS "Build tests" OFF)
-    option(VALGRIND_TESTS "Build tests with valgrind" OFF)
+    option(ENABLE_TESTS "Build tests" OFF)
+    option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" OFF)
 endif()
 option(BUILD_CLI "Build and install neotpeer2-cli" ON)
 option(ENABLE_URL "Enable URL capability" ON)
@@ -217,6 +218,18 @@ list(APPEND CMAKE_REQUIRED_LIBRARIES ${SYSREPO_LIBRARIES})
 # generate files
 configure_file("${PROJECT_SOURCE_DIR}/src/config.h.in" "${PROJECT_BINARY_DIR}/config.h" ESCAPE_QUOTES @ONLY)
 include_directories(${PROJECT_BINARY_DIR})
+
+# tests
+if(ENABLE_TESTS)
+    find_package(CMocka 1.0.0)
+    if(CMOCKA_FOUND)
+        enable_testing()
+        add_subdirectory(tests)
+    else()
+        message(STATUS "Disabling tests because of missing CMocka.")
+        set(ENABLE_TESTS NO)
+    endif()
+endif()
 
 # set script dir
 set(SCRIPT_DIR "${PROJECT_SOURCE_DIR}/scripts/")
