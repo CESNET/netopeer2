@@ -13,6 +13,7 @@
  */
 
 #define _GNU_SOURCE
+#define _POSIX_SOURCE
 
 #include "netconf_subscribed_notifications.h"
 
@@ -174,7 +175,8 @@ sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, time_t timestamp,
     }
 
     /* create the notification object */
-    datetime = nc_time2datetime(timestamp, NULL, buf);
+    tzset();
+    datetime = nc_time2datetime(timestamp, tzname[0], buf);
     if (use_ntf) {
         datetime = strdup(datetime);
         nc_ntf = nc_server_notif_new(*ly_ntf, datetime, NC_PARAMTYPE_FREE);

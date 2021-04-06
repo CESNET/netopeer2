@@ -14,6 +14,7 @@
 
 #define _GNU_SOURCE
 #define _DEFAULT_SOURCE
+#define _POSIX_SOURCE
 
 #include "netconf.h"
 
@@ -994,7 +995,8 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
     }
 
     /* create the notification object */
-    datetime = nc_time2datetime(timestamp, NULL, buf);
+    tzset();
+    datetime = nc_time2datetime(timestamp, tzname[0], buf);
     nc_ntf = nc_server_notif_new((struct lyd_node *)notif, datetime, NC_PARAMTYPE_CONST);
 
     /* send the notification */
