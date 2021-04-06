@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -118,7 +119,8 @@ np2srv_ntf_new_cb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t no
     }
 
     /* create the notification object */
-    datetime = nc_time2datetime(timestamp, NULL, buf);
+    tzset();
+    datetime = nc_time2datetime(timestamp, tzname[0], buf);
     nc_ntf = nc_server_notif_new((struct lyd_node *)notif, datetime, NC_PARAMTYPE_CONST);
 
     /* send the notification */
