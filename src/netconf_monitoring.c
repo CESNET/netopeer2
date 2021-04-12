@@ -216,6 +216,24 @@ ncm_bad_hello(struct nc_session *session)
     pthread_mutex_unlock(&stats.lock);
 }
 
+static uint32_t
+ncm_sid2ncid(uint32_t sid)
+{
+    struct nc_session *nc_sess = NULL;
+    uint32_t i;
+
+    for (i = 0; (nc_sess = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
+        if (sr_session_get_id(nc_session_get_data(nc_sess)) == sid) {
+            break;
+        }
+    }
+    if (!nc_sess) {
+        return 0;
+    }
+
+    return nc_session_get_id(nc_sess);
+}
+
 struct lyd_node *
 ncm_get_data(sr_conn_ctx_t *conn)
 {
@@ -224,7 +242,7 @@ ncm_get_data(sr_conn_ctx_t *conn)
     struct ly_ctx *ly_ctx;
     const char **cpblts;
     char buf[26];
-    uint32_t i, nc_id;
+    uint32_t i, sid;
     int rc, is_locked;
     time_t ts;
 
@@ -253,13 +271,13 @@ ncm_get_data(sr_conn_ctx_t *conn)
 
     list = lyd_new(cont, NULL, "datastore");
     lyd_new_leaf(list, NULL, "name", "running");
-    rc = sr_get_lock(conn, SR_DS_RUNNING, NULL, &is_locked, NULL, &nc_id, &ts);
+    rc = sr_get_lock(conn, SR_DS_RUNNING, NULL, &is_locked, &sid, NULL, &ts);
     if (rc != SR_ERR_OK) {
         WRN("Failed to learn about running lock (%s).", sr_strerror(rc));
     } else if (is_locked) {
         cont2 = lyd_new(list, NULL, "locks");
         cont3 = lyd_new(cont2, NULL, "global-lock");
-        sprintf(buf, "%u", nc_id);
+        sprintf(buf, "%" PRIu32, ncm_sid2ncid(sid));
         lyd_new_leaf(cont3, NULL, "locked-by-session", buf);
         nc_time2datetime(ts, NCM_TIMEZONE, buf);
         lyd_new_leaf(cont3, NULL, "locked-time", buf);
@@ -267,13 +285,13 @@ ncm_get_data(sr_conn_ctx_t *conn)
 
     list = lyd_new(cont, NULL, "datastore");
     lyd_new_leaf(list, NULL, "name", "startup");
-    rc = sr_get_lock(conn, SR_DS_STARTUP, NULL, &is_locked, NULL, &nc_id, &ts);
+    rc = sr_get_lock(conn, SR_DS_STARTUP, NULL, &is_locked, &sid, NULL, &ts);
     if (rc != SR_ERR_OK) {
         WRN("Failed to learn about startup lock (%s).", sr_strerror(rc));
     } else if (is_locked) {
         cont2 = lyd_new(list, NULL, "locks");
         cont3 = lyd_new(cont2, NULL, "global-lock");
-        sprintf(buf, "%u", nc_id);
+        sprintf(buf, "%" PRIu32, ncm_sid2ncid(sid));
         lyd_new_leaf(cont3, NULL, "locked-by-session", buf);
         nc_time2datetime(ts, NCM_TIMEZONE, buf);
         lyd_new_leaf(cont3, NULL, "locked-time", buf);
@@ -281,13 +299,13 @@ ncm_get_data(sr_conn_ctx_t *conn)
 
     list = lyd_new(cont, NULL, "datastore");
     lyd_new_leaf(list, NULL, "name", "candidate");
-    rc = sr_get_lock(conn, SR_DS_CANDIDATE, NULL, &is_locked, NULL, &nc_id, &ts);
+    rc = sr_get_lock(conn, SR_DS_CANDIDATE, NULL, &is_locked, &sid, NULL, &ts);
     if (rc != SR_ERR_OK) {
         WRN("Failed to learn about candidate lock (%s).", sr_strerror(rc));
     } else if (is_locked) {
         cont2 = lyd_new(list, NULL, "locks");
         cont3 = lyd_new(cont2, NULL, "global-lock");
-        sprintf(buf, "%u", nc_id);
+        sprintf(buf, "%" PRIu32, ncm_sid2ncid(sid));
         lyd_new_leaf(cont3, NULL, "locked-by-session", buf);
         nc_time2datetime(ts, NCM_TIMEZONE, buf);
         lyd_new_leaf(cont3, NULL, "locked-time", buf);
