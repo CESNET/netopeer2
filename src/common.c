@@ -228,7 +228,7 @@ np_ly_mod_has_data(const struct lys_module *mod, uint32_t config_mask)
     return 0;
 }
 
-void
+int
 np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_session)
 {
     int c;
@@ -244,8 +244,7 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
     c = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
     if (c != SR_ERR_OK) {
         ERR("Failed to start a sysrepo session (%s).", sr_strerror(c));
-        nc_session_free(new_session, NULL);
-        return;
+        return -1;
     }
     nc_session_set_data(new_session, sr_sess);
     sr_session_set_orig_name(sr_sess, "netopeer2");
@@ -300,12 +299,12 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
         free(event_data);
     }
 
-    return;
+    return 0;
 
 error:
     ncm_session_del(new_session);
     sr_session_stop(sr_sess);
-    nc_session_free(new_session, NULL);
+    return -1;
 }
 
 #ifdef NP2SRV_URL_CAPAB

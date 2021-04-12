@@ -80,7 +80,7 @@ int np_ly_mod_has_notif(const struct lys_module *mod);
 
 int np_ly_mod_has_data(const struct lys_module *mod, uint32_t config_mask);
 
-void np2srv_new_session_cb(const char *client_name, struct nc_session *new_session);
+int np2srv_new_session_cb(const char *client_name, struct nc_session *new_session);
 
 int np2srv_url_setcap(void);
 

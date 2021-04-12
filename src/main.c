@@ -935,7 +935,10 @@ worker_thread(void *arg)
         if (nc_server_endpt_count()) {
             msgtype = nc_accept(0, &ncs);
             if (msgtype == NC_MSG_HELLO) {
-                np2srv_new_session_cb(NULL, ncs);
+                if (np2srv_new_session_cb(NULL, ncs)) {
+                    nc_session_free(ncs, NULL);
+                    continue;
+                }
             }
         }
 
@@ -971,7 +974,10 @@ worker_thread(void *arg)
             VRB("Session %d: thread %d event new SSH channel.", nc_session_get_id(ncs), idx);
             msgtype = nc_session_accept_ssh_channel(ncs, &ncs);
             if (msgtype == NC_MSG_HELLO) {
-                np2srv_new_session_cb(NULL, ncs);
+                if (np2srv_new_session_cb(NULL, ncs)) {
+                    nc_session_free(ncs, NULL);
+                    continue;
+                }
             } else if (msgtype == NC_MSG_BAD_HELLO) {
                 ncm_bad_hello(ncs);
             }
