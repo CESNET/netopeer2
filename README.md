@@ -70,6 +70,33 @@ MERGE_LISTEN_CONFIG:ON
 If cross-compiling for a different architecture, you will likey want to turn all these options off
 and then run the scripts `setup.sh`, `merge_hostkey.sh`, and `merge_config.sh` manually.
 
+### Sysrepo callbacks
+
+When implementing a *sysrepo* application with some callbacks, in case the particular event will be generated
+by *netopeer2*, there will be the NETCONF session ID and NETCONF username of the originator NETCONF session provided.
+It can be retrieved from the event *sysrepo* session and the originator name will be `netopeer2`. Following is
+a table with the exact data format.
+
+| Index | Type | Meaning |
+|:----- |:----:|:-------:|
+| 0 | `uint32_t` | NETCONF session ID |
+| 1 | `char *` | NETCONF username |
+
+It is also possible to communicate a specific NETCONF error back to the server. The error format must be `NETCONF`
+and the meaning of every piece of data corresponds to the [rpc-error](https://tools.ietf.org/html/rfc6241#section-4.3)
+elements. All the expected types are strings (`char *`). Arbitrary optional elements can be skipped by being set to
+an empty string.
+
+| Index | Mandatory | Name |
+|:----- |:---------:|:----:|
+| 0 | yes | `error-type` |
+| 1 | yes | `error-tag` |
+| 2 | yes | `error-message` |
+| 3 | no | `error-app-tag` |
+| 4 | no | `error-path` |
+| n | no | `error-info` element |
+| n + 1 | no | `error-info` value |
+
 ### CLI
 
 A command-line NETCONF client `netopeer2-cli` is included and build/installed by default. This can be

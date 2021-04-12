@@ -163,84 +163,140 @@ np2srv_del_session_cb(struct nc_session *session)
 }
 
 static struct lyd_node *
-np2srv_err_sr(int err_code, const char *message, const char *xpath)
+np2srv_err_sr(sr_error_info_err_t *err)
 {
-    struct lyd_node *e;
-    const char *ptr;
+    struct lyd_node *e = NULL, *err_info = NULL;
+    const char *ptr, *err_type, *err_tag, *err_msg, *str, *str2;
+    uint32_t err_idx;
 
-    switch (err_code) {
+    switch (err->err_code) {
+    case SR_ERR_CALLBACK_FAILED:
+        if (!strcmp(err->error_format, "NETCONF")) {
+            /* mandatory */
+            err_idx = 0;
+            if (sr_get_error_data(err, err_idx++, NULL, (const void **)&err_type)) {
+                WRN("Missing NETCONF error \"error-type\".");
+                break;
+            } else if (sr_get_error_data(err, err_idx++, NULL, (const void **)&err_tag)) {
+                WRN("Missing NETCONF error \"error-tag\".");
+                break;
+            } else if (sr_get_error_data(err, err_idx++, NULL, (const void **)&err_msg)) {
+                WRN("Missing NETCONF error \"error-message\".");
+                break;
+            }
+            /* rpc-error */
+            if (lyd_new_opaq2(NULL, sr_get_context(np2srv.sr_conn), "rpc-error", NULL, NULL, NC_NS_BASE, &e)) {
+                goto error;
+            }
+            /* error-type */
+            if (lyd_new_opaq2(e, NULL, "error-type", err_type, NULL, NC_NS_BASE, NULL)) {
+                goto error;
+            }
+            /* error-tag */
+            if (lyd_new_opaq2(e, NULL, "error-tag", err_tag, NULL, NC_NS_BASE, NULL)) {
+                goto error;
+            }
+            /* error-severity */
+            if (lyd_new_opaq2(e, NULL, "error-severity", "error", NULL, NC_NS_BASE, NULL)) {
+                goto error;
+            }
+            /* error-message */
+            if (nc_err_set_msg(e, err_msg, "en")) {
+                goto error;
+            }
+
+            /* error-app-tag */
+            if (sr_get_error_data(err, err_idx++, NULL, (const void **)&str)) {
+                break;
+            }
+            if (str[0]) {
+                if (nc_err_set_app_tag(e, str)) {
+                    goto error;
+                }
+            }
+            /* error-path */
+            if (sr_get_error_data(err, err_idx++, NULL, (const void **)&str)) {
+                break;
+            }
+            if (str[0]) {
+                if (nc_err_set_path(e, str)) {
+                    goto error;
+                }
+            }
+            /* error-info */
+            while (!sr_get_error_data(err, err_idx++, NULL, (const void **)&str) &&
+                    !sr_get_error_data(err, err_idx++, NULL, (const void **)&str2)) {
+                if (!err_info) {
+                    if (lyd_new_opaq2(e, NULL, "error-info", NULL, NULL, NC_NS_BASE, &err_info)) {
+                        goto error;
+                    }
+                }
+                if (lyd_new_opaq2(err_info, NULL, str, str2, NULL, NC_NS_BASE, NULL)) {
+                    goto error;
+                }
+            }
+        }
+        break;
     case SR_ERR_LOCKED:
 err_lock_denied:
-        ptr = strstr(message, "NC SID ");
+        ptr = strstr(err->message, "NC SID ");
         if (!ptr) {
             EINT;
-            return NULL;
+            goto error;
         }
         ptr += 7;
         e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_LOCK_DENIED, atoi(ptr));
-        nc_err_set_msg(e, message, "en");
+        nc_err_set_msg(e, err->message, "en");
         break;
     case SR_ERR_UNAUTHORIZED:
 err_access_denied:
         e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_PROT);
-        nc_err_set_msg(e, message, "en");
-        if (xpath) {
-            nc_err_set_path(e, xpath);
-        }
+        nc_err_set_msg(e, err->message, "en");
         break;
     case SR_ERR_VALIDATION_FAILED:
-        if (!strncmp(message, "When condition", 14)) {
-            if (xpath) {
-                EINT;
-                return NULL;
-            }
-            e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_UNKNOWN_ELEM, NC_ERR_TYPE_APP, xpath);
-            nc_err_set_msg(e, message, "en");
-            break;
+        if (!strncmp(err->message, "When condition", 14)) {
+            e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_UNKNOWN_ELEM, NC_ERR_TYPE_APP, "");
+            nc_err_set_msg(e, err->message, "en");
         }
-        /* fallthrough */
+        break;
     default:
-        if (strstr(message, "authorization failed")) {
-            // access-denied
-            goto err_access_denied;
-        } else if (strstr(message, "is already locked") ||
-                   strstr(message, "Module \"yang\" is locked by session")) {
-            // lock-denied
-            goto err_lock_denied;
-        } else if (strstr(message, "is locked by session")) {
-            // in-use
-            e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_IN_USE, NC_ERR_TYPE_PROT);
-            nc_err_set_msg(e, message, "en");
-            if (xpath) {
-                nc_err_set_path(e, xpath);
-            }
-            break;
-        } else if (strstr(message, "already exists")) {
-            // data-exists
-            e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_DATA_EXISTS);
-            nc_err_set_msg(e, message, "en");
-            if (xpath) {
-                nc_err_set_path(e, xpath);
-            }
-            break;
-        } else if (strstr(message, "Source and target")) {
-            e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
-            nc_err_set_msg(e, message, "en");
-            break;
-        } else if (strstr(message, "already subscribed")) {
-            e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_OP_FAILED, NC_ERR_TYPE_PROT);
-            nc_err_set_msg(e, message, "en");
-            break;
-        }
-        e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, message, "en");
-        if (xpath) {
-            nc_err_set_path(e, xpath);
-        }
         break;
     }
 
+    if (!e) {
+        if (strstr(err->message, "authorization failed")) {
+            // access-denied
+            goto err_access_denied;
+        } else if (strstr(err->message, "is already locked") ||
+                   strstr(err->message, "Module \"yang\" is locked by session")) {
+            // lock-denied
+            goto err_lock_denied;
+        } else if (strstr(err->message, "is locked by session")) {
+            // in-use
+            e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_IN_USE, NC_ERR_TYPE_PROT);
+            nc_err_set_msg(e, err->message, "en");
+        } else if (strstr(err->message, "already exists")) {
+            // data-exists
+            e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_DATA_EXISTS);
+            nc_err_set_msg(e, err->message, "en");
+        } else if (strstr(err->message, "Source and target")) {
+            e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_INVALID_VALUE, NC_ERR_TYPE_PROT);
+            nc_err_set_msg(e, err->message, "en");
+        } else if (strstr(err->message, "already subscribed")) {
+            e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_OP_FAILED, NC_ERR_TYPE_PROT);
+            nc_err_set_msg(e, err->message, "en");
+        } else {
+            /* default error */
+            e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+            nc_err_set_msg(e, err->message, "en");
+        }
+    }
+
     return e;
+
+error:
+    lyd_free_tree(e);
+    return NULL;
 }
 
 static struct nc_server_reply *
@@ -251,7 +307,7 @@ np2srv_err_reply_sr(const sr_error_info_t *err_info)
     size_t i;
 
     for (i = 0; i < err_info->err_count; ++i) {
-        e = np2srv_err_sr(err_info->err[i].err_code, err_info->err[i].message, NULL);
+        e = np2srv_err_sr(&err_info->err[i]);
         if (!e) {
             nc_server_reply_free(reply);
             return NULL;
@@ -300,7 +356,7 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         goto cleanup;
     }
 
-    /* get this user session with its NC id (but not user name) */
+    /* get this user session with its originator data */
     sr_sess = nc_session_get_data(ncs);
 
     /* sysrepo API, use the default timeout or slightly higher than the configured one */
