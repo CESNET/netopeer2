@@ -236,23 +236,41 @@ ncm_session_get_notification(struct nc_session *session)
     return count;
 }
 
+static uint32_t
+ncm_sid2ncid(uint32_t sid)
+{
+    struct nc_session *nc_sess = NULL;
+    uint32_t i;
+
+    for (i = 0; (nc_sess = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
+        if (sr_session_get_id(nc_session_get_data(nc_sess)) == sid) {
+            break;
+        }
+    }
+    if (!nc_sess) {
+        return 0;
+    }
+
+    return nc_session_get_id(nc_sess);
+}
+
 static void
 ncm_data_add_ds_lock(sr_conn_ctx_t *conn, const char *ds_str, sr_datastore_t ds, struct lyd_node *parent)
 {
     struct lyd_node *list, *cont, *cont2;
     char buf[26];
     int rc, is_locked;
-    uint32_t nc_id;
+    uint32_t sid;
     time_t ts;
 
     lyd_new_list(parent, NULL, "datastore", 0, &list, ds_str);
-    rc = sr_get_lock(conn, ds, NULL, &is_locked, NULL, &nc_id, &ts);
+    rc = sr_get_lock(conn, ds, NULL, &is_locked, &sid, &ts);
     if (rc != SR_ERR_OK) {
         WRN("Failed to learn about %s lock (%s).", ds_str, sr_strerror(rc));
     } else if (is_locked) {
         lyd_new_inner(list, NULL, "locks", 0, &cont);
         lyd_new_inner(cont, NULL, "global-lock", 0, &cont2);
-        sprintf(buf, "%u", nc_id);
+        sprintf(buf, "%" PRIu32, ncm_sid2ncid(sid));
         lyd_new_term(cont2, NULL, "locked-by-session", buf, 0, NULL);
         nc_time2datetime(ts, NCM_TIMEZONE, buf);
         lyd_new_term(cont2, NULL, "locked-time", buf, 0, NULL);
