@@ -366,7 +366,7 @@ load_config(void)
     }
 
     lyd_free_tree(config);
-    ly_ctx_destroy(ctx, NULL);
+    ly_ctx_destroy(ctx);
     free(config_file);
     free(history_file);
     free(netconf_dir);
