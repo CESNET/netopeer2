@@ -150,7 +150,8 @@ np2srv_del_session_cb(struct nc_session *session)
             event_data[i++].data.enum_val = "other";
             break;
         }
-        rc = sr_event_notif_send(np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-end", event_data, i);
+        rc = sr_event_notif_send(np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-end", event_data, i,
+                np2srv.sr_timeout, 1);
         if (rc != SR_ERR_OK) {
             WRN("Failed to send a notification (%s).", sr_strerror(rc));
         } else {

@@ -290,7 +290,8 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
             event_data[2].type = SR_STRING_T;
             event_data[2].data.string_val = host;
         }
-        c = sr_event_notif_send(np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-start", event_data, host ? 3 : 2);
+        c = sr_event_notif_send(np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-start", event_data,
+                host ? 3 : 2, np2srv.sr_timeout, 1);
         if (c != SR_ERR_OK) {
             WRN("Failed to send a notification (%s).", sr_strerror(c));
         } else {
