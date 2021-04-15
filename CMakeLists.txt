@@ -37,7 +37,7 @@ set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -DDEBUG")
 set(NP2SRV_VERSION 1.1.73)
 
 # libyang required SO version
-set(LIBYANG_DEP_SOVERSION_MAJOR 1)
+set(LIBYANG_DEP_SOVERSION_MAJOR 2)
 
 # build options
 if((CMAKE_BUILD_TYPE_LOWER STREQUAL debug) OR (CMAKE_BUILD_TYPE_LOWER STREQUAL package))
@@ -202,7 +202,7 @@ list(APPEND CMAKE_REQUIRED_FLAGS ${CMAKE_THREAD_LIBS_INIT})
 check_include_file(stdatomic.h HAVE_STDATOMIC)
 
 # dependencies - libyang
-find_package(LibYANG REQUIRED)
+find_package(LibYANG ${LIBYANG_DEP_SOVERSION_MAJOR} REQUIRED)
 target_link_libraries(netopeer2-server ${LIBYANG_LIBRARIES})
 include_directories(${LIBYANG_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBYANG_INCLUDE_DIRS})
