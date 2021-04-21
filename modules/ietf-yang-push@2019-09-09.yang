@@ -703,8 +703,7 @@ module ietf-yang-push {
     }
   }
 
-  /*augment "/sn:subscription-started" {
-    if-feature "sn:configured";
+  augment "/sn:subscription-started" {
     description
       "This augmentation adds datastore-specific objects to
        the notification that a subscription has started.";
@@ -712,7 +711,6 @@ module ietf-yang-push {
   }
 
   augment "/sn:subscription-started/sn:target" {
-    if-feature "sn:configured";
     description
       "This augmentation allows the datastore to be included as
        part of the notification that a subscription has started.";
@@ -728,7 +726,7 @@ module ietf-yang-push {
         }
       }
     }
-  }*/
+  }
 
   augment "/sn:subscription-modified" {
     description
