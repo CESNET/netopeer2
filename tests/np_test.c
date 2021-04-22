@@ -164,9 +164,14 @@ child_error:
     *state = st;
     st->server_pid = pid;
 
-    /* create NETCONF session */
+    /* create NETCONF sessions */
     st->nc_sess = nc_connect_unix(NP_SOCKET_PATH, NULL);
     if (!st->nc_sess) {
+        return 1;
+    }
+
+    st->nc_sess2 = nc_connect_unix(NP_SOCKET_PATH, NULL);
+    if (!st->nc_sess2) {
         return 1;
     }
 
@@ -185,6 +190,7 @@ np_glob_teardown(void **state)
 
     /* stop the NETCONF session */
     nc_session_free(st->nc_sess, NULL);
+    nc_session_free(st->nc_sess2, NULL);
 
     /* terminate the server */
     if (kill(st->server_pid, SIGTERM)) {

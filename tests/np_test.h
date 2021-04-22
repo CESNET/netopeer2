@@ -44,6 +44,7 @@ np_glob_setup(void **state) \
 struct np_test {
     pid_t server_pid;
     struct nc_session *nc_sess;
+    struct nc_session *nc_sess2;
 };
 
 int _np_glob_setup(void **state, const char *test_name);
