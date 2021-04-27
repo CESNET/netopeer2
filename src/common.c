@@ -796,8 +796,8 @@ filter_xpath_buf_add_r(const struct lyd_node *node, char **buf, int size, struct
         if (lyd_child(child)) {
             /* child containment node */
             filter_xpath_buf_add_r(child, buf, size, filter);
-        } else if (child->schema || !((struct lyd_node_opaq *)child)->value || strws(((struct lyd_node_opaq *)child)->value)) {
-            /* child selection node */
+        } else {
+            /* child selection node or content node (both should be included in the output) */
             s = filter_xpath_buf_append_node(child, buf, size);
             if (!s) {
                 continue;
@@ -808,7 +808,7 @@ filter_xpath_buf_add_r(const struct lyd_node *node, char **buf, int size, struct
             if (op_filter_xpath_add_filter(*buf, 1, filter)) {
                 return -1;
             }
-        } /* else child content node, already handled, or invalid opaque node, skipped */
+        }
     }
 
     return 0;
