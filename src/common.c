@@ -740,8 +740,8 @@ filter_xpath_buf_add_r(struct ly_ctx *ctx, const struct lyxml_elem *elem, const 
         if (child->child) {
             /* child containment node */
             filter_xpath_buf_add_r(ctx, child, NULL, last_ns, buf, size, filter);
-        } else if (!child->content || strws(child->content)) {
-            /* child selection node */
+        } else {
+            /* child selection node or content node (both should be included in the output) */
             s = filter_xpath_buf_append_node(ctx, child, NULL, last_ns, buf, size);
             if (!s) {
                 continue;
@@ -752,7 +752,7 @@ filter_xpath_buf_add_r(struct ly_ctx *ctx, const struct lyxml_elem *elem, const 
             if (op_filter_xpath_add_filter(*buf, 1, filter)) {
                 return -1;
             }
-        } /* else child content node, already handled */
+        }
     }
 
     return 0;
