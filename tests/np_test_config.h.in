@@ -1,5 +1,5 @@
 /**
- * @file test_config.h
+ * @file np_test_config.h
  * @author Michal Vasko <mvasko@cesnet.cz>
  * @brief test configuration header
  *

@@ -140,7 +140,8 @@ set(SERVER_SRC
     src/netconf_subscribed_notifications.c
     src/subscribed_notifications.c
     src/yang_push.c
-    src/log.c)
+    src/log.c
+    src/err_netconf.c)
 
 # at least some remote transport is enabled
 if(LIBNETCONF2_ENABLED_SSH OR LIBNETCONF2_ENABLED_TLS)

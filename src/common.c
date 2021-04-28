@@ -178,6 +178,23 @@ np_get_nc_sess(sr_session_ctx_t *ev_sess)
     return ncs;
 }
 
+struct nc_session *
+np_get_nc_sess_by_sr_id(uint32_t sr_id)
+{
+    uint32_t i;
+    struct nc_session *ncs;
+    sr_session_ctx_t *user_sess;
+
+    for (i = 0; (ncs = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
+        user_sess = nc_session_get_data(ncs);
+        if (sr_session_get_id(user_sess) == sr_id) {
+            break;
+        }
+    }
+
+    return ncs;
+}
+
 sr_session_ctx_t *
 np_get_user_sess(sr_session_ctx_t *ev_sess)
 {

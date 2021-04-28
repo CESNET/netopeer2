@@ -74,6 +74,8 @@ char *np_timespec2datetime(const struct timespec *ts, const char *tz);
 
 struct nc_session *np_get_nc_sess(sr_session_ctx_t *ev_sess);
 
+struct nc_session *np_get_nc_sess_by_sr_id(uint32_t sr_id);
+
 sr_session_ctx_t *np_get_user_sess(sr_session_ctx_t *ev_sess);
 
 int np_ly_mod_has_notif(const struct lys_module *mod);
