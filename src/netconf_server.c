@@ -31,15 +31,15 @@
 int
 np2srv_sr_get_privkey(const struct lyd_node *asym_key, char **privkey_data, NC_SSH_KEY_TYPE *privkey_type)
 {
-    struct lyd_node_term *alg = NULL, *privkey = NULL;
-    struct lyd_node *node;
+    struct lyd_node_term *alg = NULL;
+    struct lyd_node *node, *privkey = NULL;
 
     /* find the nodes */
     LY_LIST_FOR(lyd_child(asym_key), node) {
         if (!strcmp(node->schema->name, "algorithm")) {
             alg = (struct lyd_node_term *)node;
         } else if (!strcmp(node->schema->name, "private-key")) {
-            privkey = (struct lyd_node_term *)node;
+            privkey = node;
         }
     }
     if (!alg || !privkey) {
@@ -53,12 +53,12 @@ np2srv_sr_get_privkey(const struct lyd_node *asym_key, char **privkey_data, NC_S
     } else if (!strncmp(alg->value.ident->name, "secp", 4)) {
         *privkey_type = NC_SSH_KEY_ECDSA;
     } else {
-        ERR("Unknown private key algorithm \"%s\".", alg->value.canonical);
+        ERR("Unknown private key algorithm \"%s\".", lyd_get_value(&alg->node));
         return -1;
     }
 
     /* set data */
-    *privkey_data = strdup(privkey->value.canonical);
+    *privkey_data = strdup(lyd_get_value(privkey));
     if (!*privkey_data) {
         EMEM;
         return -1;
@@ -184,11 +184,11 @@ np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* find name */
-        endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->child);
+        endpt_name = lyd_get_value(node->parent->parent->parent->child);
 
         if (!strcmp(node->schema->name, "local-address")) {
             if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-                if (nc_server_endpt_set_address(endpt_name, LYD_CANON_VALUE(node))) {
+                if (nc_server_endpt_set_address(endpt_name, lyd_get_value(node))) {
                     failed = 1;
                 }
             }
@@ -262,7 +262,7 @@ np2srv_ch_periodic_connection_params(const char *client_name, sr_session_ctx_t *
                     rc = nc_server_ch_client_periodic_set_anchor_time(client_name, 0);
                 }
             } else {
-                rc = nc_server_ch_client_periodic_set_anchor_time(client_name, nc_datetime2time(LYD_CANON_VALUE(node)));
+                rc = nc_server_ch_client_periodic_set_anchor_time(client_name, nc_datetime2time(lyd_get_value(node)));
             }
         } else if (!strcmp(node->schema->name, "idle-timeout")) {
             if (op == SR_OP_DELETED) {
@@ -308,7 +308,7 @@ np2srv_ch_client_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* get name */
-        client_name = LYD_CANON_VALUE(lyd_child(node));
+        client_name = lyd_get_value(lyd_child(node));
 
         /* ignore other operations */
         if (op == SR_OP_CREATED) {
@@ -358,12 +358,12 @@ np2srv_ch_client_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* find names */
-        endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->child);
-        client_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->child);
+        endpt_name = lyd_get_value(node->parent->parent->parent->child);
+        client_name = lyd_get_value(node->parent->parent->parent->parent->parent->child);
 
         if (!strcmp(node->schema->name, "remote-address")) {
             if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-                if (nc_server_ch_client_endpt_set_address(client_name, endpt_name, LYD_CANON_VALUE(node))) {
+                if (nc_server_ch_client_endpt_set_address(client_name, endpt_name, lyd_get_value(node))) {
                     sr_free_change_iter(iter);
                     return SR_ERR_INTERNAL;
                 }
@@ -435,7 +435,7 @@ np2srv_ch_connection_type_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id),
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* find names */
-        client_name = LYD_CANON_VALUE(node->parent->parent->child);
+        client_name = lyd_get_value(node->parent->parent->child);
 
         /* connection type */
         if (op == SR_OP_CREATED) {
@@ -499,7 +499,7 @@ np2srv_ch_reconnect_strategy_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_i
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* find name */
-        client_name = LYD_CANON_VALUE(node->parent->parent->child);
+        client_name = lyd_get_value(node->parent->parent->child);
 
         if (!strcmp(node->schema->name, "start-with")) {
             if (op == SR_OP_DELETED) {
@@ -508,7 +508,7 @@ np2srv_ch_reconnect_strategy_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_i
                     rc = nc_server_ch_client_set_start_with(client_name, NC_CH_FIRST_LISTED);
                 }
             } else {
-                str = LYD_CANON_VALUE(node);
+                str = lyd_get_value(node);
                 if (!strcmp(str, "first-listed")) {
                     rc = nc_server_ch_client_set_start_with(client_name, NC_CH_FIRST_LISTED);
                 } else if (!strcmp(str, "last-connected")) {

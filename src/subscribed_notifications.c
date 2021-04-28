@@ -216,7 +216,7 @@ sub_ntf_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *rpc
     /* first remember the exact filter used */
     if (!strcmp(node->schema->name, "stream-filter-name")) {
         if (stream_filter_name) {
-            *stream_filter_name = LYD_CANON_VALUE(node);
+            *stream_filter_name = lyd_get_value(node);
         }
     } else if (!strcmp(node->schema->name, "stream-subtree-filter")) {
         if (stream_subtree_filter) {
@@ -225,13 +225,13 @@ sub_ntf_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *rpc
     } else {
         assert(!strcmp(node->schema->name, "stream-xpath-filter"));
         if (stream_xpath_filter) {
-            *stream_xpath_filter = LYD_CANON_VALUE(node);
+            *stream_xpath_filter = lyd_get_value(node);
         }
     }
 
     if (!strcmp(node->schema->name, "stream-filter-name")) {
         /* first get this filter from sysrepo */
-        if (asprintf(&str, "/ietf-subscribed-notifications:filters/stream-filter[name='%s']", LYD_CANON_VALUE(node)) == -1) {
+        if (asprintf(&str, "/ietf-subscribed-notifications:filters/stream-filter[name='%s']", lyd_get_value(node)) == -1) {
             EMEM;
             rc = SR_ERR_NO_MEMORY;
             goto cleanup;
@@ -247,7 +247,7 @@ sub_ntf_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *rpc
         }
 
         if (!lyd_child(subtree)->next) {
-            ERR("Stream filter \"%s\" does not define any actual filter.", LYD_CANON_VALUE(node));
+            ERR("Stream filter \"%s\" does not define any actual filter.", lyd_get_value(node));
             rc = SR_ERR_INVAL_ARG;
             goto cleanup;
         }
@@ -269,8 +269,8 @@ sub_ntf_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *rpc
     } else {
         /* xpath */
         assert(!strcmp(node->schema->name, "stream-xpath-filter"));
-        if (strlen(LYD_CANON_VALUE(node))) {
-            *xpath = strdup(LYD_CANON_VALUE(node));
+        if (strlen(lyd_get_value(node))) {
+            *xpath = strdup(lyd_get_value(node));
             if (*xpath) {
                 EMEM;
                 rc = SR_ERR_NO_MEMORY;
@@ -315,12 +315,12 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
 
     /* stream */
     lyd_find_path(rpc, "stream", 0, &node);
-    stream = LYD_CANON_VALUE(node);
+    stream = lyd_get_value(node);
 
     /* replay start time */
     lyd_find_path(rpc, "replay-start-time", 0, &node);
     if (node) {
-        start = nc_datetime2time(LYD_CANON_VALUE(node));
+        start = nc_datetime2time(lyd_get_value(node));
     }
 
     /* allocate specific data */
@@ -516,7 +516,7 @@ sub_ntf_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filter,
 
         /* update all the relevant subscriptions */
         sub = NULL;
-        while ((sub = sub_ntf_find_next(sub, sub_ntf_stream_filter_match_cb, LYD_CANON_VALUE(lyd_child(filter))))) {
+        while ((sub = sub_ntf_find_next(sub, sub_ntf_stream_filter_match_cb, lyd_get_value(lyd_child(filter))))) {
             /* modify the filter of the subscription(s) */
             for (i = 0; i < sub->sub_id_count; ++i) {
                 /* "pass" the lock to the callback */
@@ -534,7 +534,7 @@ sub_ntf_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filter,
     } else if (op == SR_OP_DELETED) {
         /* update all the relevant subscriptions */
         sub = NULL;
-        while ((sub = sub_ntf_find_next(sub, sub_ntf_stream_filter_match_cb, LYD_CANON_VALUE(lyd_child(filter))))) {
+        while ((sub = sub_ntf_find_next(sub, sub_ntf_stream_filter_match_cb, lyd_get_value(lyd_child(filter))))) {
             /* terminate the subscription with the specific term reason */
             sub->term_reason = "ietf-subscribed-notifications:filter-unavailable";
             r = sub_ntf_terminate_sub(sub, np_get_nc_sess(ev_sess));

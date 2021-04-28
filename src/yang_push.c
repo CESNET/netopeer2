@@ -299,7 +299,7 @@ yang_push_notif_change_send(struct nc_session *ncs, struct yang_push_data *yp_da
     for (i = 0; i < set->count; ++i) {
         /* check the change itself */
         lyd_find_path(set->dnodes[i], "target", 0, &ly_target);
-        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(NULL, LYD_CANON_VALUE(ly_target), ly_target->priv,
+        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(NULL, lyd_get_value(ly_target), ly_target->priv,
                 nc_session_get_username(ncs), NCAC_OP_READ))) {
             /* not allowed, remove this change */
             lyd_free_tree(set->dnodes[i]);
@@ -752,7 +752,7 @@ yang_push_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *r
     /* first remember the exact filter used */
     if (!strcmp(node->schema->name, "selection-filter-ref")) {
         if (selection_filter_ref) {
-            *selection_filter_ref = LYD_CANON_VALUE(node);
+            *selection_filter_ref = lyd_get_value(node);
         }
     } else if (!strcmp(node->schema->name, "datastore-subtree-filter")) {
         if (datastore_subtree_filter) {
@@ -761,14 +761,14 @@ yang_push_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *r
     } else {
         assert(!strcmp(node->schema->name, "datastore-xpath-filter"));
         if (datastore_xpath_filter) {
-            *datastore_xpath_filter = LYD_CANON_VALUE(node);
+            *datastore_xpath_filter = lyd_get_value(node);
         }
     }
 
     if (!strcmp(node->schema->name, "selection-filter-ref")) {
         /* first get this filter from sysrepo */
         if (asprintf(&str, "/ietf-subscribed-notifications:filters/ietf-yang-push:selection-filter[filter-id='%s']",
-                LYD_CANON_VALUE(node)) == -1) {
+                lyd_get_value(node)) == -1) {
             EMEM;
             rc = SR_ERR_NO_MEMORY;
             goto cleanup;
@@ -784,7 +784,7 @@ yang_push_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *r
         }
 
         if (!lyd_child(subtree)->next) {
-            ERR("Selection filter \"%s\" does not define any actual filter.", LYD_CANON_VALUE(node));
+            ERR("Selection filter \"%s\" does not define any actual filter.", lyd_get_value(node));
             rc = SR_ERR_INVAL_ARG;
             goto cleanup;
         }
@@ -806,8 +806,8 @@ yang_push_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *r
     } else {
         /* xpath */
         assert(!strcmp(node->schema->name, "datastore-xpath-filter"));
-        if (strlen(LYD_CANON_VALUE(node))) {
-            *xpath = strdup(LYD_CANON_VALUE(node));
+        if (strlen(lyd_get_value(node))) {
+            *xpath = strdup(lyd_get_value(node));
             if (!*xpath) {
                 EMEM;
                 rc = SR_ERR_NO_MEMORY;
@@ -967,9 +967,9 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
 
     /* datastore */
     lyd_find_path(rpc, "ietf-yang-push:datastore", 0, &node);
-    rc = yang_push_ident2ds(LYD_CANON_VALUE(node), &datastore);
+    rc = yang_push_ident2ds(lyd_get_value(node), &datastore);
     if (rc != SR_ERR_OK) {
-        sr_session_set_error_message(ev_sess, "Unsupported datastore \"%s\".", LYD_CANON_VALUE(node));
+        sr_session_set_error_message(ev_sess, "Unsupported datastore \"%s\".", lyd_get_value(node));
         goto cleanup;
     }
 
@@ -991,7 +991,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
         /* anchor-time */
         lyd_find_path(node, "anchor-time", 0, &child);
         if (child) {
-            np_datetime2timespec(LYD_CANON_VALUE(child), &anchor_time);
+            np_datetime2timespec(lyd_get_value(child), &anchor_time);
         }
     } else if (!lyd_find_path(rpc, "ietf-yang-push:on-change", 0, &node)) {
         periodic = 0;
@@ -1010,7 +1010,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
             goto cleanup;
         }
         for (i = 0; i < set->count; ++i) {
-            excluded_change[yang_push_str2op(LYD_CANON_VALUE(set->dnodes[i]))] = 1;
+            excluded_change[yang_push_str2op(lyd_get_value(set->dnodes[i]))] = 1;
         }
         ly_set_free(set, NULL);
     } else {
@@ -1163,13 +1163,13 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
      * datastore
      */
     lyd_find_path(rpc, "ietf-yang-push:datastore", 0, &node);
-    rc = yang_push_ident2ds(LYD_CANON_VALUE(node), &datastore);
+    rc = yang_push_ident2ds(lyd_get_value(node), &datastore);
     if (rc != SR_ERR_OK) {
-        sr_session_set_error_message(ev_sess, "Unsupported datastore \"%s\".", LYD_CANON_VALUE(node));
+        sr_session_set_error_message(ev_sess, "Unsupported datastore \"%s\".", lyd_get_value(node));
         goto cleanup;
     } else if (datastore != yp_data->datastore) {
         sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not for \"%s\" datastore.", nc_sub_id,
-                LYD_CANON_VALUE(node));
+                lyd_get_value(node));
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
     }
@@ -1208,7 +1208,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
         /* anchor-time */
         lyd_find_path(cont, "anchor-time", 0, &node);
         if (node) {
-            np_datetime2timespec(LYD_CANON_VALUE(node), &anchor_time);
+            np_datetime2timespec(lyd_get_value(node), &anchor_time);
             if (memcmp(&anchor_time, &yp_data->anchor_time, sizeof anchor_time)) {
                 yp_data->anchor_time = anchor_time;
 
@@ -1473,7 +1473,7 @@ yang_push_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filte
 
         /* update all the relevant subscriptions */
         sub = NULL;
-        while ((sub = sub_ntf_find_next(sub, yang_push_datastore_filter_match_cb, LYD_CANON_VALUE(lyd_child(filter))))) {
+        while ((sub = sub_ntf_find_next(sub, yang_push_datastore_filter_match_cb, lyd_get_value(lyd_child(filter))))) {
             yp_data = sub->data;
 
             /* update the xpath */
@@ -1497,7 +1497,7 @@ yang_push_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filte
     } else if (op == SR_OP_DELETED) {
         /* update all the relevant subscriptions */
         sub = NULL;
-        while ((sub = sub_ntf_find_next(sub, yang_push_datastore_filter_match_cb, LYD_CANON_VALUE(lyd_child(filter))))) {
+        while ((sub = sub_ntf_find_next(sub, yang_push_datastore_filter_match_cb, lyd_get_value(lyd_child(filter))))) {
             /* terminate the subscription with the specific term reason */
             sub->term_reason = "ietf-subscribed-notifications:filter-unavailable";
             r = sub_ntf_terminate_sub(sub, np_get_nc_sess(ev_sess));

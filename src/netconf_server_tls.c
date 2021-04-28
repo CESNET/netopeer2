@@ -79,7 +79,7 @@ np2srv_cert_cb(const char *name, void *UNUSED(user_data), char **UNUSED(cert_pat
     }
 
     /* set cert data */
-    *cert_data = strdup(LYD_CANON_VALUE(data));
+    *cert_data = strdup(lyd_get_value(data));
     if (!*cert_data) {
         EMEM;
         goto cleanup;
@@ -142,7 +142,7 @@ np2srv_cert_list_cb(const char *name, void *UNUSED(user_data), char ***UNUSED(ce
 
     /* collect all cert data */
     for (i = 0; i < set->count; ++i) {
-        (*cert_data)[i] = strdup(LYD_CANON_VALUE(set->dnodes[i]));
+        (*cert_data)[i] = strdup(lyd_get_value(set->dnodes[i]));
         if (!(*cert_data)[i]) {
             EMEM;
             for (j = 0; j < i - 1; ++j) {
@@ -183,7 +183,7 @@ np2srv_endpt_tls_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* get name */
-        endpt_name = LYD_CANON_VALUE(node->parent->child);
+        endpt_name = lyd_get_value(node->parent->child);
 
         /* ignore other operations */
         if (op == SR_OP_CREATED) {
@@ -230,12 +230,12 @@ np2srv_endpt_tls_servercert_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* find name */
-        endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->child);
+        endpt_name = lyd_get_value(node->parent->parent->parent->parent->parent->child);
 
         /* we do not care about the "asymmetric-key", the certificate is enough */
         if (!strcmp(node->schema->name, "certificate")) {
             if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-                rc = nc_server_tls_endpt_set_server_cert(endpt_name, LYD_CANON_VALUE(node));
+                rc = nc_server_tls_endpt_set_server_cert(endpt_name, lyd_get_value(node));
             } else if (op == SR_OP_DELETED) {
                 if (nc_server_is_endpt(endpt_name)) {
                     rc = nc_server_tls_endpt_set_server_cert(endpt_name, NULL);
@@ -281,7 +281,7 @@ np2srv_endpt_tls_client_auth_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_i
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, NULL, NULL)) == SR_ERR_OK) {
         /* find name */
-        endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->child);
+        endpt_name = lyd_get_value(node->parent->parent->parent->parent->child);
 
         if (!strcmp(node->schema->name, "optional")) {
             /* it is always required */
@@ -290,14 +290,14 @@ np2srv_endpt_tls_client_auth_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_i
             return SR_ERR_UNSUPPORTED;
         } else if (!strcmp(node->schema->name, "ca-certs") || !strcmp(node->schema->name, "client-certs")) {
             if (op == SR_OP_CREATED) {
-                rc = nc_server_tls_endpt_add_trusted_cert_list(endpt_name, LYD_CANON_VALUE(node));
+                rc = nc_server_tls_endpt_add_trusted_cert_list(endpt_name, lyd_get_value(node));
             } else if (op == SR_OP_DELETED) {
                 if (nc_server_is_endpt(endpt_name)) {
-                    rc = nc_server_tls_endpt_del_trusted_cert_list(endpt_name, LYD_CANON_VALUE(node));
+                    rc = nc_server_tls_endpt_del_trusted_cert_list(endpt_name, lyd_get_value(node));
                 }
             } else if (op == SR_OP_MODIFIED) {
                 nc_server_tls_endpt_del_trusted_cert_list(endpt_name, prev_val);
-                rc = nc_server_tls_endpt_add_trusted_cert_list(endpt_name, LYD_CANON_VALUE(node));
+                rc = nc_server_tls_endpt_add_trusted_cert_list(endpt_name, lyd_get_value(node));
             }
             if (rc) {
                 sr_free_change_iter(iter);
@@ -368,7 +368,7 @@ np2srv_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* find name */
-        endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->child);
+        endpt_name = lyd_get_value(node->parent->parent->parent->parent->parent->child);
 
         /* collect all attributes */
         id = 0;
@@ -379,11 +379,11 @@ np2srv_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
             if (!strcmp(child->schema->name, "id")) {
                 id = ((struct lyd_node_term *)child)->value.uint32;
             } else if (!strcmp(child->schema->name, "fingerprint")) {
-                fingerprint = LYD_CANON_VALUE(child);
+                fingerprint = lyd_get_value(child);
             } else if (!strcmp(child->schema->name, "map-type")) {
-                map_type = np2srv_tls_ctn_str2map_type(LYD_CANON_VALUE(child));
+                map_type = np2srv_tls_ctn_str2map_type(lyd_get_value(child));
             } else if (!strcmp(child->schema->name, "name")) {
-                name = LYD_CANON_VALUE(child);
+                name = lyd_get_value(child);
             }
         }
         /* it was validated */
@@ -432,8 +432,8 @@ np2srv_ch_client_endpt_tls_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id)
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* get names */
-        endpt_name = LYD_CANON_VALUE(node->parent->child);
-        client_name = LYD_CANON_VALUE(node->parent->parent->parent->child);
+        endpt_name = lyd_get_value(node->parent->child);
+        client_name = lyd_get_value(node->parent->parent->parent->child);
 
         /* ignore other operations */
         if (op == SR_OP_CREATED) {
@@ -484,13 +484,13 @@ np2srv_ch_client_endpt_tls_servercert_cb(sr_session_ctx_t *session, uint32_t UNU
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* get names */
-        endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->child);
-        client_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->parent->child);
+        endpt_name = lyd_get_value(node->parent->parent->parent->parent->parent->child);
+        client_name = lyd_get_value(node->parent->parent->parent->parent->parent->parent->parent->child);
 
         /* we do not care about the "asymmetric-key", the certificate is enough */
         if (!strcmp(node->schema->name, "certificate")) {
             if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-                rc = nc_server_tls_ch_client_endpt_set_server_cert(client_name, endpt_name, LYD_CANON_VALUE(node));
+                rc = nc_server_tls_ch_client_endpt_set_server_cert(client_name, endpt_name, lyd_get_value(node));
             } else if (op == SR_OP_DELETED) {
                 if (nc_server_ch_client_is_endpt(client_name, endpt_name)) {
                     rc = nc_server_tls_ch_client_endpt_set_server_cert(client_name, endpt_name, NULL);
@@ -538,8 +538,8 @@ np2srv_ch_client_endpt_tls_client_auth_cb(sr_session_ctx_t *session, uint32_t UN
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, NULL, NULL)) == SR_ERR_OK) {
         /* get names */
-        endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->child);
-        client_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->child);
+        endpt_name = lyd_get_value(node->parent->parent->parent->parent->child);
+        client_name = lyd_get_value(node->parent->parent->parent->parent->parent->parent->child);
 
         if (!strcmp(node->schema->name, "optional")) {
             /* it is always required */
@@ -548,14 +548,14 @@ np2srv_ch_client_endpt_tls_client_auth_cb(sr_session_ctx_t *session, uint32_t UN
             return SR_ERR_UNSUPPORTED;
         } else if (!strcmp(node->schema->name, "ca-certs") || !strcmp(node->schema->name, "client-certs")) {
             if (op == SR_OP_CREATED) {
-                rc = nc_server_tls_ch_client_endpt_add_trusted_cert_list(client_name, endpt_name, LYD_CANON_VALUE(node));
+                rc = nc_server_tls_ch_client_endpt_add_trusted_cert_list(client_name, endpt_name, lyd_get_value(node));
             } else if (op == SR_OP_DELETED) {
                 if (nc_server_ch_client_is_endpt(client_name, endpt_name)) {
-                    rc = nc_server_tls_ch_client_endpt_del_trusted_cert_list(client_name, endpt_name, LYD_CANON_VALUE(node));
+                    rc = nc_server_tls_ch_client_endpt_del_trusted_cert_list(client_name, endpt_name, lyd_get_value(node));
                 }
             } else if (op == SR_OP_MODIFIED) {
                 nc_server_tls_ch_client_endpt_del_trusted_cert_list(client_name, endpt_name, prev_val);
-                rc = nc_server_tls_ch_client_endpt_add_trusted_cert_list(client_name, endpt_name, LYD_CANON_VALUE(node));
+                rc = nc_server_tls_ch_client_endpt_add_trusted_cert_list(client_name, endpt_name, lyd_get_value(node));
             }
             if (rc) {
                 sr_free_change_iter(iter);
@@ -601,8 +601,8 @@ np2srv_ch_client_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNU
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* get names */
-        endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->child);
-        client_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->parent->child);
+        endpt_name = lyd_get_value(node->parent->parent->parent->parent->parent->child);
+        client_name = lyd_get_value(node->parent->parent->parent->parent->parent->parent->parent->child);
 
         /* collect all attributes */
         id = 0;
@@ -613,11 +613,11 @@ np2srv_ch_client_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNU
             if (!strcmp(child->schema->name, "id")) {
                 id = ((struct lyd_node_term *)child)->value.uint32;
             } else if (!strcmp(child->schema->name, "fingerprint")) {
-                fingerprint = LYD_CANON_VALUE(child);
+                fingerprint = lyd_get_value(child);
             } else if (!strcmp(child->schema->name, "map-type")) {
-                map_type = np2srv_tls_ctn_str2map_type(LYD_CANON_VALUE(child));
+                map_type = np2srv_tls_ctn_str2map_type(lyd_get_value(child));
             } else if (!strcmp(child->schema->name, "name")) {
-                name = LYD_CANON_VALUE(child);
+                name = lyd_get_value(child);
             }
         }
         /* it was validated */

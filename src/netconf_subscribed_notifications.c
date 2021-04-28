@@ -345,13 +345,13 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     /* stop time */
     lyd_find_path(input, "stop-time", 0, &node);
     if (node) {
-        np_datetime2timespec(LYD_CANON_VALUE(node), &stop);
+        np_datetime2timespec(lyd_get_value(node), &stop);
     }
 
     /* encoding */
     lyd_find_path(input, "encoding", 0, &node);
     if (node && strcmp(((struct lyd_node_term *)node)->value.ident->name, "encode-xml")) {
-        ERR("Unsupported encoding \"%s\".", LYD_CANON_VALUE(node));
+        ERR("Unsupported encoding \"%s\".", lyd_get_value(node));
         rc = SR_ERR_INTERNAL;
         goto error;
     }
@@ -516,7 +516,7 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     /* stop time */
     lyd_find_path(input, "stop-time", 0, &node);
     if (node) {
-        np_datetime2timespec(LYD_CANON_VALUE(node), &stop);
+        np_datetime2timespec(lyd_get_value(node), &stop);
     }
 
     sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_id);
@@ -828,7 +828,7 @@ np2srv_oper_sub_ntf_streams_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
         goto error;
     }
     LY_LIST_FOR(lyd_child(sr_data), sr_mod) {
-        mod_name = LYD_CANON_VALUE(lyd_child(sr_mod));
+        mod_name = lyd_get_value(lyd_child(sr_mod));
 
         /* get the module */
         mod = ly_ctx_get_module_implemented(ly_ctx, mod_name);

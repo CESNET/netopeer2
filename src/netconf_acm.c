@@ -68,7 +68,7 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
             }
         } else if (!strcmp(node->schema->name, "read-default")) {
             if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-                if (!strcmp(term->value.canonical, "permit")) {
+                if (!strcmp(lyd_get_value(node), "permit")) {
                     nacm.default_read_deny = 0;
                 } else {
                     nacm.default_read_deny = 1;
@@ -76,7 +76,7 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
             }
         } else if (!strcmp(node->schema->name, "write-default")) {
             if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-                if (!strcmp(term->value.canonical, "permit")) {
+                if (!strcmp(lyd_get_value(node), "permit")) {
                     nacm.default_write_deny = 0;
                 } else {
                     nacm.default_write_deny = 1;
@@ -84,7 +84,7 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
             }
         } else if (!strcmp(node->schema->name, "exec-default")) {
             if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-                if (!strcmp(term->value.canonical, "permit")) {
+                if (!strcmp(lyd_get_value(node), "permit")) {
                     nacm.default_exec_deny = 0;
                 } else {
                     nacm.default_exec_deny = 1;
@@ -180,7 +180,7 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
         if (!strcmp(node->schema->name, "group")) {
             /* name must be present */
             assert(!strcmp(lyd_child(node)->schema->name, "name"));
-            group_name = LYD_CANON_VALUE(lyd_child(node));
+            group_name = lyd_get_value(lyd_child(node));
 
             switch (op) {
             case SR_OP_CREATED:
@@ -235,7 +235,7 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
         } else {
             /* name must be present */
             assert(!strcmp(node->parent->child->schema->name, "name"));
-            group_name = LYD_CANON_VALUE(node->parent->child);
+            group_name = lyd_get_value(node->parent->child);
             group = NULL;
             for (i = 0; i < nacm.group_count; ++i) {
                 /* both in dictionary */
@@ -251,7 +251,7 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
                 }
 
                 assert(group);
-                user_name = LYD_CANON_VALUE(node);
+                user_name = lyd_get_value(node);
 
                 if (op == SR_OP_CREATED) {
                     mem = realloc(group->users, (group->user_count + 1) * sizeof *group->users);
@@ -352,7 +352,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
         if (!strcmp(node->schema->name, "rule-list")) {
             /* name must be present */
             assert(!strcmp(lyd_child(node)->schema->name, "name"));
-            rlist_name = LYD_CANON_VALUE(lyd_child(node));
+            rlist_name = lyd_get_value(lyd_child(node));
 
             switch (op) {
             case SR_OP_MOVED:
@@ -437,7 +437,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
         } else {
             /* name must be present */
             assert(!strcmp(node->parent->child->schema->name, "name"));
-            rlist_name = LYD_CANON_VALUE(node->parent->child);
+            rlist_name = lyd_get_value(node->parent->child);
             for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next);
 
             if (!strcmp(node->schema->name, "group")) {
@@ -446,7 +446,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
                 }
 
                 assert(rlist);
-                group_name = LYD_CANON_VALUE(node);
+                group_name = lyd_get_value(node);
 
                 if (op == SR_OP_CREATED) {
                     mem = realloc(rlist->groups, (rlist->group_count + 1) * sizeof *rlist->groups);
@@ -528,7 +528,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
         if (!strcmp(node->schema->name, "rule")) {
             /* find parent rule list */
             assert(!strcmp(node->parent->child->schema->name, "name"));
-            rlist_name = LYD_CANON_VALUE(node->parent->child);
+            rlist_name = lyd_get_value(node->parent->child);
             for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next);
             if ((op == SR_OP_DELETED) && !rlist) {
                 /* even parent rule-list was deleted */
@@ -538,7 +538,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
 
             /* name must be present */
             assert(!strcmp(lyd_child(node)->schema->name, "name"));
-            rule_name = LYD_CANON_VALUE(lyd_child(node));
+            rule_name = lyd_get_value(lyd_child(node));
 
             switch (op) {
             case SR_OP_MOVED:
@@ -622,7 +622,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
         } else {
             /* find parent rule list */
             assert(!strcmp(node->parent->parent->child->schema->name, "name"));
-            rlist_name = LYD_CANON_VALUE(node->parent->parent->child);
+            rlist_name = lyd_get_value(node->parent->parent->child);
             for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next);
             if ((op == SR_OP_DELETED) && !rlist) {
                 /* even parent rule-list was deleted */
@@ -632,7 +632,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
 
             /* name must be present */
             assert(!strcmp(node->parent->child->schema->name, "name"));
-            rule_name = LYD_CANON_VALUE(node->parent->child);
+            rule_name = lyd_get_value(node->parent->child);
             for (rule = rlist->rules; rule && (rule->name != rule_name); rule = rule->next);
             if ((op == SR_OP_DELETED) && !rule) {
                 /* even parent rule was deleted */
@@ -641,7 +641,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
             assert(rule);
 
             if (!strcmp(node->schema->name, "module-name")) {
-                str = LYD_CANON_VALUE(node);
+                str = lyd_get_value(node);
                 lydict_remove(ly_ctx, rule->module_name);
                 if (!strcmp(str, "*")) {
                     rule->module_name = NULL;
@@ -655,7 +655,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
                     rule->target = NULL;
                     rule->target_type = NCAC_TARGET_ANY;
                 } else {
-                    str = LYD_CANON_VALUE(node);
+                    str = lyd_get_value(node);
                     lydict_remove(ly_ctx, rule->target);
                     if (!strcmp(str, "*")) {
                         rule->target = NULL;
@@ -672,7 +672,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
                     }
                 }
             } else if (!strcmp(node->schema->name, "access-operations")) {
-                str = LYD_CANON_VALUE(node);
+                str = lyd_get_value(node);
                 rule->operations = 0;
                 if (!strcmp(str, "*")) {
                     rule->operations = NCAC_OP_ALL;
@@ -694,7 +694,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
                     }
                 }
             } else if (!strcmp(node->schema->name, "action")) {
-                if (!strcmp(LYD_CANON_VALUE(node), "permit")) {
+                if (!strcmp(lyd_get_value(node), "permit")) {
                     rule->action_deny = 0;
                 } else {
                     rule->action_deny = 1;
@@ -706,7 +706,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
                 } else {
                     assert((op == SR_OP_MODIFIED) || (op == SR_OP_CREATED));
                     lydict_remove(ly_ctx, rule->comment);
-                    lydict_insert(ly_ctx, LYD_CANON_VALUE(node), 0, &rule->comment);
+                    lydict_insert(ly_ctx, lyd_get_value(node), 0, &rule->comment);
                 }
             }
         }
@@ -1411,7 +1411,7 @@ ncac_check_diff_r(const struct lyd_node *diff, const char *user, const char *par
             }
         }
         if (meta) {
-            op = meta->value.canonical;
+            op = lyd_get_meta_value(meta);
         } else {
             op = parent_op;
         }

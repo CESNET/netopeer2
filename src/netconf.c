@@ -230,7 +230,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     if (node) {
         /* learn filter type */
         meta = lyd_find_meta(node->meta, NULL, "type");
-        if (meta && !strcmp(meta->value.canonical, "xpath")) {
+        if (meta && !strcmp(lyd_get_meta_value(meta), "xpath")) {
             meta = lyd_find_meta(node->meta, NULL, "select");
             if (!meta) {
                 ERR("RPC with an XPath filter without the \"select\" attribute.");
@@ -252,7 +252,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
             single_filter = NULL;
         } else {
             /* xpath */
-            single_filter = meta->value.canonical;
+            single_filter = lyd_get_meta_value(meta);
         }
     } else {
         single_filter = "/*";
@@ -345,13 +345,13 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     /* default-operation */
     lyd_find_path(input, "default-operation", 0, &node);
     if (node) {
-        defop = LYD_CANON_VALUE(node);
+        defop = lyd_get_value(node);
     }
 
     /* test-option */
     lyd_find_path(input, "test-option", 0, &node);
     if (node) {
-        testop = LYD_CANON_VALUE(node);
+        testop = lyd_get_value(node);
         if (!strcmp(testop, "set")) {
             VRB("edit-config test-option \"set\" not supported, validation will be performed.");
             testop = "test-then-set";
@@ -361,8 +361,8 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     /* error-option */
     lyd_find_path(input, "error-option", 0, &node);
     if (node) {
-        if (strcmp(LYD_CANON_VALUE(node), "rollback-on-error")) {
-            VRB("edit-config error-option \"%s\" not supported, rollback-on-error will be performed.", LYD_CANON_VALUE(node));
+        if (strcmp(lyd_get_value(node), "rollback-on-error")) {
+            VRB("edit-config error-option \"%s\" not supported, rollback-on-error will be performed.", lyd_get_value(node));
         }
     }
 
@@ -377,7 +377,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     } else {
         assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        config = op_parse_url(LYD_CANON_VALUE(nodeset->dnodes[0]), LYD_PARSE_OPAQ | LYD_PARSE_ONLY, &rc, session);
+        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_OPAQ | LYD_PARSE_ONLY, &rc, session);
         if (rc) {
             ly_set_free(nodeset, NULL);
             goto cleanup;
@@ -467,7 +467,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     } else {
         assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        trg_url = LYD_CANON_VALUE(nodeset->dnodes[0]);
+        trg_url = lyd_get_value(nodeset->dnodes[0]);
 #else
         ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
@@ -498,13 +498,13 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     } else {
         assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        if (trg_url && !strcmp(trg_url, LYD_CANON_VALUE(nodeset->dnodes[0]))) {
+        if (trg_url && !strcmp(trg_url, lyd_get_value(nodeset->dnodes[0]))) {
             rc = SR_ERR_INVAL_ARG;
             sr_session_set_error_message(session, "Source and target URLs are the same.");
             goto cleanup;
         }
 
-        config = op_parse_url(LYD_CANON_VALUE(nodeset->dnodes[0]), LYD_PARSE_STRICT | LYD_PARSE_NO_STATE |
+        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_STRICT | LYD_PARSE_NO_STATE |
                 LYD_PARSE_ONLY, &rc, session);
         if (rc) {
             ly_set_free(nodeset, NULL);
@@ -556,14 +556,14 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         lyd_find_path(input, "ietf-netconf-with-defaults:with-defaults", 0, &node);
         lyp_wd_flag = 0;
         if (node) {
-            if (!strcmp(LYD_CANON_VALUE(node), "report-all")) {
+            if (!strcmp(lyd_get_value(node), "report-all")) {
                 lyp_wd_flag = LYD_PRINT_WD_ALL;
-            } else if (!strcmp(LYD_CANON_VALUE(node), "report-all-tagged")) {
+            } else if (!strcmp(lyd_get_value(node), "report-all-tagged")) {
                 lyp_wd_flag = LYD_PRINT_WD_ALL_TAG;
-            } else if (!strcmp(LYD_CANON_VALUE(node), "trim")) {
+            } else if (!strcmp(lyd_get_value(node), "trim")) {
                 lyp_wd_flag = LYD_PRINT_WD_TRIM;
             } else {
-                assert(!strcmp(LYD_CANON_VALUE(node), "explicit"));
+                assert(!strcmp(lyd_get_value(node), "explicit"));
                 lyp_wd_flag = LYD_PRINT_WD_EXPLICIT;
             }
         }
@@ -628,7 +628,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     } else {
         assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        trg_url = LYD_CANON_VALUE(nodeset->dnodes[0]);
+        trg_url = lyd_get_value(nodeset->dnodes[0]);
 #else
         ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
@@ -898,7 +898,7 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     } else {
         assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        config = op_parse_url(LYD_CANON_VALUE(nodeset->dnodes[0]), LYD_PARSE_STRICT | LYD_PARSE_NO_STATE |
+        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_STRICT | LYD_PARSE_NO_STATE |
                 LYD_PARSE_ONLY, &rc, session);
         if (rc) {
             ly_set_free(nodeset, NULL);
@@ -1056,14 +1056,14 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
 
     /* learn stream */
     lyd_find_path(input, "stream", 0, &node);
-    stream = LYD_CANON_VALUE(node);
+    stream = lyd_get_value(node);
 
     /* filter */
     lyd_find_path(input, "filter", 0, &node);
     if (node) {
         /* learn filter type */
         meta = lyd_find_meta(node->meta, NULL, "type");
-        if (meta && !strcmp(meta->value.canonical, "xpath")) {
+        if (meta && !strcmp(lyd_get_meta_value(meta), "xpath")) {
             meta = lyd_find_meta(node->meta, NULL, "select");
             if (!meta) {
                 ERR("RPC with an XPath filter without the \"select\" attribute.");
@@ -1088,8 +1088,8 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
             }
         } else {
             /* xpath */
-            if (strlen(meta->value.canonical)) {
-                xp = strdup(meta->value.canonical);
+            if (strlen(lyd_get_meta_value(meta))) {
+                xp = strdup(lyd_get_meta_value(meta));
                 if (xp) {
                     EMEM;
                     rc = SR_ERR_NO_MEMORY;
@@ -1102,13 +1102,13 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     /* start time */
     lyd_find_path(input, "startTime", 0, &node);
     if (node) {
-        start = nc_datetime2time(LYD_CANON_VALUE(node));
+        start = nc_datetime2time(lyd_get_value(node));
     }
 
     /* stop time */
     lyd_find_path(input, "stopTime", 0, &node);
     if (node) {
-        stop = nc_datetime2time(LYD_CANON_VALUE(node));
+        stop = nc_datetime2time(lyd_get_value(node));
     }
 
     /* set ongoing notifications flag */
@@ -1198,7 +1198,7 @@ np2srv_nc_ntf_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         goto error;
     }
     LY_LIST_FOR(lyd_child(sr_data), sr_mod) {
-        mod_name = LYD_CANON_VALUE(lyd_child(sr_mod));
+        mod_name = lyd_get_value(lyd_child(sr_mod));
 
         /* get the module */
         mod = ly_ctx_get_module_implemented(ly_ctx, mod_name);

@@ -128,7 +128,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         ds = SR_DS_OPERATIONAL;
     } else {
         rc = SR_ERR_INVAL_ARG;
-        sr_session_set_error_message(session, "Datastore \"%s\" is not supported.", leaf->value.canonical);
+        sr_session_set_error_message(session, "Datastore \"%s\" is not supported.", lyd_get_value(&leaf->node));
         goto cleanup;
     }
 
@@ -149,7 +149,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
             goto cleanup;
         }
         filter.count = 1;
-        filter.filters[0].str = node ? strdup(LYD_CANON_VALUE(node)) : strdup("/*");
+        filter.filters[0].str = node ? strdup(lyd_get_value(node)) : strdup("/*");
         if (!filter.filters[0].str) {
             EMEM;
             rc = SR_ERR_NO_MEMORY;
@@ -159,9 +159,9 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     }
 
     /* config filter */
-    lyd_find_path(input, "config-filter", 0, (struct lyd_node **)&leaf);
-    if (leaf) {
-        if (!strcmp(leaf->value.canonical, "false")) {
+    lyd_find_path(input, "config-filter", 0, &node);
+    if (node) {
+        if (!strcmp(lyd_get_value(node), "false")) {
             get_opts |= SR_OPER_NO_CONFIG;
         } else {
             get_opts |= SR_OPER_NO_STATE;
@@ -169,28 +169,28 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     }
 
     /* depth */
-    lyd_find_path(input, "max-depth", 0, (struct lyd_node **)&leaf);
-    if (leaf && strcmp(leaf->value.canonical, "unbounded")) {
-        max_depth = leaf->value.uint16;
+    lyd_find_path(input, "max-depth", 0, &node);
+    if (node && strcmp(lyd_get_value(node), "unbounded")) {
+        max_depth = ((struct lyd_node_term *)node)->value.uint16;
     }
 
     /* origin */
-    lyd_find_path(input, "with-origin", 0, (struct lyd_node **)&leaf);
-    if (leaf) {
+    lyd_find_path(input, "with-origin", 0, &node);
+    if (node) {
         get_opts |= SR_OPER_WITH_ORIGIN;
     }
 
     /* get with-defaults mode */
-    lyd_find_path(input, "with-defaults", 0, (struct lyd_node **)&leaf);
-    if (leaf) {
-        if (!strcmp(leaf->value.canonical, "report-all")) {
+    lyd_find_path(input, "with-defaults", 0, &node);
+    if (node) {
+        if (!strcmp(lyd_get_value(node), "report-all")) {
             nc_wd = NC_WD_ALL;
-        } else if (!strcmp(leaf->value.canonical, "report-all-tagged")) {
+        } else if (!strcmp(lyd_get_value(node), "report-all-tagged")) {
             nc_wd = NC_WD_ALL_TAG;
-        } else if (!strcmp(leaf->value.canonical, "trim")) {
+        } else if (!strcmp(lyd_get_value(node), "trim")) {
             nc_wd = NC_WD_TRIM;
         } else {
-            assert(!strcmp(leaf->value.canonical, "explicit"));
+            assert(!strcmp(lyd_get_value(node), "explicit"));
             nc_wd = NC_WD_EXPLICIT;
         }
     }
@@ -272,13 +272,13 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
         ds = SR_DS_CANDIDATE;
     } else {
         rc = SR_ERR_INVAL_ARG;
-        sr_session_set_error_message(session, "Datastore \"%s\" is not supported or writable.", leaf->value.canonical);
+        sr_session_set_error_message(session, "Datastore \"%s\" is not supported or writable.", lyd_get_value(&leaf->node));
         goto cleanup;
     }
 
     /* default-operation */
-    lyd_find_path(input, "default-operation", 0, (struct lyd_node **)&leaf);
-    defop = leaf->value.canonical;
+    lyd_find_path(input, "default-operation", 0, &node);
+    defop = lyd_get_value(node);
 
     /* config */
     lyd_find_xpath(input, "config | url", &nodeset);
@@ -292,7 +292,7 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     } else {
         assert(!strcmp(node->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        config = op_parse_url(LYD_CANON_VALUE(node), LYD_PARSE_OPAQ | LYD_PARSE_ONLY, &rc, session);
+        config = op_parse_url(lyd_get_value(node), LYD_PARSE_OPAQ | LYD_PARSE_ONLY, &rc, session);
         if (rc) {
             goto cleanup;
         }

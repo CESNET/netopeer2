@@ -196,7 +196,7 @@ np2srv_endpt_ssh_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* get name */
-        endpt_name = LYD_CANON_VALUE(node->parent->child);
+        endpt_name = lyd_get_value(node->parent->child);
 
         /* ignore other operations */
         if (op == SR_OP_CREATED) {
@@ -240,17 +240,17 @@ np2srv_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, NULL, NULL)) == SR_ERR_OK) {
         /* find name */
-        endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->child);
+        endpt_name = lyd_get_value(node->parent->parent->parent->parent->parent->parent->child);
 
         /* ignore other operations */
         if (op == SR_OP_CREATED) {
-            rc = nc_server_ssh_endpt_add_hostkey(endpt_name, LYD_CANON_VALUE(node), -1);
+            rc = nc_server_ssh_endpt_add_hostkey(endpt_name, lyd_get_value(node), -1);
         } else if (op == SR_OP_DELETED) {
             if (nc_server_is_endpt(endpt_name)) {
-                rc = nc_server_ssh_endpt_del_hostkey(endpt_name, LYD_CANON_VALUE(node), -1);
+                rc = nc_server_ssh_endpt_del_hostkey(endpt_name, lyd_get_value(node), -1);
             }
         } else if (op == SR_OP_MOVED) {
-            rc = nc_server_ssh_endpt_mov_hostkey(endpt_name, LYD_CANON_VALUE(node), prev_val);
+            rc = nc_server_ssh_endpt_mov_hostkey(endpt_name, lyd_get_value(node), prev_val);
         }
         if (rc) {
             sr_free_change_iter(iter);
@@ -288,14 +288,14 @@ np2srv_ssh_update_auth_method(const struct lyd_node *node, sr_change_oper_t op, 
     } else if (!strcmp(node->schema->name, "hostbased") || !strcmp(node->schema->name, "none")) {
         WRN("SSH authentication \"%s\" not supported.", node->schema->name);
     } else if (!strcmp(node->schema->name, "other")) {
-        if (!strcmp(LYD_CANON_VALUE(node), "interactive")) {
+        if (!strcmp(lyd_get_value(node), "interactive")) {
             if (op == SR_OP_CREATED) {
                 auth |= NC_SSH_AUTH_INTERACTIVE;
             } else if (op == SR_OP_DELETED) {
                 auth &= ~NC_SSH_AUTH_INTERACTIVE;
             }
         } else {
-            WRN("SSH authentication \"%s\" not supported.", LYD_CANON_VALUE(node));
+            WRN("SSH authentication \"%s\" not supported.", lyd_get_value(node));
         }
     }
 
@@ -328,7 +328,7 @@ np2srv_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* find name */
-        endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->child);
+        endpt_name = lyd_get_value(node->parent->parent->parent->parent->parent->child);
 
         if ((op == SR_OP_DELETED) && !nc_server_is_endpt(endpt_name)) {
             /* endpt deleted */
@@ -517,8 +517,8 @@ np2srv_ch_client_endpt_ssh_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id)
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* get names */
-        endpt_name = LYD_CANON_VALUE(node->parent->child);
-        client_name = LYD_CANON_VALUE(node->parent->parent->parent->child);
+        endpt_name = lyd_get_value(node->parent->child);
+        client_name = lyd_get_value(node->parent->parent->parent->child);
 
         /* ignore other operations */
         if (op == SR_OP_CREATED) {
@@ -562,18 +562,18 @@ np2srv_ch_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, &prev_val, NULL, NULL)) == SR_ERR_OK) {
         /* find name */
-        endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->child);
-        client_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->parent->parent->child);
+        endpt_name = lyd_get_value(node->parent->parent->parent->parent->parent->parent->child);
+        client_name = lyd_get_value(node->parent->parent->parent->parent->parent->parent->parent->parent->child);
 
         /* ignore other operations */
         if (op == SR_OP_CREATED) {
-            rc = nc_server_ssh_ch_client_endpt_add_hostkey(client_name, endpt_name, LYD_CANON_VALUE(node), -1);
+            rc = nc_server_ssh_ch_client_endpt_add_hostkey(client_name, endpt_name, lyd_get_value(node), -1);
         } else if (op == SR_OP_DELETED) {
             if (nc_server_ch_client_is_endpt(client_name, endpt_name)) {
-                rc = nc_server_ssh_ch_client_endpt_del_hostkey(client_name, endpt_name, LYD_CANON_VALUE(node), -1);
+                rc = nc_server_ssh_ch_client_endpt_del_hostkey(client_name, endpt_name, lyd_get_value(node), -1);
             }
         } else if (op == SR_OP_MOVED) {
-            rc = nc_server_ssh_ch_client_endpt_mov_hostkey(client_name, endpt_name, LYD_CANON_VALUE(node), prev_val);
+            rc = nc_server_ssh_ch_client_endpt_mov_hostkey(client_name, endpt_name, lyd_get_value(node), prev_val);
         }
         if (rc) {
             sr_free_change_iter(iter);
@@ -615,8 +615,8 @@ np2srv_ch_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, uint32_t UNUSED(s
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
         /* find names */
-        endpt_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->child);
-        client_name = LYD_CANON_VALUE(node->parent->parent->parent->parent->parent->parent->parent->child);
+        endpt_name = lyd_get_value(node->parent->parent->parent->parent->parent->child);
+        client_name = lyd_get_value(node->parent->parent->parent->parent->parent->parent->parent->child);
 
         if ((op == SR_OP_DELETED) && !nc_server_ch_client_is_endpt(client_name, endpt_name)) {
             continue;

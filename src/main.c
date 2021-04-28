@@ -329,8 +329,8 @@ static struct nc_server_reply *
 np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
 {
     sr_session_ctx_t *sr_sess = NULL;
-    const struct lyd_node *node;
-    struct lyd_node_term *leaf;
+    const struct lyd_node *denied;
+    struct lyd_node *node;
     const sr_error_info_t *err_info;
     struct nc_server_reply *reply = NULL;
     struct lyd_node *output, *child = NULL;
@@ -340,11 +340,11 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
     int rc;
 
     /* check NACM */
-    if ((node = ncac_check_operation(rpc, nc_session_get_username(ncs)))) {
+    if ((denied = ncac_check_operation(rpc, nc_session_get_username(ncs)))) {
         e = nc_err(LYD_CTX(rpc), NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_APP);
 
         /* set path */
-        str = lysc_path(node->schema, LYSC_PATH_LOG, NULL, 0);
+        str = lysc_path(denied->schema, LYSC_PATH_LOG, NULL, 0);
         nc_err_set_path(e, str);
         free(str);
 
@@ -379,20 +379,20 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         /* get with-defaults mode */
         if (!strcmp(rpc->schema->module->name, "ietf-netconf")) {
             /* augment */
-            lyd_find_path(rpc, "ietf-netconf-with-defaults:with-defaults", 0, (struct lyd_node **)&leaf);
+            lyd_find_path(rpc, "ietf-netconf-with-defaults:with-defaults", 0, &node);
         } else if (!lys_find_child(rpc->schema, rpc->schema->module, "with-defaults", 0, LYS_LEAF, 0)) {
             /* no with-defaults mode */
-            leaf = NULL;
+            node = NULL;
         } else {
             /* grouping */
-            lyd_find_path(rpc, "with-defaults", 0, (struct lyd_node **)&leaf);
+            lyd_find_path(rpc, "with-defaults", 0, &node);
         }
-        if (leaf) {
-            if (!strcmp(leaf->value.canonical, "report-all")) {
+        if (node) {
+            if (!strcmp(lyd_get_value(node), "report-all")) {
                 nc_wd = NC_WD_ALL;
-            } else if (!strcmp(leaf->value.canonical, "report-all-tagged")) {
+            } else if (!strcmp(lyd_get_value(node), "report-all-tagged")) {
                 nc_wd = NC_WD_ALL_TAG;
-            } else if (!strcmp(leaf->value.canonical, "trim")) {
+            } else if (!strcmp(lyd_get_value(node), "trim")) {
                 nc_wd = NC_WD_TRIM;
             } else {
                 nc_wd = NC_WD_EXPLICIT;

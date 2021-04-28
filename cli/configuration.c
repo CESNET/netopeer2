@@ -298,27 +298,27 @@ load_config(void)
                             if (config_editor) {
                                 free(config_editor);
                             }
-                            config_editor = strdup(LYD_OPAQ_VALUE(child));
+                            config_editor = strdup(lyd_get_value(child));
                         } else if (!strcmp(LYD_NAME(child), "searchpath")) {
                             /* doc -> <netconf-client> -> <searchpath> */
                             errno = 0;
-                            if (!mkdir(LYD_OPAQ_VALUE(child), 00700) || (errno == EEXIST)) {
+                            if (!mkdir(lyd_get_value(child), 00700) || (errno == EEXIST)) {
                                 if (errno == 0) {
-                                    ERROR(__func__, "Search path \"%s\" did not exist, created.", LYD_OPAQ_VALUE(child));
+                                    ERROR(__func__, "Search path \"%s\" did not exist, created.", lyd_get_value(child));
                                 }
-                                nc_client_set_schema_searchpath(LYD_OPAQ_VALUE(child));
+                                nc_client_set_schema_searchpath(lyd_get_value(child));
                             } else {
-                                ERROR(__func__, "Search path \"%s\" cannot be created: %s", LYD_OPAQ_VALUE(child), strerror(errno));
+                                ERROR(__func__, "Search path \"%s\" cannot be created: %s", lyd_get_value(child), strerror(errno));
                             }
                         } else if (!strcmp(LYD_NAME(child), "output-format")) {
                             /* doc -> <netconf-client> -> <output-format> */
-                            if (!strcmp(LYD_OPAQ_VALUE(child), "json")) {
+                            if (!strcmp(lyd_get_value(child), "json")) {
                                 output_format = LYD_JSON;
                                 output_flag = 0;
-                            } else if (!strcmp(LYD_OPAQ_VALUE(child), "json_noformat")) {
+                            } else if (!strcmp(lyd_get_value(child), "json_noformat")) {
                                 output_format = LYD_JSON;
                                 output_flag = LYD_PRINT_SHRINK;
-                            } else if (!strcmp(LYD_OPAQ_VALUE(child), "xml_noformat")) {
+                            } else if (!strcmp(lyd_get_value(child), "xml_noformat")) {
                                 output_format = LYD_XML;
                                 output_flag = LYD_PRINT_SHRINK;
                             } /* else default (formatted XML) */
@@ -330,11 +330,11 @@ load_config(void)
                                 if (!strcmp(LYD_NAME(auth_child), "pref")) {
                                     LY_LIST_FOR(lyd_child(auth_child), pref_child) {
                                         if (!strcmp(LYD_NAME(pref_child), "publickey")) {
-                                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PUBLICKEY, atoi(LYD_OPAQ_VALUE(pref_child)));
+                                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PUBLICKEY, atoi(lyd_get_value(pref_child)));
                                         } else if (!strcmp(LYD_NAME(pref_child), "interactive")) {
-                                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_INTERACTIVE, atoi(LYD_OPAQ_VALUE(pref_child)));
+                                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_INTERACTIVE, atoi(lyd_get_value(pref_child)));
                                         } else if (!strcmp(LYD_NAME(pref_child), "password")) {
-                                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PASSWORD, atoi(LYD_OPAQ_VALUE(pref_child)));
+                                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PASSWORD, atoi(lyd_get_value(pref_child)));
                                         }
                                     }
                                 } else if (!strcmp(LYD_NAME(auth_child), "keys")) {
@@ -344,9 +344,9 @@ load_config(void)
                                             key_priv = NULL;
                                             LY_LIST_FOR(lyd_child(key_child), pair_child) {
                                                 if (!strcmp(LYD_NAME(pair_child), "public")) {
-                                                    key_pub = LYD_OPAQ_VALUE(pair_child);
+                                                    key_pub = lyd_get_value(pair_child);
                                                 } else if (!strcmp(LYD_NAME(pair_child), "private")) {
-                                                    key_priv = LYD_OPAQ_VALUE(pair_child);
+                                                    key_priv = lyd_get_value(pair_child);
                                                 }
                                             }
                                             if (key_pub && key_priv) {
