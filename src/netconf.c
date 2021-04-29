@@ -1205,6 +1205,10 @@ np2srv_nc_ntf_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         goto error;
     }
     LY_LIST_FOR(lyd_child(sr_data), sr_mod) {
+        if (strcmp(sr_mod->schema->name, "module")) {
+            continue;
+        }
+
         mod_name = lyd_get_value(lyd_child(sr_mod));
 
         /* get the module */
