@@ -251,7 +251,7 @@ yang_push_notif_change_edit_append(struct lyd_node *ly_yp, enum yang_push_op yp_
         }
     }
 
-    if ((yp_op == YP_OP_INSERT) || (yp_op == YP_OP_REPLACE) || (yp_op == YP_OP_REPLACE)) {
+    if ((yp_op == YP_OP_INSERT) || (yp_op == YP_OP_CREATE) || (yp_op == YP_OP_REPLACE)) {
         /* duplicate value tree without metadata */
         if (lyd_dup_single(node, NULL, LYD_DUP_RECURSIVE | LYD_DUP_NO_META | LYD_DUP_WITH_FLAGS, &value_tree)) {
             rc = SR_ERR_LY;
