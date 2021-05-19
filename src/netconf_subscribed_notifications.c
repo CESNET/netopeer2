@@ -136,18 +136,13 @@ sub_ntf_find_next(struct np2srv_sub_ntf *last, int (*sub_ntf_match_cb)(struct np
 }
 
 int
-sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, time_t timestamp, struct lyd_node **ly_ntf, int use_ntf)
+sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, struct timespec timestamp, struct lyd_node **ly_ntf, int use_ntf)
 {
     struct np2srv_sub_ntf *sub;
     struct nc_server_notif *nc_ntf = NULL;
     NC_MSG_TYPE msg_type;
-    char buf[26], *datetime = NULL;
+    char *datetime;
     int rc;
-
-    /* set the timestamp */
-    if (!timestamp) {
-        timestamp = time(NULL);
-    }
 
     /* find the subscription structure */
     sub = sub_ntf_find(nc_sub_id, nc_session_get_id(ncs), 0, 0);
@@ -175,14 +170,13 @@ sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, time_t timestamp,
     }
 
     /* create the notification object */
-    tzset();
-    datetime = nc_time2datetime(timestamp, tzname[0], buf);
+    ly_time_ts2str(&timestamp, &datetime);
     if (use_ntf) {
-        datetime = strdup(datetime);
         nc_ntf = nc_server_notif_new(*ly_ntf, datetime, NC_PARAMTYPE_FREE);
         *ly_ntf = NULL;
     } else {
         nc_ntf = nc_server_notif_new(*ly_ntf, datetime, NC_PARAMTYPE_CONST);
+        free(datetime);
     }
 
     /* send the notification */
@@ -345,7 +339,7 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     /* stop time */
     lyd_find_path(input, "stop-time", 0, &node);
     if (node) {
-        np_datetime2timespec(lyd_get_value(node), &stop);
+        ly_time_str2ts(lyd_get_value(node), &stop);
     }
 
     /* encoding */
@@ -463,7 +457,7 @@ sub_ntf_notif_modified(struct np2srv_sub_ntf *sub, struct lyd_node **ly_ntf)
 
     /* stop-time */
     if (sub->stop_time.tv_sec) {
-        datetime = np_timespec2datetime(&sub->stop_time, NULL);
+        ly_time_ts2str(&sub->stop_time, &datetime);
         if (lyd_new_term(*ly_ntf, NULL, "stop-time", datetime, 0, NULL)) {
             rc = SR_ERR_LY;
             goto cleanup;
@@ -516,7 +510,7 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     /* stop time */
     lyd_find_path(input, "stop-time", 0, &node);
     if (node) {
-        np_datetime2timespec(lyd_get_value(node), &stop);
+        ly_time_str2ts(lyd_get_value(node), &stop);
     }
 
     sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_id);
@@ -554,7 +548,7 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     }
 
     /* send the notification */
-    rc = sub_ntf_send_notif(np_get_nc_sess(session), nc_sub_id, 0, &ly_ntf, 1);
+    rc = sub_ntf_send_notif(np_get_nc_sess(session), nc_sub_id, np_gettimespec(), &ly_ntf, 1);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
@@ -613,7 +607,7 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
                 buf, 0, &ly_ntf);
         lyd_new_path(ly_ntf, NULL, "reason", sub->term_reason, 0, NULL);
 
-        r = sub_ntf_send_notif(ncs, sub->nc_sub_id, 0, &ly_ntf, 1);
+        r = sub_ntf_send_notif(ncs, sub->nc_sub_id, np_gettimespec(), &ly_ntf, 1);
         if (r != SR_ERR_OK) {
             rc = r;
         }
@@ -798,7 +792,7 @@ np2srv_oper_sub_ntf_streams_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
     const struct ly_ctx *ly_ctx;
     const struct lys_module *mod;
     const char *mod_name;
-    char buf[26];
+    char *buf;
     int rc;
 
     conn = sr_session_get_connection(session);
@@ -856,10 +850,12 @@ np2srv_oper_sub_ntf_streams_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
             if (lyd_new_term(stream, NULL, "replay-support", NULL, 0, NULL)) {
                 goto error;
             }
-            nc_time2datetime(((struct lyd_node_term *)rep_sup)->value.uint64, NULL, buf);
+            ly_time_time2str(((struct lyd_node_term *)rep_sup)->value.uint64, NULL, &buf);
             if (lyd_new_term(stream, NULL, "replay-log-creation-time", buf, 0, NULL)) {
+                free(buf);
                 goto error;
             }
+            free(buf);
         }
     }
 
@@ -921,7 +917,7 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
 
         /* stop-time */
         if (sub->stop_time.tv_sec) {
-            datetime = np_timespec2datetime(&sub->stop_time, NULL);
+            ly_time_ts2str(&sub->stop_time, &datetime);
             if (lyd_new_term(list, NULL, "stop-time", datetime, 0, NULL)) {
                 rc = SR_ERR_LY;
                 goto cleanup;

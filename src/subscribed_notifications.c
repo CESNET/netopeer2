@@ -38,7 +38,7 @@
  */
 static void
 np2srv_rpc_establish_sub_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(sub_id),
-        const sr_ev_notif_type_t notif_type, const struct lyd_node *notif, time_t timestamp, void *private_data)
+        const sr_ev_notif_type_t notif_type, const struct lyd_node *notif, struct timespec timestamp, void *private_data)
 {
     struct sub_ntf_cb_arg *arg = private_data;
     struct lyd_node *ly_ntf = NULL;
@@ -320,7 +320,7 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
     /* replay start time */
     lyd_find_path(rpc, "replay-start-time", 0, &node);
     if (node) {
-        start = nc_datetime2time(lyd_get_value(node));
+        ly_time_str2time(lyd_get_value(node), &start, NULL);
     }
 
     /* allocate specific data */
@@ -552,7 +552,7 @@ sub_ntf_oper_subscription(struct lyd_node *subscription, void *data)
 {
     struct sub_ntf_data *sn_data = data;
     struct lyd_node_any *any;
-    char buf[26];
+    char *buf;
 
     if (sn_data->stream_filter_name) {
         /* stream-filter-name */
@@ -579,10 +579,12 @@ sub_ntf_oper_subscription(struct lyd_node *subscription, void *data)
 
     /* replay-start-time */
     if (sn_data->replay_start_time) {
-        nc_time2datetime(sn_data->replay_start_time, NULL, buf);
+        ly_time_time2str(sn_data->replay_start_time, NULL, &buf);
         if (lyd_new_term(subscription, NULL, "replay-start-time", buf, 0, NULL)) {
+            free(buf);
             return SR_ERR_LY;
         }
+        free(buf);
     }
 
     return SR_ERR_OK;

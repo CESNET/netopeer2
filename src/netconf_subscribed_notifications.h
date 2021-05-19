@@ -90,12 +90,13 @@ struct np2srv_sub_ntf *sub_ntf_find_next(struct np2srv_sub_ntf *last,
  *
  * @param[in] ncs NETCONF session to use.
  * @param[in] nc_sub_id NETCONF sub ID of the subscription.
- * @param[in] timestamp Optional specific timestamp to use, if 0 the current time is used.
+ * @param[in] timestamp Timestamp to use.
  * @param[in,out] ly_ntf Notification to send.
  * @param[in] use_ntf Whether to free @p ly_ntf and set to NULL or leave unchanged.
  * @return Sysrepo error value.
  */
-int sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, time_t timestamp, struct lyd_node **ly_ntf, int use_ntf);
+int sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, struct timespec timestamp, struct lyd_node **ly_ntf,
+        int use_ntf);
 
 /**
  * @brief If holding the sub-ntf lock, pass it to another callback that will be called by some following code.

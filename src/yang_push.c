@@ -324,7 +324,7 @@ yang_push_notif_change_send(struct nc_session *ncs, struct yang_push_data *yp_da
     }
 
     /* send the notification */
-    rc = sub_ntf_send_notif(ncs, nc_sub_id, 0, &yp_data->ly_change_ntf, 1);
+    rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(), &yp_data->ly_change_ntf, 1);
 
     if (rc == SR_ERR_OK) {
         /* set last_notif timestamp */
@@ -865,7 +865,7 @@ yang_push_notif_update_send(struct nc_session *ncs, struct yang_push_data *yp_da
     data = NULL;
 
     /* send the notification */
-    rc = sub_ntf_send_notif(ncs, nc_sub_id, 0, &ly_ntf, 1);
+    rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(), &ly_ntf, 1);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
@@ -991,7 +991,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
         /* anchor-time */
         lyd_find_path(node, "anchor-time", 0, &child);
         if (child) {
-            np_datetime2timespec(lyd_get_value(child), &anchor_time);
+            ly_time_str2ts(lyd_get_value(child), &anchor_time);
         }
     } else if (!lyd_find_path(rpc, "ietf-yang-push:on-change", 0, &node)) {
         periodic = 0;
@@ -1208,7 +1208,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
         /* anchor-time */
         lyd_find_path(cont, "anchor-time", 0, &node);
         if (node) {
-            np_datetime2timespec(lyd_get_value(node), &anchor_time);
+            ly_time_str2ts(lyd_get_value(node), &anchor_time);
             if (memcmp(&anchor_time, &yp_data->anchor_time, sizeof anchor_time)) {
                 yp_data->anchor_time = anchor_time;
 
@@ -1397,7 +1397,7 @@ yang_push_notif_modified_append_data(struct lyd_node *ntf, void *data)
 
         /* anchor-time */
         if (yp_data->anchor_time.tv_sec) {
-            datetime = np_timespec2datetime(&yp_data->anchor_time, NULL);
+            ly_time_ts2str(&yp_data->anchor_time, &datetime);
             lyrc = lyd_new_term(cont, NULL, "anchor-time", datetime, 0, NULL);
             free(datetime);
             if (lyrc) {
@@ -1564,7 +1564,7 @@ yang_push_oper_subscription(struct lyd_node *subscription, void *data)
 
         /* anchor-time */
         if (yp_data->anchor_time.tv_sec) {
-            datetime = np_timespec2datetime(&yp_data->anchor_time, NULL);
+            ly_time_ts2str(&yp_data->anchor_time, &datetime);
             lyrc = lyd_new_term(cont, NULL, "anchor-time", datetime, 0, NULL);
             free(datetime);
             if (lyrc) {

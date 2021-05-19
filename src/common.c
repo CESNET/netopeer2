@@ -112,52 +112,6 @@ np_modtimespec(const struct timespec *ts, uint32_t msec)
     return ret;
 }
 
-int
-np_datetime2timespec(const char *datetime, struct timespec *ts)
-{
-    /* first get time_t */
-    ts->tv_sec = nc_datetime2time(datetime);
-    if (!ts->tv_sec) {
-        return -1;
-    }
-
-    /* get nanoseconds ourselves */
-    if (datetime[19] == '.') {
-        ts->tv_nsec = atoi(&datetime[20]);
-    } else {
-        ts->tv_nsec = 0;
-    }
-
-    return 0;
-}
-
-char *
-np_timespec2datetime(const struct timespec *ts, const char *tz)
-{
-    char buf[26], nsec_str[10], *ptr, *datetime = NULL;
-
-    /* yyyy-mm-ddThh:mm:ss[.ssss]... */
-
-    /* first get the datetime without fractions of a second */
-    nc_time2datetime(ts->tv_sec, tz, buf);
-
-    /* add fractions of a second ourselves */
-    if (ts->tv_nsec) {
-        sprintf(nsec_str, "%09ld", ts->tv_nsec);
-
-        /* remove trailing zeros */
-        for (ptr = nsec_str + strlen(nsec_str) - 1; ptr[0] == '0'; --ptr) {};
-        ptr[1] = '\0';
-
-        /* construct the full datetime */
-        asprintf(&datetime, "%.19s.%s%s", buf, nsec_str, buf + 19);
-    } else {
-        datetime = strdup(buf);
-    }
-
-    return datetime;
-}
-
 struct nc_session *
 np_get_nc_sess(sr_session_ctx_t *ev_sess)
 {

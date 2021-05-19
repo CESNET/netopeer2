@@ -238,6 +238,7 @@ np2srv_ch_periodic_connection_params(const char *client_name, sr_session_ctx_t *
     sr_change_oper_t op;
     const struct lyd_node *node;
     int rc;
+    time_t t;
 
     rc = sr_get_changes_iter(session, xpath, &iter);
     if (rc != SR_ERR_OK) {
@@ -262,7 +263,8 @@ np2srv_ch_periodic_connection_params(const char *client_name, sr_session_ctx_t *
                     rc = nc_server_ch_client_periodic_set_anchor_time(client_name, 0);
                 }
             } else {
-                rc = nc_server_ch_client_periodic_set_anchor_time(client_name, nc_datetime2time(lyd_get_value(node)));
+                ly_time_str2time(lyd_get_value(node), &t, NULL);
+                rc = nc_server_ch_client_periodic_set_anchor_time(client_name, t);
             }
         } else if (!strcmp(node->schema->name, "idle-timeout")) {
             if (op == SR_OP_DELETED) {

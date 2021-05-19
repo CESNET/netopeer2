@@ -4630,9 +4630,9 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
                     ERROR(__func__, "Begin time cannot be set to future.");
                     goto fail;
                 }
-                start = nc_time2datetime(t, NULL, NULL);
+                ly_time_time2str(t, NULL, &start);
             } else { /* c == 'e' */
-                stop = nc_time2datetime(t, NULL, NULL);
+                ly_time_time2str(t, NULL, &stop);
             }
             break;
         case 't':
@@ -5374,9 +5374,9 @@ cmd_establishsub(const char *arg, char **tmp_config_file)
                     ERROR(__func__, "Begin time cannot be set to future.");
                     goto fail;
                 }
-                start = nc_time2datetime(t, NULL, NULL);
+                ly_time_time2str(t, NULL, &start);
             } else { /* c == 'e' */
-                stop = nc_time2datetime(t, NULL, NULL);
+                ly_time_time2str(t, NULL, &stop);
             }
             break;
         case 'n':
@@ -5570,7 +5570,7 @@ cmd_modifysub(const char *arg, char **tmp_config_file)
                 t = atol(optarg);
             }
 
-            stop = nc_time2datetime(t, NULL, NULL);
+            ly_time_time2str(t, NULL, &stop);
             break;
         case 'o':
             if (output) {
@@ -5969,7 +5969,7 @@ cmd_establishpush(const char *arg, char **tmp_config_file)
             } else {
                 t = atol(optarg);
             }
-            stop = nc_time2datetime(t, NULL, NULL);
+            ly_time_time2str(t, NULL, &stop);
             break;
         case 'n':
             encoding = optarg;
@@ -5992,7 +5992,7 @@ cmd_establishpush(const char *arg, char **tmp_config_file)
             } else {
                 t = atol(optarg);
             }
-            anchor = nc_time2datetime(t, NULL, NULL);
+            ly_time_time2str(t, NULL, &anchor);
             break;
         case 'c':
             if (periodic != -1) {
@@ -6238,7 +6238,7 @@ cmd_modifypush(const char *arg, char **tmp_config_file)
             } else {
                 t = atol(optarg);
             }
-            stop = nc_time2datetime(t, NULL, NULL);
+            ly_time_time2str(t, NULL, &stop);
             break;
         case 'p':
             if (periodic != -1) {
@@ -6258,7 +6258,7 @@ cmd_modifypush(const char *arg, char **tmp_config_file)
             } else {
                 t = atol(optarg);
             }
-            anchor = nc_time2datetime(t, NULL, NULL);
+            ly_time_time2str(t, NULL, &anchor);
             break;
         case 'c':
             if (periodic != -1) {

@@ -26,8 +26,6 @@
 #include "common.h"
 #include "log.h"
 
-#define NCM_TIMEZONE "CET"
-
 struct ncm stats;
 
 void
@@ -258,10 +256,10 @@ static void
 ncm_data_add_ds_lock(sr_conn_ctx_t *conn, const char *ds_str, sr_datastore_t ds, struct lyd_node *parent)
 {
     struct lyd_node *list, *cont, *cont2;
-    char buf[26];
+    char *buf;
     int rc, is_locked;
     uint32_t sid;
-    time_t ts;
+    struct timespec ts;
 
     lyd_new_list(parent, NULL, "datastore", 0, &list, ds_str);
     rc = sr_get_lock(conn, ds, NULL, &is_locked, &sid, &ts);
@@ -272,8 +270,9 @@ ncm_data_add_ds_lock(sr_conn_ctx_t *conn, const char *ds_str, sr_datastore_t ds,
         lyd_new_inner(cont, NULL, "global-lock", 0, &cont2);
         sprintf(buf, "%" PRIu32, ncm_sid2ncid(sid));
         lyd_new_term(cont2, NULL, "locked-by-session", buf, 0, NULL);
-        nc_time2datetime(ts, NCM_TIMEZONE, buf);
+        ly_time_ts2str(&ts, &buf);
         lyd_new_term(cont2, NULL, "locked-time", buf, 0, NULL);
+        free(buf);
     }
 }
 
@@ -287,7 +286,7 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
     sr_conn_ctx_t *conn;
     struct ly_ctx *ly_ctx;
     const char **cpblts;
-    char buf[26];
+    char *time_str, buf[11];
     uint32_t i;
 
     conn = sr_session_get_connection(session);
@@ -359,8 +358,9 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
             }
             lyd_new_term(list, NULL, "username", nc_session_get_username(stats.sessions[i]), 0, NULL);
             lyd_new_term(list, NULL, "source-host", nc_session_get_host(stats.sessions[i]), 0, NULL);
-            nc_time2datetime(nc_session_get_start_time(stats.sessions[i]), NCM_TIMEZONE, buf);
-            lyd_new_term(list, NULL, "login-time", buf, 0, NULL);
+            ly_time_time2str(nc_session_get_start_time(stats.sessions[i]), NULL, &time_str);
+            lyd_new_term(list, NULL, "login-time", time_str, 0, NULL);
+            free(time_str);
 
             sprintf(buf, "%u", stats.session_stats[i].in_rpcs);
             lyd_new_term(list, NULL, "in-rpcs", buf, 0, NULL);
@@ -376,8 +376,9 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
     /* statistics */
     lyd_new_inner(root, NULL, "statistics", 0, &cont);
 
-    nc_time2datetime(stats.netconf_start_time, NCM_TIMEZONE, buf);
-    lyd_new_term(cont, NULL, "netconf-start-time", buf, 0, NULL);
+    ly_time_time2str(stats.netconf_start_time, NULL, &time_str);
+    lyd_new_term(cont, NULL, "netconf-start-time", time_str, 0, NULL);
+    free(time_str);
     sprintf(buf, "%u", stats.in_bad_hellos);
     lyd_new_term(cont, NULL, "in-bad-hellos", buf, 0, NULL);
     sprintf(buf, "%u", stats.in_sessions);

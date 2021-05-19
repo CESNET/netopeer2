@@ -963,13 +963,13 @@ np2srv_lysc_has_notif_clb(struct lysc_node *node, void *UNUSED(data), ly_bool *U
  */
 static void
 np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, const sr_ev_notif_type_t notif_type,
-        const struct lyd_node *notif, time_t timestamp, void *private_data)
+        const struct lyd_node *notif, struct timespec timestamp, void *private_data)
 {
     struct nc_server_notif *nc_ntf = NULL;
     struct nc_session *ncs = (struct nc_session *)private_data;
     struct lyd_node *ly_ntf = NULL;
     NC_MSG_TYPE msg_type;
-    char buf[26], *datetime;
+    char *datetime;
     time_t stop;
 
     /* create these notifications, sysrepo only emulates them */
@@ -1002,9 +1002,9 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
     }
 
     /* create the notification object */
-    tzset();
-    datetime = nc_time2datetime(timestamp, tzname[0], buf);
+    ly_time_ts2str(&timestamp, &datetime);
     nc_ntf = nc_server_notif_new((struct lyd_node *)notif, datetime, NC_PARAMTYPE_CONST);
+    free(datetime);
 
     /* send the notification */
     msg_type = nc_server_notif_send(ncs, nc_ntf, NP2SRV_NOTIF_SEND_TIMEOUT);
@@ -1037,7 +1037,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     const char *stream;
     struct np2_filter filter = {0};
     char *xp = NULL;
-    time_t start = 0, stop = 0;
+    struct timespec start = {0}, stop = {0};
     int rc = SR_ERR_OK;
     const sr_error_info_t *err_info;
     uint32_t idx;
@@ -1109,13 +1109,13 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     /* start time */
     lyd_find_path(input, "startTime", 0, &node);
     if (node) {
-        start = nc_datetime2time(lyd_get_value(node));
+        ly_time_str2ts(lyd_get_value(node), &start);
     }
 
     /* stop time */
     lyd_find_path(input, "stopTime", 0, &node);
     if (node) {
-        stop = nc_datetime2time(lyd_get_value(node));
+        ly_time_str2ts(lyd_get_value(node), &stop);
     }
 
     /* set ongoing notifications flag */
@@ -1132,7 +1132,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
 
             if (lysc_module_dfs_full(ly_mod, np2srv_lysc_has_notif_clb, NULL) == LY_EEXIST) {
                 /* a notification was found, subscribe to the module */
-                rc = sr_event_notif_subscribe_tree(user_sess, ly_mod->name, xp, start, stop,
+                rc = sr_event_notif_subscribe_tree(user_sess, ly_mod->name, xp, start.tv_sec, stop.tv_sec,
                         np2srv_rpc_subscribe_ntf_cb, ncs, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
                 if (rc != SR_ERR_OK) {
                     sr_session_get_error(user_sess, &err_info);
@@ -1143,7 +1143,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         }
     } else {
         /* subscribe to the specific module (stream) */
-        rc = sr_event_notif_subscribe_tree(user_sess, stream, xp, start, stop, np2srv_rpc_subscribe_ntf_cb,
+        rc = sr_event_notif_subscribe_tree(user_sess, stream, xp, start.tv_sec, stop.tv_sec, np2srv_rpc_subscribe_ntf_cb,
                 ncs, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {
             sr_session_get_error(user_sess, &err_info);
@@ -1175,7 +1175,7 @@ np2srv_nc_ntf_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     const struct ly_ctx *ly_ctx;
     const struct lys_module *mod;
     const char *mod_name;
-    char buf[26];
+    char *buf;
     int rc;
 
     conn = sr_session_get_connection(session);
@@ -1233,10 +1233,12 @@ np2srv_nc_ntf_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
             goto error;
         }
         if (rep_sup) {
-            nc_time2datetime(((struct lyd_node_term *)rep_sup)->value.uint64, NULL, buf);
+            ly_time_time2str(((struct lyd_node_term *)rep_sup)->value.uint64, NULL, &buf);
             if (lyd_new_term(stream, NULL, "replayLogCreationTime", buf, 0, NULL)) {
+                free(buf);
                 goto error;
             }
+            free(buf);
         }
     }
 
