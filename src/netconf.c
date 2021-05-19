@@ -294,6 +294,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, const char *op_path, const struct l
     /* success */
 
 cleanup:
+    np_unref_user_sess(session);
     op_filter_erase(&filter);
     lyd_free_withsiblings(data_get);
     free(username);
@@ -418,6 +419,7 @@ cleanup:
     if (user_sess) {
         /* discard any changes that possibly failed to be applied */
         sr_discard_changes(user_sess);
+        np_unref_user_sess(session);
     }
     lyd_free_withsiblings(config);
     return rc;
@@ -601,6 +603,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path),
     /* success */
 
 cleanup:
+    np_unref_user_sess(session);
     lyd_free_withsiblings(config);
     free(username);
     return rc;
@@ -681,6 +684,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, const char *UNUSED(op_path
     /* success */
 
 cleanup:
+    np_unref_user_sess(session);
     return rc;
 }
 
@@ -737,6 +741,7 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     /* success */
 
 cleanup:
+    np_unref_user_sess(session);
     return rc;
 }
 
@@ -821,6 +826,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), con
     /* success */
 
 cleanup:
+    np_unref_user_sess(session);
     return rc;
 }
 
@@ -859,6 +865,7 @@ np2srv_rpc_discard_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     /* success */
 
 cleanup:
+    np_unref_user_sess(session);
     return rc;
 }
 
@@ -937,6 +944,7 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
     /* success */
 
 cleanup:
+    np_unref_user_sess(session);
     lyd_free_withsiblings(config);
     return rc;
 }

@@ -1008,7 +1008,13 @@ worker_thread(void *arg)
             ncm_session_rpc_reply_error(ncs);
             VRB("Session %d: thread %d event reply error.", nc_session_get_id(ncs), idx);
         }
-        if (rc & NC_PSPOLL_SESSION_TERM) {
+wait_for_unref:
+        if (rc & NC_PSPOLL_SESSION_TERM) { 
+            if (nc_session_get_refcnt(ncs)) { 
+               VRB("Session %d: thread %d event session still referenced.", nc_session_get_id(ncs), idx);
+               np_sleep(5000);
+               goto wait_for_unref;
+            }
             VRB("Session %d: thread %d event session terminated.", nc_session_get_id(ncs), idx);
             np2srv_del_session_cb(ncs);
         }

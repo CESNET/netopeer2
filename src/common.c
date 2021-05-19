@@ -79,6 +79,7 @@ np_get_user_sess(sr_session_ctx_t *ev_sess)
     nc_sid = sr_session_get_event_nc_id(ev_sess);
     for (i = 0; (nc_sess = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
         if (nc_session_get_id(nc_sess) == nc_sid) {
+            nc_session_reference(nc_sess);
             break;
         }
     }
@@ -87,6 +88,21 @@ np_get_user_sess(sr_session_ctx_t *ev_sess)
     }
 
     return nc_session_get_data(nc_sess);
+}
+
+void
+np_unref_user_sess(sr_session_ctx_t *ev_sess)
+{
+    struct nc_session *nc_sess = NULL;
+    uint32_t nc_sid, i;
+
+    nc_sid = sr_session_get_event_nc_id(ev_sess);
+    for (i = 0; (nc_sess = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
+        if (nc_session_get_id(nc_sess) == nc_sid) {
+            nc_session_dereference(nc_sess);
+            break;
+        }
+    }
 }
 
 void
