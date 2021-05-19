@@ -38,7 +38,7 @@
  */
 static void
 np2srv_rpc_establish_sub_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(sub_id),
-        const sr_ev_notif_type_t notif_type, const struct lyd_node *notif, struct timespec timestamp, void *private_data)
+        const sr_ev_notif_type_t notif_type, const struct lyd_node *notif, struct timespec *timestamp, void *private_data)
 {
     struct sub_ntf_cb_arg *arg = private_data;
     struct lyd_node *ly_ntf = NULL;
@@ -65,7 +65,7 @@ np2srv_rpc_establish_sub_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUS
     }
 
     /* send the notification */
-    sub_ntf_send_notif(arg->ncs, arg->nc_sub_id, timestamp, (struct lyd_node **)&notif, 0);
+    sub_ntf_send_notif(arg->ncs, arg->nc_sub_id, *timestamp, (struct lyd_node **)&notif, 0);
 
 cleanup:
     lyd_free_all(ly_ntf);

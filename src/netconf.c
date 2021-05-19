@@ -963,7 +963,7 @@ np2srv_lysc_has_notif_clb(struct lysc_node *node, void *UNUSED(data), ly_bool *U
  */
 static void
 np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, const sr_ev_notif_type_t notif_type,
-        const struct lyd_node *notif, struct timespec timestamp, void *private_data)
+        const struct lyd_node *notif, struct timespec *timestamp, void *private_data)
 {
     struct nc_server_notif *nc_ntf = NULL;
     struct nc_session *ncs = (struct nc_session *)private_data;
@@ -1002,7 +1002,7 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
     }
 
     /* create the notification object */
-    ly_time_ts2str(&timestamp, &datetime);
+    ly_time_ts2str(timestamp, &datetime);
     nc_ntf = nc_server_notif_new((struct lyd_node *)notif, datetime, NC_PARAMTYPE_CONST);
     free(datetime);
 
