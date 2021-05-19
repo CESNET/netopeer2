@@ -163,7 +163,7 @@ use_compat()
 
 # netopeer2-server
 add_library(serverobj OBJECT ${SERVER_SRC})
-add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> src/main.c $<TARGET_OBJECTS:compat>)
+add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> src/main.c ${compatsrc})
 
 # dependencies - librt (not required on OSX or QNX)
 find_library(LIBRT rt)
