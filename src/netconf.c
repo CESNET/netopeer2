@@ -1020,8 +1020,10 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
 
         /* all selection filters first */
         for (i = 0; i < filter.count; ++i) {
-            if (!filter.filters[i].selection) {
-                continue;
+            if (!filter.filters[i].selection && (filter.count > 1)) {
+                ERR("Several top-level content match filters are not supported as they are redundant.");
+                rc = SR_ERR_UNSUPPORTED;
+                goto cleanup;
             }
 
             /* put all selection filters into parentheses */
@@ -1034,7 +1036,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
                     goto cleanup;
                 }
             } else {
-                if ((rc = np2srv_rpc_subscribe_append_str(" or ", &xp))) {
+                if ((rc = np2srv_rpc_subscribe_append_str(" | ", &xp))) {
                     goto cleanup;
                 }
 
@@ -1047,23 +1049,6 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
         if (xp) {
             /* finish parentheses */
             if ((rc = np2srv_rpc_subscribe_append_str(")", &xp))) {
-                goto cleanup;
-            }
-        }
-
-        /* now append all content filters */
-        for (i = 0; i < filter.count; ++i) {
-            if (filter.filters[i].selection) {
-                continue;
-            }
-
-            if (xp) {
-                if ((rc = np2srv_rpc_subscribe_append_str(" and ", &xp))) {
-                    goto cleanup;
-                }
-            }
-
-            if ((rc = np2srv_rpc_subscribe_append_str(filter.filters[i].str, &xp))) {
                 goto cleanup;
             }
         }
