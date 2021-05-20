@@ -856,31 +856,38 @@ np_append_str(const char *str, char **ret)
 int
 op_filter_filter2xpath(const struct np2_filter *filter, char **xpath)
 {
+    int rc;
     uint32_t i;
 
     *xpath = NULL;
 
     /* all selection filters first */
     for (i = 0; i < filter->count; ++i) {
-        if (!filter->filters[i].selection) {
-            continue;
+        if (!filter->filters[i].selection && (filter->count > 1)) {
+            ERR("Several top-level content match filters are not supported as they are redundant.");
+            rc = SR_ERR_UNSUPPORTED;
+            goto error;
         }
 
         /* put all selection filters into parentheses */
         if (!*xpath) {
             if (np_append_str("(", xpath)) {
+                rc = SR_ERR_NO_MEMORY;
                 goto error;
             }
 
             if (np_append_str(filter->filters[i].str, xpath)) {
+                rc = SR_ERR_NO_MEMORY;
                 goto error;
             }
         } else {
-            if (np_append_str(" or ", xpath)) {
+            if (np_append_str(" | ", xpath)) {
+                rc = SR_ERR_NO_MEMORY;
                 goto error;
             }
 
             if (np_append_str(filter->filters[i].str, xpath)) {
+                rc = SR_ERR_NO_MEMORY;
                 goto error;
             }
         }
@@ -889,33 +896,17 @@ op_filter_filter2xpath(const struct np2_filter *filter, char **xpath)
     if (*xpath) {
         /* finish parentheses */
         if (np_append_str(")", xpath)) {
+            rc = SR_ERR_NO_MEMORY;
             goto error;
         }
     }
 
-    /* now append all content filters */
-    for (i = 0; i < filter->count; ++i) {
-        if (filter->filters[i].selection) {
-            continue;
-        }
-
-        if (*xpath) {
-            if (np_append_str(" and ", xpath)) {
-                goto error;
-            }
-        }
-
-        if (np_append_str(filter->filters[i].str, xpath)) {
-            goto error;
-        }
-    }
-
-    return 0;
+    return SR_ERR_OK;
 
 error:
     free(*xpath);
     *xpath = NULL;
-    return -1;
+    return rc;
 }
 
 int

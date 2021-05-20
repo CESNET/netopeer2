@@ -798,8 +798,7 @@ yang_push_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *r
                 rc = SR_ERR_INTERNAL;
                 goto cleanup;
             }
-            if (op_filter_filter2xpath(&filter, xpath)) {
-                rc = SR_ERR_INTERNAL;
+            if ((rc = op_filter_filter2xpath(&filter, xpath))) {
                 goto cleanup;
             }
         }
