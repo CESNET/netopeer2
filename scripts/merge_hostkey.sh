@@ -25,18 +25,13 @@ if [ -z "$KEYSTORE_KEY" ]; then
 
 # generate a new key
 PRIVPEM=`$OPENSSL genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform PEM 2>/dev/null`
-# remove header/footer
-PRIVKEY=`grep -v -- "-----" - <<STDIN
-$PRIVPEM
-STDIN`
+# remove header/footer and newlines
+PRIVKEY=`echo "$PRIVPEM" | grep -v -- "-----" | tr -d "\n"`
+
 # get public key
-PUBPEM=`$OPENSSL rsa -pubout 2>/dev/null <<STDIN
-$PRIVPEM
-STDIN`
-# remove header/footer
-PUBKEY=`grep -v -- "-----" - <<STDIN
-$PUBPEM
-STDIN`
+PUBPEM=`echo "$PRIVPEM" | $OPENSSL rsa -pubout 2>/dev/null`
+# remove header/footer and newlines
+PUBKEY=`echo "$PUBPEM" | grep -v -- "-----" | tr -d "\n"`
 
 # generate edit config
 CONFIG="<keystore xmlns=\"urn:ietf:params:xml:ns:yang:ietf-keystore\">
