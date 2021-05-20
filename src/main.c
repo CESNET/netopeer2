@@ -32,6 +32,7 @@
 
 #include "config.h"
 #include "common.h"
+#include "err_netconf.h"
 #include "log.h"
 #include "netconf.h"
 #if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
@@ -389,8 +390,7 @@ np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
     if ((node = ncac_check_diff(diff, user))) {
         /* access denied */
         path = lysc_path(node->schema, LYSC_PATH_LOG, NULL, 0);
-        sr_session_set_error_message(session, path, "Access to the data model \"%s\" is denied because \"%s\" "
-                "NACM authorization failed.", node->schema->module->name, user);
+        np_err_nacm_access_denied(session, node->schema->module->name, user, path);
         free(path);
         return SR_ERR_UNAUTHORIZED;
     }

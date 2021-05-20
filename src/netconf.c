@@ -323,7 +323,6 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     sr_datastore_t ds = 0;
     struct ly_set *nodeset = NULL;
     struct lyd_node *node, *config = NULL;
-    const sr_error_info_t *err_info;
     sr_session_ctx_t *user_sess = NULL;
     const char *defop = "merge", *testop = "test-then-set";
     int rc = SR_ERR_OK;
@@ -417,9 +416,8 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         assert(!strcmp(testop, "test-only"));
         rc = sr_validate(user_sess, NULL, 0);
     }
-    if (rc != SR_ERR_OK) {
-        sr_session_get_error(user_sess, &err_info);
-        sr_session_set_error_message(session, err_info->err[0].message);
+    if (rc) {
+        sr_session_dup_error(user_sess, session);
         goto cleanup;
     }
 

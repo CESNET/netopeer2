@@ -11,10 +11,45 @@
  *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
+#define _GNU_SOURCE /* asprintf */
 
 #include "err_netconf.h"
 
+#include <stdio.h>
+
 #include "common.h"
+#include "compat.h"
+
+void
+np_err_nacm_access_denied(sr_session_ctx_t *ev_sess, const char *module_name, const char *user, const char *path)
+{
+    const char *str;
+    char *msg;
+    int len;
+
+    /* error format */
+    sr_session_set_error_format(ev_sess, "NETCONF");
+
+    /* error-type */
+    str = "protocol";
+    sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+    /* error-tag */
+    str = "access-denied";
+    sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+    /* error-message */
+    len = asprintf(&msg, "Access to the data model \"%s\" is denied because \"%s\" NACM authorization failed.",
+            module_name, user);
+    sr_session_push_error_data(ev_sess, len + 1, msg);
+    free(msg);
+
+    /* error-app-tag */
+    sr_session_push_error_data(ev_sess, 1, "");
+
+    /* error-path */
+    sr_session_push_error_data(ev_sess, strlen(path) + 1, path);
+}
 
 void
 np_err_sr2nc_lock_denied(sr_session_ctx_t *ev_sess, const sr_error_info_t *err_info)

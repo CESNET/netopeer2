@@ -506,6 +506,11 @@ op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr
     struct lyd_node *root = NULL;
     LY_ERR lyrc;
 
+    if (!config->value.str) {
+        /* nothing to do, no data */
+        return NULL;
+    }
+
     ly_ctx = LYD_CTX(config);
 
     switch (config->value_type) {

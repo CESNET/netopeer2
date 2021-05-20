@@ -252,7 +252,6 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     struct ly_set *nodeset;
     struct lyd_node_term *leaf;
     struct lyd_node *node, *config = NULL;
-    const sr_error_info_t *err_info;
     sr_session_ctx_t *user_sess;
     const char *defop;
     int rc = SR_ERR_OK;
@@ -322,8 +321,7 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
 
     rc = sr_apply_changes(user_sess, np2srv.sr_timeout);
     if (rc != SR_ERR_OK) {
-        sr_session_get_error(user_sess, &err_info);
-        sr_session_set_error_message(session, err_info->err[0].message);
+        sr_session_dup_error(user_sess, session);
         goto cleanup;
     }
 
