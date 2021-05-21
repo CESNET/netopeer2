@@ -330,9 +330,7 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     }
 
     /* find this NETCONF session */
-    ncs = np_get_nc_sess(session);
-    if (!ncs) {
-        rc = SR_ERR_INTERNAL;
+    if ((rc = np_get_user_sess(session, &ncs, NULL))) {
         goto error;
     }
 
@@ -495,6 +493,7 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     struct np2srv_sub_ntf *sub;
     char *xp = NULL;
     struct timespec stop = {0};
+    struct nc_session *ncs;
     int rc = SR_ERR_OK;
     uint32_t nc_sub_id, *nc_id;
 
@@ -547,8 +546,13 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         goto cleanup;
     }
 
+    /* get NETCONF session */
+    if ((rc = np_get_user_sess(session, &ncs, NULL))) {
+        goto cleanup;
+    }
+
     /* send the notification */
-    rc = sub_ntf_send_notif(np_get_nc_sess(session), nc_sub_id, np_gettimespec(), &ly_ntf, 1);
+    rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(), &ly_ntf, 1);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
@@ -647,6 +651,7 @@ np2srv_rpc_delete_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 {
     struct lyd_node *node;
     struct np2srv_sub_ntf *sub;
+    struct nc_session *ncs;
     int rc = SR_ERR_OK;
     uint32_t nc_sub_id, *nc_id;
 
@@ -668,8 +673,13 @@ np2srv_rpc_delete_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         return SR_ERR_INVAL_ARG;
     }
 
+    /* get NETCONF session */
+    if ((rc = np_get_user_sess(session, &ncs, NULL))) {
+        goto cleanup_unlock;
+    }
+
     /* terminate the subscription */
-    rc = sub_ntf_terminate_sub(sub, np_get_nc_sess(session));
+    rc = sub_ntf_terminate_sub(sub, ncs);
     if (rc != SR_ERR_OK) {
         goto cleanup_unlock;
     }
@@ -688,6 +698,7 @@ np2srv_rpc_kill_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
 {
     struct lyd_node *node;
     struct np2srv_sub_ntf *sub;
+    struct nc_session *ncs;
     int rc = SR_ERR_OK;
     uint32_t nc_sub_id;
 
@@ -707,8 +718,13 @@ np2srv_rpc_kill_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
         return SR_ERR_INVAL_ARG;
     }
 
+    /* get the user session */
+    if ((rc = np_get_user_sess(session, &ncs, NULL))) {
+        goto cleanup_unlock;
+    }
+
     /* terminate the subscription */
-    rc = sub_ntf_terminate_sub(sub, np_get_nc_sess(session));
+    rc = sub_ntf_terminate_sub(sub, ncs);
     if (rc != SR_ERR_OK) {
         goto cleanup_unlock;
     }

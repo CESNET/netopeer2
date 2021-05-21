@@ -201,7 +201,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     struct lyd_meta *meta;
     struct np2_filter filter = {0};
     int rc = SR_ERR_OK;
-    sr_session_ctx_t *user_sess;
+    struct np2_user_sess *user_sess = NULL;
     struct ly_set *nodeset = NULL;
     sr_datastore_t ds = 0;
     const char *single_filter, *username;
@@ -280,18 +280,15 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     /* we do not care here about with-defaults mode, it does not change anything */
 
     /* get the user session */
-    user_sess = np_get_user_sess(session);
-    if (!user_sess) {
-        EINT;
-        rc = SR_ERR_INTERNAL;
+    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
         goto cleanup;
     }
 
     /* get filtered data */
     if (!strcmp(op_path, "/ietf-netconf:get-config")) {
-        rc = np2srv_getconfig_rpc_data(user_sess, &filter, ds, session, &data_get);
+        rc = np2srv_getconfig_rpc_data(user_sess->sess, &filter, ds, session, &data_get);
     } else {
-        rc = np2srv_get_rpc_data(user_sess, &filter, session, &data_get);
+        rc = np2srv_get_rpc_data(user_sess->sess, &filter, session, &data_get);
     }
     if (rc) {
         goto cleanup;
@@ -312,6 +309,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
 cleanup:
     op_filter_erase(&filter);
     lyd_free_siblings(data_get);
+    np_release_user_sess(user_sess);
     return rc;
 }
 
@@ -323,7 +321,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     sr_datastore_t ds = 0;
     struct ly_set *nodeset = NULL;
     struct lyd_node *node, *config = NULL;
-    sr_session_ctx_t *user_sess = NULL;
+    struct np2_user_sess *user_sess = NULL;
     const char *defop = "merge", *testop = "test-then-set";
     int rc = SR_ERR_OK;
 
@@ -392,32 +390,29 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     ly_set_free(nodeset, NULL);
 
     /* get the user session */
-    user_sess = np_get_user_sess(session);
-    if (!user_sess) {
-        EINT;
-        rc = SR_ERR_INTERNAL;
+    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
         goto cleanup;
     }
 
     /* update sysrepo session datastore */
-    sr_session_switch_ds(user_sess, ds);
+    sr_session_switch_ds(user_sess->sess, ds);
 
     /* sysrepo API */
     if (config) {
-        rc = sr_edit_batch(user_sess, config, defop);
+        rc = sr_edit_batch(user_sess->sess, config, defop);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
     }
 
     if (!strcmp(testop, "test-then-set")) {
-        rc = sr_apply_changes(user_sess, np2srv.sr_timeout);
+        rc = sr_apply_changes(user_sess->sess, np2srv.sr_timeout);
     } else {
         assert(!strcmp(testop, "test-only"));
-        rc = sr_validate(user_sess, NULL, 0);
+        rc = sr_validate(user_sess->sess, NULL, 0);
     }
     if (rc) {
-        sr_session_dup_error(user_sess, session);
+        sr_session_dup_error(user_sess->sess, session);
         goto cleanup;
     }
 
@@ -426,9 +421,10 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 cleanup:
     if (user_sess) {
         /* discard any changes that possibly failed to be applied */
-        sr_discard_changes(user_sess);
+        sr_discard_changes(user_sess->sess);
     }
     lyd_free_siblings(config);
+    np_release_user_sess(user_sess);
     return rc;
 }
 
@@ -442,7 +438,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     const sr_error_info_t *err_info;
     struct lyd_node *node, *config = NULL;
     int rc = SR_ERR_OK, run_to_start = 0;
-    sr_session_ctx_t *user_sess;
+    struct np2_user_sess *user_sess = NULL;
     const char *username;
     uint32_t *nc_sid;
 #ifdef NP2SRV_URL_CAPAB
@@ -538,15 +534,12 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     }
 
     /* get the user session */
-    user_sess = np_get_user_sess(session);
-    if (!user_sess) {
-        EINT;
-        rc = SR_ERR_INTERNAL;
+    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
         goto cleanup;
     }
 
     /* update sysrepo session datastore */
-    sr_session_switch_ds(user_sess, ds);
+    sr_session_switch_ds(user_sess->sess, ds);
 
     /* sysrepo API/URL handling */
 #ifdef NP2SRV_URL_CAPAB
@@ -575,7 +568,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     {
         if (config) {
             /* config is spent */
-            rc = sr_replace_config(user_sess, NULL, config, np2srv.sr_timeout);
+            rc = sr_replace_config(user_sess->sess, NULL, config, np2srv.sr_timeout);
             config = NULL;
         } else {
             assert(run_to_start);
@@ -583,11 +576,11 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
             /* set SID to skip NACM check, only one copy-config can be executed at once */
             sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_sid);
             ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, *nc_sid);
-            rc = sr_copy_config(user_sess, NULL, sds, np2srv.sr_timeout);
+            rc = sr_copy_config(user_sess->sess, NULL, sds, np2srv.sr_timeout);
             ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, 0);
         }
         if (rc != SR_ERR_OK) {
-            sr_session_get_error(user_sess, &err_info);
+            sr_session_get_error(user_sess->sess, &err_info);
             sr_session_set_error_message(session, err_info->err[0].message);
             goto cleanup;
         }
@@ -597,6 +590,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 
 cleanup:
     lyd_free_siblings(config);
+    np_release_user_sess(user_sess);
     return rc;
 }
 
@@ -608,7 +602,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     sr_datastore_t ds = 0;
     struct ly_set *nodeset;
     int rc = SR_ERR_OK;
-    sr_session_ctx_t *user_sess;
+    struct np2_user_sess *user_sess = NULL;
     const sr_error_info_t *err_info;
 #ifdef NP2SRV_URL_CAPAB
     struct lyd_node *config;
@@ -638,15 +632,12 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     ly_set_free(nodeset, NULL);
 
     /* get the user session */
-    user_sess = np_get_user_sess(session);
-    if (!user_sess) {
-        EINT;
-        rc = SR_ERR_INTERNAL;
+    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
         goto cleanup;
     }
 
     /* update sysrepo session datastore */
-    sr_session_switch_ds(user_sess, ds);
+    sr_session_switch_ds(user_sess->sess, ds);
 
     /* sysrepo API/URL handling */
 #ifdef NP2SRV_URL_CAPAB
@@ -665,9 +656,9 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     } else
 #endif
     {
-        rc = sr_replace_config(user_sess, NULL, NULL, np2srv.sr_timeout);
+        rc = sr_replace_config(user_sess->sess, NULL, NULL, np2srv.sr_timeout);
         if (rc != SR_ERR_OK) {
-            sr_session_get_error(user_sess, &err_info);
+            sr_session_get_error(user_sess->sess, &err_info);
             sr_session_set_error_message(session, err_info->err[0].message);
             goto cleanup;
         }
@@ -676,6 +667,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     /* success */
 
 cleanup:
+    np_release_user_sess(user_sess);
     return rc;
 }
 
@@ -686,7 +678,7 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
 {
     sr_datastore_t ds = 0;
     struct ly_set *nodeset = NULL;
-    sr_session_ctx_t *user_sess;
+    struct np2_user_sess *user_sess = NULL;
     const sr_error_info_t *err_info;
     int rc = SR_ERR_OK;
 
@@ -708,30 +700,27 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     ly_set_free(nodeset, NULL);
 
     /* get the user session */
-    user_sess = np_get_user_sess(session);
-    if (!user_sess) {
-        EINT;
-        rc = SR_ERR_INTERNAL;
+    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
         goto cleanup;
     }
 
     /* update sysrepo session datastore */
-    sr_session_switch_ds(user_sess, ds);
+    sr_session_switch_ds(user_sess->sess, ds);
 
     /* sysrepo API */
     if (!strcmp(input->schema->name, "lock")) {
-        rc = sr_lock(user_sess, NULL);
+        rc = sr_lock(user_sess->sess, NULL);
     } else if (!strcmp(input->schema->name, "unlock")) {
-        rc = sr_unlock(user_sess, NULL);
+        rc = sr_unlock(user_sess->sess, NULL);
     }
     if ((rc == SR_ERR_LOCKED) && sr_session_get_orig_name(session) && !strcmp(sr_session_get_orig_name(session), "netopeer2")) {
         /* NETCONF error */
-        sr_session_get_error(user_sess, &err_info);
+        sr_session_get_error(user_sess->sess, &err_info);
         np_err_sr2nc_lock_denied(session, err_info);
         goto cleanup;
     } else if (rc) {
         /* generic error */
-        sr_session_get_error(user_sess, &err_info);
+        sr_session_get_error(user_sess->sess, &err_info);
         sr_session_set_error_message(session, err_info->err[0].message);
         goto cleanup;
     }
@@ -739,6 +728,7 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     /* success */
 
 cleanup:
+    np_release_user_sess(user_sess);
     return rc;
 }
 
@@ -795,7 +785,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
         struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     int rc = SR_ERR_OK;
-    sr_session_ctx_t *user_sess;
+    struct np2_user_sess *user_sess = NULL;
     const sr_error_info_t *err_info;
 
     if (NP_IGNORE_RPC(session, event)) {
@@ -804,20 +794,17 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
     }
 
     /* get the user session */
-    user_sess = np_get_user_sess(session);
-    if (!user_sess) {
-        EINT;
-        rc = SR_ERR_INTERNAL;
+    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
         goto cleanup;
     }
 
     /* update sysrepo session datastore */
-    sr_session_switch_ds(user_sess, SR_DS_RUNNING);
+    sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING);
 
     /* sysrepo API */
-    rc = sr_copy_config(user_sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout);
+    rc = sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout);
     if (rc != SR_ERR_OK) {
-        sr_session_get_error(user_sess, &err_info);
+        sr_session_get_error(user_sess->sess, &err_info);
         sr_session_set_error_message(session, err_info->err[0].message);
         goto cleanup;
     }
@@ -825,6 +812,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
     /* success */
 
 cleanup:
+    np_release_user_sess(user_sess);
     return rc;
 }
 
@@ -834,7 +822,7 @@ np2srv_rpc_discard_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
     int rc = SR_ERR_OK;
-    sr_session_ctx_t *user_sess;
+    struct np2_user_sess *user_sess = NULL;
     const sr_error_info_t *err_info;
 
     if (NP_IGNORE_RPC(session, event)) {
@@ -843,20 +831,17 @@ np2srv_rpc_discard_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     }
 
     /* get the user session */
-    user_sess = np_get_user_sess(session);
-    if (!user_sess) {
-        EINT;
-        rc = SR_ERR_INTERNAL;
+    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
         goto cleanup;
     }
 
     /* update sysrepo session datastore */
-    sr_session_switch_ds(user_sess, SR_DS_CANDIDATE);
+    sr_session_switch_ds(user_sess->sess, SR_DS_CANDIDATE);
 
     /* sysrepo API */
-    rc = sr_copy_config(user_sess, NULL, SR_DS_RUNNING, np2srv.sr_timeout);
+    rc = sr_copy_config(user_sess->sess, NULL, SR_DS_RUNNING, np2srv.sr_timeout);
     if (rc != SR_ERR_OK) {
-        sr_session_get_error(user_sess, &err_info);
+        sr_session_get_error(user_sess->sess, &err_info);
         sr_session_set_error_message(session, err_info->err[0].message);
         goto cleanup;
     }
@@ -864,6 +849,7 @@ np2srv_rpc_discard_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     /* success */
 
 cleanup:
+    np_release_user_sess(user_sess);
     return rc;
 }
 
@@ -875,7 +861,7 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     sr_datastore_t ds;
     struct lyd_node *config = NULL;
     struct ly_set *nodeset = NULL;
-    sr_session_ctx_t *user_sess;
+    struct np2_user_sess *user_sess = NULL;
     int rc = SR_ERR_OK;
     const sr_error_info_t *err_info;
 
@@ -920,20 +906,17 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
 
     if (!config) {
         /* get the user session */
-        user_sess = np_get_user_sess(session);
-        if (!user_sess) {
-            EINT;
-            rc = SR_ERR_INTERNAL;
+        if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
             goto cleanup;
         }
 
         /* update sysrepo session datastore */
-        sr_session_switch_ds(user_sess, ds);
+        sr_session_switch_ds(user_sess->sess, ds);
 
         /* sysrepo API */
-        rc = sr_validate(user_sess, NULL, 0);
+        rc = sr_validate(user_sess->sess, NULL, 0);
         if (rc != SR_ERR_OK) {
-            sr_session_get_error(user_sess, &err_info);
+            sr_session_get_error(user_sess->sess, &err_info);
             sr_session_set_error_message(session, err_info->err[0].message);
             goto cleanup;
         }
@@ -943,6 +926,7 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
 
 cleanup:
     lyd_free_siblings(config);
+    np_release_user_sess(user_sess);
     return rc;
 }
 
@@ -1031,7 +1015,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     struct lyd_node *node;
     struct lyd_meta *meta;
     struct nc_session *ncs;
-    sr_session_ctx_t *user_sess;
+    struct np2_user_sess *user_sess = NULL;
     const char *stream;
     struct np2_filter filter = {0};
     char *xp = NULL;
@@ -1045,13 +1029,10 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         return SR_ERR_OK;
     }
 
-    /* find this NETCONF session and sysrepo user session */
-    ncs = np_get_nc_sess(session);
-    if (!ncs) {
-        rc = SR_ERR_INTERNAL;
+    /* get the NETCONF session and user session */
+    if ((rc = np_get_user_sess(session, &ncs, &user_sess))) {
         goto cleanup;
     }
-    user_sess = nc_session_get_data(ncs);
 
     /* RFC 5277 section 6.5 */
     if (nc_session_get_notif_status(ncs)) {
@@ -1129,10 +1110,10 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
 
             if (lysc_module_dfs_full(ly_mod, np2srv_lysc_has_notif_clb, NULL) == LY_EEXIST) {
                 /* a notification was found, subscribe to the module */
-                rc = sr_event_notif_subscribe_tree(user_sess, ly_mod->name, xp, start.tv_sec, stop.tv_sec,
+                rc = sr_event_notif_subscribe_tree(user_sess->sess, ly_mod->name, xp, start.tv_sec, stop.tv_sec,
                         np2srv_rpc_subscribe_ntf_cb, ncs, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
                 if (rc != SR_ERR_OK) {
-                    sr_session_get_error(user_sess, &err_info);
+                    sr_session_get_error(user_sess->sess, &err_info);
                     sr_session_set_error_message(session, err_info->err[0].message);
                     break;
                 }
@@ -1140,10 +1121,10 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         }
     } else {
         /* subscribe to the specific module (stream) */
-        rc = sr_event_notif_subscribe_tree(user_sess, stream, xp, start.tv_sec, stop.tv_sec, np2srv_rpc_subscribe_ntf_cb,
+        rc = sr_event_notif_subscribe_tree(user_sess->sess, stream, xp, start.tv_sec, stop.tv_sec, np2srv_rpc_subscribe_ntf_cb,
                 ncs, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {
-            sr_session_get_error(user_sess, &err_info);
+            sr_session_get_error(user_sess->sess, &err_info);
             sr_session_set_error_message(session, err_info->err[0].message);
         }
     }
@@ -1159,6 +1140,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
 cleanup:
     op_filter_erase(&filter);
     free(xp);
+    np_release_user_sess(user_sess);
     return rc;
 }
 

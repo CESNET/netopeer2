@@ -37,6 +37,12 @@
 #define NP_IGNORE_RPC(session, event) (!sr_session_get_orig_name(session) || \
         strcmp(sr_session_get_orig_name(session), "netopeer2") || (event == SR_EV_ABORT))
 
+/* user session structure assigned as data of NC sessions */
+struct np2_user_sess {
+    sr_session_ctx_t *sess;
+    ATOMIC_T ref_count;
+};
+
 /* server internal data */
 struct np2srv {
     sr_conn_ctx_t *sr_conn;         /**< sysrepo connection */
@@ -68,11 +74,11 @@ void np_addtimespec(struct timespec *ts, uint32_t msec);
 
 struct timespec np_modtimespec(const struct timespec *ts, uint32_t msec);
 
-struct nc_session *np_get_nc_sess(sr_session_ctx_t *ev_sess);
-
 struct nc_session *np_get_nc_sess_by_sr_id(uint32_t sr_id);
 
-sr_session_ctx_t *np_get_user_sess(sr_session_ctx_t *ev_sess);
+int np_get_user_sess(sr_session_ctx_t *ev_sess, struct nc_session **nc_sess, struct np2_user_sess **user_sess);
+
+void np_release_user_sess(struct np2_user_sess *user_sess);
 
 int np_ly_mod_has_notif(const struct lys_module *mod);
 

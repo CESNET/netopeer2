@@ -289,7 +289,7 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
 {
     struct lyd_node *node, *stream_subtree_filter = NULL;
     struct nc_session *ncs;
-    sr_session_ctx_t *user_sess;
+    struct np2_user_sess *user_sess = NULL;
     struct sub_ntf_data *sn_data = NULL;
     const char *stream, *stream_filter_name = NULL, *stream_xpath_filter = NULL;
     char *xp = NULL;
@@ -297,16 +297,13 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
     uint32_t sub_id_count;
     int rc = SR_ERR_OK;
 
-    /* find this NETCONF session */
-    ncs = np_get_nc_sess(ev_sess);
-    if (!ncs) {
-        rc = SR_ERR_INTERNAL;
+    /* get the NETCONF session and user session */
+    if ((rc = np_get_user_sess(ev_sess, &ncs, &user_sess))) {
         goto cleanup;
     }
-    user_sess = nc_session_get_data(ncs);
 
     /* filter, join all into one xpath */
-    rc = sub_ntf_rpc_filter2xpath(user_sess, rpc, ev_sess, &xp, &stream_filter_name, &stream_subtree_filter,
+    rc = sub_ntf_rpc_filter2xpath(user_sess->sess, rpc, ev_sess, &xp, &stream_filter_name, &stream_subtree_filter,
             &stream_xpath_filter);
     if (rc != SR_ERR_OK) {
         goto cleanup;
@@ -352,7 +349,7 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
 
     /* subscribe to sysrepo notifications, cb_arg is managed (freed) by the callback */
     sub_id_count = 0;
-    rc = sub_ntf_sr_subscribe(user_sess, stream, xp, start, sub->stop_time.tv_sec, &sn_data->cb_arg, ev_sess,
+    rc = sub_ntf_sr_subscribe(user_sess->sess, stream, xp, start, sub->stop_time.tv_sec, &sn_data->cb_arg, ev_sess,
             &sub->sub_ids, &sub_id_count);
     ATOMIC_STORE_RELAXED(sub->sub_id_count, sub_id_count);
     if (rc != SR_ERR_OK) {
@@ -361,6 +358,7 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
 
 cleanup:
     free(xp);
+    np_release_user_sess(user_sess);
     if (rc) {
         sub_ntf_data_destroy(sn_data);
     }
@@ -372,7 +370,7 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
         struct np2srv_sub_ntf *sub)
 {
     struct lyd_node *node, *stream_subtree_filter = NULL;
-    sr_session_ctx_t *user_sess;
+    struct np2_user_sess *user_sess = NULL;
     struct sub_ntf_data *sn_data;
     const char *cur_xp, *stream_filter_name = NULL, *stream_xpath_filter = NULL;
     char *xp = NULL;
@@ -381,10 +379,7 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
     uint32_t i, nc_sub_id;
 
     /* get the user session */
-    user_sess = np_get_user_sess(ev_sess);
-    if (!user_sess) {
-        EINT;
-        rc = SR_ERR_INTERNAL;
+    if ((rc = np_get_user_sess(ev_sess, NULL, &user_sess))) {
         goto cleanup;
     }
 
@@ -393,7 +388,7 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
     nc_sub_id = ((struct lyd_node_term *)node)->value.uint32;
 
     /* filter, join all into one xpath */
-    rc = sub_ntf_rpc_filter2xpath(user_sess, rpc, ev_sess, &xp, &stream_filter_name, &stream_subtree_filter,
+    rc = sub_ntf_rpc_filter2xpath(user_sess->sess, rpc, ev_sess, &xp, &stream_filter_name, &stream_subtree_filter,
             &stream_xpath_filter);
     if (rc != SR_ERR_OK) {
         goto cleanup;
@@ -449,6 +444,7 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
 
 cleanup:
     free(xp);
+    np_release_user_sess(user_sess);
     return rc;
 }
 
@@ -503,6 +499,7 @@ sub_ntf_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filter,
 {
     int rc = SR_ERR_OK, r;
     struct np2srv_sub_ntf *sub;
+    struct nc_session *ncs;
     char *xp;
     uint32_t i;
 
@@ -531,12 +528,17 @@ sub_ntf_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filter,
 
         free(xp);
     } else if (op == SR_OP_DELETED) {
+        /* get NETCONF session */
+        if ((rc = np_get_user_sess(ev_sess, &ncs, NULL))) {
+            return rc;
+        }
+
         /* update all the relevant subscriptions */
         sub = NULL;
         while ((sub = sub_ntf_find_next(sub, sub_ntf_stream_filter_match_cb, lyd_get_value(lyd_child(filter))))) {
             /* terminate the subscription with the specific term reason */
             sub->term_reason = "ietf-subscribed-notifications:filter-unavailable";
-            r = sub_ntf_terminate_sub(sub, np_get_nc_sess(ev_sess));
+            r = sub_ntf_terminate_sub(sub, ncs);
             if (r != SR_ERR_OK) {
                 rc = r;
             }

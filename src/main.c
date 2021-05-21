@@ -11,8 +11,9 @@
  *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
+
 #define _GNU_SOURCE
-#define _POSIX_C_SOUCRE 199309L
+#include <sys/cdefs.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -93,7 +94,7 @@ np2srv_del_session_cb(struct nc_session *session)
     int i, rc;
     char *host = NULL;
     sr_val_t *event_data;
-    sr_session_ctx_t *sr_sess;
+    struct np2_user_sess *user_sess;
     const struct lys_module *mod;
 
     if (nc_ps_del_session(np2srv.nc_ps, session)) {
@@ -103,10 +104,12 @@ np2srv_del_session_cb(struct nc_session *session)
     /* terminate any subscriptions for the NETCONF session */
     np2srv_sub_ntf_session_destroy(session);
 
-    /* stop sysrepo session (also stop any sysrepo notification subscriptions) */
-    sr_sess = nc_session_get_data(session);
-    sr_session_stop(sr_sess);
-    ncm_session_del(session);
+    /* stop sysrepo session subscriptions */
+    user_sess = nc_session_get_data(session);
+    sr_session_unsubscribe(user_sess->sess);
+
+    /* stop sysrepo session, if no callback is using it */
+    np_release_user_sess(user_sess);
 
     if ((mod = ly_ctx_get_module_implemented(sr_get_context(np2srv.sr_conn), "ietf-netconf-notifications"))) {
         /* generate ietf-netconf-notification's netconf-session-end event for sysrepo */
@@ -161,6 +164,8 @@ np2srv_del_session_cb(struct nc_session *session)
         free(event_data);
     }
 
+    /* stop monitoring and free NC session */
+    ncm_session_del(session);
     nc_session_free(session, NULL);
 }
 
@@ -288,7 +293,7 @@ np2srv_err_reply_sr(const sr_error_info_t *err_info)
 static struct nc_server_reply *
 np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
 {
-    sr_session_ctx_t *sr_sess = NULL;
+    struct np2_user_sess *user_sess;
     const struct lyd_node *denied;
     struct lyd_node *node;
     const sr_error_info_t *err_info;
@@ -316,16 +321,16 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         return nc_server_reply_err(e);
     }
 
-    /* get this user session with its originator data */
-    sr_sess = nc_session_get_data(ncs);
+    /* get this user session with its originator data, no need to use ref-count */
+    user_sess = nc_session_get_data(ncs);
 
     /* sysrepo API, use the default timeout or slightly higher than the configured one */
-    rc = sr_rpc_send_tree(sr_sess, rpc, np2srv.sr_timeout ? np2srv.sr_timeout + 2000 : 0, &output);
+    rc = sr_rpc_send_tree(user_sess->sess, rpc, np2srv.sr_timeout ? np2srv.sr_timeout + 2000 : 0, &output);
     if (rc) {
         ERR("Failed to send an RPC (%s).", sr_strerror(rc));
 
         /* build proper error */
-        sr_session_get_error(sr_sess, &err_info);
+        sr_session_get_error(user_sess->sess, &err_info);
         return np2srv_err_reply_sr(err_info);
     }
 

@@ -113,8 +113,26 @@ np_modtimespec(const struct timespec *ts, uint32_t msec)
 }
 
 struct nc_session *
-np_get_nc_sess(sr_session_ctx_t *ev_sess)
+np_get_nc_sess_by_sr_id(uint32_t sr_id)
 {
+    uint32_t i;
+    struct nc_session *ncs;
+    struct np2_user_sess *user_sess;
+
+    for (i = 0; (ncs = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
+        user_sess = nc_session_get_data(ncs);
+        if (sr_session_get_id(user_sess->sess) == sr_id) {
+            break;
+        }
+    }
+
+    return ncs;
+}
+
+int
+np_get_user_sess(sr_session_ctx_t *ev_sess, struct nc_session **nc_sess, struct np2_user_sess **user_sess)
+{
+    struct np2_user_sess *us;
     uint32_t i, *nc_id, size;
     struct nc_session *ncs;
 
@@ -125,41 +143,42 @@ np_get_nc_sess(sr_session_ctx_t *ev_sess)
             break;
         }
     }
-
     if (!ncs) {
         ERR("Failed to find NETCONF session SID %u.", *nc_id);
+        return SR_ERR_INTERNAL;
     }
-    return ncs;
+
+    /* NETCONF session */
+    if (nc_sess) {
+        *nc_sess = ncs;
+    }
+    if (!user_sess) {
+        return SR_ERR_OK;
+    }
+
+    /* user sysrepo session */
+    us = nc_session_get_data(ncs);
+    ATOMIC_INC_RELAXED(us->ref_count);
+    *user_sess = us;
+
+    return SR_ERR_OK;
 }
 
-struct nc_session *
-np_get_nc_sess_by_sr_id(uint32_t sr_id)
+void
+np_release_user_sess(struct np2_user_sess *user_sess)
 {
-    uint32_t i;
-    struct nc_session *ncs;
-    sr_session_ctx_t *user_sess;
+    ATOMIC_T prev_ref_count;
 
-    for (i = 0; (ncs = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
-        user_sess = nc_session_get_data(ncs);
-        if (sr_session_get_id(user_sess) == sr_id) {
-            break;
-        }
+    if (!user_sess) {
+        return;
     }
 
-    return ncs;
-}
-
-sr_session_ctx_t *
-np_get_user_sess(sr_session_ctx_t *ev_sess)
-{
-    struct nc_session *nc_sess;
-
-    nc_sess = np_get_nc_sess(ev_sess);
-    if (!nc_sess) {
-        return NULL;
+    prev_ref_count = ATOMIC_DEC_RELAXED(user_sess->ref_count);
+    if (ATOMIC_LOAD_RELAXED(prev_ref_count) == 1) {
+        /* is 0 now, free */
+        sr_session_stop(user_sess->sess);
+        free(user_sess);
     }
-
-    return nc_session_get_data(nc_sess);
 }
 
 static LY_ERR
@@ -205,31 +224,39 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
     int c;
     sr_val_t *event_data;
     sr_session_ctx_t *sr_sess = NULL;
+    struct np2_user_sess *user_sess = NULL;
     const struct lys_module *mod;
     char *host = NULL;
     uint32_t nc_id;
     const char *username;
+
+    /* monitor NETCONF session */
+    ncm_session_add(new_session);
 
     /* start sysrepo session for every NETCONF session (so that it can be used for notification subscriptions and
      * held lock persistence) */
     c = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
     if (c != SR_ERR_OK) {
         ERR("Failed to start a sysrepo session (%s).", sr_strerror(c));
-        return -1;
+        goto error;
     }
-    nc_session_set_data(new_session, sr_sess);
-    sr_session_set_orig_name(sr_sess, "netopeer2");
 
-    /* set NC ID for the callbacks */
+    /* create user session with ref-count so that it is not freed while being used */
+    user_sess = malloc(sizeof *user_sess);
+    if (!user_sess) {
+        EMEM;
+        goto error;
+    }
+    user_sess->sess = sr_sess;
+    ATOMIC_STORE_RELAXED(user_sess->ref_count, 1);
+    nc_session_set_data(new_session, user_sess);
+
+    /* set NC ID and NETCONF username for sysrepo callbacks */
+    sr_session_set_orig_name(sr_sess, "netopeer2");
     nc_id = nc_session_get_id(new_session);
     sr_session_push_orig_data(sr_sess, sizeof nc_id, &nc_id);
-
-    /* set NETCONF username for the callbacks */
     username = nc_session_get_username(new_session);
     sr_session_push_orig_data(sr_sess, strlen(username) + 1, username);
-
-    /* monitor NETCONF session */
-    ncm_session_add(new_session);
 
     c = 0;
     while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, new_session)) {
@@ -276,6 +303,7 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
 error:
     ncm_session_del(new_session);
     sr_session_stop(sr_sess);
+    free(user_sess);
     return -1;
 }
 

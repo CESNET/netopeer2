@@ -832,16 +832,20 @@ cleanup:
 static int
 yang_push_notif_update_send(struct nc_session *ncs, struct yang_push_data *yp_data, uint32_t nc_sub_id)
 {
-    sr_session_ctx_t *user_sess = nc_session_get_data(ncs);
+    struct np2_user_sess *user_sess;
     struct lyd_node *data = NULL, *ly_ntf = NULL;
     char buf[11];
     int rc = SR_ERR_OK;
 
+    /* get user session from NETCONF session */
+    user_sess = nc_session_get_data(ncs);
+    ATOMIC_INC_RELAXED(user_sess->ref_count);
+
     /* switch to the datastore */
-    sr_session_switch_ds(user_sess, yp_data->datastore);
+    sr_session_switch_ds(user_sess->sess, yp_data->datastore);
 
     /* get the data from sysrepo */
-    rc = sr_get_data(user_sess, yp_data->xpath ? yp_data->xpath : "/*", 0, np2srv.sr_timeout, 0, &data);
+    rc = sr_get_data(user_sess->sess, yp_data->xpath ? yp_data->xpath : "/*", 0, np2srv.sr_timeout, 0, &data);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
@@ -872,6 +876,7 @@ yang_push_notif_update_send(struct nc_session *ncs, struct yang_push_data *yp_da
 cleanup:
     lyd_free_siblings(data);
     lyd_free_tree(ly_ntf);
+    np_release_user_sess(user_sess);
     return rc;
 }
 
@@ -945,7 +950,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
 {
     struct lyd_node *node, *child, *datastore_subtree_filter = NULL;
     struct nc_session *ncs;
-    sr_session_ctx_t *user_sess;
+    struct np2_user_sess *user_sess = NULL;
     struct ly_set *set;
     struct yang_push_data *yp_data = NULL;
     const char *selection_filter_ref = NULL, *datastore_xpath_filter = NULL;
@@ -956,13 +961,10 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
     struct itimerspec trspec = {0};
     struct timespec anchor_time = {0};
 
-    /* find this NETCONF session */
-    ncs = np_get_nc_sess(ev_sess);
-    if (!ncs) {
-        rc = SR_ERR_INTERNAL;
+    /* get the NETCONF session and user session */
+    if ((rc = np_get_user_sess(ev_sess, &ncs, &user_sess))) {
         goto cleanup;
     }
-    user_sess = nc_session_get_data(ncs);
 
     /* datastore */
     lyd_find_path(rpc, "ietf-yang-push:datastore", 0, &node);
@@ -973,7 +975,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
     }
 
     /* filter, join all into one xpath */
-    rc = yang_push_rpc_filter2xpath(user_sess, rpc, ev_sess, &xp, &selection_filter_ref, &datastore_subtree_filter,
+    rc = yang_push_rpc_filter2xpath(user_sess->sess, rpc, ev_sess, &xp, &selection_filter_ref, &datastore_subtree_filter,
             &datastore_xpath_filter);
     if (rc != SR_ERR_OK) {
         goto cleanup;
@@ -1113,7 +1115,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
 
         /* subscribe to sysrepo module data changes */
         sub_id_count = 0;
-        rc = yang_push_sr_subscribe(user_sess, datastore, yp_data->xpath, &yp_data->cb_arg, ev_sess, &sub->sub_ids,
+        rc = yang_push_sr_subscribe(user_sess->sess, datastore, yp_data->xpath, &yp_data->cb_arg, ev_sess, &sub->sub_ids,
                 &sub_id_count);
         ATOMIC_STORE_RELAXED(sub->sub_id_count, sub_id_count);
         if (rc != SR_ERR_OK) {
@@ -1123,6 +1125,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
 
 cleanup:
     free(xp);
+    np_release_user_sess(user_sess);
     if (rc) {
         yang_push_data_destroy(yp_data);
     }
@@ -1134,7 +1137,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
         struct np2srv_sub_ntf *sub)
 {
     struct lyd_node *node, *cont, *datastore_subtree_filter = NULL;
-    sr_session_ctx_t *user_sess;
+    struct np2_user_sess *user_sess = NULL;
     struct yang_push_data *yp_data = sub->data;
     sr_datastore_t datastore;
     const char *selection_filter_ref = NULL, *datastore_xpath_filter = NULL;
@@ -1145,10 +1148,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     uint32_t i, nc_sub_id, period, dampening_period;
 
     /* get the user session */
-    user_sess = np_get_user_sess(ev_sess);
-    if (!user_sess) {
-        EINT;
-        rc = SR_ERR_INTERNAL;
+    if ((rc = np_get_user_sess(ev_sess, NULL, &user_sess))) {
         goto cleanup;
     }
 
@@ -1276,7 +1276,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     /*
      * filter, join all into one xpath
      */
-    rc = yang_push_rpc_filter2xpath(user_sess, rpc, ev_sess, &xp, &selection_filter_ref, &datastore_subtree_filter,
+    rc = yang_push_rpc_filter2xpath(user_sess->sess, rpc, ev_sess, &xp, &selection_filter_ref, &datastore_subtree_filter,
             &datastore_xpath_filter);
     if (rc != SR_ERR_OK) {
         goto cleanup;
@@ -1339,6 +1339,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
 cleanup:
     free(xp);
     free(datetime);
+    np_release_user_sess(user_sess);
     return rc;
 }
 
@@ -1460,6 +1461,7 @@ yang_push_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filte
     int rc = SR_ERR_OK, r;
     struct yang_push_data *yp_data;
     struct np2srv_sub_ntf *sub;
+    struct nc_session *ncs;
     char *xp;
     uint32_t i;
 
@@ -1494,12 +1496,17 @@ yang_push_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filte
 
         free(xp);
     } else if (op == SR_OP_DELETED) {
+        /* get NETCONF session */
+        if ((rc = np_get_user_sess(ev_sess, &ncs, NULL))) {
+            return rc;
+        }
+
         /* update all the relevant subscriptions */
         sub = NULL;
         while ((sub = sub_ntf_find_next(sub, yang_push_datastore_filter_match_cb, lyd_get_value(lyd_child(filter))))) {
             /* terminate the subscription with the specific term reason */
             sub->term_reason = "ietf-subscribed-notifications:filter-unavailable";
-            r = sub_ntf_terminate_sub(sub, np_get_nc_sess(ev_sess));
+            r = sub_ntf_terminate_sub(sub, ncs);
             if (r != SR_ERR_OK) {
                 rc = r;
             }
