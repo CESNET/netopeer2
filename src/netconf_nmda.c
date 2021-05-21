@@ -258,6 +258,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), co
     /* success */
 
 cleanup:
+    np_unref_user_sess(session);
     op_filter_erase(&filter);
     lyd_free_withsiblings(select_data);
     lyd_free_withsiblings(data);
@@ -355,6 +356,7 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
     /* success */
 
 cleanup:
+    np_unref_user_sess(session);
     lyd_free_withsiblings(config);
     return rc;
 }
