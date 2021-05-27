@@ -2,10 +2,12 @@ name: netopeer2 CI
 on:
   push:
     branches:
-      - libyang2
+      - master
+      - devel
   pull_request:
     branches:
-      - libyang2
+      - master
+      - devel
 
 env:
   DEFAULT_PACKAGES: libcmocka-dev zlib1g-dev libssh-dev libssl-dev
