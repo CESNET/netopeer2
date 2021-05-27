@@ -84,7 +84,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install $DEFAULT_PACKAGES ${{ matrix.config.packages }}
 
-          GIT_BRANCH=`echo ${{ github.ref }} | cut -d'/' -f 3`
+          if ${{ github.event_name == 'push' }}
+            then GIT_BRANCH=`echo ${{ github.ref }} | cut -d'/' -f 3`
+          else
+            GIT_BRANCH=${{ github.base_ref }}
+          fi
+
           git clone -b $GIT_BRANCH https://github.com/CESNET/libyang.git
           cd libyang
           mkdir build
