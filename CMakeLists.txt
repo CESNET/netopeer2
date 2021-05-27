@@ -199,9 +199,6 @@ find_package(Threads REQUIRED)
 target_link_libraries(netopeer2-server ${CMAKE_THREAD_LIBS_INIT})
 list(APPEND CMAKE_REQUIRED_FLAGS ${CMAKE_THREAD_LIBS_INIT})
 
-# dependencies - stdatomic
-check_include_file(stdatomic.h HAVE_STDATOMIC)
-
 # dependencies - libyang
 find_package(LibYANG ${LIBYANG_DEP_SOVERSION_MAJOR} REQUIRED)
 target_link_libraries(netopeer2-server ${LIBYANG_LIBRARIES})

@@ -3,7 +3,7 @@
  * @author Michal Vasko <mvasko@cesnet.cz>
  * @brief Various configuration constants for netopeer2-server
  *
- * Copyright (c) 2019 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2021 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -67,41 +67,6 @@
 /** @brief URL capability support
  */
 #cmakedefine NP2SRV_URL_CAPAB
-
-/** @brief availability of atomic variables
- */
-#cmakedefine HAVE_STDATOMIC
-#ifdef HAVE_STDATOMIC
-# include <stdatomic.h>
-
-# define ATOMIC_T atomic_uint_fast32_t
-
-# define ATOMIC_STORE_FENCE(var, x) atomic_store_explicit(&(var), x, memory_order_release)
-# define ATOMIC_INC_FENCE(var) atomic_fetch_add_explicit(&(var), 1, memory_order_release)
-# define ATOMIC_DEC_FENCE(var) atomic_fetch_sub_explicit(&(var), 1, memory_order_release)
-# define ATOMIC_LOAD_FENCE(var) atomic_load_explicit(&(var), memory_order_acquire)
-
-# define ATOMIC_STORE_RELAXED(var, x) atomic_store_explicit(&(var), x, memory_order_relaxed)
-# define ATOMIC_INC_RELAXED(var) atomic_fetch_add_explicit(&(var), 1, memory_order_relaxed)
-# define ATOMIC_DEC_RELAXED(var) atomic_fetch_sub_explicit(&(var), 1, memory_order_relaxed)
-# define ATOMIC_LOAD_RELAXED(var) atomic_load_explicit(&(var), memory_order_relaxed)
-#else
-# define ATOMIC_T uint32_t
-
-# define ATOMIC_STORE_FENCE(var, x) ((var) = (x))
-# define ATOMIC_INC_FENCE(var) __sync_add_and_fetch(&(var), 1)
-# define ATOMIC_DEC_FENCE(var) __sync_sub_and_fetch(&(var), 1)
-# define ATOMIC_LOAD_FENCE(var) (var)
-
-# define ATOMIC_STORE_RELAXED(var, x) ATOMIC_STORE_FENCE(var, x)
-# define ATOMIC_INC_RELAXED(var) ATOMIC_INC_FENCE(var)
-# define ATOMIC_DEC_RELAXED(var) ATOMIC_DEC_FENCE(var)
-# define ATOMIC_LOAD_RELAXED(var) ATOMIC_LOAD_FENCE(var)
-#endif
-
-/** @brief unused compiler attribute
- */
-#define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
 
 /** @brief printf-like pattern for path to the authorized_keys file */
 #define NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN "@NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN@"
