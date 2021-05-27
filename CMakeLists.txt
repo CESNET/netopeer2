@@ -6,13 +6,14 @@ set(NETOPEER2_DESC "NETCONF tools suite including a server and command-line clie
 # include custom Modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules/")
 
-if(POLICY CMP0075)
-    cmake_policy(SET CMP0075 NEW)
-endif()
 include(GNUInstallDirs)
 include(CheckFunctionExists)
 include(CheckIncludeFile)
 include(UseCompat)
+include(SourceFormat)
+if(POLICY CMP0075)
+    cmake_policy(SET CMP0075 NEW)
+endif()
 
 # check the supported platform
 if(NOT UNIX)
@@ -152,6 +153,15 @@ set(SERVER_SRC
     src/log.c
     src/err_netconf.c)
 
+# source files to be covered by the 'format' target
+set(FORMAT_SRC
+    compat/*.c
+    compat/*.h*
+    src/*.c
+    src/*.h
+    cli/*.c
+    cli/*.h)
+
 # at least some remote transport is enabled
 if(LIBNETCONF2_ENABLED_SSH OR LIBNETCONF2_ENABLED_TLS)
     list(APPEND SERVER_SRC src/netconf_server.c)
@@ -225,6 +235,14 @@ list(APPEND CMAKE_REQUIRED_LIBRARIES ${SYSREPO_LIBRARIES})
 # generate files
 configure_file("${PROJECT_SOURCE_DIR}/src/config.h.in" "${PROJECT_BINARY_DIR}/config.h" ESCAPE_QUOTES @ONLY)
 include_directories(${PROJECT_BINARY_DIR})
+
+if ("${BUILD_TYPE_UPPER}" STREQUAL "DEBUG")
+    # enable before adding tests to let them detect that format checking is available - one of the tests is format checking
+    source_format_enable()
+endif()
+
+# source files to be covered by the 'format' target and a test with 'format-check' target
+source_format(${FORMAT_SRC})
 
 # tests
 if(ENABLE_TESTS)
