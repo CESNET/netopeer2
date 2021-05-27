@@ -19,16 +19,25 @@ if(NOT UNIX)
     message(FATAL_ERROR "Only *nix like systems are supported.")
 endif()
 
-# set default build type if not specified by user
+# set default build type if not specified by user and normalize it
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
-string(TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_LOWER)
+string(TOUPPER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_UPPER)
+if("${BUILD_TYPE_UPPER}" STREQUAL "RELEASE")
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build Type" FORCE)
+elseif("${BUILD_TYPE_UPPER}" STREQUAL "DEBUG")
+    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build Type" FORCE)
+elseif("${BUILD_TYPE_UPPER}" STREQUAL "RELWITHDEBINFO")
+    set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Build Type" FORCE)
+elseif("${BUILD_TYPE_UPPER}" STREQUAL "RELWITHDEBUG")
+    set(CMAKE_BUILD_TYPE "RelWithDebug" CACHE STRING "Build Type" FORCE)
+endif()
 
-add_compile_options(-Wall -Wextra -std=gnu99)
-set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
-set(CMAKE_C_FLAGS_PACKAGE "-g -O2 -DNDEBUG")
-set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -DDEBUG")
+# compilation flags
+set(CMAKE_C_FLAGS           "${CMAKE_C_FLAGS} -Wall -Wextra -std=gnu99")
+set(CMAKE_C_FLAGS_RELEASE   "-DNDEBUG -O2")
+set(CMAKE_C_FLAGS_DEBUG     "-g -O0")
 
 # Version of the project
 # Generic version of not only the library. Major version is reserved for really big changes of the project,
@@ -40,7 +49,7 @@ set(NP2SRV_VERSION 1.1.75)
 set(LIBYANG_DEP_SOVERSION_MAJOR 2)
 
 # build options
-if((CMAKE_BUILD_TYPE_LOWER STREQUAL debug) OR (CMAKE_BUILD_TYPE_LOWER STREQUAL package))
+if(("${BUILD_TYPE_UPPER}" STREQUAL "DEBUG") OR ("${BUILD_TYPE_UPPER}" STREQUAL "RELWITHDEBINFO"))
     option(ENABLE_TESTS "Build tests" ON)
     option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" ON)
 else()
