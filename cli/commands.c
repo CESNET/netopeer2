@@ -13,20 +13,20 @@
  */
 
 #define _GNU_SOURCE
-#include <string.h>
-#include <stdio.h>
-#include <errno.h>
-#include <pthread.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <pwd.h>
-#include <fcntl.h>
 #include <assert.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <stdarg.h>
 #include <ctype.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <getopt.h>
+#include <pthread.h>
+#include <pwd.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <libyang/libyang.h>
 #include <nc_client.h>
@@ -40,10 +40,10 @@
 #define eaccess access
 #endif
 
-#include "compat.h"
 #include "commands.h"
-#include "configuration.h"
+#include "compat.h"
 #include "completion.h"
+#include "configuration.h"
 
 #define CLI_CH_TIMEOUT 60 /* 1 minute */
 #define CLI_RPC_REPLY_TIMEOUT 5 /* 5 seconds */
@@ -75,7 +75,7 @@ int timed;
 static int cmd_disconnect(const char *arg, char **tmp_config_file);
 
 struct arglist {
-    char** list;
+    char **list;
     int count;
     int size;
 };
@@ -181,7 +181,7 @@ addargs(struct arglist *args, char *format, ...)
             /* append another part of the argument */
             spaces = aux - (prev_aux + strlen(prev_aux));
             args->list[args->count - 1] = realloc(args->list[args->count - 1],
-                                                  strlen(args->list[args->count - 1]) + spaces + strlen(aux) + 1);
+                    strlen(args->list[args->count - 1]) + spaces + strlen(aux) + 1);
 
             /* end of quoted argument */
             if (aux[strlen(aux) - 1] == quot) {
@@ -238,10 +238,10 @@ cli_gettimespec(struct timespec *ts, int *mono)
 #ifdef CLOCK_MONOTONIC_RAW
     *mono = 1;
     return clock_gettime(CLOCK_MONOTONIC_RAW, ts);
-#elif defined(CLOCK_MONOTONIC)
+#elif defined (CLOCK_MONOTONIC)
     *mono = 1;
     return clock_gettime(CLOCK_MONOTONIC, ts);
-#elif defined(CLOCK_REALTIME)
+#elif defined (CLOCK_REALTIME)
     /* no monotonic clock available, return realtime */
     *mono = 0;
     return clock_gettime(CLOCK_REALTIME, ts);
@@ -269,7 +269,7 @@ cli_difftimespec(const struct timespec *ts1, const struct timespec *ts2)
     nsec_diff += (((int64_t)ts2->tv_sec) - ((int64_t)ts1->tv_sec)) * 1000000000L;
     nsec_diff += ((int64_t)ts2->tv_nsec) - ((int64_t)ts1->tv_nsec);
 
-    return (nsec_diff ? nsec_diff / 1000000L : 0);
+    return nsec_diff ? nsec_diff / 1000000L : 0;
 }
 
 static int
@@ -521,7 +521,7 @@ trim_top_elem(char *data, const char *top_elem, const char *top_elem_ns)
             if (!strncmp(ptr, "xmlns", 5)) {
                 ptr += 5;
                 if (prefix) {
-                    if ((ptr[0] != ':') || strncmp(ptr + 1, prefix, pref_len) || (ptr[1 + pref_len] != '='))  {
+                    if ((ptr[0] != ':') || strncmp(ptr + 1, prefix, pref_len) || (ptr[1 + pref_len] != '=')) {
                         /* it's not the right prefix, look further */
                         break;
                     }
@@ -645,12 +645,12 @@ cmd_verb_help(void)
 static void
 cmd_connect_help(void)
 {
-#if defined(NC_ENABLED_SSH) && defined(NC_ENABLED_TLS)
+#if defined (NC_ENABLED_SSH) && defined (NC_ENABLED_TLS)
     printf("connect [--help] [--ssh] [--host <hostname>] [--port <num>] [--login <username>]\n");
     printf("connect [--help] --tls [--host <hostname>] [--port <num>] [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
-#elif defined(NC_ENABLED_SSH)
+#elif defined (NC_ENABLED_SSH)
     printf("connect [--help] [--ssh] [--host <hostname>] [--port <num>] [--login <username>]\n");
-#elif defined(NC_ENABLED_TLS)
+#elif defined (NC_ENABLED_TLS)
     printf("connect [--help] [--tls] [--host <hostname>] [--port <num>] [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
 #endif
     printf("connect [--help] --unix [--socket <path>]\n");
@@ -659,13 +659,13 @@ cmd_connect_help(void)
 static void
 cmd_listen_help(void)
 {
-#if defined(NC_ENABLED_SSH) && defined(NC_ENABLED_TLS)
+#if defined (NC_ENABLED_SSH) && defined (NC_ENABLED_TLS)
     printf("listen [--help] [--timeout <sec>] [--host <hostname>] [--port <num>]\n");
     printf("   SSH [--ssh] [--login <username>]\n");
     printf("   TLS  --tls  [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
-#elif defined(NC_ENABLED_SSH)
+#elif defined (NC_ENABLED_SSH)
     printf("listen [--help] [--ssh] [--timeout <sec>] [--host <hostname>] [--port <num>] [--login <username>]\n");
-#elif defined(NC_ENABLED_TLS)
+#elif defined (NC_ENABLED_TLS)
     printf("listen [--help] [--tls] [--timeout <sec>] [--host <hostname>] [--port <num>] [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
 #endif
 }
@@ -768,8 +768,8 @@ cmd_copyconfig_help(void)
     }
 
     printf("copy-config [--help] --target %s%s%s%s (--source %s%s%s%s | --src-config[=<file>])%s [--rpc-timeout <seconds>]\n",
-           running, startup, candidate, url,
-           running, startup, candidate, url, defaults);
+            running, startup, candidate, url,
+            running, startup, candidate, url, defaults);
 }
 
 static void
@@ -861,7 +861,7 @@ cmd_editconfig_help(void)
     }
 
     printf("edit-config [--help] --target %s%s %s--config[=<file>]%s [--defop merge|replace|none] "
-           "%s[--error stop|continue%s] [--rpc-timeout <seconds>]\n", running, candidate, bracket, url, validate, rollback);
+            "%s[--error stop|continue%s] [--rpc-timeout <seconds>]\n", running, candidate, bracket, url, validate, rollback);
 }
 
 static void
@@ -915,7 +915,7 @@ cmd_getconfig_help(void)
     }
 
     printf("get-config [--help] --source running%s%s [--filter-subtree[=<file>]%s] %s[--out <file>] [--rpc-timeout <seconds>]\n",
-           startup, candidate, xpath, defaults);
+            startup, candidate, xpath, defaults);
 }
 
 static void
@@ -969,8 +969,8 @@ cmd_validate_help(void)
 {
     const char *startup, *candidate, *url;
 
-    if (session && !nc_session_cpblt(session, NC_CAP_VALIDATE10_ID)
-            && !nc_session_cpblt(session, NC_CAP_VALIDATE11_ID)) {
+    if (session && !nc_session_cpblt(session, NC_CAP_VALIDATE10_ID) &&
+            !nc_session_cpblt(session, NC_CAP_VALIDATE11_ID)) {
         printf("validate is not supported by the current session.\n");
         return;
     }
@@ -998,7 +998,7 @@ cmd_validate_help(void)
         }
     }
     printf("validate [--help] (--source running%s%s%s | --src-config[=<file>]) [--rpc-timeout <seconds>]\n",
-           startup, candidate, url);
+            startup, candidate, url);
 }
 
 static void
@@ -1018,7 +1018,7 @@ cmd_subscribe_help(void)
     }
 
     printf("subscribe [--help] [--filter-subtree[=<file>]%s] [--begin <time>] [--end <time>] [--stream <stream>] [--out <file>]"
-           " [--rpc-timeout <seconds>]\n", xpath);
+            " [--rpc-timeout <seconds>]\n", xpath);
     printf("\t<time> has following format:\n");
     printf("\t\t+<num>  - current time plus the given number of seconds.\n");
     printf("\t\t<num>   - absolute time as number of seconds since 1970-01-01.\n");
@@ -1299,7 +1299,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
 
     cmd = strtok_r(args, " ", &ptr);
     cmd = strtok_r(NULL, " ", &ptr);
-    if (cmd == NULL || strcmp(cmd, "--help") == 0 || strcmp(cmd, "-h") == 0) {
+    if ((cmd == NULL) || (strcmp(cmd, "--help") == 0) || (strcmp(cmd, "-h") == 0)) {
         cmd_auth_help();
 
     } else if (strcmp(cmd, "pref") == 0) {
@@ -1377,8 +1377,8 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
                 return EXIT_FAILURE;
             }
 
-            if (nc_client_ssh_ch_add_keypair(str, cmd) != EXIT_SUCCESS ||
-                nc_client_ssh_add_keypair(str, cmd) != EXIT_SUCCESS) {
+            if ((nc_client_ssh_ch_add_keypair(str, cmd) != EXIT_SUCCESS) ||
+                    (nc_client_ssh_add_keypair(str, cmd) != EXIT_SUCCESS)) {
                 ERROR("auth keys add", "Failed to add keys");
                 return EXIT_FAILURE;
             }
@@ -1418,11 +1418,11 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
 static int
 cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
 {
-    char* ptr, *kh_file, *line = NULL, **pkeys = NULL, *text;
+    char *ptr, *kh_file, *line = NULL, **pkeys = NULL, *text;
     int del_idx = -1, i, j, pkey_len = 0, written, text_len;
     size_t line_len;
-    FILE* file;
-    struct passwd* pwd;
+    FILE *file;
+    struct passwd *pwd;
     struct arglist cmd;
     struct option long_options[] = {
         {"help", 0, 0, 'h'},
@@ -1447,7 +1447,7 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
             break;
         case 'd':
             del_idx = strtol(optarg, &ptr, 10);
-            if (*ptr != '\0' || del_idx < 0) {
+            if ((*ptr != '\0') || (del_idx < 0)) {
                 ERROR("knownhosts", "Wrong index");
                 clear_arglist(&cmd);
                 return EXIT_FAILURE;
@@ -1500,7 +1500,7 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
                 ++i;
                 continue;
             }
-            if (ptr[0] == '|' && ptr[2] == '|') {
+            if ((ptr[0] == '|') && (ptr[2] == '|')) {
                 printf("(hashed hostname) ");
             } else {
                 printf("%s ", ptr);
@@ -1529,7 +1529,7 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
             }
             if (j == pkey_len) {
                 ++pkey_len;
-                pkeys = realloc(pkeys, pkey_len*sizeof(char*));
+                pkeys = realloc(pkeys, pkey_len * sizeof(char *));
                 pkeys[j] = strdup(ptr);
             }
             printf("(key %d)\n", j);
@@ -1548,7 +1548,7 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
         free(pkeys);
         free(line);
 
-    /* delete */
+        /* delete */
     } else {
         fseek(file, 0, SEEK_END);
         text_len = ftell(file);
@@ -1569,7 +1569,7 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
         text[text_len] = '\0';
         fseek(file, 0, SEEK_SET);
 
-        for (i = 0, ptr = text; (i < del_idx) && ptr; ++i, ptr = strchr(ptr + 1, '\n'));
+        for (i = 0, ptr = text; (i < del_idx) && ptr; ++i, ptr = strchr(ptr + 1, '\n')) {}
 
         if (!ptr || (strlen(ptr) < 2)) {
             ERROR("knownhosts", "Key index %d does not exist", del_idx);
@@ -1584,7 +1584,7 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
 
         /* write the old beginning */
         written = fwrite(text, 1, ptr - text, file);
-        if (written < ptr-text) {
+        if (written < ptr - text) {
             ERROR("knownhosts", "Failed to write to known hosts file (%s)", strerror(ferror(file)));
             free(text);
             fclose(file);
@@ -1654,7 +1654,6 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
         case 'p':
             port = (unsigned short)atoi(optarg);
             if (!is_connect && listening && (listening != port)) {
-                //nc_callhome_listen_stop();
                 listening = 0;
             }
             break;
@@ -1799,7 +1798,8 @@ parse_cert(const char *name, const char *path)
     BIO *bio_out;
     FILE *fp;
     X509 *cert;
-    STACK_OF(GENERAL_NAME) *san_names = NULL;
+
+    STACK_OF(GENERAL_NAME) * san_names = NULL;
     GENERAL_NAME *san_name;
 
     fp = fopen(path, "r");
@@ -1845,7 +1845,7 @@ parse_cert(const char *name, const char *path)
     if (san_names != NULL) {
         for (i = 0; i < sk_GENERAL_NAME_num(san_names); ++i) {
             san_name = sk_GENERAL_NAME_value(san_names, i);
-            if (san_name->type == GEN_EMAIL || san_name->type == GEN_DNS || san_name->type == GEN_IPADD) {
+            if ((san_name->type == GEN_EMAIL) || (san_name->type == GEN_DNS) || (san_name->type == GEN_IPADD)) {
                 if (!has_san) {
                     BIO_printf(bio_out, "X509v3 Subject Alternative Name:\n\t");
                     has_san = 1;
@@ -1858,16 +1858,16 @@ parse_cert(const char *name, const char *path)
                 }
                 if (san_name->type == GEN_EMAIL) {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L // < 1.1.0
-                    BIO_printf(bio_out, "RFC822:%s", (char*) ASN1_STRING_data(san_name->d.rfc822Name));
+                    BIO_printf(bio_out, "RFC822:%s", (char *) ASN1_STRING_data(san_name->d.rfc822Name));
 #else
-                    BIO_printf(bio_out, "RFC822:%s", (char*) ASN1_STRING_get0_data(san_name->d.rfc822Name));
+                    BIO_printf(bio_out, "RFC822:%s", (char *) ASN1_STRING_get0_data(san_name->d.rfc822Name));
 #endif
                 }
                 if (san_name->type == GEN_DNS) {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L // < 1.1.0
-                    BIO_printf(bio_out, "DNS:%s", (char*) ASN1_STRING_data(san_name->d.dNSName));
+                    BIO_printf(bio_out, "DNS:%s", (char *) ASN1_STRING_data(san_name->d.dNSName));
 #else
-                    BIO_printf(bio_out, "DNS:%s", (char*) ASN1_STRING_get0_data(san_name->d.dNSName));
+                    BIO_printf(bio_out, "DNS:%s", (char *) ASN1_STRING_get0_data(san_name->d.dNSName));
 #endif
                 }
                 if (san_name->type == GEN_IPADD) {
@@ -1877,7 +1877,7 @@ parse_cert(const char *name, const char *path)
                         BIO_printf(bio_out, "%d.%d.%d.%d", ip->data[0], ip->data[1], ip->data[2], ip->data[3]);
                     } else if (ip->length == 16) {
                         for (j = 0; j < ip->length; ++j) {
-                            if (j > 0 && j < 15 && j%2 == 1) {
+                            if ((j > 0) && (j < 15) && (j % 2 == 1)) {
                                 BIO_printf(bio_out, "%02x:", ip->data[j]);
                             } else {
                                 BIO_printf(bio_out, "%02x", ip->data[j]);
@@ -1906,8 +1906,8 @@ parse_crl(const char *name, const char *path)
     BIO *bio_out;
     FILE *fp;
     X509_CRL *crl;
-    const ASN1_INTEGER* bs;
-    X509_REVOKED* rev;
+    const ASN1_INTEGER *bs;
+    X509_REVOKED *rev;
 
     fp = fopen(path, "r");
     if (fp == NULL) {
@@ -1982,10 +1982,10 @@ static int
 cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
 {
     int ret;
-    char* args = strdupa(arg);
-    char* cmd = NULL, *ptr = NULL, *path, *path2, *dest;
-    char* trusted_dir, *netconf_dir, *c_rehash_cmd;
-    DIR* dir = NULL;
+    char *args = strdupa(arg);
+    char *cmd = NULL, *ptr = NULL, *path, *path2, *dest;
+    char *trusted_dir, *netconf_dir, *c_rehash_cmd;
+    DIR *dir = NULL;
     struct dirent *d;
 
     cmd = strtok_r(args, " ", &ptr);
@@ -2037,8 +2037,8 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
             return EXIT_FAILURE;
         }
 
-        if ((asprintf(&dest, "%s/%s", trusted_dir, strrchr(path, '/') + 1) == -1)
-                || (asprintf(&c_rehash_cmd, "c_rehash %s &> /dev/null", trusted_dir) == -1)) {
+        if ((asprintf(&dest, "%s/%s", trusted_dir, strrchr(path, '/') + 1) == -1) ||
+                (asprintf(&c_rehash_cmd, "c_rehash %s &> /dev/null", trusted_dir) == -1)) {
             ERROR("cert add", "Memory allocation failed");
             free(trusted_dir);
             return EXIT_FAILURE;
@@ -2084,8 +2084,8 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
             return EXIT_FAILURE;
         }
 
-        if ((asprintf(&dest, "%s/%s.pem", trusted_dir, path) == -1)
-                || (asprintf(&c_rehash_cmd, "c_rehash %s &> /dev/null", trusted_dir) == -1)) {
+        if ((asprintf(&dest, "%s/%s.pem", trusted_dir, path) == -1) ||
+                (asprintf(&c_rehash_cmd, "c_rehash %s &> /dev/null", trusted_dir) == -1)) {
             ERROR("cert remove", "Memory allocation failed");
             free(trusted_dir);
             return EXIT_FAILURE;
@@ -2094,7 +2094,7 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
 
         if (remove(dest)) {
             ERROR("cert remove", "Cannot remove certificate \"%s\": %s (use the name from \"cert display\" output)",
-                  path, strerror(errno));
+                    path, strerror(errno));
             free(dest);
             free(c_rehash_cmd);
             return EXIT_FAILURE;
@@ -2309,8 +2309,8 @@ cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
             return EXIT_FAILURE;
         }
 
-        if ((asprintf(&dest, "%s/%s", crl_dir, strrchr(path, '/') + 1) == -1)
-                || (asprintf(&c_rehash_cmd, "c_rehash %s &> /dev/null", crl_dir) == -1)) {
+        if ((asprintf(&dest, "%s/%s", crl_dir, strrchr(path, '/') + 1) == -1) ||
+                (asprintf(&c_rehash_cmd, "c_rehash %s &> /dev/null", crl_dir) == -1)) {
             ERROR("crl add", "Memory allocation failed");
             free(crl_dir);
             return EXIT_FAILURE;
@@ -2356,8 +2356,8 @@ cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
             return EXIT_FAILURE;
         }
 
-        if ((asprintf(&dest, "%s/%s.pem", crl_dir, path) == -1)
-                || (asprintf(&c_rehash_cmd, "c_rehash %s &> /dev/null", crl_dir) == -1)) {
+        if ((asprintf(&dest, "%s/%s.pem", crl_dir, path) == -1) ||
+                (asprintf(&c_rehash_cmd, "c_rehash %s &> /dev/null", crl_dir) == -1)) {
             ERROR("crl remove", "Memory allocation failed");
             free(crl_dir);
             return EXIT_FAILURE;
@@ -2366,7 +2366,7 @@ cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
 
         if (remove(dest)) {
             ERROR("crl remove", "Cannot remove CRL \"%s\": %s (use the name from \"crl display\" output)",
-                  path, strerror(errno));
+                    path, strerror(errno));
             free(dest);
             free(c_rehash_cmd);
             return EXIT_FAILURE;
@@ -2396,7 +2396,7 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
     static unsigned short listening = 0;
     char *host = NULL;
     DIR *dir = NULL;
-    struct dirent* d;
+    struct dirent *d;
     int c, n, timeout = 0, ret = EXIT_FAILURE;
     char *cert = NULL, *key = NULL, *trusted_dir = NULL, *crl_dir = NULL, *trusted_store = NULL;
     unsigned short port = 0;
@@ -2434,7 +2434,6 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         case 'p':
             port = (unsigned short)atoi(optarg);
             if (!is_connect && listening && (listening != port)) {
-                //nc_callhome_listen_stop();
                 listening = 0;
             }
             break;
@@ -2592,7 +2591,7 @@ cmd_connect_listen_unix(struct arglist *cmd, int is_connect)
     optind = 0;
 
     while ((c = getopt_long(cmd->count, cmd->list, "uS:",
-                                        long_options, &option_index)) != -1) {
+            long_options, &option_index)) != -1) {
         switch (c) {
         case 'u':
             /* we know already */
@@ -2607,8 +2606,9 @@ cmd_connect_listen_unix(struct arglist *cmd, int is_connect)
         }
     }
 
-    if (!path)
+    if (!path) {
         path = "/var/run/netopeer2-server.sock";
+    }
 
     /* create the session */
     session = nc_connect_unix(path, NULL);
@@ -2628,7 +2628,7 @@ cmd_searchpath(const char *arg, char **UNUSED(tmp_config_file))
 {
     const char *path;
 
-    for (arg += 10; isspace(arg[0]); ++arg);
+    for (arg += 10; isspace(arg[0]); ++arg) {}
 
     if (!arg[0]) {
         path = nc_client_get_schema_searchpath();
@@ -2694,6 +2694,7 @@ static int
 cmd_verb(const char *arg, char **UNUSED(tmp_config_file))
 {
     const char *verb;
+
     if (strlen(arg) < 5) {
         cmd_verb_help();
         return 1;
@@ -2710,12 +2711,12 @@ cmd_verb(const char *arg, char **UNUSED(tmp_config_file))
 #ifdef NC_ENABLED_SSH
         nc_libssh_thread_verbosity(1);
 #endif
-    } else if (!strcmp(verb, "verbose")  || !strcmp(verb, "2")) {
+    } else if (!strcmp(verb, "verbose") || !strcmp(verb, "2")) {
         nc_verbosity(2);
 #ifdef NC_ENABLED_SSH
         nc_libssh_thread_verbosity(2);
 #endif
-    } else if (!strcmp(verb, "debug")  || !strcmp(verb, "3")) {
+    } else if (!strcmp(verb, "debug") || !strcmp(verb, "3")) {
         nc_verbosity(3);
 #ifdef NC_ENABLED_SSH
         nc_libssh_thread_verbosity(3);
@@ -2800,26 +2801,26 @@ cmd_connect_listen(const char *arg, int is_connect)
     const char *optstring;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
+        {"help", 0, 0, 'h'},
 #ifdef NC_ENABLED_SSH
-            {"ssh", 0, 0, 's'},
-            {"timeout", 1, 0, 'i'},
-            {"host", 1, 0, 'o'},
-            {"port", 1, 0, 'p'},
-            {"login", 1, 0, 'l'},
+        {"ssh", 0, 0, 's'},
+        {"timeout", 1, 0, 'i'},
+        {"host", 1, 0, 'o'},
+        {"port", 1, 0, 'p'},
+        {"login", 1, 0, 'l'},
 #endif
 #ifdef NC_ENABLED_TLS
-            {"tls", 0, 0, 't'},
-            {"timeout", 1, 0, 'i'},
-            {"host", 1, 0, 'o'},
-            {"port", 1, 0, 'p'},
-            {"cert", 1, 0, 'c'},
-            {"key", 1, 0, 'k'},
-            {"trusted", 1, 0, 'r'},
+        {"tls", 0, 0, 't'},
+        {"timeout", 1, 0, 'i'},
+        {"host", 1, 0, 'o'},
+        {"port", 1, 0, 'p'},
+        {"cert", 1, 0, 'c'},
+        {"key", 1, 0, 'k'},
+        {"trusted", 1, 0, 'r'},
 #endif
-            {"unix", 0, 0, 'u'},
-            {"socket", 1, 0, 'S'},
-            {0, 0, 0, 0}
+        {"unix", 0, 0, 'u'},
+        {"socket", 1, 0, 'S'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -2828,7 +2829,7 @@ cmd_connect_listen(const char *arg, int is_connect)
 
     if (session) {
         ERROR(func_name, "Already connected to %s.",
-            nc_session_get_host(session) ? : nc_session_get_path(session));
+                nc_session_get_host(session) ?: nc_session_get_path(session));
         return EXIT_FAILURE;
     }
 
@@ -2840,11 +2841,11 @@ cmd_connect_listen(const char *arg, int is_connect)
 
     ret = -1;
 
-#if defined(NC_ENABLED_SSH) && defined(NC_ENABLED_TLS)
+#if defined (NC_ENABLED_SSH) && defined (NC_ENABLED_TLS)
     optstring = "hsti:o:p:l:c:k:r:uS:";
-#elif defined(NC_ENABLED_SSH)
+#elif defined (NC_ENABLED_SSH)
     optstring = "hsi:o:p:l:uS:";
-#elif defined(NC_ENABLED_TLS)
+#elif defined (NC_ENABLED_TLS)
     optstring = "hti:o:p:c:k:r:uS:";
 #else
     optstring = "hi:o:p:c:k:r:uS:";
@@ -2882,7 +2883,7 @@ cmd_connect_listen(const char *arg, int is_connect)
     if (ret == -1) {
 #ifdef NC_ENABLED_SSH
         ret = cmd_connect_listen_ssh(&cmd, is_connect);
-#elif defined(NC_ENABLED_TLS)
+#elif defined (NC_ENABLED_TLS)
         ret = cmd_connect_listen_tls(&cmd, is_connect);
 #endif
     }
@@ -2969,7 +2970,7 @@ cmd_editor(const char *arg, char **UNUSED(tmp_config_file))
     if (cmd == NULL) {
         printf("Current editor: ");
         printf("%s\n", config_editor);
-    } else if (strcmp(cmd, "--help") == 0 || strcmp(cmd, "-h") == 0) {
+    } else if ((strcmp(cmd, "--help") == 0) || (strcmp(cmd, "-h") == 0)) {
         cmd_editor_help();
     } else {
         free(config_editor);
@@ -2987,10 +2988,10 @@ cmd_cancelcommit(const char *arg, char **UNUSED(tmp_config_file))
     const char *persist_id = NULL;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"persist-id", 1, 0, 'i'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"persist-id", 1, 0, 'i'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -3032,7 +3033,6 @@ cmd_cancelcommit(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-
     if (!session) {
         ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
         goto fail;
@@ -3067,13 +3067,13 @@ cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
     char *persist = NULL, *persist_id = NULL;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"confirmed", 0, 0, 'c'},
-            {"confirm-timeout", 1, 0, 't'},
-            {"persist", 1, 0, 'p'},
-            {"persist-id", 1, 0, 'i'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"confirmed", 0, 0, 'c'},
+        {"confirm-timeout", 1, 0, 't'},
+        {"persist", 1, 0, 'p'},
+        {"persist-id", 1, 0, 'i'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -3161,13 +3161,13 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
     NC_WD_MODE wd = NC_WD_UNKNOWN;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"target", 1, 0, 't'},
-            {"source", 1, 0, 's'},
-            {"src-config", 2, 0, 'c'},
-            {"defaults", 1, 0, 'd'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"target", 1, 0, 't'},
+        {"source", 1, 0, 's'},
+        {"src-config", 2, 0, 'c'},
+        {"defaults", 1, 0, 'd'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -3354,13 +3354,13 @@ cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
     int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
     const char *trg = NULL;
     struct nc_rpc *rpc;
-    NC_DATASTORE target = NC_DATASTORE_ERROR;;
+    NC_DATASTORE target = NC_DATASTORE_ERROR;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"target", 1, 0, 't'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"target", 1, 0, 't'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -3448,9 +3448,9 @@ cmd_discardchanges(const char *arg, char **UNUSED(tmp_config_file))
     int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -3528,15 +3528,15 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
     NC_RPC_EDIT_ERROPT err = NC_RPC_EDIT_ERROPT_UNKNOWN;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"target", 1, 0, 't'},
-            {"defop", 1, 0, 'o'},
-            {"test", 1, 0, 'e'},
-            {"error", 1, 0, 'E'},
-            {"config", 2, 0, 'c'},
-            {"url", 1, 0, 'u'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"target", 1, 0, 't'},
+        {"defop", 1, 0, 'o'},
+        {"test", 1, 0, 'e'},
+        {"error", 1, 0, 'E'},
+        {"config", 2, 0, 'c'},
+        {"url", 1, 0, 'u'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -3730,13 +3730,13 @@ cmd_get(const char *arg, char **tmp_config_file)
     FILE *output = NULL;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"filter-subtree", 2, 0, 's'},
-            {"filter-xpath", 1, 0, 'x'},
-            {"defaults", 1, 0, 'd'},
-            {"out", 1, 0, 'o'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"filter-subtree", 2, 0, 's'},
+        {"filter-xpath", 1, 0, 'x'},
+        {"defaults", 1, 0, 'd'},
+        {"out", 1, 0, 'o'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -3905,14 +3905,14 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
     FILE *output = NULL;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"source", 1, 0, 'u'},
-            {"filter-subtree", 2, 0, 's'},
-            {"filter-xpath", 1, 0, 'x'},
-            {"defaults", 1, 0, 'd'},
-            {"out", 1, 0, 'o'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"source", 1, 0, 'u'},
+        {"filter-subtree", 2, 0, 's'},
+        {"filter-xpath", 1, 0, 'x'},
+        {"defaults", 1, 0, 'd'},
+        {"out", 1, 0, 'o'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -4095,10 +4095,10 @@ cmd_killsession(const char *arg, char **UNUSED(tmp_config_file))
     uint32_t sid = 0;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"sid", 1, 0, 's'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"sid", 1, 0, 's'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -4181,13 +4181,13 @@ cmd_lock(const char *arg, char **UNUSED(tmp_config_file))
 {
     int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct nc_rpc *rpc;
-    NC_DATASTORE target = NC_DATASTORE_ERROR;;
+    NC_DATASTORE target = NC_DATASTORE_ERROR;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"target", 1, 0, 't'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"target", 1, 0, 't'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -4274,13 +4274,13 @@ cmd_unlock(const char *arg, char **UNUSED(tmp_config_file))
 {
     int c, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct nc_rpc *rpc;
-    NC_DATASTORE target = NC_DATASTORE_ERROR;;
+    NC_DATASTORE target = NC_DATASTORE_ERROR;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"target", 1, 0, 't'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"target", 1, 0, 't'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -4372,11 +4372,11 @@ cmd_validate(const char *arg, char **tmp_config_file)
     struct nc_rpc *rpc;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"source", 1, 0, 's'},
-            {"src-config", 2, 0, 'c'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"source", 1, 0, 's'},
+        {"src-config", 2, 0, 'c'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -4540,15 +4540,15 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
     FILE *output = NULL;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"filter-subtree", 2, 0, 's'},
-            {"filter-xpath", 1, 0, 'x'},
-            {"begin", 1, 0, 'b'},
-            {"end", 1, 0, 'e'},
-            {"stream", 1, 0, 't'},
-            {"out", 1, 0, 'o'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"filter-subtree", 2, 0, 's'},
+        {"filter-xpath", 1, 0, 'x'},
+        {"begin", 1, 0, 'b'},
+        {"end", 1, 0, 'e'},
+        {"stream", 1, 0, 't'},
+        {"out", 1, 0, 'o'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -4617,7 +4617,7 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
             break;
         case 'b':
         case 'e':
-            if (optarg[0] == '-' || optarg[0] == '+') {
+            if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
                 t += atol(optarg);
             } else {
@@ -4712,8 +4712,8 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
 
     if (!nc_session_cpblt(session, NC_CAP_INTERLEAVE_ID)) {
         fprintf(output, "NETCONF server does not support interleave, you\n"
-                        "cannot issue any RPCs during the subscription.\n"
-                        "Close the session with \"disconnect\".\n");
+                "cannot issue any RPCs during the subscription.\n"
+                "Close the session with \"disconnect\".\n");
         interleave = 0;
     }
 
@@ -4739,13 +4739,13 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
     FILE *output = NULL;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"model", 1, 0, 'm'},
-            {"version", 1, 0, 'v'},
-            {"format", 1, 0, 'f'},
-            {"out", 1, 0, 'o'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"model", 1, 0, 'm'},
+        {"version", 1, 0, 'v'},
+        {"format", 1, 0, 'f'},
+        {"out", 1, 0, 'o'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -4854,19 +4854,19 @@ cmd_getdata(const char *arg, char **tmp_config_file)
     FILE *output = NULL;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"datastore", 1, 0, 'd'},
-            {"filter-subtree", 2, 0, 's'},
-            {"filter-xpath", 1, 0, 'x'},
-            {"config", 1, 0, 'c'},
-            {"origin", 1, 0, 'O'},
-            {"negated-origin", 0, 0, 'n'},
-            {"depth", 1, 0, 'e'},
-            {"with-origin", 0, 0, 'w'},
-            {"defaults", 1, 0, 'f'},
-            {"out", 1, 0, 'o'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"datastore", 1, 0, 'd'},
+        {"filter-subtree", 2, 0, 's'},
+        {"filter-xpath", 1, 0, 'x'},
+        {"config", 1, 0, 'c'},
+        {"origin", 1, 0, 'O'},
+        {"negated-origin", 0, 0, 'n'},
+        {"depth", 1, 0, 'e'},
+        {"with-origin", 0, 0, 'w'},
+        {"defaults", 1, 0, 'f'},
+        {"out", 1, 0, 'o'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -5057,7 +5057,7 @@ cmd_getdata(const char *arg, char **tmp_config_file)
 
     /* create requests */
     rpc = nc_rpc_getdata(datastore, filter, config, origin, origin_count, negated_origin, depth, with_origin, wd,
-                         NC_PARAMTYPE_CONST);
+            NC_PARAMTYPE_CONST);
     if (!rpc) {
         ERROR(__func__, "RPC creation failed.");
         goto fail;
@@ -5095,13 +5095,13 @@ cmd_editdata(const char *arg, char **tmp_config_file)
     NC_RPC_EDIT_DFLTOP op = NC_RPC_EDIT_DFLTOP_UNKNOWN;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"datastore", 1, 0, 'd'},
-            {"defop", 1, 0, 'o'},
-            {"config", 2, 0, 'c'},
-            {"url", 1, 0, 'u'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"datastore", 1, 0, 'd'},
+        {"defop", 1, 0, 'o'},
+        {"config", 2, 0, 'c'},
+        {"url", 1, 0, 'u'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -5280,17 +5280,17 @@ cmd_establishsub(const char *arg, char **tmp_config_file)
     FILE *output = NULL;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"stream", 1, 0, 't'},
-            {"filter-subtree", 2, 0, 's'},
-            {"filter-xpath", 1, 0, 'x'},
-            {"filter-ref", 1, 0, 'f'},
-            {"begin", 1, 0, 'b'},
-            {"end", 1, 0, 'e'},
-            {"encoding", 1, 0, 'n'},
-            {"out", 1, 0, 'o'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"stream", 1, 0, 't'},
+        {"filter-subtree", 2, 0, 's'},
+        {"filter-xpath", 1, 0, 'x'},
+        {"filter-ref", 1, 0, 'f'},
+        {"begin", 1, 0, 'b'},
+        {"end", 1, 0, 'e'},
+        {"encoding", 1, 0, 'n'},
+        {"out", 1, 0, 'o'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -5361,7 +5361,7 @@ cmd_establishsub(const char *arg, char **tmp_config_file)
             break;
         case 'b':
         case 'e':
-            if (optarg[0] == '-' || optarg[0] == '+') {
+            if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
                 t += atol(optarg);
             } else {
@@ -5485,15 +5485,15 @@ cmd_modifysub(const char *arg, char **tmp_config_file)
     FILE *output = NULL;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"id", 1, 0, 'i'},
-            {"filter-subtree", 2, 0, 's'},
-            {"filter-xpath", 1, 0, 'x'},
-            {"filter-ref", 1, 0, 'f'},
-            {"end", 1, 0, 'e'},
-            {"out", 1, 0, 'o'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"id", 1, 0, 'i'},
+        {"filter-subtree", 2, 0, 's'},
+        {"filter-xpath", 1, 0, 'x'},
+        {"filter-ref", 1, 0, 'f'},
+        {"end", 1, 0, 'e'},
+        {"out", 1, 0, 'o'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -5563,7 +5563,7 @@ cmd_modifysub(const char *arg, char **tmp_config_file)
             filter = strdup(optarg);
             break;
         case 'e':
-            if (optarg[0] == '-' || optarg[0] == '+') {
+            if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
                 t += atol(optarg);
             } else {
@@ -5658,11 +5658,11 @@ cmd_deletesub(const char *arg, char **UNUSED(tmp_config_file))
     FILE *output = NULL;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"id", 1, 0, 'i'},
-            {"out", 1, 0, 'o'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"id", 1, 0, 'i'},
+        {"out", 1, 0, 'o'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -5757,11 +5757,11 @@ cmd_killsub(const char *arg, char **UNUSED(tmp_config_file))
     FILE *output = NULL;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"id", 1, 0, 'i'},
-            {"out", 1, 0, 'o'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"id", 1, 0, 'i'},
+        {"out", 1, 0, 'o'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -5861,23 +5861,23 @@ cmd_establishpush(const char *arg, char **tmp_config_file)
     FILE *output = NULL;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"datastore", 1, 0, 'd'},
-            {"filter-subtree", 2, 0, 's'},
-            {"filter-xpath", 1, 0, 'x'},
-            {"filter-ref", 1, 0, 'f'},
-            {"end", 1, 0, 'e'},
-            {"encoding", 1, 0, 'n'},
-            {"periodic", 0, 0, 'p'},
-            {"period", 1, 0, 'i'},
-            {"anchor-time", 1, 0, 'a'},
-            {"on-change", 0, 0, 'c'},
-            {"dampening-period", 1, 0, 'm'},
-            {"no-sync-on-start", 0, 0, 'y'},
-            {"excluded-change", 1, 0, 'l'},
-            {"out", 1, 0, 'o'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"datastore", 1, 0, 'd'},
+        {"filter-subtree", 2, 0, 's'},
+        {"filter-xpath", 1, 0, 'x'},
+        {"filter-ref", 1, 0, 'f'},
+        {"end", 1, 0, 'e'},
+        {"encoding", 1, 0, 'n'},
+        {"periodic", 0, 0, 'p'},
+        {"period", 1, 0, 'i'},
+        {"anchor-time", 1, 0, 'a'},
+        {"on-change", 0, 0, 'c'},
+        {"dampening-period", 1, 0, 'm'},
+        {"no-sync-on-start", 0, 0, 'y'},
+        {"excluded-change", 1, 0, 'l'},
+        {"out", 1, 0, 'o'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -5963,7 +5963,7 @@ cmd_establishpush(const char *arg, char **tmp_config_file)
             filter = strdup(optarg);
             break;
         case 'e':
-            if (optarg[0] == '-' || optarg[0] == '+') {
+            if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
                 t += atol(optarg);
             } else {
@@ -5986,7 +5986,7 @@ cmd_establishpush(const char *arg, char **tmp_config_file)
             period = atoi(optarg);
             break;
         case 'a':
-            if (optarg[0] == '-' || optarg[0] == '+') {
+            if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
                 t += atol(optarg);
             } else {
@@ -6129,21 +6129,21 @@ cmd_modifypush(const char *arg, char **tmp_config_file)
     FILE *output = NULL;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"id", 1, 0, 'I'},
-            {"datastore", 1, 0, 'd'},
-            {"filter-subtree", 2, 0, 's'},
-            {"filter-xpath", 1, 0, 'x'},
-            {"filter-ref", 1, 0, 'f'},
-            {"end", 1, 0, 'e'},
-            {"periodic", 0, 0, 'p'},
-            {"period", 1, 0, 'i'},
-            {"anchor-time", 1, 0, 'a'},
-            {"on-change", 0, 0, 'c'},
-            {"dampening-period", 1, 0, 'm'},
-            {"out", 1, 0, 'o'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"id", 1, 0, 'I'},
+        {"datastore", 1, 0, 'd'},
+        {"filter-subtree", 2, 0, 's'},
+        {"filter-xpath", 1, 0, 'x'},
+        {"filter-ref", 1, 0, 'f'},
+        {"end", 1, 0, 'e'},
+        {"periodic", 0, 0, 'p'},
+        {"period", 1, 0, 'i'},
+        {"anchor-time", 1, 0, 'a'},
+        {"on-change", 0, 0, 'c'},
+        {"dampening-period", 1, 0, 'm'},
+        {"out", 1, 0, 'o'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -6232,7 +6232,7 @@ cmd_modifypush(const char *arg, char **tmp_config_file)
             filter = strdup(optarg);
             break;
         case 'e':
-            if (optarg[0] == '-' || optarg[0] == '+') {
+            if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
                 t += atol(optarg);
             } else {
@@ -6252,7 +6252,7 @@ cmd_modifypush(const char *arg, char **tmp_config_file)
             period = atoi(optarg);
             break;
         case 'a':
-            if (optarg[0] == '-' || optarg[0] == '+') {
+            if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
                 t += atol(optarg);
             } else {
@@ -6376,11 +6376,11 @@ cmd_resyncsub(const char *arg, char **UNUSED(tmp_config_file))
     FILE *output = NULL;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"id", 1, 0, 'i'},
-            {"out", 1, 0, 'o'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"id", 1, 0, 'i'},
+        {"out", 1, 0, 'o'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -6476,11 +6476,11 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
     FILE *output = NULL;
     struct arglist cmd;
     struct option long_options[] = {
-            {"help", 0, 0, 'h'},
-            {"content", 1, 0, 'c'},
-            {"out", 1, 0, 'o'},
-            {"rpc-timeout", 1, 0, 'r'},
-            {0, 0, 0, 0}
+        {"help", 0, 0, 'h'},
+        {"content", 1, 0, 'c'},
+        {"out", 1, 0, 'o'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
     };
     int option_index = 0;
 
@@ -6632,55 +6632,55 @@ cmd_timed(const char *arg, char **UNUSED(tmp_config_file))
 
 COMMAND commands[] = {
 #ifdef NC_ENABLED_SSH
-        {"auth", cmd_auth, cmd_auth_help, "Manage SSH authentication options"},
-        {"knownhosts", cmd_knownhosts, cmd_knownhosts_help, "Manage the user knownhosts file"},
+    {"auth", cmd_auth, cmd_auth_help, "Manage SSH authentication options"},
+    {"knownhosts", cmd_knownhosts, cmd_knownhosts_help, "Manage the user knownhosts file"},
 #endif
 #ifdef NC_ENABLED_TLS
-        {"cert", cmd_cert, cmd_cert_help, "Manage trusted or your own certificates"},
-        {"crl", cmd_crl, cmd_crl_help, "Manage Certificate Revocation List directory"},
+    {"cert", cmd_cert, cmd_cert_help, "Manage trusted or your own certificates"},
+    {"crl", cmd_crl, cmd_crl_help, "Manage Certificate Revocation List directory"},
 #endif
-        {"outputformat", cmd_outputformat, cmd_outputformat_help, "Set the output format of all the data"},
-        {"searchpath", cmd_searchpath, cmd_searchpath_help, "Set the search path for models"},
-        {"verb", cmd_verb, cmd_verb_help, "Change verbosity"},
-        {"version", cmd_version, NULL, "Print Netopeer2 CLI version"},
-        {"disconnect", cmd_disconnect, NULL, "Disconnect from a NETCONF server"},
-        {"status", cmd_status, NULL, "Display information about the current NETCONF session"},
-        {"connect", cmd_connect, cmd_connect_help, "Connect to a NETCONF server"},
-        {"listen", cmd_listen, cmd_listen_help, "Wait for a Call Home connection from a NETCONF server"},
-        {"quit", cmd_quit, NULL, "Quit the program"},
-        {"help", cmd_help, NULL, "Display commands description"},
-        {"editor", cmd_editor, cmd_editor_help, "Set the text editor for working with XML data"},
-        {"cancel-commit", cmd_cancelcommit, cmd_cancelcommit_help, "ietf-netconf <cancel-commit> operation"},
-        {"commit", cmd_commit, cmd_commit_help, "ietf-netconf <commit> operation"},
-        {"copy-config", cmd_copyconfig, cmd_copyconfig_help, "ietf-netconf <copy-config> operation"},
-        {"delete-config", cmd_deleteconfig, cmd_deleteconfig_help, "ietf-netconf <delete-config> operation"},
-        {"discard-changes", cmd_discardchanges, cmd_discardchanges_help, "ietf-netconf <discard-changes> operation"},
-        {"edit-config", cmd_editconfig, cmd_editconfig_help, "ietf-netconf <edit-config> operation"},
-        {"get", cmd_get, cmd_get_help, "ietf-netconf <get> operation"},
-        {"get-config", cmd_getconfig, cmd_getconfig_help, "ietf-netconf <get-config> operation"},
-        {"kill-session", cmd_killsession, cmd_killsession_help, "ietf-netconf <kill-session> operation"},
-        {"lock", cmd_lock, cmd_lock_help, "ietf-netconf <lock> operation"},
-        {"unlock", cmd_unlock, cmd_unlock_help, "ietf-netconf <unlock> operation"},
-        {"validate", cmd_validate, cmd_validate_help, "ietf-netconf <validate> operation"},
-        {"subscribe", cmd_subscribe, cmd_subscribe_help, "notifications <create-subscription> operation"},
-        {"get-schema", cmd_getschema, cmd_getschema_help, "ietf-netconf-monitoring <get-schema> operation"},
-        {"get-data", cmd_getdata, cmd_getdata_help, "ietf-netconf-nmda <get-data> operation"},
-        {"edit-data", cmd_editdata, cmd_editdata_help, "ietf-netconf-nmda <edit-data> operation"},
-        {"establish-sub", cmd_establishsub, cmd_establishsub_help,
-                "ietf-subscribed-notifications <establish-subscription> operation"},
-        {"modify-sub", cmd_modifysub, cmd_modifysub_help, "ietf-subscribed-notifications <modify-subscription> operation"},
-        {"delete-sub", cmd_deletesub, cmd_deletesub_help, "ietf-subscribed-notifications <delete-subscription> operation"},
-        {"kill-sub", cmd_killsub, cmd_killsub_help, "ietf-subscribed-notifications <kill-subscription> operation"},
-        {"establish-push", cmd_establishpush, cmd_establishpush_help,
-                "ietf-subscribed-notifications <establish-subscription> operation with ietf-yang-push augments"},
-        {"modify-push", cmd_modifypush, cmd_modifypush_help,
-                "ietf-subscribed-notifications <modify-subscription> operation with ietf-yang-push augments"},
-        {"resync-sub", cmd_resyncsub, cmd_resyncsub_help, "ietf-yang-push <resync-subscription> operation"},
-        {"user-rpc", cmd_userrpc, cmd_userrpc_help, "Send your own content in an RPC envelope"},
-        {"timed", cmd_timed, cmd_timed_help, "Time all the commands (that communicate with a server) from issuing an RPC"
-                    " to getting a reply"},
-        /* synonyms for previous commands */
-        {"?", cmd_help, NULL, "Display commands description"},
-        {"exit", cmd_quit, NULL, "Quit the program"},
-        {NULL, NULL, NULL, NULL}
+    {"outputformat", cmd_outputformat, cmd_outputformat_help, "Set the output format of all the data"},
+    {"searchpath", cmd_searchpath, cmd_searchpath_help, "Set the search path for models"},
+    {"verb", cmd_verb, cmd_verb_help, "Change verbosity"},
+    {"version", cmd_version, NULL, "Print Netopeer2 CLI version"},
+    {"disconnect", cmd_disconnect, NULL, "Disconnect from a NETCONF server"},
+    {"status", cmd_status, NULL, "Display information about the current NETCONF session"},
+    {"connect", cmd_connect, cmd_connect_help, "Connect to a NETCONF server"},
+    {"listen", cmd_listen, cmd_listen_help, "Wait for a Call Home connection from a NETCONF server"},
+    {"quit", cmd_quit, NULL, "Quit the program"},
+    {"help", cmd_help, NULL, "Display commands description"},
+    {"editor", cmd_editor, cmd_editor_help, "Set the text editor for working with XML data"},
+    {"cancel-commit", cmd_cancelcommit, cmd_cancelcommit_help, "ietf-netconf <cancel-commit> operation"},
+    {"commit", cmd_commit, cmd_commit_help, "ietf-netconf <commit> operation"},
+    {"copy-config", cmd_copyconfig, cmd_copyconfig_help, "ietf-netconf <copy-config> operation"},
+    {"delete-config", cmd_deleteconfig, cmd_deleteconfig_help, "ietf-netconf <delete-config> operation"},
+    {"discard-changes", cmd_discardchanges, cmd_discardchanges_help, "ietf-netconf <discard-changes> operation"},
+    {"edit-config", cmd_editconfig, cmd_editconfig_help, "ietf-netconf <edit-config> operation"},
+    {"get", cmd_get, cmd_get_help, "ietf-netconf <get> operation"},
+    {"get-config", cmd_getconfig, cmd_getconfig_help, "ietf-netconf <get-config> operation"},
+    {"kill-session", cmd_killsession, cmd_killsession_help, "ietf-netconf <kill-session> operation"},
+    {"lock", cmd_lock, cmd_lock_help, "ietf-netconf <lock> operation"},
+    {"unlock", cmd_unlock, cmd_unlock_help, "ietf-netconf <unlock> operation"},
+    {"validate", cmd_validate, cmd_validate_help, "ietf-netconf <validate> operation"},
+    {"subscribe", cmd_subscribe, cmd_subscribe_help, "notifications <create-subscription> operation"},
+    {"get-schema", cmd_getschema, cmd_getschema_help, "ietf-netconf-monitoring <get-schema> operation"},
+    {"get-data", cmd_getdata, cmd_getdata_help, "ietf-netconf-nmda <get-data> operation"},
+    {"edit-data", cmd_editdata, cmd_editdata_help, "ietf-netconf-nmda <edit-data> operation"},
+    {"establish-sub", cmd_establishsub, cmd_establishsub_help,
+        "ietf-subscribed-notifications <establish-subscription> operation"},
+    {"modify-sub", cmd_modifysub, cmd_modifysub_help, "ietf-subscribed-notifications <modify-subscription> operation"},
+    {"delete-sub", cmd_deletesub, cmd_deletesub_help, "ietf-subscribed-notifications <delete-subscription> operation"},
+    {"kill-sub", cmd_killsub, cmd_killsub_help, "ietf-subscribed-notifications <kill-subscription> operation"},
+    {"establish-push", cmd_establishpush, cmd_establishpush_help,
+        "ietf-subscribed-notifications <establish-subscription> operation with ietf-yang-push augments"},
+    {"modify-push", cmd_modifypush, cmd_modifypush_help,
+        "ietf-subscribed-notifications <modify-subscription> operation with ietf-yang-push augments"},
+    {"resync-sub", cmd_resyncsub, cmd_resyncsub_help, "ietf-yang-push <resync-subscription> operation"},
+    {"user-rpc", cmd_userrpc, cmd_userrpc_help, "Send your own content in an RPC envelope"},
+    {"timed", cmd_timed, cmd_timed_help, "Time all the commands (that communicate with a server) from issuing an RPC"
+        " to getting a reply"},
+    /* synonyms for previous commands */
+    {"?", cmd_help, NULL, "Display commands description"},
+    {"exit", cmd_quit, NULL, "Quit the program"},
+    {NULL, NULL, NULL, NULL}
 };

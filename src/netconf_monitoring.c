@@ -14,11 +14,11 @@
 
 #include "netconf_monitoring.h"
 
-#include <time.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
+#include <time.h>
 
 #include <libyang/libyang.h>
 #include <nc_server.h>
@@ -69,7 +69,7 @@ ncm_is_monitored(struct nc_session *session)
 #ifdef NC_ENABLED_TLS
     case NC_TI_OPENSSL:
 #endif
-#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+#if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
         return 1;
 #endif
     default:

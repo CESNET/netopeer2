@@ -17,12 +17,12 @@
 #include "config.h"
 
 #include <assert.h>
+#include <ctype.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <time.h>
 #include <unistd.h>
-#include <errno.h>
 
 #ifdef NP2SRV_URL_CAPAB
 # include <curl/curl.h>
@@ -75,7 +75,7 @@ np_difftimespec(const struct timespec *ts1, const struct timespec *ts2)
     nsec_diff += (((int64_t)ts2->tv_sec) - ((int64_t)ts1->tv_sec)) * 1000000000L;
     nsec_diff += ((int64_t)ts2->tv_nsec) - ((int64_t)ts1->tv_nsec);
 
-    return (nsec_diff ? nsec_diff / 1000000L : 0);
+    return nsec_diff ? nsec_diff / 1000000L : 0;
 }
 
 void
@@ -370,6 +370,7 @@ static size_t
 url_writedata(char *ptr, size_t size, size_t nmemb, void *userdata)
 {
     int *fd = (int *)userdata;
+
     return write(*fd, ptr, size * nmemb);
 }
 
@@ -379,7 +380,7 @@ url_readdata(void *ptr, size_t size, size_t nmemb, void *userdata)
     size_t copied = 0, aux_size = size * nmemb;
     struct np2srv_url_mem *data = (struct np2srv_url_mem *)userdata;
 
-    if (aux_size < 1 || data->size == 0) {
+    if ((aux_size < 1) || (data->size == 0)) {
         /* no space or nothing left */
         return 0;
     }

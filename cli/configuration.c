@@ -14,16 +14,16 @@
 
 #define _GNU_SOURCE
 #include <assert.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <pwd.h>
-#include <fcntl.h>
 #include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <pwd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <libyang/libyang.h>
 #include <nc_client.h>
@@ -32,9 +32,9 @@
 #define eaccess access
 #endif
 
+#include "commands.h"
 #include "compat.h"
 #include "configuration.h"
-#include "commands.h"
 #include "linenoise/linenoise.h"
 
 extern LYD_FORMAT output_format;
@@ -95,14 +95,14 @@ get_default_client_cert(char **cert, char **key)
     }
 
     // trying to use *.crt and *.key format
-    if (asprintf(cert, "%s/%s", netconf_dir, CERT_CRT) == -1 || asprintf(key, "%s/%s", netconf_dir, CERT_KEY) == -1) {
+    if ((asprintf(cert, "%s/%s", netconf_dir, CERT_CRT) == -1) || (asprintf(key, "%s/%s", netconf_dir, CERT_KEY) == -1)) {
         ERROR("get_default_client_cert", "asprintf() failed (%s:%d).", __FILE__, __LINE__);
         ERROR("get_default_client_cert", "Unable to use the default client certificate due to the previous error.");
         free(netconf_dir);
         return;
     }
 
-    if (eaccess(*cert, R_OK) == -1 || eaccess(*key, R_OK) == -1) {
+    if ((eaccess(*cert, R_OK) == -1) || (eaccess(*key, R_OK) == -1)) {
         if (errno != ENOENT) {
             ERROR("get_default_client_cert", "Unable to access \"%s\" and \"%s\": %s", *cert, *key, strerror(errno));
             free(*key);

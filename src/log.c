@@ -18,14 +18,14 @@
 
 #include <errno.h>
 #include <stdarg.h>
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
 
-#include <nc_server.h>
 #include <libyang/libyang.h>
+#include <nc_server.h>
 #include <sysrepo.h>
 
 #include "common.h"
@@ -126,7 +126,7 @@ np2log_encode(const char *msg, char **buf)
         strcpy(*buf + buf_len, ptr1);
     }
 
-    return (*buf ? *buf : msg);
+    return *buf ? *buf : msg;
 }
 
 /**
@@ -145,7 +145,7 @@ np2log_cb_nc2(NC_VERB_LEVEL level, const char *msg)
 
     switch (level) {
     case NC_VERB_ERROR:
-        priority = LOG_ERR;;
+        priority = LOG_ERR;
         break;
     case NC_VERB_WARNING:
         priority = LOG_WARNING;
@@ -287,7 +287,7 @@ np2log_printf(NC_VERB_LEVEL level, const char *format, ...)
 
     switch (level) {
     case NC_VERB_ERROR:
-        priority = LOG_ERR;;
+        priority = LOG_ERR;
         break;
     case NC_VERB_WARNING:
         priority = LOG_WARNING;

@@ -14,16 +14,16 @@
 
 #define _GNU_SOURCE
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include <nc_client.h>
 
@@ -31,8 +31,8 @@
 #define eaccess access
 #endif
 
-#include "compat.h"
 #include "commands.h"
+#include "compat.h"
 #include "linenoise/linenoise.h"
 
 extern struct ly_ctx *ctx;
@@ -50,7 +50,7 @@ get_cmd_completion(const char *hint, char ***matches, unsigned int *match_count)
         if (!strncmp(hint, commands[i].name, strlen(hint))) {
             ++(*match_count);
             *matches = realloc(*matches, *match_count * sizeof **matches);
-            (*matches)[*match_count-1] = strdup(commands[i].name);
+            (*matches)[*match_count - 1] = strdup(commands[i].name);
         }
     }
 }
@@ -83,20 +83,20 @@ complete_cmd(const char *buf, const char *hint, linenoiseCompletions *lc)
 
     if (!strncmp(buf, "searchpath ", 11)
 #ifdef NC_ENABLED_SSH
-        || !strncmp(buf, "auth keys add ", 14)
+            || !strncmp(buf, "auth keys add ", 14)
 #endif
 #ifdef NC_ENABLED_TLS
-        || !strncmp(buf, "cert add ", 9) || !strncmp(buf, "cert remove ", 12) || !strncmp(buf, "cert replaceown ", 16)
-        || !strncmp(buf, "crl add ", 8) || !strncmp(buf, "crl remove ", 11)
+            || !strncmp(buf, "cert add ", 9) || !strncmp(buf, "cert remove ", 12) || !strncmp(buf, "cert replaceown ", 16) ||
+            !strncmp(buf, "crl add ", 8) || !strncmp(buf, "crl remove ", 11)
 #endif
-            ) {
+       ) {
         linenoisePathCompletion(buf, hint, lc);
     } else if ((!strncmp(buf, "copy-config ", 12) || !strncmp(buf, "validate ", 9)) && last_opt(buf, hint, "--src-config")) {
         linenoisePathCompletion(buf, hint, lc);
     } else if (!strncmp(buf, "edit-config ", 12) && last_opt(buf, hint, "--config")) {
         linenoisePathCompletion(buf, hint, lc);
-    } else if ((!strncmp(buf, "get ", 4) || !strncmp(buf, "get-config ", 11) || !strncmp(buf, "subscribe ", 10))
-            && (last_opt(buf, hint, "--filter-subtree") || last_opt(buf, hint, "--out"))) {
+    } else if ((!strncmp(buf, "get ", 4) || !strncmp(buf, "get-config ", 11) || !strncmp(buf, "subscribe ", 10)) &&
+            (last_opt(buf, hint, "--filter-subtree") || last_opt(buf, hint, "--out"))) {
         linenoisePathCompletion(buf, hint, lc);
     } else if (!strncmp(buf, "get-schema ", 11) && last_opt(buf, hint, "--out")) {
         linenoisePathCompletion(buf, hint, lc);
@@ -119,7 +119,7 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
     volatile int tmpfd = -1;
     int ret, size, oldfd;
     pid_t pid, wait_pid;
-    char* volatile input = NULL, * volatile old_content = NULL;
+    char * volatile input = NULL, * volatile old_content = NULL;
     char *tmpname = NULL, *ptr, *ptr2;
 
     /* Create a unique temporary file */
@@ -158,7 +158,7 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
             size = lseek(oldfd, 0, SEEK_END);
             lseek(oldfd, 0, SEEK_SET);
             if (size > 0) {
-                old_content = malloc(size+1);
+                old_content = malloc(size + 1);
                 ret = read(oldfd, old_content, size);
                 if (ret != size) {
                     free(old_content);
@@ -171,7 +171,6 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
         }
     }
 
-
     if (old_content) {
         ret = write(tmpfd, old_content, strlen(old_content));
         if ((unsigned)ret < strlen(old_content)) {
@@ -183,7 +182,7 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
         ret = write(tmpfd, "\n<!--#\n", 7);
         ret += write(tmpfd, instruction, strlen(instruction));
         ret += write(tmpfd, "\n-->\n", 5);
-        if ((unsigned)ret < 6+strlen(instruction)+5) {
+        if ((unsigned)ret < 6 + strlen(instruction) + 5) {
             ERROR(__func__, "Failed to write the instruction (%s).", strerror(errno));
             goto fail;
         }

@@ -16,13 +16,13 @@
 
 #include "netconf_server.h"
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
-#include <assert.h>
 
-#include <nc_server.h>
 #include <libyang/libyang.h>
+#include <nc_server.h>
 #include <sysrepo.h>
 
 #include "common.h"

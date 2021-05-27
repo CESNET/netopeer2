@@ -15,29 +15,29 @@
 #define _GNU_SOURCE
 #include <sys/cdefs.h>
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <string.h>
-#include <signal.h>
-#include <syslog.h>
 #include <errno.h>
-#include <stdio.h>
-#include <pwd.h>
+#include <fcntl.h>
 #include <grp.h>
+#include <pwd.h>
+#include <signal.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <syslog.h>
+#include <unistd.h>
 
 #include <libyang/libyang.h>
 #include <nc_server.h>
 #include <sysrepo.h>
 
-#include "config.h"
 #include "common.h"
 #include "compat.h"
+#include "config.h"
 #include "err_netconf.h"
 #include "log.h"
 #include "netconf.h"
-#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+#if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
 # include "netconf_server.h"
 #endif
 #ifdef NC_ENABLED_SSH
@@ -586,7 +586,7 @@ server_destroy(void)
     sr_unsubscribe(np2srv.sr_data_sub);
     sr_unsubscribe(np2srv.sr_notif_sub);
 
-#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+#if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
     /* remove all CH clients so they do not reconnect */
     nc_server_ch_del_client(NULL);
 #endif
@@ -622,7 +622,7 @@ server_destroy(void)
     sr_disconnect(np2srv.sr_conn);
 }
 
-#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+#if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
 
 static int
 np2srv_dummy_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
@@ -734,7 +734,7 @@ server_data_subscribe(void)
      */
     mod_name = "ietf-netconf-server";
 
-#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+#if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
     xpath = "/ietf-netconf-server:netconf-server/listen/idle-timeout";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_idle_timeout_cb);
 #endif
@@ -778,7 +778,7 @@ server_data_subscribe(void)
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_tls_client_ctn_cb);
 #endif
 
-#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+#if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
     /* subscribe for generic Call Home configuration changes */
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_cb);
@@ -828,7 +828,7 @@ server_data_subscribe(void)
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_tls_client_ctn_cb);
 #endif
 
-#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+#if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
     /*
      * ietf-keystore (just for in-use operational data)
      */
@@ -944,7 +944,7 @@ worker_thread(void *arg)
     }
 
     /* cleanup */
-#if defined(NC_ENABLED_SSH) || defined(NC_ENABLED_TLS)
+#if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
     nc_thread_destroy();
 #endif
     free(arg);
@@ -959,7 +959,7 @@ print_version(void)
 }
 
 static void
-print_usage(char* progname)
+print_usage(char *progname)
 {
     fprintf(stdout, "Usage: %s [-dhV] [-p path] [-U (path)] [-m mode] [-u uid] [-g gid] [-t timeout] [-v level] [-c category]\n", progname);
     fprintf(stdout, " -d         debug mode (do not daemonize and print verbose messages to stderr instead of syslog)\n");
@@ -1188,7 +1188,7 @@ main(int argc, char *argv[])
     }
     if (lockf(pidfd, F_TLOCK, 0) < 0) {
         close(pidfd);
-        if (errno == EACCES || errno == EAGAIN) {
+        if ((errno == EACCES) || (errno == EAGAIN)) {
             ERR("Another instance of the Netopeer2 server is running.");
         } else {
             ERR("Unable to lock the PID file \"%s\" (%s).", pidfile, strerror(errno));

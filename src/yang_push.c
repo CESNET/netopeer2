@@ -26,11 +26,11 @@
 #include <libyang/libyang.h>
 #include <sysrepo.h>
 
-#include "log.h"
 #include "common.h"
 #include "compat.h"
-#include "netconf_subscribed_notifications.h"
+#include "log.h"
 #include "netconf_acm.h"
+#include "netconf_subscribed_notifications.h"
 
 /**
  * @brief Transform yang-push operation into string.

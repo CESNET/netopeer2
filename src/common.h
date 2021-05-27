@@ -15,10 +15,10 @@
 #ifndef NP2SRV_COMMON_H_
 #define NP2SRV_COMMON_H_
 
+#include <pthread.h>
 #include <stdint.h>
 #include <sys/types.h>
 #include <time.h>
-#include <pthread.h>
 
 #include <nc_server.h>
 #include <sysrepo.h>

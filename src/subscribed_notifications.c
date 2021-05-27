@@ -18,18 +18,18 @@
 
 #include <assert.h>
 #include <pthread.h>
-#include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
 #include <libyang/libyang.h>
 #include <sysrepo.h>
 
-#include "log.h"
 #include "common.h"
 #include "compat.h"
+#include "log.h"
 #include "netconf_acm.h"
 #include "netconf_monitoring.h"
 #include "netconf_subscribed_notifications.h"

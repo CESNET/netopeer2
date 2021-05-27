@@ -16,12 +16,12 @@
 
 #include "netconf_acm.h"
 
-#include <stdlib.h>
-#include <string.h>
 #include <assert.h>
-#include <unistd.h>
 #include <grp.h>
 #include <pwd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include <libyang/libyang.h>
 #include <sysrepo.h>
@@ -370,7 +370,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
                 } else {
                     nacm.rule_lists = rlist->next;
                 }
-                /* fallthrough */
+            /* fallthrough */
             case SR_OP_CREATED:
                 if (op == SR_OP_CREATED) {
                     /* create new rule list */
@@ -439,7 +439,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
             /* name must be present */
             assert(!strcmp(node->parent->child->schema->name, "name"));
             rlist_name = lyd_get_value(node->parent->child);
-            for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next);
+            for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next) {}
 
             if (!strcmp(node->schema->name, "group")) {
                 if ((op == SR_OP_DELETED) && !rlist) {
@@ -530,7 +530,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
             /* find parent rule list */
             assert(!strcmp(node->parent->child->schema->name, "name"));
             rlist_name = lyd_get_value(node->parent->child);
-            for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next);
+            for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next) {}
             if ((op == SR_OP_DELETED) && !rlist) {
                 /* even parent rule-list was deleted */
                 continue;
@@ -556,7 +556,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
                 } else {
                     rlist->rules = rule->next;
                 }
-                /* fallthrough */
+            /* fallthrough */
             case SR_OP_CREATED:
                 if (op == SR_OP_CREATED) {
                     /* create new rule */
@@ -624,7 +624,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
             /* find parent rule list */
             assert(!strcmp(node->parent->parent->child->schema->name, "name"));
             rlist_name = lyd_get_value(node->parent->parent->child);
-            for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next);
+            for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next) {}
             if ((op == SR_OP_DELETED) && !rlist) {
                 /* even parent rule-list was deleted */
                 continue;
@@ -634,7 +634,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
             /* name must be present */
             assert(!strcmp(node->parent->child->schema->name, "name"));
             rule_name = lyd_get_value(node->parent->child);
-            for (rule = rlist->rules; rule && (rule->name != rule_name); rule = rule->next);
+            for (rule = rlist->rules; rule && (rule->name != rule_name); rule = rule->next) {}
             if ((op == SR_OP_DELETED) && !rule) {
                 /* even parent rule was deleted */
                 continue;
@@ -649,8 +649,8 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
                 } else {
                     lydict_insert(ly_ctx, str, 0, &rule->module_name);
                 }
-            } else if (!strcmp(node->schema->name, "rpc-name") || !strcmp(node->schema->name, "notification-name")
-                        || !strcmp(node->schema->name, "path")) {
+            } else if (!strcmp(node->schema->name, "rpc-name") || !strcmp(node->schema->name, "notification-name") ||
+                    !strcmp(node->schema->name, "path")) {
                 if (op == SR_OP_DELETED) {
                     lydict_remove(ly_ctx, rule->target);
                     rule->target = NULL;
@@ -1046,10 +1046,11 @@ ncac_allowed_node(const struct lyd_node *node, const char *node_path, const stru
     char **groups, *path;
     uint32_t i, j, group_count;
     enum ncac_access access = NCAC_ACCESS_DENY;
+
     enum {
-        RULE_PARTIAL_MATCH_NONE   = 0,
+        RULE_PARTIAL_MATCH_NONE = 0,
         RULE_PARTIAL_MATCH_PERMIT = 1,
-        RULE_PARTIAL_MATCH_DENY   = 2
+        RULE_PARTIAL_MATCH_DENY = 2
     } partial_access = RULE_PARTIAL_MATCH_NONE;
     int path_match;
     LY_ARRAY_COUNT_TYPE u;
@@ -1135,7 +1136,7 @@ ncac_allowed_node(const struct lyd_node *node, const char *node_path, const stru
                 if (node_schema->nodetype & (LYS_RPC | LYS_NOTIF)) {
                     continue;
                 }
-                /* fallthrough */
+            /* fallthrough */
             case NCAC_TARGET_ANY:
                 if (rule->target) {
                     /* exact match or is a descendant (specified in RFC 8341 page 27) for full tree access */
@@ -1219,8 +1220,7 @@ cleanup:
     if ((access == NCAC_ACCESS_DENY) && (partial_access & RULE_PARTIAL_MATCH_PERMIT)) {
         /* node itself is not allowed but a rule allows access to some descendants so it may be allowed at the end */
         access = NCAC_ACCESS_PARTIAL_DENY;
-    }
-    else if ((access == NCAC_ACCESS_PERMIT) && (partial_access & RULE_PARTIAL_MATCH_DENY)) {
+    } else if ((access == NCAC_ACCESS_PERMIT) && (partial_access & RULE_PARTIAL_MATCH_DENY)) {
         /* node itself is allowed but a rule denies access to some descendants */
         access = NCAC_ACCESS_PARTIAL_PERMIT;
     }

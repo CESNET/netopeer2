@@ -16,18 +16,18 @@
 
 #include "netconf_nmda.h"
 
-#include <stdio.h>
 #include <assert.h>
 #include <inttypes.h>
-#include <unistd.h>
+#include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
-#include <sysrepo.h>
 #include <libyang/libyang.h>
+#include <sysrepo.h>
 
-#include "config.h"
 #include "common.h"
 #include "compat.h"
+#include "config.h"
 #include "log.h"
 #include "netconf_acm.h"
 

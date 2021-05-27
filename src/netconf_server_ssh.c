@@ -18,23 +18,23 @@
 
 #include "netconf_server_ssh.h"
 
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
 #include <assert.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <pwd.h>
 #include <ctype.h>
+#include <errno.h>
+#include <pwd.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/types.h>
 
 #include <libssh/libssh.h>
-#include <nc_server.h>
 #include <libyang/libyang.h>
+#include <nc_server.h>
 #include <sysrepo.h>
 
-#include "config.h"
 #include "common.h"
 #include "compat.h"
+#include "config.h"
 #include "log.h"
 #include "netconf_server.h"
 
@@ -125,7 +125,7 @@ np2srv_pubkey_auth_cb(const struct nc_session *session, ssh_key key, void *UNUSE
 
         /* separate key type */
         ptr = line;
-        for (ptr2 = ptr; !isspace(ptr2[0]); ++ptr2);
+        for (ptr2 = ptr; !isspace(ptr2[0]); ++ptr2) {}
         if (ptr2[0] == '\0') {
             WRN("Invalid authorized key format of \"%s\" (line %d).", username, line_num);
             continue;
@@ -141,7 +141,7 @@ np2srv_pubkey_auth_cb(const struct nc_session *session, ssh_key key, void *UNUSE
 
         /* separate key data */
         ptr = ptr2 + 1;
-        for (ptr2 = ptr; !isspace(ptr2[0]); ++ptr2);
+        for (ptr2 = ptr; !isspace(ptr2[0]); ++ptr2) {}
         ptr2[0] = '\0';
 
         r = ssh_pki_import_pubkey_base64(ptr, ktype, &pub_key);

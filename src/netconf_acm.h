@@ -35,7 +35,7 @@ typedef enum ncac_target_type {
     NCAC_TARGET_RPC,    /**< Rule target is an RPC. */
     NCAC_TARGET_NOTIF,  /**< Rule target is a notification. */
     NCAC_TARGET_DATA,   /**< Rule target is a data node, action, or a nested notification. */
-    NCAC_TARGET_ANY,    /**< Rule target is any node. */
+    NCAC_TARGET_ANY     /**< Rule target is any node. */
 } NCAC_TARGET_TYPE;
 
 /**

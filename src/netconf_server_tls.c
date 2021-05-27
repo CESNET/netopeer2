@@ -16,13 +16,13 @@
 
 #include "netconf_server_tls.h"
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 
-#include <nc_server.h>
 #include <libyang/libyang.h>
+#include <nc_server.h>
 #include <sysrepo.h>
 
 #include "common.h"
@@ -65,7 +65,7 @@ np2srv_cert_cb(const char *name, void *UNUSED(user_data), char **UNUSED(cert_pat
 
     /* get cert data from sysrepo */
     if (asprintf(&xpath, "/ietf-keystore:keystore/asymmetric-keys/asymmetric-key/certificates/"
-                "certificate[name='%s']/cert", name) == -1) {
+            "certificate[name='%s']/cert", name) == -1) {
         EMEM;
         goto cleanup;
     }

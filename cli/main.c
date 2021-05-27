@@ -13,24 +13,24 @@
  */
 
 #define _GNU_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <getopt.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#include <sys/times.h>
-#include <string.h>
+#include <getopt.h>
 #include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/times.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <libyang/libyang.h>
 #include <nc_client.h>
 
-#include "compat.h"
 #include "commands.h"
+#include "compat.h"
 #include "completion.h"
 #include "configuration.h"
 #include "linenoise/linenoise.h"
@@ -172,9 +172,9 @@ main(void)
         }
 
         /* isolate the command word. */
-        for (i = 0; cmdline[i] && (cmdline[i] == ' '); i++);
+        for (i = 0; cmdline[i] && (cmdline[i] == ' '); i++) {}
         cmdstart = cmdline + i;
-        for (j = 0; cmdline[i] && (cmdline[i] != ' '); i++, j++);
+        for (j = 0; cmdline[i] && (cmdline[i] != ' '); i++, j++) {}
         cmd = strndup(cmdstart, j);
 
         /* parse the command line */
@@ -187,8 +187,8 @@ main(void)
         /* execute the command if any valid specified */
         if (commands[i].name) {
             /* display help */
-            if ((strchr(cmdstart, ' ') != NULL) && ((strncmp(strchr(cmdstart, ' ') + 1, "-h", 2) == 0)
-                    || (strncmp(strchr(cmdstart, ' ') + 1, "--help", 6) == 0))) {
+            if ((strchr(cmdstart, ' ') != NULL) && ((strncmp(strchr(cmdstart, ' ') + 1, "-h", 2) == 0) ||
+                    (strncmp(strchr(cmdstart, ' ') + 1, "--help", 6) == 0))) {
                 if (commands[i].help_func != NULL) {
                     commands[i].help_func();
                 } else {

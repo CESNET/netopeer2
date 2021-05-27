@@ -18,25 +18,25 @@
 
 #include "netconf.h"
 
-#include <stdio.h>
 #include <assert.h>
-#include <inttypes.h>
-#include <unistd.h>
-#include <string.h>
-#include <pthread.h>
-#include <errno.h>
-#include <time.h>
 #include <ctype.h>
+#include <errno.h>
+#include <inttypes.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
 
-#include <sysrepo.h>
 #include <libyang/libyang.h>
+#include <sysrepo.h>
 
 #include "common.h"
 #include "compat.h"
+#include "err_netconf.h"
 #include "log.h"
 #include "netconf_acm.h"
 #include "netconf_monitoring.h"
-#include "err_netconf.h"
 
 static int
 np2srv_get_first_ns(const char *expr, const char **start, int *len)
@@ -55,7 +55,7 @@ np2srv_get_first_ns(const char *expr, const char **start, int *len)
     if (!isalpha(expr[0]) && (expr[0] != '_')) {
         return -1;
     }
-    for (i = 1; expr[i] && (isalnum(expr[i]) || (expr[i] == '_') || (expr[i] == '-') || (expr[i] == '.')); ++i);
+    for (i = 1; expr[i] && (isalnum(expr[i]) || (expr[i] == '_') || (expr[i] == '-') || (expr[i] == '.')); ++i) {}
     if (expr[i] != ':') {
         return -1;
     }
@@ -442,6 +442,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     struct np2_user_sess *user_sess = NULL;
     const char *username;
     uint32_t *nc_sid;
+
 #ifdef NP2SRV_URL_CAPAB
     const char *trg_url = NULL;
     int lyp_wd_flag;
@@ -605,6 +606,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     int rc = SR_ERR_OK;
     struct np2_user_sess *user_sess = NULL;
     const sr_error_info_t *err_info;
+
 #ifdef NP2SRV_URL_CAPAB
     struct lyd_node *config;
     const char *trg_url = NULL;
