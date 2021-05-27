@@ -28,6 +28,7 @@
 
 #include "log.h"
 #include "common.h"
+#include "compat.h"
 #include "netconf_subscribed_notifications.h"
 #include "netconf_acm.h"
 

@@ -39,6 +39,7 @@
 #include <nc_server.h>
 
 #include "common.h"
+#include "compat.h"
 #include "log.h"
 #include "netconf_acm.h"
 #include "netconf_monitoring.h"

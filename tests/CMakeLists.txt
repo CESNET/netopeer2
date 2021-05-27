@@ -10,7 +10,10 @@ get_filename_component(ROOT_DIR "${CMAKE_SOURCE_DIR}" REALPATH)
 # generate config
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/np_test_config.h.in" "${CMAKE_CURRENT_BINARY_DIR}/np_test_config.h" ESCAPE_QUOTES @ONLY)
 
-# headers
+add_test(NAME headers
+    COMMAND ${CMAKE_SOURCE_DIR}/compat/check_includes.sh ${CMAKE_SOURCE_DIR}/src/ ${CMAKE_SOURCE_DIR}/cli/)
+
+# include dirs
 include_directories(SYSTEM ${CMOCKA_INCLUDE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})

@@ -27,6 +27,7 @@
 #include <sysrepo.h>
 
 #include "common.h"
+#include "compat.h"
 #include "log.h"
 
 static struct ncac nacm;

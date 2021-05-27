@@ -30,6 +30,7 @@
 
 #include "log.h"
 #include "common.h"
+#include "compat.h"
 #include "netconf_acm.h"
 #include "netconf_monitoring.h"
 #include "subscribed_notifications.h"

@@ -24,6 +24,7 @@
 #include <nc_server.h>
 
 #include "common.h"
+#include "compat.h"
 #include "log.h"
 
 struct ncm stats;
