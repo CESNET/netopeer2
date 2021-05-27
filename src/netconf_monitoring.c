@@ -239,7 +239,7 @@ static void
 ncm_data_add_ds_lock(sr_conn_ctx_t *conn, const char *ds_str, sr_datastore_t ds, struct lyd_node *parent)
 {
     struct lyd_node *list, *cont, *cont2;
-    char *buf;
+    char *buf, ncid_str[11];
     int rc, is_locked;
     uint32_t sid;
     struct timespec ts;
@@ -254,8 +254,8 @@ ncm_data_add_ds_lock(sr_conn_ctx_t *conn, const char *ds_str, sr_datastore_t ds,
         lyd_new_inner(cont, NULL, "global-lock", 0, &cont2);
 
         ncs = np_get_nc_sess_by_sr_id(sid);
-        sprintf(buf, "%" PRIu32, ncs ? nc_session_get_id(ncs) : 0);
-        lyd_new_term(cont2, NULL, "locked-by-session", buf, 0, NULL);
+        sprintf(ncid_str, "%" PRIu32, ncs ? nc_session_get_id(ncs) : 0);
+        lyd_new_term(cont2, NULL, "locked-by-session", ncid_str, 0, NULL);
 
         ly_time_ts2str(&ts, &buf);
         lyd_new_term(cont2, NULL, "locked-time", buf, 0, NULL);

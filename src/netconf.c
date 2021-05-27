@@ -437,7 +437,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     sr_datastore_t ds = SR_DS_OPERATIONAL, sds = SR_DS_OPERATIONAL;
     struct ly_set *nodeset = NULL;
     const sr_error_info_t *err_info;
-    struct lyd_node *node, *config = NULL;
+    struct lyd_node *config = NULL;
     int rc = SR_ERR_OK, run_to_start = 0;
     struct np2_user_sess *user_sess = NULL;
     const char *username;
@@ -546,6 +546,8 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     /* sysrepo API/URL handling */
 #ifdef NP2SRV_URL_CAPAB
     if (trg_url) {
+        struct lyd_node *node;
+
         /* we need with-defaults flag in this case */
         lyd_find_path(input, "ietf-netconf-with-defaults:with-defaults", 0, &node);
         lyp_wd_flag = 0;

@@ -426,7 +426,7 @@ np2srv_change_yang_push_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
 {
     struct yang_push_cb_arg *arg = private_data;
     char *xp = NULL, buf[26];
-    sr_change_iter_t *iter;
+    sr_change_iter_t *iter = NULL;
     sr_change_oper_t op;
     const struct lyd_node *node;
     struct lyd_node *ly_yp = NULL;
