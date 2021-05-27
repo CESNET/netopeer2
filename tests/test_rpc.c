@@ -75,22 +75,22 @@ test_lock(void **state)
     msgtype = nc_recv_reply(nc_sess2, rpc, msgid, 2000, &envp, &op);
     assert_int_equal(msgtype, NC_MSG_REPLY);
     assert_null(op);
-    assert_int_equal(LY_SUCCESS, lyd_print_mem(&str, envp, LYD_XML, LYD_PRINT_SHRINK));
+    assert_int_equal(LY_SUCCESS, lyd_print_mem(&str, envp, LYD_XML, 0));
     lyd_free_tree(envp);
 
     /* error expected */
     asprintf(&str2,
-            "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%d\">"
-            "  <rpc-error>"
-            "    <error-type>protocol</error-type>"
-            "    <error-tag>lock-denied</error-tag>"
-            "    <error-severity>error</error-severity>"
-            "    <error-message lang=\"en\">Access to the requested lock is denied because the lock is currently held by another entity.</error-message>"
-            "    <error-info>"
-            "      <session-id>1</session-id>"
-            "    </error-info>"
-            "  </rpc-error>"
-            "</rpc-reply>", (int)msgid);
+            "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%d\">\n"
+            "  <rpc-error>\n"
+            "    <error-type>protocol</error-type>\n"
+            "    <error-tag>lock-denied</error-tag>\n"
+            "    <error-severity>error</error-severity>\n"
+            "    <error-message lang=\"en\">Access to the requested lock is denied because the lock is currently held by another entity.</error-message>\n"
+            "    <error-info>\n"
+            "      <session-id>1</session-id>\n"
+            "    </error-info>\n"
+            "  </rpc-error>\n"
+            "</rpc-reply>\n", (int)msgid);
     assert_string_equal(str, str2);
     free(str);
     free(str2);
