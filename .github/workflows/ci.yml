@@ -107,6 +107,8 @@ jobs:
           make -j2
           sudo make install
 
+          sudo ldconfig
+
       - name: Configure
         shell: bash
         working-directory: ${{ github.workspace }}
