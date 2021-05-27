@@ -46,7 +46,7 @@ test_lock(void **state)
     NC_MSG_TYPE msgtype;
     uint64_t msgid;
     struct lyd_node *envp, *op;
-    char *str;
+    char *str, *str2;
 
     /* create another NETCONF session */
     nc_sess2 = nc_connect_unix(NP_SOCKET_PATH, NULL);
@@ -79,8 +79,8 @@ test_lock(void **state)
     lyd_free_tree(envp);
 
     /* error expected */
-    assert_string_equal(str,
-    "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"13\">"
+    asprintf(&str2,
+    "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%d\">"
         "<rpc-error>"
             "<error-type>protocol</error-type>"
             "<error-tag>lock-denied</error-tag>"
@@ -90,8 +90,10 @@ test_lock(void **state)
                 "<session-id>1</session-id>"
             "</error-info>"
         "</rpc-error>"
-    "</rpc-reply>");
+    "</rpc-reply>", (int)msgid);
+    assert_string_equal(str, str2);
     free(str);
+    free(str2);
 
     nc_rpc_free(rpc);
 
