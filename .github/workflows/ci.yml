@@ -1,0 +1,126 @@
+name: netopeer2 CI
+on:
+  push:
+    branches:
+      - libyang2
+  pull_request:
+    branches:
+      - libyang2
+
+env:
+  DEFAULT_PACKAGES: libcmocka-dev zlib1g-dev libssh-dev libssl-dev
+
+jobs:
+  build:
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {
+            name: "Release, Ubuntu 18.04, gcc",
+            os: "ubuntu-18.04",
+            build-type: "Release",
+            cc: "gcc",
+            options: "",
+            packages: ""
+          }
+          - {
+            name: "Release, Ubuntu 18.04, clang",
+            os: "ubuntu-18.04",
+            build-type: "Release",
+            cc: "clang",
+            options: "",
+            packages: ""
+          }
+          - {
+            name: "Debug, Ubuntu 18.04, gcc",
+            os: "ubuntu-18.04",
+            build-type: "Debug",
+            cc: "gcc",
+            options: "",
+            packages: "valgrind"
+          }
+          - {
+            name: "Debug, Ubuntu 18.04, clang",
+            os: "ubuntu-18.04",
+            build-type: "Debug",
+            cc: "clang",
+            options: "",
+            packages: "valgrind"
+          }
+          - {
+            name: "ASAN and UBSAN",
+            os: "ubuntu-18.04",
+            build-type: "Debug",
+            cc: "clang",
+            options: "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -DENABLE_VALGRIND_TESTS=OFF",
+            packages: ""
+          }
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Uncrustify
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          git clone --branch uncrustify-0.71.0 https://github.com/uncrustify/uncrustify
+          cd uncrustify
+          mkdir build
+          cd build
+          CC=${{ matrix.config.cc }} cmake ..
+          make
+          sudo make install
+        if: ${{ matrix.config.name == 'Debug, Ubuntu 18.04, gcc' }}
+
+      - name: Dependencies
+        shell: bash
+        run: |
+          sudo add-apt-repository ppa:kedazo/libssh-0.7.x -y
+          sudo apt-get update
+          sudo apt-get install $DEFAULT_PACKAGES ${{ matrix.config.packages }}
+
+          GIT_BRANCH=`echo ${{ github.ref }} | cut -d'/' -f 3`
+          git clone -b $GIT_BRANCH https://github.com/CESNET/libyang.git
+          cd libyang
+          mkdir build
+          cd build
+          CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.build-type }} -DENABLE_BUILD_TESTS=OFF ..
+          make -j2
+          sudo make install
+
+          git clone -b $GIT_BRANCH https://github.com/sysrepo/sysrepo.git
+          cd sysrepo
+          mkdir build
+          cd build
+          CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.build-type }} -DENABLE_TESTS=OFF ..
+          make -j2
+          sudo make install
+
+          git clone -b $GIT_BRANCH https://github.com/CESNET/libnetconf2.git
+          cd libnetconf2
+          mkdir build
+          cd build
+          CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.build-type }} -DENABLE_BUILD_TESTS=OFF ..
+          make -j2
+          sudo make install
+
+      - name: Configure
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir build
+          cd build
+          CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.build-type }} ${{ matrix.config.options }} ..
+
+      - name: Build
+        shell: bash
+        working-directory: ${{ github.workspace }}/build
+        run: make
+
+      - name: Test
+        shell: bash
+        working-directory: ${{ github.workspace }}/build
+        run: ctest --output-on-failure
