@@ -34,6 +34,23 @@ and it occurs on the `master` branch, the **first response will likely be** to u
 * [libnetconf2](https://github.com/CESNET/libnetconf2)
 * [sysrepo](https://github.com/sysrepo/sysrepo)
 
+## RFC Compliance
+
+* [RFC 5277](https://www.rfc-editor.org/rfc/rfc5277.html) NETCONF Event Notifications
+* [RFC 6022](https://datatracker.ietf.org/doc/html/rfc6022) YANG Module for NETCONF Monitoring
+* [RFC 6241](https://datatracker.ietf.org/doc/html/rfc6241) Network Configuration Protocol (NETCONF)
+* [RFC 6242](https://datatracker.ietf.org/doc/html/rfc6242) Using the NETCONF Protocol over Secure Shell (SSH)
+* [RFC 6243](https://datatracker.ietf.org/doc/html/rfc6243) With-defaults Capability for NETCONF
+* [RFC 6470](https://datatracker.ietf.org/doc/html/rfc6470) Network Configuration Protocol (NETCONF) Base Notifications
+* [RFC 7589](https://datatracker.ietf.org/doc/html/rfc7589) Using the NETCONF Protocol over Transport Layer Security (TLS) with Mutual X.509 Authentication
+* [RFC 8071](https://www.rfc-editor.org/rfc/rfc8071.html) NETCONF Call Home and RESTCONF Call Home
+* [RFC 8341](https://datatracker.ietf.org/doc/html/rfc8341) Network Configuration Access Control Model
+* [RFC 8525](https://datatracker.ietf.org/doc/html/rfc8525) YANG Library
+* [RFC 8526](https://datatracker.ietf.org/doc/html/rfc8526) NETCONF Extensions to Support the Network Management Datastore Architecture
+* [RFC 8639](https://www.rfc-editor.org/rfc/rfc8639.html) Subscription to YANG Notifications
+* [RFC 8640](https://www.rfc-editor.org/rfc/rfc8640.html) Dynamic Subscription to YANG Events and Datastores over NETCONF
+* [RFC 8641](https://www.rfc-editor.org/rfc/rfc8641.html) Subscription to YANG Notifications for Datastore Updates
+
 ## Compilation and installation
 
 ```
