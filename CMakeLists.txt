@@ -160,7 +160,9 @@ set(FORMAT_SRC
     src/*.c
     src/*.h
     cli/*.c
-    cli/*.h)
+    cli/*.h
+    tests/*.c
+    tests/*.h)
 
 # at least some remote transport is enabled
 if(LIBNETCONF2_ENABLED_SSH OR LIBNETCONF2_ENABLED_TLS)

@@ -22,11 +22,11 @@
 
 #define _GNU_SOURCE
 
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <setjmp.h>
-#include <stdlib.h>
-#include <stdarg.h>
 
 #include <cmocka.h>
 #include <libyang/libyang.h>
@@ -80,17 +80,17 @@ test_lock(void **state)
 
     /* error expected */
     asprintf(&str2,
-    "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%d\">"
-        "<rpc-error>"
-            "<error-type>protocol</error-type>"
-            "<error-tag>lock-denied</error-tag>"
-            "<error-severity>error</error-severity>"
-            "<error-message lang=\"en\">Access to the requested lock is denied because the lock is currently held by another entity.</error-message>"
-            "<error-info>"
-                "<session-id>1</session-id>"
-            "</error-info>"
-        "</rpc-error>"
-    "</rpc-reply>", (int)msgid);
+            "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%d\">"
+            "  <rpc-error>"
+            "    <error-type>protocol</error-type>"
+            "    <error-tag>lock-denied</error-tag>"
+            "    <error-severity>error</error-severity>"
+            "    <error-message lang=\"en\">Access to the requested lock is denied because the lock is currently held by another entity.</error-message>"
+            "    <error-info>"
+            "      <session-id>1</session-id>"
+            "    </error-info>"
+            "  </rpc-error>"
+            "</rpc-reply>", (int)msgid);
     assert_string_equal(str, str2);
     free(str);
     free(str2);
