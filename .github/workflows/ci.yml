@@ -11,7 +11,7 @@ on:
 
 env:
   DEFAULT_PACKAGES: libcmocka-dev zlib1g-dev libssh-dev libssl-dev
-  COVERITY_PROJECT: CESNET%2Fnetopeer2
+  COVERITY_PROJECT: CESNET%2FNetopeer2
 
 jobs:
   git-branch:
@@ -157,12 +157,6 @@ jobs:
           tar xzf coverity-tools.tar.gz --strip 1 -C coverity-tools
         env:
           TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
-        if: ${{ matrix.config.name == 'Coverity' }}
-
-      - name: Deps-coverity-fix-permissions
-        run: |
-          chmod go-w $HOME
-          sudo chmod -R go-w /usr/share
         if: ${{ matrix.config.name == 'Coverity' }}
 
       - name: Deps-libyang
