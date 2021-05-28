@@ -959,7 +959,7 @@ ncac_collect_groups(const struct ly_ctx *ly_ctx, const char *user, char ***group
                 /* duplicate */
                 lydict_remove(ly_ctx, grp_dict);
             } else {
-                mem = realloc(*groups, (*group_count + 1) * sizeof *groups);
+                mem = realloc(*groups, (*group_count + 1) * sizeof **groups);
                 if (!mem) {
                     EMEM;
                     goto cleanup;
