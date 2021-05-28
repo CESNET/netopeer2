@@ -11,11 +11,28 @@ on:
 
 env:
   DEFAULT_PACKAGES: libcmocka-dev zlib1g-dev libssh-dev libssl-dev
+  COVERITY_PROJECT: CESNET%2Fnetopeer2
 
 jobs:
+  git-branch:
+    name: Get git branch
+    runs-on: ubuntu-18.04
+    outputs:
+      branch-name: ${{ steps.get-git-branch.outputs.branch-name }}
+    steps:
+      - id: get-git-branch
+        run: |
+          if ${{ github.event_name == 'push' }}
+            then export GIT_BRANCH=`echo ${{ github.ref }} | cut -d'/' -f 3`
+          else
+            export GIT_BRANCH=${{ github.base_ref }}
+          fi
+          echo "::set-output name=branch-name::$GIT_BRANCH"
+
   build:
     name: ${{ matrix.config.name }}
     runs-on: ${{ matrix.config.os }}
+    needs: git-branch
     strategy:
       fail-fast: false
       matrix:
@@ -24,47 +41,101 @@ jobs:
             name: "Release, Ubuntu 18.04, gcc",
             os: "ubuntu-18.04",
             build-type: "Release",
+            dep-build-type: "Release",
             cc: "gcc",
             options: "",
-            packages: ""
+            packages: "",
+            snaps: "",
+            make-prepend: "",
+            make-target: ""
           }
           - {
             name: "Release, Ubuntu 18.04, clang",
             os: "ubuntu-18.04",
             build-type: "Release",
+            dep-build-type: "Release",
             cc: "clang",
             options: "",
-            packages: ""
+            packages: "",
+            snaps: "",
+            make-prepend: "",
+            make-target: ""
           }
           - {
             name: "Debug, Ubuntu 18.04, gcc",
             os: "ubuntu-18.04",
             build-type: "Debug",
+            dep-build-type: "Debug",
             cc: "gcc",
             options: "",
-            packages: "valgrind"
+            packages: "valgrind",
+            snaps: "",
+            make-prepend: "",
+            make-target: ""
           }
           - {
             name: "Debug, Ubuntu 18.04, clang",
             os: "ubuntu-18.04",
             build-type: "Debug",
+            dep-build-type: "Debug",
             cc: "clang",
             options: "",
-            packages: "valgrind"
+            packages: "valgrind",
+            snaps: "",
+            make-prepend: "",
+            make-target: ""
           }
           - {
             name: "ASAN and UBSAN",
             os: "ubuntu-18.04",
             build-type: "Debug",
+            dep-build-type: "Debug",
             cc: "clang",
             options: "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -DENABLE_VALGRIND_TESTS=OFF",
-            packages: ""
+            packages: "",
+            snaps: "",
+            make-prepend: "",
+            make-target: ""
+          }
+          - {
+            name: "Coverity",
+            os: "ubuntu-latest",
+            build-type: "Debug",
+            dep-build-type: "Debug",
+            cc: "clang",
+            options: "",
+            packages: "",
+            snaps: "",
+            make-prepend: "cov-build --dir cov-int",
+            make-target: ""
+          }
+          - {
+            name: "Codecov",
+            os: "ubuntu-latest",
+            build-type: "Debug",
+            dep-build-type: "Debug",
+            cc: "gcc",
+            options: "-DENABLE_COVERAGE=ON",
+            packages: "libcmocka-dev lcov",
+            snaps: "",
+            make-prepend: "",
+            make-target: ""
           }
 
     steps:
       - uses: actions/checkout@v2
 
-      - name: Uncrustify
+      - name: Deps-packages
+        shell: bash
+        run: |
+          sudo add-apt-repository ppa:kedazo/libssh-0.7.x -y
+          sudo apt-get update
+          sudo apt-get install $DEFAULT_PACKAGES ${{ matrix.config.packages }}
+          if ${{ matrix.config.snaps != '' }}
+            then sudo snap install ${{ matrix.config.snaps }}
+          fi
+
+      - name: Deps-uncrustify
         shell: bash
         working-directory: ${{ github.workspace }}
         run: |
@@ -77,28 +148,38 @@ jobs:
           sudo make install
         if: ${{ matrix.config.name == 'Debug, Ubuntu 18.04, gcc' }}
 
-      - name: Dependencies
+      - name: Deps-coverity
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          wget -q https://scan.coverity.com/download/linux64 --post-data "token=$TOKEN&project=$COVERITY_PROJECT" -O coverity-tools.tar.gz
+          mkdir coverity-tools
+          tar xzf coverity-tools.tar.gz --strip 1 -C coverity-tools
+        env:
+          TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+        if: ${{ matrix.config.name == 'Coverity' }}
+
+      - name: Deps-coverity-fix-permissions
+        run: |
+          chmod go-w $HOME
+          sudo chmod -R go-w /usr/share
+        if: ${{ matrix.config.name == 'Coverity' }}
+
+      - name: Deps-libyang
         shell: bash
         run: |
-          sudo add-apt-repository ppa:kedazo/libssh-0.7.x -y
-          sudo apt-get update
-          sudo apt-get install $DEFAULT_PACKAGES ${{ matrix.config.packages }}
-
-          if ${{ github.event_name == 'push' }}
-            then GIT_BRANCH=`echo ${{ github.ref }} | cut -d'/' -f 3`
-          else
-            GIT_BRANCH=${{ github.base_ref }}
-          fi
-
-          git clone -b $GIT_BRANCH https://github.com/CESNET/libyang.git
+          git clone -b ${{needs.git-branch.outputs.branch-name}} https://github.com/CESNET/libyang.git
           cd libyang
           mkdir build
           cd build
-          CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.build-type }} -DENABLE_BUILD_TESTS=OFF ..
+          CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.dep-build-type }} -DENABLE_BUILD_TESTS=OFF ..
           make -j2
           sudo make install
 
-          git clone -b $GIT_BRANCH https://github.com/sysrepo/sysrepo.git
+      - name: Deps-sysrepo
+        shell: bash
+        run: |
+          git clone -b ${{needs.git-branch.outputs.branch-name}} https://github.com/sysrepo/sysrepo.git
           cd sysrepo
           mkdir build
           cd build
@@ -106,7 +187,10 @@ jobs:
           make -j2
           sudo make install
 
-          git clone -b $GIT_BRANCH https://github.com/CESNET/libnetconf2.git
+      - name: Deps-libnetconf2
+        shell: bash
+        run: |
+          git clone -b ${{needs.git-branch.outputs.branch-name}} https://github.com/CESNET/libnetconf2.git
           cd libnetconf2
           mkdir build
           cd build
@@ -114,7 +198,9 @@ jobs:
           make -j2
           sudo make install
 
-          sudo ldconfig
+      - name: Deps-update-ld-cache
+        shell: bash
+        run: sudo ldconfig
 
       - name: Configure
         shell: bash
@@ -127,9 +213,34 @@ jobs:
       - name: Build
         shell: bash
         working-directory: ${{ github.workspace }}/build
-        run: make
+        run: |
+          export LC_ALL=C.UTF-8
+          export PATH=/snap/bin:${{ github.workspace }}/coverity-tools/bin:$PATH
+          ${{ matrix.config.make-prepend }} make ${{ matrix.config.make-target }}
 
       - name: Test
         shell: bash
         working-directory: ${{ github.workspace }}/build
         run: ctest --output-on-failure
+
+      - name: Upload to Coverity.com
+        shell: bash
+        working-directory: ${{ github.workspace }}/build
+        run: |
+          tar czvf netopeer2.tgz cov-int
+          curl \
+            --form token=$TOKEN \
+            --form email=mvasko@cesnet.cz \
+            --form file=@netopeer2.tgz \
+            --form version="`./netopeer2-server -V | head -n1 | cut -d' ' -f 2`" \
+            --form description="netopeer2 NETCONF suite" \
+            https://scan.coverity.com/builds?project=$COVERITY_PROJECT
+        env:
+          TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+        if: ${{ matrix.config.name == 'Coverity' && github.event_name == 'push' && needs.git-branch.outputs.branch-name == 'devel' }}
+
+      - name: Upload to Codecov.io
+        shell: bash
+        working-directory: ${{ github.workspace }}/build
+        run: bash <(curl -s https://codecov.io/bash)
+        if: ${{ matrix.config.name == 'Codecov' && github.event_name == 'push' }}

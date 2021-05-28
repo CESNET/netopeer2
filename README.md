@@ -2,7 +2,8 @@
 
 [![BSD license](https://img.shields.io/badge/License-BSD-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![Build Status](https://secure.travis-ci.org/CESNET/Netopeer2.png?branch=master)](http://travis-ci.org/CESNET/Netopeer2)
-[![Coverity Scan Build Status](https://scan.coverity.com/projects/8416/badge.svg)](https://scan.coverity.com/projects/8416)
+[![Coverity](https://scan.coverity.com/projects/8416/badge.svg)](https://scan.coverity.com/projects/8416)
+[![Codecov](https://codecov.io/gh/CESNET/netopeer2/branch/master/graph/badge.svg?token=ue4DTHDcuq)](https://codecov.io/gh/CESNET/netopeer2)
 [![Ohloh Project Status](https://www.openhub.net/p/Netopeer2/widgets/project_thin_badge.gif)](https://www.openhub.net/p/Netopeer2)
 
 **Netopeer2** is a server for implementing network configuration management based
