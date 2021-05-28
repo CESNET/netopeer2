@@ -1308,7 +1308,7 @@ ncac_check_operation(const struct lyd_node *data, const char *user)
 cleanup:
     if (allowed) {
         op = NULL;
-    } else {
+    } else if (op) {
         if (op->schema->nodetype & (LYS_RPC | LYS_ACTION)) {
             ++nacm.denied_operations;
         } else {
