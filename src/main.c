@@ -315,9 +315,11 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         free(str);
 
         /* set message */
-        asprintf(&str, "Executing the operation is denied because \"%s\" NACM authorization failed.", nc_session_get_username(ncs));
-        nc_err_set_msg(e, str, "en");
-        free(str);
+        if (asprintf(&str, "Executing the operation is denied because \"%s\" NACM authorization failed.",
+                nc_session_get_username(ncs)) > -1) {
+            nc_err_set_msg(e, str, "en");
+            free(str);
+        }
 
         return nc_server_reply_err(e);
     }
