@@ -273,7 +273,6 @@ np2log_printf(NC_VERB_LEVEL level, const char *format, ...)
         msg_len = req_len + 1;
         mem = realloc(msg, msg_len);
         if (!mem) {
-            free(msg);
             goto cleanup;
         }
         msg = mem;
