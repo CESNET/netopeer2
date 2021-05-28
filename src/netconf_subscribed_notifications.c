@@ -323,7 +323,6 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     int rc, ntf_status = 0;
     uint32_t nc_sub_id, *nc_id;
     enum sub_ntf_type type;
-    void *data = NULL;
 
     if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case (not supported) */
@@ -410,16 +409,6 @@ error_unlock:
     pthread_rwlock_unlock(&info.lock);
 
 error:
-    if (data) {
-        switch (type) {
-        case SUB_TYPE_SUB_NTF:
-            sub_ntf_data_destroy(data);
-            break;
-        case SUB_TYPE_YANG_PUSH:
-            yang_push_data_destroy(data);
-            break;
-        }
-    }
     if (ntf_status) {
         nc_session_dec_notif_status(ncs);
     }
