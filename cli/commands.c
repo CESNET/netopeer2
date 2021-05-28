@@ -462,7 +462,7 @@ static char *
 trim_top_elem(char *data, const char *top_elem, const char *top_elem_ns)
 {
     char *ptr, *prefix = NULL, *buf;
-    int pref_len = 0, state = 0, quote;
+    int pref_len = 0, state = 0, quote, rc;
 
     /* state: -2 - syntax error,
      *        -1 - top_elem not found,
@@ -589,9 +589,12 @@ trim_top_elem(char *data, const char *top_elem, const char *top_elem_ns)
 
     /* ... but also its ending tag */
     if (prefix) {
-        asprintf(&buf, "</%.*s:%s>", pref_len, prefix, top_elem);
+        rc = asprintf(&buf, "</%.*s:%s>", pref_len, prefix, top_elem);
     } else {
-        asprintf(&buf, "</%s>", top_elem);
+        rc = asprintf(&buf, "</%s>", top_elem);
+    }
+    if (rc == -1) {
+        return NULL;
     }
 
     ptr = strstr(data, buf);
@@ -1474,7 +1477,9 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    asprintf(&kh_file, "%s/.ssh/known_hosts", pwd->pw_dir);
+    if (asprintf(&kh_file, "%s/.ssh/known_hosts", pwd->pw_dir) == -1) {
+        return EXIT_FAILURE;
+    }
 
     if ((file = fopen(kh_file, "r+")) == NULL) {
         ERROR("knownhosts", "Cannot open \"%s\" (%s)", kh_file, strerror(errno));
@@ -2008,7 +2013,10 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
                 none = 0;
                 name = strdup(d->d_name);
                 name[strlen(name) - 4] = '\0';
-                asprintf(&path, "%s/%s", trusted_dir, d->d_name);
+                if (asprintf(&path, "%s/%s", trusted_dir, d->d_name) == -1) {
+                    free(name);
+                    break;
+                }
                 parse_cert(name, path);
                 free(name);
                 free(path);
@@ -2280,7 +2288,10 @@ cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
                 none = 0;
                 name = strdup(d->d_name);
                 name[strlen(name) - 4] = '\0';
-                asprintf(&path, "%s/%s", crl_dir, d->d_name);
+                if (asprintf(&path, "%s/%s", crl_dir, d->d_name) == -1) {
+                    free(name);
+                    break;
+                }
                 parse_crl(name, path);
                 free(name);
                 free(path);
@@ -2438,10 +2449,14 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
             }
             break;
         case 'c':
-            asprintf(&cert, "%s", optarg);
+            if (asprintf(&cert, "%s", optarg) == -1) {
+                return EXIT_FAILURE;
+            }
             break;
         case 'k':
-            asprintf(&key, "%s", optarg);
+            if (asprintf(&key, "%s", optarg) == -1) {
+                return EXIT_FAILURE;
+            }
             break;
         case 'r':
             trusted_store = optarg;
@@ -4967,7 +4982,9 @@ cmd_getdata(const char *arg, char **tmp_config_file)
             break;
         case 'O':
             origin = realloc(origin, (origin_count + 1) * sizeof *origin);
-            asprintf(&origin[origin_count], "ietf-origin:%s", optarg);
+            if (asprintf(&origin[origin_count], "ietf-origin:%s", optarg) == -1) {
+                goto fail;
+            }
             ++origin_count;
             break;
         case 'n':
