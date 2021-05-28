@@ -1769,10 +1769,12 @@ cp(const char *to, const char *from)
     buf = malloc(from_len);
 
     if (read(fd_from, buf, from_len) < from_len) {
+        free(buf);
         goto out_error;
     }
 
     if (write(fd_to, buf, from_len) < from_len) {
+        free(buf);
         goto out_error;
     }
 
