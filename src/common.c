@@ -705,8 +705,9 @@ filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int siz
 static int
 filter_xpath_buf_append_node(const struct lyd_node *node, char **buf, int size)
 {
-    const struct lys_module *mod = NULL;
+    const struct lys_module *mod = NULL, *par_mod;
     const struct lyd_node_opaq *opaq;
+    struct lyd_node *parent;
     int new_size;
     char *buf_new;
 
@@ -728,8 +729,20 @@ filter_xpath_buf_append_node(const struct lyd_node *node, char **buf, int size)
             return 0;
         }
 
-        if (lyd_parent(node)->schema->module == mod) {
-            mod = NULL;
+        /* check that parent module differs from this one */
+        if ((parent = lyd_parent(node))) {
+            if (parent->schema) {
+                if (parent->schema->module == mod) {
+                    mod = NULL;
+                }
+            } else {
+                if (((struct lyd_node_opaq *)node)->name.module_ns) {
+                    par_mod = ly_ctx_get_module_implemented_ns(LYD_CTX(node), ((struct lyd_node_opaq *)node)->name.module_ns);
+                    if (par_mod && (par_mod == mod)) {
+                        mod = NULL;
+                    }
+                }
+            }
         }
     }
 
