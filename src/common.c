@@ -725,6 +725,7 @@ filter_xpath_buf_append_node(const struct lyd_node *node, char **buf, int size)
         mod = ly_ctx_get_module_implemented_ns(LYD_CTX(node), opaq->name.module_ns);
         if (!mod) {
             /* unknown namespace, will not match anything */
+            return 0;
         }
 
         if (lyd_parent(node)->schema->module == mod) {
