@@ -3,7 +3,7 @@ Version: @NP2SRV_VERSION@
 Release: 0
 Summary: @PACKAGE_BRIEF@
 Url: @GITHUB_URL@
-Source: @GITHUB_URL@/archive/master.tar.gz
+Source: @GITHUB_URL@/archive/libyang1.tar.gz
 License: BSD-3-Clause
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}
 
@@ -14,16 +14,16 @@ Requires:  libssh >= 0.7.1
 %endif
 
 Requires:  libyang@LIBYANG_DEP_SOVERSION_MAJOR@
-Requires:  sysrepo >= 1.4.122
-Requires:  libnetconf2 >= 1.1.43
+Requires:  sysrepo >= 1.4.140
+Requires:  libnetconf2 >= 1.1.46
 Requires:  openssl
 
 BuildRequires:  cmake
 BuildRequires:  gcc
 BuildRequires:  libssh-devel >= 0.7.1
 BuildRequires:  libyang-devel >= 1.0
-BuildRequires:  sysrepo-devel >= 1.4.122
-BuildRequires:  libnetconf2-devel >= 1.1.43
+BuildRequires:  sysrepo-devel >= 1.4.140
+BuildRequires:  libnetconf2-devel >= 1.1.46
 BuildRequires:  openssl-devel
 
 %if 0%{?suse_version}
@@ -34,7 +34,7 @@ BuildRequires:  timezone
 @PACKAGE_DESC@
 
 %prep
-%setup -n @PACKAGE@-master
+%setup -n @PACKAGE@-libyang1
 mkdir build
 
 %build
