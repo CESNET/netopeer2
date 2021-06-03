@@ -1211,7 +1211,7 @@ main(int argc, char *argv[])
     close(pidfd);
 
     /* set printer callbacks for the used libraries and set proper log levels */
-    nc_set_print_clb(np2log_cb_nc2); /* libnetconf2 */
+    nc_set_print_clb_session(np2log_cb_nc2); /* libnetconf2 */
     ly_set_log_clb(np2log_cb_ly, 1); /* libyang */
     sr_log_set_cb(np2log_cb_sr); /* sysrepo, log level is checked by callback */
 

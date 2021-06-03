@@ -59,7 +59,7 @@ void np2log_printf(NC_VERB_LEVEL level, const char *format, ...);
 /**
  * @brief printer callback for libnetconf2
  */
-void np2log_cb_nc2(NC_VERB_LEVEL level, const char *msg);
+void np2log_cb_nc2(const struct nc_session *session, NC_VERB_LEVEL level, const char *msg);
 
 /**
  * @brief printer callback for libyang

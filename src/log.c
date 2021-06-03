@@ -12,7 +12,8 @@
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
-#define _DEFAULT_SOURCE
+#define _GNU_SOURCE
+#include <sys/cdefs.h>
 
 #include "log.h"
 
@@ -29,6 +30,7 @@
 #include <sysrepo.h>
 
 #include "common.h"
+#include "compat.h"
 
 volatile uint8_t np2_verbose_level;
 uint8_t np2_libssh_verbose_level;
@@ -79,65 +81,13 @@ np2log(int priority, const char *src, const char *fmt, ...)
 }
 
 /**
- * @brief Encode message characters (% -> %%) to avoid printf arg problems.
- */
-static const char *
-np2log_encode(const char *msg, char **buf)
-{
-    const char *ptr1, *ptr2;
-    size_t buf_len, buf_size = 1;
-    void *mem;
-
-    *buf = NULL;
-    if ((ptr2 = strchr(msg, '%'))) {
-        /* something to encode */
-        ptr1 = msg;
-        do {
-            /* enlarge buffer */
-            buf_len = buf_size - 1;
-            buf_size += (ptr2 - ptr1) + 2;
-            mem = realloc(*buf, buf_size * sizeof **buf);
-            if (!mem) {
-                EMEM;
-                return "";
-            }
-            *buf = mem;
-
-            /* copy preceding message */
-            strncpy(*buf + buf_len, ptr1, ptr2 - ptr1);
-            buf_len += ptr2 - ptr1;
-
-            /* copy % */
-            strcpy(*buf + buf_len, "%%");
-
-            /* next iter */
-            ptr1 = ptr2 + 1;
-        } while ((ptr2 = strchr(ptr1, '%')));
-
-        /* copy remaining message */
-        buf_len = buf_size - 1;
-        buf_size += strlen(ptr1);
-        mem = realloc(*buf, buf_size * sizeof **buf);
-        if (!mem) {
-            EMEM;
-            return "";
-        }
-        *buf = mem;
-        strcpy(*buf + buf_len, ptr1);
-    }
-
-    return *buf ? *buf : msg;
-}
-
-/**
  * @brief printer callback for libnetconf2
  */
 void
-np2log_cb_nc2(NC_VERB_LEVEL level, const char *msg)
+np2log_cb_nc2(const struct nc_session *session, NC_VERB_LEVEL level, const char *msg)
 {
     int priority = LOG_ERR;
-    const char *log_msg;
-    char *buf;
+    char *buf = NULL;
 
     if (level > np2_verbose_level) {
         return;
@@ -159,8 +109,11 @@ np2log_cb_nc2(NC_VERB_LEVEL level, const char *msg)
         break;
     }
 
-    log_msg = np2log_encode(msg, &buf);
-    np2log(priority, "LN", log_msg);
+    if (session && nc_session_get_id(session)) {
+        asprintf(&buf, "Session %u: %s", nc_session_get_id(session), msg);
+        msg = buf;
+    }
+    np2log(priority, "LN", "%s", msg);
     free(buf);
 }
 
@@ -171,8 +124,6 @@ void
 np2log_cb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
 {
     int priority;
-    const char *log_msg;
-    char *buf;
 
     if (level > np2_verbose_level) {
         return;
@@ -199,9 +150,7 @@ np2log_cb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
     if (path) {
         np2log(priority, "LY", "%s (%s)", msg, path);
     } else {
-        log_msg = np2log_encode(msg, &buf);
-        np2log(priority, "LY", log_msg);
-        free(buf);
+        np2log(priority, "LY", "%s", msg);
     }
 }
 
@@ -209,8 +158,6 @@ void
 np2log_cb_sr(sr_log_level_t level, const char *msg)
 {
     int priority = LOG_ERR;
-    const char *log_msg;
-    char *buf;
 
     if (level > np2_sr_verbose_level) {
         return;
@@ -233,9 +180,7 @@ np2log_cb_sr(sr_log_level_t level, const char *msg)
         return;
     }
 
-    log_msg = np2log_encode(msg, &buf);
-    np2log(priority, "SR", log_msg);
-    free(buf);
+    np2log(priority, "SR", "%s", msg);
 }
 
 /**
