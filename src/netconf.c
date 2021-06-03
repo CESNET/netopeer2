@@ -956,7 +956,7 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
     struct nc_session *ncs = (struct nc_session *)private_data;
     struct lyd_node *ly_ntf = NULL;
     NC_MSG_TYPE msg_type;
-    char *datetime;
+    char *datetime = NULL;
     time_t stop;
 
     /* create these notifications, sysrepo only emulates them */
@@ -988,10 +988,9 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
         goto cleanup;
     }
 
-    /* create the notification object */
+    /* create the notification object, all the passed arguments must exist until it is sent */
     ly_time_ts2str(timestamp, &datetime);
     nc_ntf = nc_server_notif_new((struct lyd_node *)notif, datetime, NC_PARAMTYPE_CONST);
-    free(datetime);
 
     /* send the notification */
     msg_type = nc_server_notif_send(ncs, nc_ntf, NP2SRV_NOTIF_SEND_TIMEOUT);
@@ -1008,6 +1007,7 @@ cleanup:
     }
 
     nc_server_notif_free(nc_ntf);
+    free(datetime);
     lyd_free_all(ly_ntf);
 }
 

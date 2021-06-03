@@ -142,19 +142,15 @@ sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, struct timespec t
     struct np2srv_sub_ntf *sub;
     struct nc_server_notif *nc_ntf = NULL;
     NC_MSG_TYPE msg_type;
-    char *datetime;
-    int rc;
+    char *datetime = NULL;
+    int rc = SR_ERR_OK;
 
     /* find the subscription structure */
     sub = sub_ntf_find(nc_sub_id, nc_session_get_id(ncs), 0, 0);
     if (!sub) {
-        if (use_ntf) {
-            /* free the notification since we are not using it */
-            lyd_free_tree(*ly_ntf);
-            *ly_ntf = NULL;
-        }
         EINT;
-        return SR_ERR_INTERNAL;
+        rc = SR_ERR_INTERNAL;
+        goto cleanup;
     }
 
     /* check NACM of the notification itself */
@@ -162,22 +158,20 @@ sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, struct timespec t
         /* denied */
         ATOMIC_INC_RELAXED(sub->denied_count);
 
-        if (use_ntf) {
-            /* free the notification since we are not using it */
-            lyd_free_tree(*ly_ntf);
-            *ly_ntf = NULL;
-        }
-        return SR_ERR_OK;
+        /* success */
+        goto cleanup;
     }
 
     /* create the notification object */
     ly_time_ts2str(&timestamp, &datetime);
     if (use_ntf) {
+        /* take ownership of the objects */
         nc_ntf = nc_server_notif_new(*ly_ntf, datetime, NC_PARAMTYPE_FREE);
         *ly_ntf = NULL;
+        datetime = NULL;
     } else {
+        /* objects const, their lifetime must last until the notif is sent */
         nc_ntf = nc_server_notif_new(*ly_ntf, datetime, NC_PARAMTYPE_CONST);
-        free(datetime);
     }
 
     /* send the notification */
@@ -186,12 +180,18 @@ sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, struct timespec t
         ERR("Sending a notification to session %d %s.", nc_session_get_id(ncs),
                 msg_type == NC_MSG_ERROR ? "failed" : "timed out");
         rc = (msg_type == NC_MSG_ERROR) ? SR_ERR_OPERATION_FAILED : SR_ERR_TIME_OUT;
+        goto cleanup;
     } else {
         ncm_session_notification(ncs);
         ATOMIC_INC_RELAXED(sub->sent_count);
-        rc = SR_ERR_OK;
     }
 
+cleanup:
+    if (use_ntf) {
+        lyd_free_tree(*ly_ntf);
+        *ly_ntf = NULL;
+    }
+    free(datetime);
     nc_server_notif_free(nc_ntf);
     return rc;
 }
