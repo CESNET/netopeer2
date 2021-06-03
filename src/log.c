@@ -110,8 +110,9 @@ np2log_cb_nc2(const struct nc_session *session, NC_VERB_LEVEL level, const char 
     }
 
     if (session && nc_session_get_id(session)) {
-        asprintf(&buf, "Session %u: %s", nc_session_get_id(session), msg);
-        msg = buf;
+        if (asprintf(&buf, "Session %u: %s", nc_session_get_id(session), msg) > -1) {
+            msg = buf;
+        }
     }
     np2log(priority, "LN", "%s", msg);
     free(buf);
