@@ -1,4 +1,4 @@
-name: netopeer2 CI
+name: netopeer2 devel push
 on:
   push:
     branches:
