@@ -1,0 +1,26 @@
+module issue1 {
+  namespace "i1";
+  prefix "i1";
+  description "module to reproduce sysrepo#2231";
+
+  container hardware {
+    list component {
+      key "name";
+      leaf name {
+        type string;
+      }
+      leaf class {
+        type string;
+      }
+      leaf serial-num {
+        type string;
+        config false;
+      }
+      container feature {
+        leaf wireless {
+          type string;
+        }
+      }
+    }
+  }
+}

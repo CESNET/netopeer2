@@ -1,0 +1,29 @@
+module example1 {
+  namespace ex1;
+  prefix ex1;
+
+  import ietf-inet-types {
+    prefix "inet";
+  }
+
+  description "module that corresponds with one of the rfc6241#7.2 examples";
+
+  container top {
+    container interface {
+      leaf name {
+        type string;
+      }
+      leaf mtu {
+        type uint32;
+      }
+      container address {
+        leaf name {
+          type inet:ip-address;
+        }
+        leaf prefix-length {
+          type uint8;
+        }
+      }
+    }
+  }
+}

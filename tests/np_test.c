@@ -41,6 +41,21 @@
 
 #include "np_test_config.h"
 
+uint8_t debug = 0; /* Global variable to indicate if debugging */
+
+void
+parse_arg(int argc, char **argv)
+{
+    if (argc <= 1) {
+        return;
+    }
+
+    if (!strcmp(argv[1], "-d") || !strcmp(*argv, "--debug")) {
+        puts("Starting in debug mode.");
+        debug = 1;
+    }
+}
+
 static int
 setup_server_socket_wait(void)
 {
@@ -64,7 +79,7 @@ setup_server_socket_wait(void)
     return 0;
 }
 
-static int
+int
 setup_setenv_sysrepo(const char *test_name)
 {
     int ret = 1;
@@ -98,17 +113,15 @@ cleanup:
 }
 
 int
-_np_glob_setup(void **state, const char *test_name)
+np_glob_setup_np2(void **state)
 {
     struct np_test *st;
     pid_t pid;
     int fd;
+    int pipefd[2];
+    int buf;
 
-    /* set sysrepo environment variables */
-    if (setup_setenv_sysrepo(test_name)) {
-        return 1;
-    }
-
+    /* sysrepo environment variables must be set by NP_GLOB_SETUP_ENV_FUNC prior */
     /* install modules */
     if (setenv("NP2_MODULE_DIR", NP_ROOT_DIR "/modules", 1)) {
         return 1;
@@ -125,6 +138,16 @@ _np_glob_setup(void **state, const char *test_name)
     if (unsetenv("NP2_MODULE_PERMS")) {
         return 1;
     }
+    if (setenv("CMOCKA_TEST_ABORT", "1", 0)) {
+        return 1;
+    }
+
+    /* create pipe for synchronisation if debugging */
+    if (debug) {
+        if (pipe(pipefd)) {
+            return 1;
+        }
+    }
 
     /* fork and start the server */
     if (!(pid = fork())) {
@@ -132,6 +155,14 @@ _np_glob_setup(void **state, const char *test_name)
         fd = open(NP_LOG_PATH, O_WRONLY | O_CREAT | O_TRUNC, 00600);
         if (fd == -1) {
             goto child_error;
+        }
+
+        if (debug) {
+            printf("pid of netopeer server is: %ld\n", (long) getpid());
+            puts("Press return to continue the tests...");
+            buf = getc(stdin);
+            write(pipefd[1], &buf, 1);
+            close(pipefd[1]);
         }
 
         /* redirect stdout and stderr */
@@ -149,6 +180,11 @@ child_error:
         exit(1);
     } else if (pid == -1) {
         return 1;
+    }
+
+    if (debug) {
+        read(pipefd[0], &buf, 1);
+        close(pipefd[0]);
     }
 
     /* wait for the server, until it creates its socket */
@@ -220,6 +256,10 @@ np_glob_teardown(void **state)
     }
     if (unsetenv("SYSREPO_SHM_PREFIX")) {
         ret = 1;
+    }
+
+    if (unsetenv("CMOCKA_TEST_ABORT")) {
+        return 1;
     }
 
     free(st);

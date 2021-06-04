@@ -10,6 +10,10 @@ get_filename_component(ROOT_DIR "${CMAKE_SOURCE_DIR}" REALPATH)
 # generate config
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/np_test_config.h.in" "${CMAKE_CURRENT_BINARY_DIR}/np_test_config.h" ESCAPE_QUOTES @ONLY)
 
+# generate config
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/scripts/kill_np_server.sh.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/scripts/kill_np_server.sh" ESCAPE_QUOTES @ONLY)
+
 # compat header include
 add_test(NAME headers
     COMMAND ${CMAKE_SOURCE_DIR}/compat/check_includes.sh ${CMAKE_SOURCE_DIR}/src/ ${CMAKE_SOURCE_DIR}/cli/)
@@ -28,14 +32,14 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 set(test_sources "np_test.c")
 
 # list of all the tests
-set(tests test_rpc)
+set(tests test_rpc test_edit test_filter test_notif test_parallel_sessions test_candidate)
 
 # build the executables
 foreach(test_name IN LISTS tests)
     add_executable(${test_name} ${test_sources} ${test_name}.c)
-    target_link_libraries(${test_name} ${CMOCKA_LIBRARIES} ${LIBNETCONF2_LIBRARIES} ${LIBYANG_LIBRARIES})
+    target_link_libraries(${test_name} ${CMOCKA_LIBRARIES} ${LIBNETCONF2_LIBRARIES} ${LIBYANG_LIBRARIES} ${SYSREPO_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
     set_property(TARGET ${test_name} PROPERTY RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-endforeach()
+endforeach(test_name)
 
 # add tests with their attributes
 foreach(test_name IN LISTS tests)
@@ -56,4 +60,6 @@ endif()
 add_custom_target(test_clean
     COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/repositories
     COMMAND rm -rf /dev/shm/_tests_np_*
+    COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/netopeer2-server.sock
+    COMMAND ${CMAKE_CURRENT_BINARY_DIR}/scripts/kill_np_server.sh
 )
