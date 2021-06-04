@@ -35,7 +35,7 @@ foreach(test_name IN LISTS tests)
     add_executable(${test_name} ${test_sources} ${test_name}.c)
     target_link_libraries(${test_name} ${CMOCKA_LIBRARIES} ${LIBNETCONF2_LIBRARIES} ${LIBYANG_LIBRARIES})
     set_property(TARGET ${test_name} PROPERTY RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-endforeach(test_name)
+endforeach()
 
 # add tests with their attributes
 foreach(test_name IN LISTS tests)
@@ -43,18 +43,13 @@ foreach(test_name IN LISTS tests)
     set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT
         "MALLOC_CHECK_=3"
     )
-endforeach(test_name)
+endforeach()
 
 # valgrind tests
 if(ENABLE_VALGRIND_TESTS)
-    find_program(VALGRIND_FOUND valgrind)
-    if(VALGRIND_FOUND)
-        foreach(test_name IN LISTS tests)
-            add_test(NAME ${test_name}_valgrind COMMAND valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ${CMAKE_CURRENT_BINARY_DIR}/${test_name})
-        endforeach(test_name)
-    else()
-        message(WARNING "valgrind executable not found! Disabling memory leak tests.")
-    endif()
+    foreach(test_name IN LISTS tests)
+        add_test(NAME ${test_name}_valgrind COMMAND valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ${CMAKE_CURRENT_BINARY_DIR}/${test_name})
+    endforeach()
 endif()
 
 # phony target for clearing all sysrepo test data
