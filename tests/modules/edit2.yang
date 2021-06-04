@@ -1,0 +1,13 @@
+module edit2 {
+  namespace ed2;
+  prefix ed2;
+
+  container top {
+    leaf name {
+      type string;
+    }
+    leaf num {
+      type int32;
+    }
+  }
+}

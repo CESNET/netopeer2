@@ -31,6 +31,8 @@
 /* sysrepo test repositories directory */
 #define NP_SR_REPOS_DIR "@CMAKE_CURRENT_BINARY_DIR@/repositories"
 
+#define NP_TEST_MODULE_DIR "@CMAKE_CURRENT_SOURCE_DIR@/modules"
+
 /* sysrepo SHM prefix */
 #define NP_SR_SHM_PREFIX "_tests_np_"
 

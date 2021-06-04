@@ -1,0 +1,10 @@
+module notif1 {
+  namespace "n1";
+  prefix "n1";
+
+  notification n1 {
+    leaf first {
+      type string;
+    }
+  }
+}
