@@ -1101,11 +1101,6 @@ ncac_allowed_node(const struct lyd_node *node, const char *node_path, const stru
 
         /* 7) find matching rules */
         for (rule = rlist->rules; rule; rule = rule->next) {
-            /* module name matching */
-            if (rule->module_name && (rule->module_name != node_schema->module->name)) {
-                continue;
-            }
-
             /* access operation matching */
             if (!(rule->operations & oper)) {
                 continue;
@@ -1157,6 +1152,11 @@ ncac_allowed_node(const struct lyd_node *node, const char *node_path, const stru
                     }
                 }
                 break;
+            }
+
+            /* module name matching, after partial path matches */
+            if (rule->module_name && (rule->module_name != node_schema->module->name)) {
+                continue;
             }
 
             /* 8) rule matched */
