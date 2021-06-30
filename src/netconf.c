@@ -1080,7 +1080,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
             /* xpath */
             if (strlen(lyd_get_meta_value(meta))) {
                 xp = strdup(lyd_get_meta_value(meta));
-                if (xp) {
+                if (!xp) {
                     EMEM;
                     rc = SR_ERR_NO_MEMORY;
                     goto cleanup;
