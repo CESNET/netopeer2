@@ -93,3 +93,68 @@ np_err_sr2nc_lock_denied(sr_session_ctx_t *ev_sess, const sr_error_info_t *err_i
     sprintf(buf, "%" PRIu32, nc_sess ? nc_session_get_id(nc_sess) : 0);
     sr_session_push_error_data(ev_sess, strlen(buf) + 1, buf);
 }
+
+void
+np_err_missing_element(sr_session_ctx_t *ev_sess, const char *elem_name)
+{
+    const char *str;
+
+    /* error format */
+    sr_session_set_error_format(ev_sess, "NETCONF");
+
+    /* error-type */
+    str = "protocol";
+    sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+    /* error-tag */
+    str = "missing-element";
+    sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+    /* error-message */
+    str = "An expected element is missing.";
+    sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+    /* error-app-tag */
+    sr_session_push_error_data(ev_sess, 1, "");
+
+    /* error-path */
+    sr_session_push_error_data(ev_sess, 1, "");
+
+    /* error-info */
+    str = "bad-element";
+    sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+    sr_session_push_error_data(ev_sess, strlen(elem_name) + 1, elem_name);
+}
+
+void
+np_err_bad_element(sr_session_ctx_t *ev_sess, const char *elem_name, const char *description)
+{
+    const char *str;
+
+    /* error format */
+    sr_session_set_error_format(ev_sess, "NETCONF");
+
+    /* error-type */
+    str = "protocol";
+    sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+    /* error-tag */
+    str = "bad-element";
+    sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+    /* error-message */
+    sr_session_push_error_data(ev_sess, strlen(description) + 1, description);
+
+    /* error-app-tag */
+    sr_session_push_error_data(ev_sess, 1, "");
+
+    /* error-path */
+    sr_session_push_error_data(ev_sess, 1, "");
+
+    /* error-info */
+    str = "bad-element";
+    sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+    sr_session_push_error_data(ev_sess, strlen(elem_name) + 1, elem_name);
+}

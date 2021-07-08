@@ -1101,6 +1101,21 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         ly_time_str2ts(lyd_get_value(node), &stop);
     }
 
+    /* check parameters */
+    if (start.tv_sec > time(NULL)) {
+        np_err_bad_element(session, "startTime", "Specified \"startTime\" is in future.");
+        rc = SR_ERR_INVAL_ARG;
+        goto cleanup;
+    } else if (stop.tv_sec && !start.tv_sec) {
+        np_err_missing_element(session, "startTime");
+        rc = SR_ERR_INVAL_ARG;
+        goto cleanup;
+    } else if (stop.tv_sec < start.tv_sec) {
+        np_err_bad_element(session, "stopTime", "Specified \"stopTime\" is earlier than \"startTime\".");
+        rc = SR_ERR_INVAL_ARG;
+        goto cleanup;
+    }
+
     /* set ongoing notifications flag */
     nc_session_inc_notif_status(ncs);
 
