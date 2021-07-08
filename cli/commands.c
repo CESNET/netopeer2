@@ -434,6 +434,8 @@ recv_reply:
             while (!lyd_find_sibling_opaq_next(info, "error-info", &info)) {
                 fprintf(output, "\tinfo:\n");
                 lyd_print_file(stdout, lyd_child(info), LYD_XML, LYD_PRINT_WITHSIBLINGS);
+
+                info = info->next;
             }
             fprintf(output, "\n");
         }
