@@ -851,6 +851,8 @@ op_filter_subtree2xpath(const struct lyd_node *node, struct np2_filter *filter)
             if (filter_xpath_buf_add_r(iter, &buf, 1, filter)) {
                 goto error;
             }
+        } else {
+            WRN("Skipping unsupported top-level filter node \"%s\".", LYD_NAME(iter));
         }
     }
 
