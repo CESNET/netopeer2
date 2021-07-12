@@ -653,6 +653,45 @@ filter_xpath_buf_add_top_content(const struct lyd_node *node, struct np2_filter 
     return 0;
 }
 
+static int
+filter_xpath_node_module_equal(const struct lyd_node *node1, const struct lyd_node *node2)
+{
+    const struct lys_module *mod;
+    const struct lyd_node_opaq *opaq, *opaq2;
+
+    if (!node1 || !node2) {
+        return 0;
+    }
+
+    if (node1->schema && node2->schema) {
+        /* 2 data nodes */
+        if (node1->schema->module == node2->schema->module) {
+            return 1;
+        }
+    } else if (node1->schema || node2->schema) {
+        /* 1 data node, 1 opaque node */
+        mod = node1->schema ? node1->schema->module : node2->schema->module;
+        opaq = node1->schema ? (struct lyd_node_opaq *)node2 : (struct lyd_node_opaq *)node1;
+        assert(opaq->format == LY_VALUE_XML);
+
+        /* in dict */
+        if (mod->ns == opaq->name.module_ns) {
+            return 1;
+        }
+    } else {
+        /* 2 opaque nodes */
+        opaq = (struct lyd_node_opaq *)node1;
+        opaq2 = (struct lyd_node_opaq *)node2;
+
+        /* in dict */
+        if (opaq->name.module_ns == opaq2->name.module_ns) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 /* content node with optional namespace and attributes */
 static int
 filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int size)
@@ -661,10 +700,10 @@ filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int siz
     int new_size;
     char *buf_new, quot;
 
-    assert(node->schema && (node->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST)));
+    assert(!node->schema || (node->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST)));
 
     /* do we print the module name? */
-    if (!node->parent || (lyd_parent(node)->schema->module != node->schema->module)) {
+    if (!filter_xpath_node_module_equal(node, lyd_parent(node))) {
         mod = node->schema->module;
     }
 
@@ -788,7 +827,7 @@ filter_xpath_buf_add_r(const struct lyd_node *node, char **buf, int size, struct
     /* append child content match nodes */
     only_content_match = 1;
     LY_LIST_FOR(lyd_child(node), child) {
-        if (child->schema && lyd_get_value(child) && !strws(lyd_get_value(child))) {
+        if (lyd_get_value(child) && !strws(lyd_get_value(child))) {
             /* there is a content filter, append all of them */
             size = filter_xpath_buf_append_content(child, buf, size);
             if (size < 1) {
