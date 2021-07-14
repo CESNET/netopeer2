@@ -97,7 +97,7 @@ function(GEN_COVERAGE MATCH_TEST_REGEX EXCLUDE_TEST_REGEX)
             --output-file "${COVERAGE_FILE_RAW}"
         # Remove coverage of tests, system headers, etc.
         COMMAND "${PATH_LCOV}"
-            --remove "${COVERAGE_FILE_RAW}" '${CMAKE_SOURCE_DIR}/tests/*'
+            --remove "${COVERAGE_FILE_RAW}" '${CMAKE_SOURCE_DIR}/tests/*' '${CMAKE_SOURCE_DIR}/compat/*' '*libyang*'
             --rc lcov_branch_coverage=1
             --quiet --output-file "${COVERAGE_FILE_CLEAN}"
         # Generate HTML report
