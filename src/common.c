@@ -653,43 +653,55 @@ filter_xpath_buf_add_top_content(const struct lyd_node *node, struct np2_filter 
     return 0;
 }
 
-static int
-filter_xpath_node_module_equal(const struct lyd_node *node1, const struct lyd_node *node2)
+static const struct lys_module *
+filter_xpath_print_node_module(const struct lyd_node *node)
 {
     const struct lys_module *mod;
+    const struct lyd_node *parent;
     const struct lyd_node_opaq *opaq, *opaq2;
 
-    if (!node1 || !node2) {
-        return 0;
-    }
+    parent = lyd_parent(node);
 
-    if (node1->schema && node2->schema) {
+    if (!parent) {
+        /* print the module */
+    } else if (node->schema && parent->schema) {
         /* 2 data nodes */
-        if (node1->schema->module == node2->schema->module) {
-            return 1;
+        if (node->schema->module == parent->schema->module) {
+            return NULL;
         }
-    } else if (node1->schema || node2->schema) {
+    } else if (node->schema || parent->schema) {
         /* 1 data node, 1 opaque node */
-        mod = node1->schema ? node1->schema->module : node2->schema->module;
-        opaq = node1->schema ? (struct lyd_node_opaq *)node2 : (struct lyd_node_opaq *)node1;
+        mod = node->schema ? node->schema->module : parent->schema->module;
+        opaq = node->schema ? (struct lyd_node_opaq *)parent : (struct lyd_node_opaq *)node;
         assert(opaq->format == LY_VALUE_XML);
 
         /* in dict */
         if (mod->ns == opaq->name.module_ns) {
-            return 1;
+            return NULL;
         }
     } else {
         /* 2 opaque nodes */
-        opaq = (struct lyd_node_opaq *)node1;
-        opaq2 = (struct lyd_node_opaq *)node2;
+        opaq = (struct lyd_node_opaq *)node;
+        opaq2 = (struct lyd_node_opaq *)parent;
 
         /* in dict */
         if (opaq->name.module_ns == opaq2->name.module_ns) {
-            return 1;
+            return NULL;
         }
     }
 
-    return 0;
+    /* module will be printed, get it */
+    mod = NULL;
+    if (node->schema) {
+        mod = node->schema->module;
+    } else {
+        opaq = (struct lyd_node_opaq *)node;
+        if (opaq->name.module_ns) {
+            mod = ly_ctx_get_module_implemented_ns(LYD_CTX(node), opaq->name.module_ns);
+        }
+    }
+
+    return mod;
 }
 
 /* content node with optional namespace and attributes */
@@ -703,9 +715,7 @@ filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int siz
     assert(!node->schema || (node->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST)));
 
     /* do we print the module name? */
-    if (!filter_xpath_node_module_equal(node, lyd_parent(node))) {
-        mod = node->schema->module;
-    }
+    mod = filter_xpath_print_node_module(node);
 
     new_size = size + 1 + (mod ? strlen(mod->name) + 1 : 0) + strlen(LYD_NAME(node));
     buf_new = realloc(*buf, new_size);
@@ -744,46 +754,12 @@ filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int siz
 static int
 filter_xpath_buf_append_node(const struct lyd_node *node, char **buf, int size)
 {
-    const struct lys_module *mod = NULL, *par_mod;
-    const struct lyd_node_opaq *opaq;
-    struct lyd_node *parent;
+    const struct lys_module *mod = NULL;
     int new_size;
     char *buf_new;
 
-    assert(node->schema || !((struct lyd_node_opaq *)node)->value || strws(((struct lyd_node_opaq *)node)->value));
-
-    /* do we print the module? */
-    if (node->schema && (!node->parent || (lyd_parent(node)->schema->module != node->schema->module))) {
-        mod = node->schema->module;
-    } else if (!node->schema) {
-        opaq = (struct lyd_node_opaq *)node;
-        if (!opaq->name.module_ns) {
-            /* no namespace, will not match anything */
-            return 0;
-        }
-
-        mod = ly_ctx_get_module_implemented_ns(LYD_CTX(node), opaq->name.module_ns);
-        if (!mod) {
-            /* unknown namespace, will not match anything */
-            return 0;
-        }
-
-        /* check that parent module differs from this one */
-        if ((parent = lyd_parent(node))) {
-            if (parent->schema) {
-                if (parent->schema->module == mod) {
-                    mod = NULL;
-                }
-            } else {
-                if (((struct lyd_node_opaq *)node)->name.module_ns) {
-                    par_mod = ly_ctx_get_module_implemented_ns(LYD_CTX(node), ((struct lyd_node_opaq *)node)->name.module_ns);
-                    if (par_mod && (par_mod == mod)) {
-                        mod = NULL;
-                    }
-                }
-            }
-        }
-    }
+    /* do we print the module name? */
+    mod = filter_xpath_print_node_module(node);
 
     new_size = size + 1 + (mod ? strlen(mod->name) + 1 : 0) + strlen(LYD_NAME(node));
     buf_new = realloc(*buf, new_size);
