@@ -35,6 +35,14 @@ and it occurs on the `master` branch, the **first response will likely be** to u
 * [libnetconf2](https://github.com/CESNET/libnetconf2)
 * [sysrepo](https://github.com/sysrepo/sysrepo)
 
+### Optional
+
+* cmocka >= 1.0.0 (for [tests](#Tests))
+* valgrind (for enhanced testing)
+* gcov (for code coverage)
+* lcov (for code coverage)
+* genhtml (for code coverage)
+
 ## RFC Compliance
 
 * [RFC 5277](https://www.rfc-editor.org/rfc/rfc5277.html) NETCONF Event Notifications
@@ -113,6 +121,42 @@ A command-line NETCONF client `netopeer2-cli` is included and build/installed by
 adjusted by an option:
 ```
 BUILD_CLI:ON
+```
+
+### Tests
+
+There are several tests included and built with [cmocka](https://cmocka.org/). The tests
+can be found in `tests` subdirectory and they are designed for checking library
+functionality after code changes.
+
+The tests are by default built in the `Debug` build mode by running
+```
+$ make
+```
+
+In case of the `Release` mode, the tests are not built by default (it requires
+additional dependency), but they can be enabled via cmake option:
+```
+$ cmake -DENABLE_TESTS=ON ..
+```
+
+Note that if the necessary [cmocka](https://cmocka.org/) headers are not present
+in the system include paths, tests are not available despite the build mode or
+cmake's options.
+
+Tests can be run by the make's `test` target:
+```
+$ make test
+```
+
+### Code Coverage
+
+Based on the tests run, it is possible to generate code coverage report. But
+it must be enabled and these commands are needed to generate the report:
+```
+$ cmake -DENABLE_COVERAGE=ON ..
+$ make
+$ make coverage
 ```
 
 ## NACM
