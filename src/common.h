@@ -37,6 +37,9 @@
 #define NP_IGNORE_RPC(session, event) (!sr_session_get_orig_name(session) || \
         strcmp(sr_session_get_orig_name(session), "netopeer2") || (event == SR_EV_ABORT))
 
+/* macro to check if SR callback was originated by netopeer2 */
+#define NP_IS_ORIG_NP(session) (sr_session_get_orig_name(session) && !strcmp(sr_session_get_orig_name(session), "netopeer2"))
+
 /* user session structure assigned as data of NC sessions */
 struct np2_user_sess {
     sr_session_ctx_t *sess;
