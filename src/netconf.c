@@ -718,7 +718,7 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     } else if (!strcmp(input->schema->name, "unlock")) {
         rc = sr_unlock(user_sess->sess, NULL);
     }
-    if ((rc == SR_ERR_LOCKED) && sr_session_get_orig_name(session) && !strcmp(sr_session_get_orig_name(session), "netopeer2")) {
+    if ((rc == SR_ERR_LOCKED) && NP_IS_ORIG_NP(session)) {
         /* NETCONF error */
         sr_session_get_error(user_sess->sess, &err_info);
         np_err_sr2nc_lock_denied(session, err_info);
@@ -808,7 +808,12 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
 
     /* sysrepo API */
     rc = sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout);
-    if (rc != SR_ERR_OK) {
+    if ((rc == SR_ERR_LOCKED) && NP_IS_ORIG_NP(session)) {
+        /* NETCONF error */
+        sr_session_get_error(user_sess->sess, &err_info);
+        np_err_sr2nc_in_use(session, err_info);
+    } else if (rc) {
+        /* generic error */
         sr_session_get_error(user_sess->sess, &err_info);
         sr_session_set_error_message(session, err_info->err[0].message);
         goto cleanup;
