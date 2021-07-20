@@ -979,7 +979,7 @@ int
 np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), const struct lyd_node *input,
         sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output), void *UNUSED(private_data))
 {
-    struct ly_set *nodeset;
+    struct ly_set *nodeset, *modset = NULL;
     const struct lys_module *ly_mod;
     struct lys_node *root, *next, *elem, *parent;
     struct nc_session *ncs;
@@ -989,6 +989,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
     time_t start = 0, stop = 0;
     int rc = SR_ERR_OK, i;
     uint32_t idx;
+    struct np2_sess_data *sess_data;
 
     if (event == SR_EV_ABORT) {
         /* ignore in this case (not supported) */
@@ -1006,6 +1007,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
         rc = SR_ERR_INTERNAL;
         goto cleanup;
     }
+    sess_data = nc_session_get_data(ncs);
 
     /* RFC 5277 section 6.5 */
     if (nc_session_get_notif_status(ncs)) {
@@ -1082,10 +1084,10 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
 
     /* sysrepo API */
     if (!strcmp(stream, "NETCONF")) {
-        /* subscribe to all modules with notifications */
+        /* collect all modules with notifications */
+        modset = ly_set_new();
         idx = 0;
         while ((ly_mod = ly_ctx_get_module_iter(lyd_node_module(input)->ctx, &idx))) {
-            rc = SR_ERR_OK;
             LY_TREE_FOR(ly_mod->data, root) {
                 LY_TREE_DFS_BEGIN(root, next, elem) {
                     if (elem->nodetype == LYS_NOTIF) {
@@ -1095,8 +1097,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
                             parent = lys_parent(parent);
                         }
                         if (!parent) {
-                            rc = sr_event_notif_subscribe_tree(nc_session_get_data(ncs), ly_mod->name, xp, start, stop,
-                                    np2srv_ntf_new_cb, ncs, np2srv.sr_notif_sub ? SR_SUBSCR_CTX_REUSE : 0, &np2srv.sr_notif_sub);
+                            ly_set_add(modset, (void *)ly_mod, LY_SET_OPT_USEASLIST);
                             break;
                         }
                     }
@@ -1106,12 +1107,25 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
                    break;
                 }
             }
+        }
+
+        /* subscribe to all the modules */
+        sess_data->sr_sub_count = modset->number;
+        ATOMIC_STORE_RELAXED(sess_data->sr_ntf_replay_complete_count, 0);
+        ATOMIC_STORE_RELAXED(sess_data->sr_ntf_stop_count, 0);
+        for (idx = 0; idx < modset->number; ++idx) {
+            ly_mod = modset->set.g[idx];
+            rc = sr_event_notif_subscribe_tree(sess_data->sr_sess, ly_mod->name, xp, start, stop, np2srv_ntf_new_cb,
+                    sess_data, np2srv.sr_notif_sub ? SR_SUBSCR_CTX_REUSE : 0, &np2srv.sr_notif_sub);
             if (rc != SR_ERR_OK) {
                 goto cleanup;
             }
         }
     } else {
-        rc = sr_event_notif_subscribe_tree(nc_session_get_data(ncs), stream, xp, start, stop, np2srv_ntf_new_cb, ncs,
+        sess_data->sr_sub_count = 1;
+        ATOMIC_STORE_RELAXED(sess_data->sr_ntf_replay_complete_count, 0);
+        ATOMIC_STORE_RELAXED(sess_data->sr_ntf_stop_count, 0);
+        rc = sr_event_notif_subscribe_tree(sess_data->sr_sess, stream, xp, start, stop, np2srv_ntf_new_cb, sess_data,
                 np2srv.sr_notif_sub ? SR_SUBSCR_CTX_REUSE : 0, &np2srv.sr_notif_sub);
     }
     if (rc != SR_ERR_OK) {
@@ -1123,6 +1137,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), 
 cleanup:
     op_filter_erase(&filter);
     free(xp);
+    ly_set_free(modset);
     if (ncs && rc) {
         nc_session_set_notif_status(ncs, 0);
     }

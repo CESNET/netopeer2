@@ -75,6 +75,7 @@ np_get_user_sess(sr_session_ctx_t *ev_sess)
 {
     struct nc_session *nc_sess = NULL;
     uint32_t nc_sid, i;
+    struct np2_sess_data *sess_data;
 
     nc_sid = sr_session_get_event_nc_id(ev_sess);
     for (i = 0; (nc_sess = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
@@ -87,7 +88,8 @@ np_get_user_sess(sr_session_ctx_t *ev_sess)
         return NULL;
     }
 
-    return nc_session_get_data(nc_sess);
+    sess_data = nc_session_get_data(nc_sess);
+    return sess_data->sr_sess;
 }
 
 void
@@ -110,16 +112,26 @@ np2srv_ntf_new_cb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t no
         time_t timestamp, void *private_data)
 {
     struct nc_server_notif *nc_ntf = NULL;
-    struct nc_session *ncs = (struct nc_session *)private_data;
+    struct np2_sess_data *sess_data = private_data;
     struct lyd_node *ly_ntf = NULL;
     NC_MSG_TYPE msg_type;
     char buf[26], *datetime;
 
     /* create these notifications, sysrepo only emulates them */
     if (notif_type == SR_EV_NOTIF_REPLAY_COMPLETE) {
+        ATOMIC_INC_RELAXED(sess_data->sr_ntf_replay_complete_count);
+        if (ATOMIC_LOAD_RELAXED(sess_data->sr_ntf_replay_complete_count) < sess_data->sr_sub_count) {
+            return;
+        }
+
         ly_ntf = lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/nc-notifications:replayComplete", NULL, 0, 0);
         notif = ly_ntf;
     } else if (notif_type == SR_EV_NOTIF_STOP) {
+        ATOMIC_INC_RELAXED(sess_data->sr_ntf_stop_count);
+        if (ATOMIC_LOAD_RELAXED(sess_data->sr_ntf_stop_count) < sess_data->sr_sub_count) {
+            return;
+        }
+
         ly_ntf = lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/nc-notifications:notificationComplete", NULL, 0, 0);
         notif = ly_ntf;
     }
@@ -130,7 +142,7 @@ np2srv_ntf_new_cb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t no
     }
 
     /* check NACM */
-    if (ncac_check_operation(notif, nc_session_get_username(ncs))) {
+    if (ncac_check_operation(notif, nc_session_get_username(sess_data->nc_sess))) {
         goto cleanup;
     }
 
@@ -140,16 +152,17 @@ np2srv_ntf_new_cb(sr_session_ctx_t *UNUSED(session), const sr_ev_notif_type_t no
     nc_ntf = nc_server_notif_new((struct lyd_node *)notif, datetime, NC_PARAMTYPE_CONST);
 
     /* send the notification */
-    msg_type = nc_server_notif_send(ncs, nc_ntf, NP2SRV_NOTIF_SEND_TIMEOUT);
+    msg_type = nc_server_notif_send(sess_data->nc_sess, nc_ntf, NP2SRV_NOTIF_SEND_TIMEOUT);
     if ((msg_type == NC_MSG_ERROR) || (msg_type == NC_MSG_WOULDBLOCK)) {
-        ERR("Sending a notification to session %d %s.", nc_session_get_id(ncs), msg_type == NC_MSG_ERROR ? "failed" : "timed out");
+        ERR("Sending a notification to session %d %s.", nc_session_get_id(sess_data->nc_sess),
+                msg_type == NC_MSG_ERROR ? "failed" : "timed out");
         goto cleanup;
     }
-    ncm_session_notification(ncs);
+    ncm_session_notification(sess_data->nc_sess);
 
     if (notif_type == SR_EV_NOTIF_STOP) {
         /* subscription finished */
-        nc_session_set_notif_status(ncs, 0);
+        nc_session_set_notif_status(sess_data->nc_sess, 0);
     }
 
 cleanup:
@@ -162,6 +175,7 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
 {
     int c;
     sr_val_t *event_data;
+    struct np2_sess_data *sess_data;
     sr_session_ctx_t *sr_sess = NULL;
     const struct lys_module *mod;
     char *host = NULL;
@@ -173,7 +187,10 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
         nc_session_free(new_session, NULL);
         return;
     }
-    nc_session_set_data(new_session, sr_sess);
+    sess_data = calloc(1, sizeof *sess_data);
+    sess_data->nc_sess = new_session;
+    sess_data->sr_sess = sr_sess;
+    nc_session_set_data(new_session, sess_data);
     sr_session_set_nc_id(sr_sess, nc_session_get_id(new_session));
     ncm_session_add(new_session);
 
@@ -221,7 +238,7 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
 error:
     ncm_session_del(new_session);
     sr_session_stop(sr_sess);
-    nc_session_free(new_session, NULL);
+    nc_session_free(new_session, free);
 }
 
 #ifdef NP2SRV_URL_CAPAB

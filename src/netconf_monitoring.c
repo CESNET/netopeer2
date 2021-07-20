@@ -220,10 +220,12 @@ static uint32_t
 ncm_sid2ncid(uint32_t sid)
 {
     struct nc_session *nc_sess = NULL;
+    struct np2_sess_data *sess_data;
     uint32_t i;
 
     for (i = 0; (nc_sess = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
-        if (sr_session_get_id(nc_session_get_data(nc_sess)) == sid) {
+        sess_data = nc_session_get_data(nc_sess);
+        if (sr_session_get_id(sess_data->sr_sess) == sid) {
             break;
         }
     }

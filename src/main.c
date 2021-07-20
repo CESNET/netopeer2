@@ -235,7 +235,7 @@ np2srv_del_session_cb(struct nc_session *session)
     int i, rc;
     char *host = NULL;
     sr_val_t *event_data;
-    sr_session_ctx_t *sr_sess;
+    struct np2_sess_data *sess_data;
     const struct lys_module *mod;
 
     if (nc_ps_del_session(np2srv.nc_ps, session)) {
@@ -243,8 +243,8 @@ np2srv_del_session_cb(struct nc_session *session)
     }
 
     /* stop sysrepo session (also stop any sysrepo notification subscriptions) */
-    sr_sess = nc_session_get_data(session);
-    sr_session_stop(sr_sess);
+    sess_data = nc_session_get_data(session);
+    sr_session_stop(sess_data->sr_sess);
     ncm_session_del(session);
 
     if ((mod = ly_ctx_get_module(sr_get_context(np2srv.sr_conn), "ietf-netconf-notifications", NULL, 1))) {
@@ -299,7 +299,7 @@ np2srv_del_session_cb(struct nc_session *session)
         free(event_data);
     }
 
-    nc_session_free(session, NULL);
+    nc_session_free(session, free);
 }
 
 static struct nc_server_error *
@@ -442,7 +442,7 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
     /* get this user session with its NC id (but not user name) */
-    sr_sess = nc_session_get_data(ncs);
+    sr_sess = ((struct np2_sess_data *)nc_session_get_data(ncs))->sr_sess;
 
     /* sysrepo API, use the default timeout or slightly higher than the configured one */
     rc = sr_rpc_send_tree(sr_sess, rpc, np2srv.sr_timeout ? np2srv.sr_timeout + 2000 : 0, &output);
@@ -1009,8 +1009,8 @@ worker_thread(void *arg)
             VRB("Session %d: thread %d event reply error.", nc_session_get_id(ncs), idx);
         }
 wait_for_unref:
-        if (rc & NC_PSPOLL_SESSION_TERM) { 
-            if (nc_session_get_refcnt(ncs)) { 
+        if (rc & NC_PSPOLL_SESSION_TERM) {
+            if (nc_session_get_refcnt(ncs)) {
                VRB("Session %d: thread %d event session still referenced.", nc_session_get_id(ncs), idx);
                np_sleep(5000);
                goto wait_for_unref;

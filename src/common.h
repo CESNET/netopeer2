@@ -58,6 +58,14 @@ void np_unref_user_sess(sr_session_ctx_t *ev_sess);
 void np2srv_ntf_new_cb(sr_session_ctx_t *session, const sr_ev_notif_type_t notif_type, const struct lyd_node *notif,
         time_t timestamp, void *private_data);
 
+struct np2_sess_data {
+    struct nc_session *nc_sess;
+    sr_session_ctx_t *sr_sess;
+    uint32_t sr_sub_count;
+    ATOMIC_T sr_ntf_replay_complete_count;
+    ATOMIC_T sr_ntf_stop_count;
+};
+
 void np2srv_new_session_cb(const char *client_name, struct nc_session *new_session);
 
 int np2srv_url_setcap(void);
