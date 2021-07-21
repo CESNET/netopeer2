@@ -32,7 +32,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 set(test_sources "np_test.c")
 
 # list of all the tests
-set(tests test_rpc test_edit test_filter test_notif test_parallel_sessions test_candidate)
+set(tests test_rpc test_edit test_filter test_notif test_parallel_sessions test_candidate test_with_defaults)
 
 # build the executables
 foreach(test_name IN LISTS tests)

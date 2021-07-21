@@ -1,6 +1,7 @@
 /**
  * @file np_test.h
  * @author Michal Vasko <mvasko@cesnet.cz>
+ * @author Tadeas Vintlik <xvintr04@stud.fit.vutbr.cz>
  * @brief base header for netopeer2 testing
  *
  * @copyright
@@ -76,8 +77,8 @@
     assert_null(state->op); \
     assert_string_equal(LYD_NAME(lyd_child(state->envp)), "rpc-error");
 
-#define GET_CONFIG_DS_FILTER(state, ds, filter) \
-    state->rpc = nc_rpc_getconfig(ds, filter, NC_WD_ALL, NC_PARAMTYPE_CONST); \
+#define GET_CONFIG_DS_WD_FILTER(state, ds, wd, filter) \
+    state->rpc = nc_rpc_getconfig(ds, filter, wd, NC_PARAMTYPE_CONST); \
     state->msgtype = nc_send_rpc(state->nc_sess, state->rpc, 1000, &state->msgid); \
     assert_int_equal(NC_MSG_RPC, state->msgtype); \
     state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 2000, &state->envp, &state->op); \
@@ -85,7 +86,11 @@
     assert_non_null(state->op); \
     assert_non_null(state->envp); \
     assert_string_equal(LYD_NAME(lyd_child(state->op)), "data"); \
-    assert_int_equal(LY_SUCCESS, lyd_print_mem(&state->str, state->op, LYD_XML, 0));
+    assert_int_equal(LY_SUCCESS, lyd_print_mem(&state->str, state->op, LYD_XML, LYD_PRINT_WD_IMPL_TAG));
+
+#define GET_CONFIG_DS_FILTER(state, ds, filter) GET_CONFIG_DS_WD_FILTER(state, ds, NC_WD_ALL, filter);
+
+#define GET_CONFIG_WD(state, wd) GET_CONFIG_DS_WD_FILTER(state, NC_DATASTORE_RUNNING, wd, NULL);
 
 #define GET_CONFIG_FILTER(state, filter) \
     GET_CONFIG_DS_FILTER(state, NC_DATASTORE_RUNNING, filter);
