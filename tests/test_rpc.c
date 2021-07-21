@@ -256,7 +256,7 @@ test_kill(void **state)
     /* Get the current user */
     assert_non_null(file = popen("whoami", "r"));
     fscanf(file, "%127s", name);
-    fclose(file);
+    pclose(file);
 
     /* Put user and message id into error template */
     assert_int_not_equal(-1, asprintf(&str2, KILL_FAIL_TEMPLATE, st->msgid, name));
