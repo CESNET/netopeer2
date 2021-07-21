@@ -119,7 +119,7 @@ np_glob_setup_np2(void **state)
     pid_t pid;
     int fd;
     int pipefd[2];
-    int buf;
+    char buf;
 
     /* sysrepo environment variables must be set by NP_GLOB_SETUP_ENV_FUNC prior */
     /* install modules */
@@ -183,7 +183,9 @@ child_error:
     }
 
     if (debug) {
-        read(pipefd[0], &buf, 1);
+        if (read(pipefd[0], &buf, 1) != 1) {
+            return 1;
+        }
         close(pipefd[0]);
     }
 
