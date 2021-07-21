@@ -34,6 +34,11 @@ set(test_sources "np_test.c")
 # list of all the tests
 set(tests test_rpc test_edit test_filter test_notif test_parallel_sessions test_candidate test_with_defaults)
 
+# append url if supported
+if(NP2SRV_URL_CAPAB)
+    list(APPEND tests test_url)
+endif()
+
 # build the executables
 foreach(test_name IN LISTS tests)
     add_executable(${test_name} ${test_sources} ${test_name}.c)
