@@ -1,6 +1,7 @@
 /**
  * @file np_test.c
  * @author Michal Vasko <mvasko@cesnet.cz>
+ * @author Tadeas Vintlik <xvintr04@stud.fit.vutbr.cz>
  * @brief base source for netopeer2 testing
  *
  * @copyright
