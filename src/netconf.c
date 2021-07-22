@@ -368,7 +368,8 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     /* config */
     lyd_find_xpath(input, "config | url", &nodeset);
     if (!strcmp(nodeset->dnodes[0]->schema->name, "config")) {
-        config = op_parse_config((struct lyd_node_any *)nodeset->dnodes[0], LYD_PARSE_OPAQ | LYD_PARSE_ONLY, &rc, session);
+        config = op_parse_config((struct lyd_node_any *)nodeset->dnodes[0], LYD_PARSE_ONLY | LYD_PARSE_OPAQ |
+                LYD_PARSE_NO_STATE, &rc, session);
         if (rc) {
             ly_set_free(nodeset, NULL);
             goto cleanup;
@@ -376,7 +377,8 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     } else {
         assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_OPAQ | LYD_PARSE_ONLY, &rc, session);
+        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_ONLY | LYD_PARSE_OPAQ | LYD_PARSE_NO_STATE,
+                &rc, session);
         if (rc) {
             ly_set_free(nodeset, NULL);
             goto cleanup;
@@ -438,7 +440,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     struct ly_set *nodeset = NULL;
     const sr_error_info_t *err_info;
     struct lyd_node *config = NULL;
-    int rc = SR_ERR_OK, run_to_start = 0;
+    int rc = SR_ERR_OK, run_to_start = 0, source_is_config = 0;
     struct np2_user_sess *user_sess = NULL;
     const char *username;
     uint32_t *nc_sid;
@@ -492,6 +494,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
             ly_set_free(nodeset, NULL);
             goto cleanup;
         }
+        source_is_config = 1;
     } else {
         assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
@@ -501,12 +504,13 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
             goto cleanup;
         }
 
-        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_STRICT | LYD_PARSE_NO_STATE |
-                LYD_PARSE_ONLY, &rc, session);
+        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_ONLY | LYD_PARSE_OPAQ | LYD_PARSE_NO_STATE,
+                &rc, session);
         if (rc) {
             ly_set_free(nodeset, NULL);
             goto cleanup;
         }
+        source_is_config = 1;
 #else
         ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
@@ -523,7 +527,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     }
 
     /* NACM checks */
-    if (!config && !run_to_start) {
+    if (!source_is_config && !run_to_start) {
         /* get source datastore data and filter them */
         sr_session_switch_ds(session, sds);
         rc = sr_get_data(session, "/*", 0, np2srv.sr_timeout, 0, &config);
@@ -570,7 +574,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     } else
 #endif
     {
-        if (config) {
+        if (source_is_config) {
             /* config is spent */
             rc = sr_replace_config(user_sess->sess, NULL, config, np2srv.sr_timeout);
             config = NULL;
@@ -648,7 +652,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
 #ifdef NP2SRV_URL_CAPAB
     if (trg_url) {
         /* import URL to check its validity */
-        config = op_parse_url(trg_url, LYD_PARSE_STRICT | LYD_PARSE_NO_STATE | LYD_PARSE_ONLY, &rc, session);
+        config = op_parse_url(trg_url, LYD_PARSE_ONLY | LYD_PARSE_OPAQ | LYD_PARSE_NO_STATE, &rc, session);
         if (rc) {
             goto cleanup;
         }
@@ -899,8 +903,8 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     } else {
         assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_STRICT | LYD_PARSE_NO_STATE |
-                LYD_PARSE_ONLY, &rc, session);
+        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_ONLY | LYD_PARSE_OPAQ | LYD_PARSE_NO_STATE,
+                &rc, session);
         if (rc) {
             ly_set_free(nodeset, NULL);
             goto cleanup;

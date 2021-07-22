@@ -441,6 +441,7 @@ op_parse_url(const char *url, uint32_t parse_options, int *rc, sr_session_ctx_t 
 {
     struct lyd_node *config, *data;
     struct ly_ctx *ly_ctx;
+    struct lyd_node_opaq *opaq;
     int fd;
 
     ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
@@ -452,15 +453,30 @@ op_parse_url(const char *url, uint32_t parse_options, int *rc, sr_session_ctx_t 
         return NULL;
     }
 
-    /* do not validate the whole context, we just want to load the config anyxml */
-    if (lyd_parse_data_fd(ly_ctx, fd, LYD_XML, LYD_PARSE_ONLY | LYD_PARSE_OPAQ | LYD_PARSE_NO_STATE, 0, &config)) {
+    /* load the whole config element */
+    if (lyd_parse_data_fd(ly_ctx, fd, LYD_XML, parse_options, 0, &config)) {
         *rc = SR_ERR_LY;
         sr_session_set_error_message(sr_sess, ly_errmsg(ly_ctx));
         return NULL;
     }
 
-    data = op_parse_config((struct lyd_node_any *)config, parse_options, rc, sr_sess);
-    lyd_free_siblings(config);
+    if (!config || config->schema) {
+        *rc = SR_ERR_UNSUPPORTED;
+        sr_session_set_error_message(sr_sess, "Missing top-level \"config\" element in URL data.");
+        return NULL;
+    }
+
+    opaq = (struct lyd_node_opaq *)config;
+    if (strcmp(opaq->name.name, "config") || strcmp(opaq->name.module_ns, "urn:ietf:params:xml:ns:netconf:base:1.0")) {
+        *rc = SR_ERR_UNSUPPORTED;
+        sr_session_set_error_message(sr_sess, "Invalid top-level element in URL data, expected \"config\" with "
+                "namespace \"urn:ietf:params:xml:ns:netconf:base:1.0\".");
+        return NULL;
+    }
+
+    data = opaq->child;
+    lyd_unlink_siblings(data);
+    lyd_free_tree(config);
     return data;
 }
 
@@ -535,6 +551,8 @@ op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr
     const struct ly_ctx *ly_ctx;
     struct lyd_node *root = NULL;
     LY_ERR lyrc;
+
+    assert(config && config->schema && (config->schema->nodetype == LYS_ANYXML));
 
     if (!config->value.str) {
         /* nothing to do, no data */
