@@ -138,6 +138,32 @@ np_err_sr2nc_in_use(sr_session_ctx_t *ev_sess, const sr_error_info_t *err_info)
 }
 
 void
+np_err_sr2nc_same_ds(sr_session_ctx_t *ev_sess, const char *err_msg)
+{
+    const char *str;
+
+    /* error format */
+    sr_session_set_error_format(ev_sess, "NETCONF");
+
+    /* error-type */
+    str = "application";
+    sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+    /* error-tag */
+    str = "invalid-value";
+    sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+    /* error-message */
+    sr_session_push_error_data(ev_sess, strlen(err_msg) + 1, err_msg);
+
+    /* error-app-tag */
+    sr_session_push_error_data(ev_sess, 1, "");
+
+    /* error-path */
+    sr_session_push_error_data(ev_sess, 1, "");
+}
+
+void
 np_err_missing_element(sr_session_ctx_t *ev_sess, const char *elem_name)
 {
     const char *str;

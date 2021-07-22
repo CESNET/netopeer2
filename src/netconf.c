@@ -500,7 +500,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 #ifdef NP2SRV_URL_CAPAB
         if (trg_url && !strcmp(trg_url, lyd_get_value(nodeset->dnodes[0]))) {
             rc = SR_ERR_INVAL_ARG;
-            sr_session_set_error_message(session, "Source and target URLs are the same.");
+            np_err_sr2nc_same_ds(session, "Source and target URLs are the same.");
             goto cleanup;
         }
 
@@ -522,7 +522,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 
     if (ds == sds) {
         rc = SR_ERR_INVAL_ARG;
-        sr_session_set_error_message(session, "Source and target datastores are the same.");
+        np_err_sr2nc_same_ds(session, "Source and target datastores are the same.");
         goto cleanup;
     }
 
