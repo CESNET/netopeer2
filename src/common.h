@@ -95,7 +95,7 @@ int np2srv_url_setcap(void);
 
 struct lyd_node *op_parse_url(const char *url, uint32_t parse_options, int *rc, sr_session_ctx_t *sr_sess);
 
-int op_export_url(const char *url, struct lyd_node *data, int options, int *rc, sr_session_ctx_t *sr_sess);
+int op_export_url(const char *url, struct lyd_node *data, uint32_t options, int *rc, sr_session_ctx_t *sr_sess);
 
 #endif
 

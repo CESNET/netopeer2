@@ -481,7 +481,7 @@ op_parse_url(const char *url, uint32_t parse_options, int *rc, sr_session_ctx_t 
 }
 
 int
-op_export_url(const char *url, struct lyd_node *data, int options, int *rc, sr_session_ctx_t *sr_sess)
+op_export_url(const char *url, struct lyd_node *data, uint32_t options, int *rc, sr_session_ctx_t *sr_sess)
 {
     CURL *curl;
     CURLcode res;
@@ -493,15 +493,18 @@ op_export_url(const char *url, struct lyd_node *data, int options, int *rc, sr_s
     ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
 
     /* print the config as expected by the other end */
-    if (lyd_new_path2(NULL, ly_ctx, "/ietf-netconf:config", data, 0, data ? LYD_ANYDATA_DATATREE : 0, 0, NULL, &config)) {
+    if (lyd_new_opaq2(NULL, ly_ctx, "config", NULL, NULL, "urn:ietf:params:xml:ns:netconf:base:1.0", &config)) {
         *rc = SR_ERR_LY;
         sr_session_set_error_message(sr_sess, ly_errmsg(ly_ctx));
         return -1;
     }
+    if (data) {
+        lyd_insert_child(config, data);
+    }
     lyd_print_mem(&str_data, config, LYD_XML, options);
 
     /* do not free data */
-    ((struct lyd_node_any *)config)->value.tree = NULL;
+    lyd_unlink_siblings(data);
     lyd_free_tree(config);
 
     DBG("Uploading file to URL: %s (via curl)", url);
