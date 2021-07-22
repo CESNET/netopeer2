@@ -42,7 +42,7 @@
     "    <error-type>protocol</error-type>\n" \
     "    <error-tag>lock-denied</error-tag>\n" \
     "    <error-severity>error</error-severity>\n" \
-    "    <error-message lang=\"en\">Access to the requested lock is denied" \
+    "    <error-message xml:lang=\"en\">Access to the requested lock is denied" \
     " because the lock is currently held by another entity.</error-message>\n" \
     "    <error-info>\n" \
     "      <session-id>%d</session-id>\n" \
@@ -58,7 +58,7 @@
     "    <error-tag>access-denied</error-tag>\n" \
     "    <error-severity>error</error-severity>\n" \
     "    <error-path>/ietf-netconf:kill-session</error-path>\n" \
-    "    <error-message lang=\"en\">Executing the operation is denied " \
+    "    <error-message xml:lang=\"en\">Executing the operation is denied " \
     "because \"%s\" NACM authorization failed.</error-message>\n" \
     "  </rpc-error>\n" \
     "</rpc-reply>\n" \
