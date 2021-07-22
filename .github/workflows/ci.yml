@@ -67,7 +67,7 @@ jobs:
             dep-build-type: "Debug",
             cc: "gcc",
             options: "",
-            packages: "libcurl-openssl1.0-dev valgrind",
+            packages: "libcurl4-openssl-dev valgrind",
             snaps: "",
             make-prepend: "",
             make-target: ""
