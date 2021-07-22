@@ -158,19 +158,20 @@ ncm_session_add(struct nc_session *session)
     new = realloc(stats.sessions, stats.session_count * sizeof *stats.sessions);
     if (!new) {
         EMEM;
-        return;
+        goto cleanup;
     }
     stats.sessions = new;
     new = realloc(stats.session_stats, stats.session_count * sizeof *stats.session_stats);
     if (!new) {
         EMEM;
-        return;
+        goto cleanup;
     }
     stats.session_stats = new;
 
     stats.sessions[stats.session_count - 1] = session;
     memset(&stats.session_stats[stats.session_count - 1], 0, sizeof *stats.session_stats);
 
+cleanup:
     pthread_mutex_unlock(&stats.lock);
 }
 
