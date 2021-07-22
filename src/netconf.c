@@ -448,6 +448,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 #ifdef NP2SRV_URL_CAPAB
     const char *trg_url = NULL;
     int lyp_wd_flag;
+    uint8_t url = 0;
 #endif
 
     if (NP_IGNORE_RPC(session, event)) {
@@ -467,6 +468,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
         trg_url = lyd_get_value(nodeset->dnodes[0]);
+        url++;
 #else
         ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
@@ -498,6 +500,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     } else {
         assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
+        url++;
         if (trg_url && !strcmp(trg_url, lyd_get_value(nodeset->dnodes[0]))) {
             rc = SR_ERR_INVAL_ARG;
             np_err_sr2nc_same_ds(session, "Source and target URLs are the same.");
@@ -520,7 +523,12 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     }
     ly_set_free(nodeset, NULL);
 
+    /* if both are url it is a valid call */
+#ifdef NP2SRV_URL_CAPAB
+    if ((ds == sds) && (url != 2)) {
+#else
     if (ds == sds) {
+#endif
         rc = SR_ERR_INVAL_ARG;
         np_err_sr2nc_same_ds(session, "Source and target datastores are the same.");
         goto cleanup;
