@@ -61,13 +61,13 @@ jobs:
             make-target: ""
           }
           - {
-            name: "Debug, Ubuntu 18.04, gcc",
+            name: "Debug, Ubuntu 18.04, gcc, with URL",
             os: "ubuntu-18.04",
             build-type: "Debug",
             dep-build-type: "Debug",
             cc: "gcc",
             options: "",
-            packages: "valgrind",
+            packages: "libcurl-openssl1.0-dev valgrind",
             snaps: "",
             make-prepend: "",
             make-target: ""
