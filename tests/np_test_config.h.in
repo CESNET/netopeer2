@@ -45,4 +45,7 @@
 /* server log file */
 #define NP_LOG_PATH "@CMAKE_CURRENT_BINARY_DIR@/netopeer2-server.log"
 
+/* notifation file path */
+#define SR_NOTIFICATION_PATH "@NOTIFICATION_PATH@"
+
 #endif /* _NP_TEST_CONFIG_H_ */

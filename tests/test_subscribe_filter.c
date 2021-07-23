@@ -1,7 +1,7 @@
 /**
- * @file test_notif.c
+ * @file test_subscribe_filter.c
  * @author Tadeas Vintrlik <xvintr04@stud.fit.vutbr.cz>
- * @brief tests for notifications
+ * @brief tests for filtering notifications
  *
  * @copyright
  * Copyright 2021 Deutsche Telekom AG.
