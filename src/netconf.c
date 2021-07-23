@@ -1151,7 +1151,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         np_err_missing_element(session, "startTime");
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
-    } else if (stop.tv_sec < start.tv_sec) {
+    } else if (stop.tv_sec && (stop.tv_sec < start.tv_sec)) {
         np_err_bad_element(session, "stopTime", "Specified \"stopTime\" is earlier than \"startTime\".");
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
