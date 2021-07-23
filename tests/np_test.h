@@ -146,7 +146,7 @@
     ly_in_free(state->in, 0);
 
 #define RECV_NOTIF(state) \
-    state->msgtype = nc_recv_notif(state->nc_sess, 1000, &state->envp, &state->op); \
+    state->msgtype = nc_recv_notif(state->nc_sess, 5000, &state->envp, &state->op); \
     assert_int_equal(NC_MSG_NOTIF, state->msgtype); \
     while(state->op->parent) state->op = lyd_parent(state->op); \
     assert_int_equal(lyd_print_mem(&state->str, state->op, LYD_XML, 0), LY_SUCCESS);
