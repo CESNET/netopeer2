@@ -525,10 +525,11 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 
     /* if both are url it is a valid call */
 #ifdef NP2SRV_URL_CAPAB
-    if ((ds == sds) && (url != 2)) {
+    if ((ds == sds) && (url != 2))
 #else
-    if (ds == sds) {
+    if (ds == sds)
 #endif
+    {
         rc = SR_ERR_INVAL_ARG;
         np_err_sr2nc_same_ds(session, "Source and target datastores are the same.");
         goto cleanup;
