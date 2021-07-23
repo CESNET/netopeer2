@@ -118,9 +118,7 @@ np_glob_setup_np2(void **state)
 {
     struct np_test *st;
     pid_t pid;
-    int fd;
-    int pipefd[2];
-    char buf;
+    int fd, pipefd[2], buf;
 
     /* sysrepo environment variables must be set by NP_GLOB_SETUP_ENV_FUNC prior */
     /* install modules */
@@ -162,7 +160,7 @@ np_glob_setup_np2(void **state)
             printf("pid of netopeer server is: %ld\n", (long) getpid());
             puts("Press return to continue the tests...");
             buf = getc(stdin);
-            write(pipefd[1], &buf, 1);
+            write(pipefd[1], &buf, sizeof buf);
             close(pipefd[1]);
         }
 
@@ -184,7 +182,7 @@ child_error:
     }
 
     if (debug) {
-        if (read(pipefd[0], &buf, 1) != 1) {
+        if (read(pipefd[0], &buf, sizeof buf) != sizeof buf) {
             return 1;
         }
         close(pipefd[0]);
