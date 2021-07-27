@@ -48,4 +48,6 @@
 /* notifation file path */
 #define SR_NOTIFICATION_PATH "@NOTIFICATION_PATH@"
 
+#define NACM_RECOVERY_UID "@NACM_RECOVERY_UID@"
+
 #endif /* _NP_TEST_CONFIG_H_ */

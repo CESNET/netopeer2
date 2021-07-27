@@ -1,0 +1,14 @@
+module nacm-test1 {
+  namespace "urn:nt1";
+  prefix nt1;
+
+  container top {
+    leaf name {
+      type string;
+    }
+    leaf num {
+      when "../name";
+      type uint32;
+    }
+  }
+}
