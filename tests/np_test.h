@@ -49,7 +49,7 @@
     state->envp = NULL; \
     lyd_free_tree(state->op); \
     state->op = NULL; \
-    lyd_free_tree(state->node); \
+    lyd_free_siblings(state->node); \
     state->node = NULL; \
     if (state->str) { \
         free(state->str); \
@@ -175,6 +175,7 @@ struct np_test {
     uint64_t msgid;
     struct lyd_node *envp, *op;
     char *str;
+    char user[128];
 };
 
 int np_glob_setup_np2(void **state);
