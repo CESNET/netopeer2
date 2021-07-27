@@ -490,13 +490,18 @@ server_init(void)
     const struct ly_ctx *ly_ctx;
     int rc;
 
-    /* connect to the sysrepo and set edit-config NACM diff check callback */
+    /* connect to sysrepo */
     rc = sr_connect(SR_CONN_CACHE_RUNNING, &np2srv.sr_conn);
     if (rc != SR_ERR_OK) {
         ERR("Connecting to sysrepo failed (%s).", sr_strerror(rc));
         goto error;
     }
-    sr_set_diff_check_callback(np2srv.sr_conn, np2srv_diff_check_cb);
+
+    /* set edit-config NACM diff check callback */
+    rc = sr_set_diff_check_callback(np2srv.sr_conn, np2srv_diff_check_cb);
+    if (rc != SR_ERR_OK) {
+        WRN("Unable to set diff check callback (%s), NACM will not be applied when editing data.");
+    }
 
     ly_ctx = sr_get_context(np2srv.sr_conn);
 
