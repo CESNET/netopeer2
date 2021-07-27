@@ -47,6 +47,11 @@ np2srv_rpc_establish_sub_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUS
 
     /* create these notifications, sysrepo only emulates them */
     if (notif_type == SR_EV_NOTIF_REPLAY_COMPLETE) {
+        if (!sub_ntf_is_replay_completed(arg->nc_sub_id)) {
+            /* wait until all the subscriptions finish their replay */
+            goto cleanup;
+        }
+
         sprintf(buf, "%" PRIu32, arg->nc_sub_id);
         lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/ietf-subscribed-notifications:replay-completed/id",
                 buf, 0, &ly_ntf);

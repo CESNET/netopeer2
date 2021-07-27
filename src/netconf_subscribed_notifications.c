@@ -202,6 +202,23 @@ sub_ntf_cb_lock_pass(uint32_t sub_id)
     ATOMIC_STORE_RELAXED(info.sub_id_lock, sub_id);
 }
 
+int
+sub_ntf_is_replay_completed(uint32_t nc_sub_id)
+{
+    struct np2srv_sub_ntf *sub;
+
+    sub = sub_ntf_find(nc_sub_id, 0, 0, 0);
+    if (!sub) {
+        EINT;
+        return 0;
+    }
+
+    if (ATOMIC_INC_RELAXED(sub->replay_complete_count) + 1 == ATOMIC_LOAD_RELAXED(sub->sub_id_count)) {
+        return 1;
+    }
+    return 0;
+}
+
 void
 sub_ntf_inc_denied(uint32_t nc_sub_id)
 {

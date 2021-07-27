@@ -44,6 +44,8 @@ struct np2srv_sub_ntf_info {
         const char *term_reason;
         struct timespec stop_time;
 
+        ATOMIC_T replay_complete_count; /* counter of special replay-complete notifications received */
+
         int terminating;        /* set flag means the WRITE lock for this subscription will not be granted */
         ATOMIC_T sent_count;    /* sent notifications counter */
         ATOMIC_T denied_count;  /* counter of notifications denied by NACM */
@@ -104,6 +106,14 @@ int sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, struct timesp
  * @param[in] sub_id Sysrepo subscription ID obtained in the callback.
  */
 void sub_ntf_cb_lock_pass(uint32_t sub_id);
+
+/**
+ * @brief Increase replay-complete notification count and check whether the last one was received.
+ *
+ * @param[in] nc_sub_id NETCONF sub ID of the subscription.
+ * @return Whether the last replay-complete was received or not.
+ */
+int sub_ntf_is_replay_completed(uint32_t nc_sub_id);
 
 /**
  * @brief Increase denied notification count for a subscription.
