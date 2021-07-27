@@ -39,6 +39,9 @@
     file[strlen(file) - 2] = '\0'; \
     setenv_rv = setup_setenv_sysrepo(strrchr(file, '/') + 1);
 
+#define SETUP_FAIL_LOG \
+    printf("Setup fail in %s:%d.\n", __FILE__, __LINE__)
+
 #define FREE_TEST_VARS(state) \
     nc_rpc_free(state->rpc); \
     state->rpc = NULL; \

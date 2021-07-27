@@ -75,6 +75,7 @@ setup_server_socket_wait(void)
     }
 
     if (count == sleep_count) {
+        SETUP_FAIL_LOG;
         return 1;
     }
     return 0;
@@ -89,19 +90,23 @@ setup_setenv_sysrepo(const char *test_name)
     /* set sysrepo environment variables */
     sr_repo_path = malloc(strlen(NP_SR_REPOS_DIR) + 1 + strlen(test_name) + 1);
     if (!sr_repo_path) {
+        SETUP_FAIL_LOG;
         goto cleanup;
     }
     sprintf(sr_repo_path, "%s/%s", NP_SR_REPOS_DIR, test_name);
     if (setenv("SYSREPO_REPOSITORY_PATH", sr_repo_path, 1)) {
+        SETUP_FAIL_LOG;
         goto cleanup;
     }
 
     sr_shm_prefix = malloc(strlen(NP_SR_SHM_PREFIX) + strlen(test_name) + 1);
     if (!sr_shm_prefix) {
+        SETUP_FAIL_LOG;
         goto cleanup;
     }
     sprintf(sr_shm_prefix, "%s%s", NP_SR_SHM_PREFIX, test_name);
     if (setenv("SYSREPO_SHM_PREFIX", sr_shm_prefix, 1)) {
+        SETUP_FAIL_LOG;
         goto cleanup;
     }
 
@@ -123,27 +128,34 @@ np_glob_setup_np2(void **state)
     /* sysrepo environment variables must be set by NP_GLOB_SETUP_ENV_FUNC prior */
     /* install modules */
     if (setenv("NP2_MODULE_DIR", NP_ROOT_DIR "/modules", 1)) {
+        SETUP_FAIL_LOG;
         return 1;
     }
     if (setenv("NP2_MODULE_PERMS", "600", 1)) {
+        SETUP_FAIL_LOG;
         return 1;
     }
     if (system(NP_ROOT_DIR "/scripts/setup.sh")) {
+        SETUP_FAIL_LOG;
         return 1;
     }
     if (unsetenv("NP2_MODULE_DIR")) {
+        SETUP_FAIL_LOG;
         return 1;
     }
     if (unsetenv("NP2_MODULE_PERMS")) {
+        SETUP_FAIL_LOG;
         return 1;
     }
     if (setenv("CMOCKA_TEST_ABORT", "1", 0)) {
+        SETUP_FAIL_LOG;
         return 1;
     }
 
     /* create pipe for synchronisation if debugging */
     if (debug) {
         if (pipe(pipefd)) {
+            SETUP_FAIL_LOG;
             return 1;
         }
     }
@@ -153,6 +165,7 @@ np_glob_setup_np2(void **state)
         /* open log file */
         fd = open(NP_LOG_PATH, O_WRONLY | O_CREAT | O_TRUNC, 00600);
         if (fd == -1) {
+            SETUP_FAIL_LOG;
             goto child_error;
         }
 
@@ -178,11 +191,13 @@ child_error:
         printf("Child execution failed\n");
         exit(1);
     } else if (pid == -1) {
+        SETUP_FAIL_LOG;
         return 1;
     }
 
     if (debug) {
         if (read(pipefd[0], &buf, sizeof buf) != sizeof buf) {
+            SETUP_FAIL_LOG;
             return 1;
         }
         close(pipefd[0]);
@@ -190,12 +205,14 @@ child_error:
 
     /* wait for the server, until it creates its socket */
     if (setup_server_socket_wait()) {
+        SETUP_FAIL_LOG;
         return 1;
     }
 
     /* create test state structure, up to teardown now to free it */
     st = calloc(1, sizeof *st);
     if (!st) {
+        SETUP_FAIL_LOG;
         return 1;
     }
     *state = st;
@@ -204,11 +221,13 @@ child_error:
     /* create NETCONF sessions */
     st->nc_sess = nc_connect_unix(NP_SOCKET_PATH, NULL);
     if (!st->nc_sess) {
+        SETUP_FAIL_LOG;
         return 1;
     }
 
     st->nc_sess2 = nc_connect_unix(NP_SOCKET_PATH, NULL);
     if (!st->nc_sess2) {
+        SETUP_FAIL_LOG;
         return 1;
     }
 
@@ -253,13 +272,16 @@ np_glob_teardown(void **state)
 
     /* unset sysrepo environment variables */
     if (unsetenv("SYSREPO_REPOSITORY_PATH")) {
+        SETUP_FAIL_LOG;
         ret = 1;
     }
     if (unsetenv("SYSREPO_SHM_PREFIX")) {
+        SETUP_FAIL_LOG;
         ret = 1;
     }
 
     if (unsetenv("CMOCKA_TEST_ABORT")) {
+        SETUP_FAIL_LOG;
         return 1;
     }
 
