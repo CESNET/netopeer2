@@ -475,8 +475,8 @@ test_stop_time(void **state)
     cur = time(NULL);
     assert_int_not_equal(-1, time);
 
-    /* To subscribe to replay of notifications  from last second */
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur - 1, NULL, &start_time));
+    /* To subscribe to replay of the notification */
+    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur - 5, NULL, &start_time));
 
     /* To subscribe to replay of notifications until time was called, should not include any called after */
     assert_int_equal(LY_SUCCESS, ly_time_time2str(cur, NULL, &stop_time));
