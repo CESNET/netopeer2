@@ -117,6 +117,7 @@ static int
 clear_notif(void **state)
 {
     char *path, *cmd;
+    int ret;
 
     (void)state;
 
@@ -130,8 +131,14 @@ clear_notif(void **state)
     }
 
     free(path);
-    system(cmd);
+    ret = system(cmd);
     free(cmd);
+
+    if (ret == -1) {
+        return 1;
+    } else if (!WIFEXITED(ret) || WEXITSTATUS(ret)) {
+        return 1;
+    }
 
     return 0;
 }
