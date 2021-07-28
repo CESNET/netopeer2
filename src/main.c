@@ -500,7 +500,7 @@ server_init(void)
     /* set edit-config NACM diff check callback */
     rc = sr_set_diff_check_callback(np2srv.sr_conn, np2srv_diff_check_cb);
     if (rc != SR_ERR_OK) {
-        WRN("Unable to set diff check callback (%s), NACM will not be applied when editing data.");
+        WRN("Unable to set diff check callback (%s), NACM will not be applied when editing data.", sr_strerror(rc));
     }
 
     ly_ctx = sr_get_context(np2srv.sr_conn);
