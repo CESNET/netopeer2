@@ -155,7 +155,7 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
 {
     const struct ly_ctx *ly_ctx = sr_get_context(sr_session_get_connection(user_sess));
     const struct lys_module *ly_mod;
-    int rc;
+    int rc, suspended = 0;
     const sr_error_info_t *err_info;
     struct ly_set mod_set = {0};
     uint32_t idx;
@@ -197,12 +197,13 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
 
             /* subscribe to the module */
             rc = sr_event_notif_subscribe_tree(user_sess, ly_mod->name, xpath, start, stop, np2srv_rpc_establish_sub_ntf_cb,
-                    cb_arg, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
+                    cb_arg, SR_SUBSCR_CTX_REUSE | SR_SUBSCR_THREAD_SUSPEND, &np2srv.sr_notif_sub);
             if (rc != SR_ERR_OK) {
                 sr_session_get_error(user_sess, &err_info);
                 sr_session_set_error_message(ev_sess, err_info->err[0].message);
                 goto error;
             }
+            suspended = 1;
 
             /* add new sub ID */
             (*sub_ids)[*sub_id_count] = sr_subscription_get_last_sub_id(np2srv.sr_notif_sub);
@@ -222,29 +223,35 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
 
         /* subscribe to the specific module (stream) */
         rc = sr_event_notif_subscribe_tree(user_sess, stream, xpath, start, stop, np2srv_rpc_establish_sub_ntf_cb,
-                cb_arg, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
+                cb_arg, SR_SUBSCR_CTX_REUSE | SR_SUBSCR_THREAD_SUSPEND, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {
             sr_session_get_error(user_sess, &err_info);
             sr_session_set_error_message(ev_sess, err_info->err[0].message);
             goto error;
         }
+        suspended = 1;
 
         /* add new sub ID */
         (*sub_ids)[*sub_id_count] = sr_subscription_get_last_sub_id(np2srv.sr_notif_sub);
         ++(*sub_id_count);
     }
 
-    ly_set_erase(&mod_set, NULL);
-    return SR_ERR_OK;
+    goto cleanup;
 
 error:
-    ly_set_erase(&mod_set, NULL);
     for (idx = 0; idx < *sub_id_count; ++idx) {
         sr_unsubscribe_sub(np2srv.sr_notif_sub, (*sub_ids)[idx]);
     }
     free(*sub_ids);
     *sub_ids = NULL;
     *sub_id_count = 0;
+
+cleanup:
+    if (suspended) {
+        /* resume subscription thread */
+        sr_subscription_thread_resume(np2srv.sr_notif_sub);
+    }
+    ly_set_erase(&mod_set, NULL);
     return rc;
 }
 
