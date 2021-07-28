@@ -202,23 +202,6 @@ sub_ntf_cb_lock_pass(uint32_t sub_id)
     ATOMIC_STORE_RELAXED(info.sub_id_lock, sub_id);
 }
 
-int
-sub_ntf_is_replay_completed(uint32_t nc_sub_id)
-{
-    struct np2srv_sub_ntf *sub;
-
-    sub = sub_ntf_find(nc_sub_id, 0, 0, 0);
-    if (!sub) {
-        EINT;
-        return 0;
-    }
-
-    if (ATOMIC_INC_RELAXED(sub->replay_complete_count) + 1 == ATOMIC_LOAD_RELAXED(sub->sub_id_count)) {
-        return 1;
-    }
-    return 0;
-}
-
 void
 sub_ntf_inc_denied(uint32_t nc_sub_id)
 {
@@ -559,7 +542,7 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     }
 
     /* send the notification */
-    rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(), &ly_ntf, 1);
+    rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(1), &ly_ntf, 1);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
@@ -618,7 +601,7 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
                 buf, 0, &ly_ntf);
         lyd_new_path(ly_ntf, NULL, "reason", sub->term_reason, 0, NULL);
 
-        r = sub_ntf_send_notif(ncs, sub->nc_sub_id, np_gettimespec(), &ly_ntf, 1);
+        r = sub_ntf_send_notif(ncs, sub->nc_sub_id, np_gettimespec(1), &ly_ntf, 1);
         if (r != SR_ERR_OK) {
             rc = r;
         }

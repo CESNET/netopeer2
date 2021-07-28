@@ -35,19 +35,59 @@
 #include "netconf_subscribed_notifications.h"
 
 /**
+ * @brief Remove this SR subscription and check whether it was the last.
+ *
+ * @param[in,out] sub Subscription structure to use.
+ * @param[in] sub_id SR sub ID to delete.
+ * @return Whether it was the last SR subscription or not.
+ */
+static int
+sub_ntf_del_sr_sub_is_last(struct np2srv_sub_ntf *sub, uint32_t sub_id)
+{
+    uint32_t i, count;
+    int last = 0;
+
+    /* find SR subscription */
+    for (i = 0; i < ATOMIC_LOAD_RELAXED(sub->sub_id_count); ++i) {
+        if (sub->sub_ids[i] == sub_id) {
+            break;
+        }
+    }
+    if (i == ATOMIC_LOAD_RELAXED(sub->sub_id_count)) {
+        EINT;
+        return 0;
+    }
+
+    /* remove it */
+    ATOMIC_DEC_RELAXED(sub->sub_id_count);
+    count = ATOMIC_LOAD_RELAXED(sub->sub_id_count);
+    if (i < count) {
+        memmove(sub->sub_ids + i, sub->sub_ids + i + 1, (count - i) * sizeof *sub->sub_ids);
+    } else if (!count) {
+        free(sub->sub_ids);
+        sub->sub_ids = NULL;
+
+        last = 1;
+    }
+
+    return last;
+}
+
+/**
  * @brief New notification callback used for notifications received on subscription made by \<establish-subscription\> RPC.
  */
 static void
-np2srv_rpc_establish_sub_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(sub_id),
-        const sr_ev_notif_type_t notif_type, const struct lyd_node *notif, struct timespec *timestamp, void *private_data)
+np2srv_rpc_establish_sub_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, const sr_ev_notif_type_t notif_type,
+        const struct lyd_node *notif, struct timespec *timestamp, void *private_data)
 {
     struct sub_ntf_cb_arg *arg = private_data;
     struct lyd_node *ly_ntf = NULL;
+    struct np2srv_sub_ntf *sub;
     char buf[26];
 
     /* create these notifications, sysrepo only emulates them */
     if (notif_type == SR_EV_NOTIF_REPLAY_COMPLETE) {
-        if (!sub_ntf_is_replay_completed(arg->nc_sub_id)) {
+        if (ATOMIC_INC_RELAXED(arg->replay_complete_count) + 1 < arg->sr_sub_count) {
             /* wait until all the subscriptions finish their replay */
             goto cleanup;
         }
@@ -56,7 +96,25 @@ np2srv_rpc_establish_sub_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUS
         lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/ietf-subscribed-notifications:replay-completed/id",
                 buf, 0, &ly_ntf);
         notif = ly_ntf;
-    } else if ((notif_type == SR_EV_NOTIF_MODIFIED) || (notif_type == SR_EV_NOTIF_TERMINATED)) {
+    } else if (notif_type == SR_EV_NOTIF_TERMINATED) {
+        /* WRITE LOCK on sub */
+        sub = sub_ntf_find_lock(arg->nc_sub_id, 1);
+        if (!sub) {
+            EINT;
+            goto cleanup;
+        }
+
+        if (sub_ntf_del_sr_sub_is_last(sub, sub_id)) {
+            /* last SR subscription terminated, remove the whole NC subscription */
+            sub_ntf_terminate_sub(sub, arg->ncs);
+        }
+
+        /* UNLOCK */
+        sub_ntf_unlock();
+
+        /* finish, subscription-terminated notif was already sent */
+        goto cleanup;
+    } else if (notif_type == SR_EV_NOTIF_MODIFIED) {
         /* handled elsewhere */
         goto cleanup;
     } else if ((notif_type == SR_EV_NOTIF_RESUMED) || (notif_type == SR_EV_NOTIF_SUSPENDED)) {
@@ -85,7 +143,7 @@ cleanup:
  * @param[in] xpath Filter to use.
  * @param[in] start Replay start time.
  * @param[in] stop Subscription stop time.
- * @param[in] private_data User data to set when subscribing.
+ * @param[in] cb_arg Callback argument to set when subscribing.
  * @param[in] ev_sess Event session for reporting errors.
  * @param[out] sub_ids Generated sysrepo subscription IDs, the first one is used as sub-ntf subscription ID.
  * @param[out] sub_id_count Number of @p sub_ids.
@@ -93,20 +151,20 @@ cleanup:
  */
 static int
 sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char *xpath, time_t start,
-        time_t stop, void *private_data, sr_session_ctx_t *ev_sess, uint32_t **sub_ids, uint32_t *sub_id_count)
+        time_t stop, struct sub_ntf_cb_arg *cb_arg, sr_session_ctx_t *ev_sess, uint32_t **sub_ids, uint32_t *sub_id_count)
 {
     const struct ly_ctx *ly_ctx = sr_get_context(sr_session_get_connection(user_sess));
     const struct lys_module *ly_mod;
     int rc;
     const sr_error_info_t *err_info;
+    struct ly_set mod_set = {0};
     uint32_t idx;
-    void *mem;
 
     *sub_ids = NULL;
     *sub_id_count = 0;
 
     if (!strcmp(stream, "NETCONF")) {
-        /* subscribe to all modules with notifications */
+        /* collect all modules with notifications */
         idx = 0;
         while ((ly_mod = ly_ctx_get_module_iter(ly_ctx, &idx))) {
             if (!ly_mod->implemented) {
@@ -114,39 +172,57 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
             }
 
             if (np_ly_mod_has_notif(ly_mod)) {
-                /* allocate a new sub ID */
-                mem = realloc(*sub_ids, (*sub_id_count + 1) * sizeof **sub_ids);
-                if (!mem) {
-                    EMEM;
-                    rc = SR_ERR_NO_MEMORY;
+                if (ly_set_add(&mod_set, (void *)ly_mod, 1, NULL)) {
+                    EINT;
+                    rc = SR_ERR_INTERNAL;
                     goto error;
                 }
-                *sub_ids = mem;
-
-                /* a notification was found, subscribe to the module */
-                rc = sr_event_notif_subscribe_tree(user_sess, ly_mod->name, xpath, start, stop, np2srv_rpc_establish_sub_ntf_cb,
-                        private_data, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
-                if (rc != SR_ERR_OK) {
-                    sr_session_get_error(user_sess, &err_info);
-                    sr_session_set_error_message(ev_sess, err_info->err[0].message);
-                    goto error;
-                }
-
-                /* add new sub ID */
-                (*sub_ids)[*sub_id_count] = sr_subscription_get_last_sub_id(np2srv.sr_notif_sub);
-                ++(*sub_id_count);
             }
+        }
+
+        /* allocate all sub IDs */
+        *sub_ids = malloc(mod_set.count * sizeof **sub_ids);
+        if (!*sub_ids) {
+            EMEM;
+            rc = SR_ERR_NO_MEMORY;
+            goto error;
+        }
+
+        /* set SR sub count */
+        cb_arg->sr_sub_count = mod_set.count;
+
+        /* subscribe to all the modules */
+        for (idx = 0; idx < mod_set.count; ++idx) {
+            ly_mod = mod_set.objs[idx];
+
+            /* subscribe to the module */
+            rc = sr_event_notif_subscribe_tree(user_sess, ly_mod->name, xpath, start, stop, np2srv_rpc_establish_sub_ntf_cb,
+                    cb_arg, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
+            if (rc != SR_ERR_OK) {
+                sr_session_get_error(user_sess, &err_info);
+                sr_session_set_error_message(ev_sess, err_info->err[0].message);
+                goto error;
+            }
+
+            /* add new sub ID */
+            (*sub_ids)[*sub_id_count] = sr_subscription_get_last_sub_id(np2srv.sr_notif_sub);
+            ++(*sub_id_count);
         }
     } else {
         /* allocate a new single sub ID */
         *sub_ids = malloc(sizeof **sub_ids);
         if (!*sub_ids) {
+            EMEM;
+            rc = SR_ERR_NO_MEMORY;
             goto error;
         }
 
+        /* set SR sub count */
+        cb_arg->sr_sub_count = 1;
+
         /* subscribe to the specific module (stream) */
-        rc = sr_event_notif_subscribe_tree(user_sess, stream, xpath, start, stop, np2srv_rpc_establish_sub_ntf_cb, private_data,
-                SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
+        rc = sr_event_notif_subscribe_tree(user_sess, stream, xpath, start, stop, np2srv_rpc_establish_sub_ntf_cb,
+                cb_arg, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {
             sr_session_get_error(user_sess, &err_info);
             sr_session_set_error_message(ev_sess, err_info->err[0].message);
@@ -154,13 +230,15 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
         }
 
         /* add new sub ID */
-        (*sub_ids)[0] = sr_subscription_get_last_sub_id(np2srv.sr_notif_sub);
-        *sub_id_count = 1;
+        (*sub_ids)[*sub_id_count] = sr_subscription_get_last_sub_id(np2srv.sr_notif_sub);
+        ++(*sub_id_count);
     }
 
+    ly_set_erase(&mod_set, NULL);
     return SR_ERR_OK;
 
 error:
+    ly_set_erase(&mod_set, NULL);
     for (idx = 0; idx < *sub_id_count; ++idx) {
         sr_unsubscribe_sub(np2srv.sr_notif_sub, (*sub_ids)[idx]);
     }
@@ -354,7 +432,6 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
     sn_data->cb_arg.nc_sub_id = sub->nc_sub_id;
 
     /* subscribe to sysrepo notifications, cb_arg is managed (freed) by the callback */
-    sub_id_count = 0;
     rc = sub_ntf_sr_subscribe(user_sess->sess, stream, xp, start, sub->stop_time.tv_sec, &sn_data->cb_arg, ev_sess,
             &sub->sub_ids, &sub_id_count);
     ATOMIC_STORE_RELAXED(sub->sub_id_count, sub_id_count);

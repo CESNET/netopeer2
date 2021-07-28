@@ -31,6 +31,9 @@ struct sub_ntf_cb_arg {
     struct nc_session *ncs;
     struct sub_ntf_data *sn_data;
     uint32_t nc_sub_id;
+
+    uint32_t sr_sub_count;          /* number of SR subscriptions made for this NC subscription */
+    ATOMIC_T replay_complete_count; /* counter of special replay-complete notifications received */
 };
 
 /**

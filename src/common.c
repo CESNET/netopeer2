@@ -57,11 +57,15 @@ np_sleep(uint32_t ms)
 }
 
 struct timespec
-np_gettimespec(void)
+np_gettimespec(int force_real)
 {
     struct timespec ts;
 
-    clock_gettime(NP_CLOCK_ID, &ts);
+    if (force_real) {
+        clock_gettime(CLOCK_REALTIME, &ts);
+    } else {
+        clock_gettime(NP_CLOCK_ID, &ts);
+    }
 
     return ts;
 }

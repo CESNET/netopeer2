@@ -69,7 +69,7 @@ extern ATOMIC_T skip_nacm_nc_sid;
 
 int np_sleep(uint32_t ms);
 
-struct timespec np_gettimespec(void);
+struct timespec np_gettimespec(int force_real);
 
 int32_t np_difftimespec(const struct timespec *ts1, const struct timespec *ts2);
 

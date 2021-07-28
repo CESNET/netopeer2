@@ -325,11 +325,11 @@ yang_push_notif_change_send(struct nc_session *ncs, struct yang_push_data *yp_da
     }
 
     /* send the notification */
-    rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(), &yp_data->ly_change_ntf, 1);
+    rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(1), &yp_data->ly_change_ntf, 1);
 
     if (rc == SR_ERR_OK) {
         /* set last_notif timestamp */
-        yp_data->last_notif = np_gettimespec();
+        yp_data->last_notif = np_gettimespec(1);
     }
 
 cleanup:
@@ -396,7 +396,7 @@ yang_push_notif_change_ready(struct yang_push_data *yp_data, int *ready)
     }
 
     /* learn when the next notification is due */
-    cur_time = np_gettimespec();
+    cur_time = np_gettimespec(1);
     next_notif = yp_data->last_notif;
     np_addtimespec(&next_notif, yp_data->dampening_period_ms);
     next_notif_in = np_difftimespec(&cur_time, &next_notif);
@@ -869,7 +869,7 @@ yang_push_notif_update_send(struct nc_session *ncs, struct yang_push_data *yp_da
     data = NULL;
 
     /* send the notification */
-    rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(), &ly_ntf, 1);
+    rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(1), &ly_ntf, 1);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
@@ -1097,7 +1097,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
         if (yp_data->anchor_time.tv_sec) {
             trspec.it_value = np_modtimespec(&yp_data->anchor_time, yp_data->period_ms);
         } else {
-            trspec.it_value = np_gettimespec();
+            trspec.it_value = np_gettimespec(0);
         }
         trspec.it_interval.tv_sec = yp_data->period_ms / 1000;
         trspec.it_interval.tv_nsec = (yp_data->period_ms % 1000) * 1000000;
@@ -1195,7 +1195,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
             if (yp_data->anchor_time.tv_sec) {
                 trspec.it_value = np_modtimespec(&yp_data->anchor_time, yp_data->period_ms);
             } else {
-                trspec.it_value = np_gettimespec();
+                trspec.it_value = np_gettimespec(0);
             }
             trspec.it_interval.tv_sec = yp_data->period_ms / 1000;
             trspec.it_interval.tv_nsec = (yp_data->period_ms % 1000) * 1000000;
