@@ -36,6 +36,41 @@
 #include "np_test_config.h"
 
 static int
+setup_nacm_rules(void **state)
+{
+    struct np_test *st = *state;
+    const char *data =
+            "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
+            "  <rule-list>\n"
+            "     <name>rule1</name>\n"
+            "     <group>test-group</group>\n"
+            "     <rule>\n"
+            "       <name>allow-keystore</name>\n"
+            "       <module-name>ietf-keystore</module-name>\n"
+            "       <path xmlns:ks=\"urn:ietf:params:xml:ns:yang:ietf-keystore\">/ks:keystore</path>\n"
+            "       <action>permit</action>\n"
+            "     </rule>\n"
+            "     <rule>\n"
+            "       <name>allow-nacm</name>\n"
+            "       <module-name>ietf-netconf-acm</module-name>\n"
+            "       <path xmlns:nacm=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">/nacm:nacm</path>\n"
+            "       <action>permit</action>\n"
+            "     </rule>\n"
+            "     <rule>\n"
+            "       <name>allow-truststore</name>\n"
+            "       <module-name>ietf-truststore</module-name>\n"
+            "       <path xmlns:ts=\"urn:ietf:params:xml:ns:yang:ietf-truststore\">/ts:truststore</path>\n"
+            "       <action>permit</action>\n"
+            "     </rule>\n"
+            "   </rule-list>\n"
+            "</nacm>\n";
+
+    SR_EDIT(st, data);
+    FREE_TEST_VARS(st);
+    return 0;
+}
+
+static int
 local_setup(void **state)
 {
     struct np_test *st = *state;
@@ -61,6 +96,8 @@ local_setup(void **state)
         assert_int_equal(sr_connect(SR_CONN_DEFAULT, &st->conn), SR_ERR_OK);
         assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess), SR_ERR_OK);
         assert_non_null(st->ctx = sr_get_context(st->conn));
+        rv |= setup_nacm(state);
+        rv |= setup_nacm_rules(state);
     }
     return rv;
 }
@@ -107,6 +144,10 @@ teardown_data(void **state)
 {
     struct np_test *st = *state;
     const char *data;
+
+    if (setup_nacm(state) || setup_nacm_rules(state)) {
+        return 1;
+    }
 
     data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
 
@@ -188,8 +229,8 @@ static void
 test_copy_config_into_file(void **state)
 {
     struct np_test *st = *state;
-    const char *path, *url, *expected;
-    char *config;
+    const char *path, *url, *template;
+    char *expected, *config, *user;
     long size;
     FILE *file;
 
@@ -222,12 +263,54 @@ test_copy_config_into_file(void **state)
     /* Read the file */
     assert_int_equal(fread(config, sizeof *config, size, file), size);
 
-    expected =
+    template =
             "<config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <first xmlns=\"ed1\">TestFirst</first>\n"
+            "  <nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
+            "    <enable-nacm>true</enable-nacm>\n"
+            "    <read-default>permit</read-default>\n"
+            "    <write-default>permit</write-default>\n"
+            "    <exec-default>permit</exec-default>\n"
+            "    <enable-external-groups>false</enable-external-groups>\n"
+            "    <groups>\n"
+            "      <group>\n"
+            "        <name>test-group</name>\n"
+            "        <user-name>%s</user-name>\n"
+            "      </group>\n"
+            "    </groups>\n"
+            "    <rule-list>\n"
+            "      <name>rule1</name>\n"
+            "      <group>test-group</group>\n"
+            "      <rule>\n"
+            "        <name>allow-keystore</name>\n"
+            "        <module-name>ietf-keystore</module-name>\n"
+            "        <path xmlns:ks=\"urn:ietf:params:xml:ns:yang:ietf-keystore\">/ks:keystore</path>\n"
+            "        <access-operations>*</access-operations>\n"
+            "        <action>permit</action>\n"
+            "      </rule>\n"
+            "      <rule>\n"
+            "        <name>allow-nacm</name>\n"
+            "        <module-name>ietf-netconf-acm</module-name>\n"
+            "        <path xmlns:nacm=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">/nacm:nacm</path>\n"
+            "        <access-operations>*</access-operations>\n"
+            "        <action>permit</action>\n"
+            "      </rule>\n"
+            "      <rule>\n"
+            "        <name>allow-truststore</name>\n"
+            "        <module-name>ietf-truststore</module-name>\n"
+            "        <path xmlns:ts=\"urn:ietf:params:xml:ns:yang:ietf-truststore\">/ts:truststore</path>\n"
+            "        <access-operations>*</access-operations>\n"
+            "        <action>permit</action>\n"
+            "      </rule>\n"
+            "    </rule-list>\n"
+            "  </nacm>\n"
             "</config>\n";
 
+    assert_int_equal(0, get_username(&user));
+    assert_int_not_equal(-1, asprintf(&expected, template, user) == -1);
     assert_string_equal(config, expected);
+    free(expected);
+    free(user);
 
     free(config);
     fclose(file);
@@ -286,13 +369,12 @@ test_copy_config_url2url(void **state)
     FREE_TEST_VARS(st);
 }
 
-/* TODO: Delete config depends on NACM */
-
 static void
 test_edit_config(void **state)
 {
     struct np_test *st = *state;
-    const char *url, *expected;
+    const char *url, *template;
+    char *expected, *user;
 
     url = "file://" NP_TEST_MODULE_DIR "/edit1.xml";
 
@@ -309,14 +391,56 @@ test_edit_config(void **state)
     /* Check if merged */
     GET_CONFIG(st);
 
-    expected =
+    template =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
             "    <first xmlns=\"ed1\">TestFirst</first>\n"
+            "    <nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
+            "      <enable-nacm>true</enable-nacm>\n"
+            "      <read-default>permit</read-default>\n"
+            "      <write-default>permit</write-default>\n"
+            "      <exec-default>permit</exec-default>\n"
+            "      <enable-external-groups>false</enable-external-groups>\n"
+            "      <groups>\n"
+            "        <group>\n"
+            "          <name>test-group</name>\n"
+            "          <user-name>%s</user-name>\n"
+            "        </group>\n"
+            "      </groups>\n"
+            "      <rule-list>\n"
+            "        <name>rule1</name>\n"
+            "        <group>test-group</group>\n"
+            "        <rule>\n"
+            "          <name>allow-keystore</name>\n"
+            "          <module-name>ietf-keystore</module-name>\n"
+            "          <path xmlns:ks=\"urn:ietf:params:xml:ns:yang:ietf-keystore\">/ks:keystore</path>\n"
+            "          <access-operations>*</access-operations>\n"
+            "          <action>permit</action>\n"
+            "        </rule>\n"
+            "        <rule>\n"
+            "          <name>allow-nacm</name>\n"
+            "          <module-name>ietf-netconf-acm</module-name>\n"
+            "          <path xmlns:nacm=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">/nacm:nacm</path>\n"
+            "          <access-operations>*</access-operations>\n"
+            "          <action>permit</action>\n"
+            "        </rule>\n"
+            "        <rule>\n"
+            "          <name>allow-truststore</name>\n"
+            "          <module-name>ietf-truststore</module-name>\n"
+            "          <path xmlns:ts=\"urn:ietf:params:xml:ns:yang:ietf-truststore\">/ts:truststore</path>\n"
+            "          <access-operations>*</access-operations>\n"
+            "          <action>permit</action>\n"
+            "        </rule>\n"
+            "      </rule-list>\n"
+            "    </nacm>\n"
             "  </data>\n"
             "</get-config>\n";
 
+    assert_int_equal(0, get_username(&user));
+    assert_int_not_equal(-1, asprintf(&expected, template, user) == -1);
     assert_string_equal(st->str, expected);
+    free(expected);
+    free(user);
 
     FREE_TEST_VARS(st);
 }
@@ -332,6 +456,11 @@ main(int argc, char **argv)
         cmocka_unit_test(test_copy_config_url2url),
         cmocka_unit_test_teardown(test_edit_config, teardown_data),
     };
+
+    if (is_nacm_rec_uid()) {
+        puts("Running as NACM_RECOVERY_UID. Tests will not run correctly as this user bypases NACM. Skipping.");
+        return 0;
+    }
 
     nc_verbosity(NC_VERB_WARNING);
     parse_arg(argc, argv);

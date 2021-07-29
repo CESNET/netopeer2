@@ -402,6 +402,11 @@ main(int argc, char **argv)
         cmocka_unit_test_setup_teardown(test_explicit_all_set_default, setup_data_all_default, teardown_data),
     };
 
+    if (is_nacm_rec_uid()) {
+        puts("Running as NACM_RECOVERY_UID. Tests will not run correctly as this user bypases NACM. Skipping.");
+        return 0;
+    }
+
     nc_verbosity(NC_VERB_WARNING);
     parse_arg(argc, argv);
     return cmocka_run_group_tests(tests, local_setup, local_teardown);

@@ -175,7 +175,6 @@ struct np_test {
     uint64_t msgid;
     struct lyd_node *envp, *op;
     char *str;
-    char user[128];
 };
 
 int np_glob_setup_np2(void **state);
@@ -185,5 +184,11 @@ int setup_setenv_sysrepo(const char *test_name);
 int np_glob_teardown(void **state);
 
 void parse_arg(int argc, char **argv);
+
+int get_username(char **name);
+
+int setup_nacm(void **state);
+
+int is_nacm_rec_uid();
 
 #endif /* _NP_TEST_H_ */

@@ -65,6 +65,7 @@ local_setup(void **state)
         assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess), SR_ERR_OK);
         assert_non_null(st->ctx = sr_get_context(st->conn));
         assert_int_equal(sr_session_start(st->conn, SR_DS_CANDIDATE, &st->sr_sess2), SR_ERR_OK);
+        rv |= setup_nacm(state);
     }
     return rv;
 }
@@ -543,6 +544,11 @@ main(int argc, char **argv)
         cmocka_unit_test_setup_teardown(test_discard_changes_advanced, setup_discard_changes_advanced,
                 teardown_discard_changes_advanced),
     };
+
+    if (is_nacm_rec_uid()) {
+        puts("Running as NACM_RECOVERY_UID. Tests will not run correctly as this user bypases NACM. Skipping.");
+        return 0;
+    }
 
     nc_verbosity(NC_VERB_WARNING);
     parse_arg(argc, argv);

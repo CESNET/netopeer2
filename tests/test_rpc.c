@@ -67,9 +67,11 @@
 static int
 local_setup(void **state)
 {
+    struct np_test *st = *state;
     sr_conn_ctx_t *conn;
     const char *features[] = {NULL};
     const char *module1 = NP_TEST_MODULE_DIR "/edit1.yang";
+    int rv;
 
     /* setup environment necessary for installing module */
     NP_GLOB_SETUP_ENV_FUNC;
@@ -81,13 +83,26 @@ local_setup(void **state)
     assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
 
     /* setup netopeer2 server */
-    return np_glob_setup_np2(state);
+    if (!(rv = np_glob_setup_np2(state))) {
+        st = *state;
+        /* Open the connection to start a session for the tests */
+        assert_int_equal(sr_connect(SR_CONN_DEFAULT, &st->conn), SR_ERR_OK);
+        assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess), SR_ERR_OK);
+        assert_non_null(st->ctx = sr_get_context(st->conn));
+        rv |= setup_nacm(state);
+    }
+    return rv;
 }
 
 static int
 local_teardown(void **state)
 {
+    struct np_test *st = *state;
     sr_conn_ctx_t *conn;
+
+    /* Close the session and connection needed for tests */
+    assert_int_equal(sr_session_stop(st->sr_sess), SR_ERR_OK);
+    assert_int_equal(sr_disconnect(st->conn), SR_ERR_OK);
 
     /* connect to server and remove test modules */
     assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
@@ -239,8 +254,12 @@ static void
 test_kill(void **state)
 {
     struct np_test *st = *state;
-    FILE *file;
-    char name[128], *str, *str2;
+    char *name, *str, *str2;
+
+    if (is_nacm_rec_uid()) {
+        puts("Skipping the test.");
+        return;
+    }
 
     /* Try to close a session */
     st->rpc = nc_rpc_kill(nc_session_get_id(st->nc_sess));
@@ -253,20 +272,17 @@ test_kill(void **state)
     /* Get the error message */
     lyd_print_mem(&str, st->envp, LYD_XML, 0);
 
-    /* Get the current user */
-    assert_non_null(file = popen("whoami", "r"));
-    fscanf(file, "%127s", name);
-    pclose(file);
-
     /* Put user and message id into error template */
+    get_username(&name);
     assert_int_not_equal(-1, asprintf(&str2, KILL_FAIL_TEMPLATE, st->msgid, name));
+    free(name);
 
     assert_string_equal(str, str2);
 
     free(str);
     free(str2);
     FREE_TEST_VARS(st);
-    /* TODO: NACM tests */
+    /*  Funcionality tested in  test_nacm.c */
 }
 
 static void
