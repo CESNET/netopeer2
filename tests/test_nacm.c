@@ -878,14 +878,7 @@ test_kill_session(void **state)
 int
 main(int argc, char **argv)
 {
-    uid_t uid;
-    char struid[10];
-    sr_conn_ctx_t *conn;
-
-    /* Get UID */
-    uid = getuid();
-    sprintf(struid, "%d", uid);
-    if (!strcmp(struid, NACM_RECOVERY_UID)) {
+    if (is_nacm_rec_uid()) {
         puts("Running as NACM_RECOVERY_UID. Tests will not run correctly as this user bypases NACM. Skipping.");
         return 0;
     }
@@ -894,10 +887,7 @@ main(int argc, char **argv)
     sr_log_stderr(SR_LL_WRN);
     parse_arg(argc, argv);
 
-    /* Check for sr superuser */
-    sr_connect(0, &conn);
-
-    if (sr_set_diff_check_callback(conn, NULL) == SR_ERR_UNAUTHORIZED) {
+    if (sr_get_su_uid() != getuid()) {
         /* not sysrepo super user skip write tests */
         puts("Not running as sysrepo super-user. Skipping tests that depend on it.");
         const struct CMUnitTest tests[] = {
@@ -914,7 +904,6 @@ main(int argc, char **argv)
                     setup_test_get_config,
                     teardown_common),
         };
-        sr_disconnect(conn);
         return cmocka_run_group_tests(tests, local_setup, local_teardown);
     } else {
         /* sysrepo super run with write tests */
@@ -964,7 +953,6 @@ main(int argc, char **argv)
             cmocka_unit_test_teardown(test_kill_session,
                     teardown_common),
         };
-        sr_disconnect(conn);
         return cmocka_run_group_tests(tests, local_setup, local_teardown);
     }
 }

@@ -21,7 +21,7 @@
  * limitations under the License.
  */
 
-#define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 
 #include "np_test.h"
 
@@ -287,4 +287,87 @@ np_glob_teardown(void **state)
 
     free(st);
     return ret;
+}
+
+int
+get_username(char **name)
+{
+    FILE *file;
+
+    *name = NULL;
+    size_t size = 0;
+
+    /* Get user name */
+    file = popen("whoami", "r");
+    if (!file) {
+        return 1;
+    }
+    if (getline(name, &size, file) == -1) {
+        return 1;
+    }
+    (*name)[strlen(*name) - 1] = '\0'; /* Remove the newline */
+    pclose(file);
+    return 0;
+}
+
+int
+setup_nacm(void **state)
+{
+    struct np_test *st = *state;
+    char *user, *data;
+    const char *template =
+            "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
+            "  <enable-external-groups>false</enable-external-groups>\n"
+            "  <write-default>permit</write-default>\n"
+            "  <groups>\n"
+            "    <group>\n"
+            "      <name>test-group</name>\n"
+            "      <user-name>%s</user-name>\n"
+            "    </group>\n"
+            "  </groups>\n"
+            "</nacm>\n";
+
+    if (get_username(&user)) {
+        return 1;
+    }
+
+    /* Put user and message id into error template */
+    if (asprintf(&data, template, user) == -1) {
+        return 1;
+    }
+    free(user);
+
+    /* Parse and merge the config */
+    if (lyd_parse_data_mem(st->ctx, data, LYD_XML, LYD_PARSE_STRICT | LYD_PARSE_ONLY, 0, &st->node)) {
+        return 1;
+    }
+    free(data);
+    if (!st->node) {
+        return 1;
+    }
+    if (sr_edit_batch(st->sr_sess, st->node, "merge")) {
+        return 1;
+    }
+    if (sr_apply_changes(st->sr_sess, 0)) {
+        return 1;
+    }
+
+    FREE_TEST_VARS(st);
+
+    return 0;
+}
+
+int
+is_nacm_rec_uid()
+{
+    uid_t uid;
+    char streuid[10];
+
+    /* Get UID */
+    uid = geteuid();
+    sprintf(streuid, "%d", (int) uid);
+    if (!strcmp(streuid, NACM_RECOVERY_UID)) {
+        return 1;
+    }
+    return 0;
 }
