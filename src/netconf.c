@@ -587,11 +587,11 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
             rc = sr_replace_config(user_sess->sess, NULL, config, np2srv.sr_timeout);
             config = NULL;
         } else {
-            assert(run_to_start);
-
-            /* set SID to skip NACM check, only one copy-config can be executed at once */
-            sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_sid);
-            ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, *nc_sid);
+            if (run_to_start) {
+                /* set SID to skip NACM check, only one copy-config can be executed at once */
+                sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_sid);
+                ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, *nc_sid);
+            }
             rc = sr_copy_config(user_sess->sess, NULL, sds, np2srv.sr_timeout);
             ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, 0);
         }
