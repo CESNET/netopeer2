@@ -438,7 +438,6 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 {
     sr_datastore_t ds = SR_DS_OPERATIONAL, sds = SR_DS_OPERATIONAL;
     struct ly_set *nodeset = NULL;
-    const sr_error_info_t *err_info;
     struct lyd_node *config = NULL;
     int rc = SR_ERR_OK, run_to_start = 0, source_is_config = 0;
     struct np2_user_sess *user_sess = NULL;
@@ -596,9 +595,8 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
             rc = sr_copy_config(user_sess->sess, NULL, sds, np2srv.sr_timeout);
             ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, 0);
         }
-        if (rc != SR_ERR_OK) {
-            sr_session_get_error(user_sess->sess, &err_info);
-            sr_session_set_error_message(session, err_info->err[0].message);
+        if (rc) {
+            sr_session_dup_error(user_sess->sess, session);
             goto cleanup;
         }
     }
@@ -620,7 +618,6 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     struct ly_set *nodeset;
     int rc = SR_ERR_OK;
     struct np2_user_sess *user_sess = NULL;
-    const sr_error_info_t *err_info;
 
 #ifdef NP2SRV_URL_CAPAB
     struct lyd_node *config;
@@ -675,9 +672,8 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
 #endif
     {
         rc = sr_replace_config(user_sess->sess, NULL, NULL, np2srv.sr_timeout);
-        if (rc != SR_ERR_OK) {
-            sr_session_get_error(user_sess->sess, &err_info);
-            sr_session_set_error_message(session, err_info->err[0].message);
+        if (rc) {
+            sr_session_dup_error(user_sess->sess, session);
             goto cleanup;
         }
     }
@@ -826,9 +822,8 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
         sr_session_get_error(user_sess->sess, &err_info);
         np_err_sr2nc_in_use(session, err_info);
     } else if (rc) {
-        /* generic error */
-        sr_session_get_error(user_sess->sess, &err_info);
-        sr_session_set_error_message(session, err_info->err[0].message);
+        /* Sysrepo error */
+        sr_session_dup_error(user_sess->sess, session);
         goto cleanup;
     }
 
