@@ -98,7 +98,7 @@ np2srv_rpc_establish_sub_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_
         notif = ly_ntf;
     } else if (notif_type == SR_EV_NOTIF_TERMINATED) {
         /* WRITE LOCK on sub */
-        sub = sub_ntf_find_lock(arg->nc_sub_id, 1);
+        sub = sub_ntf_find_lock(arg->nc_sub_id, sub_id, 1);
         if (!sub) {
             EINT;
             goto cleanup;
@@ -110,7 +110,7 @@ np2srv_rpc_establish_sub_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_
         }
 
         /* UNLOCK */
-        sub_ntf_unlock();
+        sub_ntf_unlock(sub_id);
 
         /* finish, subscription-terminated notif was already sent */
         goto cleanup;

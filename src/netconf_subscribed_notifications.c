@@ -42,6 +42,10 @@ static struct np2srv_sub_ntf_info info = {
 
 static ATOMIC_T new_nc_sub_id = 1;
 
+#define INFO_RLOCK if ((r = pthread_rwlock_rdlock(&info.lock))) ELOCK(r)
+#define INFO_WLOCK if ((r = pthread_rwlock_wrlock(&info.lock))) ELOCK(r)
+#define INFO_UNLOCK if ((r = pthread_rwlock_unlock(&info.lock))) EUNLOCK(r)
+
 /**
  * @brief Find an internal subscription structure.
  *
@@ -55,15 +59,16 @@ static struct np2srv_sub_ntf *
 sub_ntf_find(uint32_t nc_sub_id, uint32_t nc_id, int wlock, int rlock)
 {
     uint32_t i;
+    int r;
 
     assert(!wlock || !rlock);
 
     if (wlock) {
         /* WRITE LOCK */
-        pthread_rwlock_wrlock(&info.lock);
+        INFO_WLOCK;
     } else if (rlock) {
         /* READ LOCK */
-        pthread_rwlock_rdlock(&info.lock);
+        INFO_RLOCK;
     }
 
     for (i = 0; i < info.count; ++i) {
@@ -78,21 +83,24 @@ sub_ntf_find(uint32_t nc_sub_id, uint32_t nc_id, int wlock, int rlock)
 
     if (wlock || rlock) {
         /* UNLOCK */
-        pthread_rwlock_unlock(&info.lock);
+        INFO_UNLOCK;
     }
     return NULL;
 }
 
 struct np2srv_sub_ntf *
-sub_ntf_find_lock(uint32_t nc_sub_id, int write)
+sub_ntf_find_lock(uint32_t nc_sub_id, uint32_t sub_id, int write)
 {
     struct np2srv_sub_ntf *sub;
+    int r;
 
     /* LOCK */
-    if (write) {
-        pthread_rwlock_wrlock(&info.lock);
-    } else {
-        pthread_rwlock_rdlock(&info.lock);
+    if (!sub_id || (ATOMIC_LOAD_RELAXED(info.sub_id_lock) != sub_id)) {
+        if (write) {
+            INFO_WLOCK;
+        } else {
+            INFO_RLOCK;
+        }
     }
 
     sub = sub_ntf_find(nc_sub_id, 0, 0, 0);
@@ -110,15 +118,21 @@ sub_ntf_find_lock(uint32_t nc_sub_id, int write)
 
 error:
     /* UNLOCK */
-    pthread_rwlock_unlock(&info.lock);
+    if (!sub_id || (ATOMIC_LOAD_RELAXED(info.sub_id_lock) != sub_id)) {
+        INFO_UNLOCK;
+    }
     return NULL;
 }
 
 void
-sub_ntf_unlock(void)
+sub_ntf_unlock(uint32_t sub_id)
 {
+    int r;
+
     /* UNLOCK */
-    pthread_rwlock_unlock(&info.lock);
+    if (!sub_id || (ATOMIC_LOAD_RELAXED(info.sub_id_lock) != sub_id)) {
+        INFO_UNLOCK;
+    }
 }
 
 struct np2srv_sub_ntf *
@@ -137,7 +151,8 @@ sub_ntf_find_next(struct np2srv_sub_ntf *last, int (*sub_ntf_match_cb)(struct np
 }
 
 int
-sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, struct timespec timestamp, struct lyd_node **ly_ntf, int use_ntf)
+sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, struct timespec timestamp, struct lyd_node **ly_ntf,
+        int use_ntf)
 {
     struct np2srv_sub_ntf *sub;
     struct nc_server_notif *nc_ntf = NULL;
@@ -259,10 +274,11 @@ sub_ntf_new(uint32_t nc_id, uint32_t nc_sub_id, const char *term_reason, struct 
 void
 np2srv_sub_ntf_session_destroy(struct nc_session *ncs)
 {
+    int r;
     uint32_t i;
 
     /* WRITE LOCK */
-    pthread_rwlock_wrlock(&info.lock);
+    INFO_WLOCK;
 
     for (i = 0; i < info.count; ++i) {
         if (info.subs[i].nc_id == nc_session_get_id(ncs)) {
@@ -271,16 +287,17 @@ np2srv_sub_ntf_session_destroy(struct nc_session *ncs)
     }
 
     /* UNLOCK */
-    pthread_rwlock_unlock(&info.lock);
+    INFO_UNLOCK;
 }
 
 void
 np2srv_sub_ntf_destroy(void)
 {
+    int r;
     uint32_t i;
 
     /* WRITE LOCK */
-    pthread_rwlock_wrlock(&info.lock);
+    INFO_WLOCK;
 
     for (i = 0; i < info.count; ++i) {
         switch (info.subs[i].type) {
@@ -307,7 +324,7 @@ np2srv_sub_ntf_destroy(void)
     info.count = 0;
 
     /* UNLOCK */
-    pthread_rwlock_unlock(&info.lock);
+    INFO_UNLOCK;
 }
 
 int
@@ -320,7 +337,7 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     struct np2srv_sub_ntf *sub;
     char id_str[11];
     struct timespec stop = {0};
-    int rc, ntf_status = 0;
+    int r, rc, ntf_status = 0;
     uint32_t nc_sub_id, *nc_id;
     enum sub_ntf_type type;
 
@@ -367,7 +384,7 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     nc_sub_id = ATOMIC_INC_RELAXED(new_nc_sub_id);
 
     /* WRITE LOCK */
-    pthread_rwlock_wrlock(&info.lock);
+    INFO_WLOCK;
 
     /* allocate a new subscription */
     sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_id);
@@ -390,7 +407,7 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     }
 
     /* UNLOCK */
-    pthread_rwlock_unlock(&info.lock);
+    INFO_UNLOCK;
 
     /* generate output */
     sprintf(id_str, "%" PRIu32, nc_sub_id);
@@ -406,7 +423,7 @@ error_unlock:
     --info.count;
 
     /* UNLOCK */
-    pthread_rwlock_unlock(&info.lock);
+    INFO_UNLOCK;
 
 error:
     if (ntf_status) {
@@ -484,7 +501,7 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     char *xp = NULL;
     struct timespec stop = {0};
     struct nc_session *ncs;
-    int rc = SR_ERR_OK;
+    int r, rc = SR_ERR_OK;
     uint32_t nc_sub_id, *nc_id;
 
     if (NP_IGNORE_RPC(session, event)) {
@@ -533,23 +550,23 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     /* create the notification */
     rc = sub_ntf_notif_modified(sub, &ly_ntf);
     if (rc != SR_ERR_OK) {
-        goto cleanup;
+        goto cleanup_unlock;
     }
 
     /* get NETCONF session */
     if ((rc = np_get_user_sess(session, &ncs, NULL))) {
-        goto cleanup;
+        goto cleanup_unlock;
     }
 
     /* send the notification */
     rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(1), &ly_ntf, 1);
     if (rc != SR_ERR_OK) {
-        goto cleanup;
+        goto cleanup_unlock;
     }
 
 cleanup_unlock:
     /* UNLOCK */
-    pthread_rwlock_unlock(&info.lock);
+    INFO_UNLOCK;
 
 cleanup:
     free(xp);
@@ -562,14 +579,17 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
     int r, rc = SR_ERR_OK;
     struct lyd_node *ly_ntf;
     char buf[11];
-    uint32_t i, idx;
+    uint32_t idx;
 
     /* unsubscribe all sysrepo subscriptions */
-    for (i = 0; i < ATOMIC_LOAD_RELAXED(sub->sub_id_count); ++i) {
-        r = sr_unsubscribe_sub(np2srv.sr_notif_sub, sub->sub_ids[i]);
+    while (ATOMIC_LOAD_RELAXED(sub->sub_id_count)) {
+        /* pass the lock to the notification CB */
+        sub_ntf_cb_lock_pass(sub->sub_ids[0]);
+        r = sr_unsubscribe_sub(np2srv.sr_notif_sub, sub->sub_ids[0]);
         if (r != SR_ERR_OK) {
             rc = r;
         }
+        ATOMIC_STORE_RELAXED(info.sub_id_lock, 0);
     }
 
     /* terminate any asynchronous tasks */
@@ -586,13 +606,13 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
     sub->terminating = 1;
 
     /* UNLOCK */
-    pthread_rwlock_unlock(&info.lock);
+    INFO_UNLOCK;
 
     /* give the tasks a chance to wake up */
     np_sleep(NP2SRV_SUB_NTF_TERMINATE_YIELD_SLEEP);
 
     /* WRITE LOCK */
-    pthread_rwlock_wrlock(&info.lock);
+    INFO_WLOCK;
 
     if (nc_session_get_status(ncs) == NC_STATUS_RUNNING) {
         /* send the subscription-terminated notification */
@@ -642,8 +662,8 @@ np2srv_rpc_delete_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     struct lyd_node *node;
     struct np2srv_sub_ntf *sub;
     struct nc_session *ncs;
-    int rc = SR_ERR_OK;
-    uint32_t nc_sub_id, *nc_id;
+    int r, rc = SR_ERR_OK;
+    uint32_t nc_sub_id, *nc_id, i, count;
 
     if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case (not supported) */
@@ -668,15 +688,32 @@ np2srv_rpc_delete_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         goto cleanup_unlock;
     }
 
-    /* terminate the subscription */
-    rc = sub_ntf_terminate_sub(sub, ncs);
-    if (rc != SR_ERR_OK) {
-        goto cleanup_unlock;
+    switch (sub->type) {
+    case SUB_TYPE_SUB_NTF:
+        /* unsubscribe all sysrepo subscriptions */
+        count = ATOMIC_LOAD_RELAXED(sub->sub_id_count);
+        for (i = 0; i < count; ++i) {
+            /* pass the lock to the notification CB, which removes its sub ID, the final one the whole sub */
+            sub_ntf_cb_lock_pass(sub->sub_ids[0]);
+            r = sr_unsubscribe_sub(np2srv.sr_notif_sub, sub->sub_ids[0]);
+            if (r != SR_ERR_OK) {
+                rc = r;
+            }
+            ATOMIC_STORE_RELAXED(info.sub_id_lock, 0);
+        }
+        break;
+    case SUB_TYPE_YANG_PUSH:
+        /* terminate the subscription */
+        rc = sub_ntf_terminate_sub(sub, ncs);
+        if (rc != SR_ERR_OK) {
+            goto cleanup_unlock;
+        }
+        break;
     }
 
 cleanup_unlock:
     /* UNLOCK */
-    pthread_rwlock_unlock(&info.lock);
+    INFO_UNLOCK;
 
     return rc;
 }
@@ -689,8 +726,8 @@ np2srv_rpc_kill_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     struct lyd_node *node;
     struct np2srv_sub_ntf *sub;
     struct nc_session *ncs;
-    int rc = SR_ERR_OK;
-    uint32_t nc_sub_id;
+    int r, rc = SR_ERR_OK;
+    uint32_t nc_sub_id, i, count;
 
     if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case (not supported) */
@@ -713,15 +750,32 @@ np2srv_rpc_kill_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
         goto cleanup_unlock;
     }
 
-    /* terminate the subscription */
-    rc = sub_ntf_terminate_sub(sub, ncs);
-    if (rc != SR_ERR_OK) {
-        goto cleanup_unlock;
+    switch (sub->type) {
+    case SUB_TYPE_SUB_NTF:
+        /* unsubscribe all sysrepo subscriptions */
+        count = ATOMIC_LOAD_RELAXED(sub->sub_id_count);
+        for (i = 0; i < count; ++i) {
+            /* pass the lock to the notification CB, which removes its sub ID, the final one the whole sub */
+            sub_ntf_cb_lock_pass(sub->sub_ids[0]);
+            r = sr_unsubscribe_sub(np2srv.sr_notif_sub, sub->sub_ids[0]);
+            if (r != SR_ERR_OK) {
+                rc = r;
+            }
+            ATOMIC_STORE_RELAXED(info.sub_id_lock, 0);
+        }
+        break;
+    case SUB_TYPE_YANG_PUSH:
+        /* terminate the subscription */
+        rc = sub_ntf_terminate_sub(sub, ncs);
+        if (rc != SR_ERR_OK) {
+            goto cleanup_unlock;
+        }
+        break;
     }
 
 cleanup_unlock:
     /* WRITE UNLOCK */
-    pthread_rwlock_unlock(&info.lock);
+    INFO_UNLOCK;
 
     return rc;
 }
@@ -736,7 +790,7 @@ np2srv_config_sub_ntf_filters_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_
     int r, rc = SR_ERR_OK;
 
     /* WRITE LOCK */
-    pthread_rwlock_wrlock(&info.lock);
+    INFO_WLOCK;
 
     /* subscribed-notifications */
     rc = sr_get_changes_iter(session, "/ietf-subscribed-notifications:filters/stream-filter", &iter);
@@ -782,7 +836,7 @@ np2srv_config_sub_ntf_filters_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_
 cleanup:
     ATOMIC_STORE_RELAXED(info.sub_id_lock, 0);
     /* UNLOCK */
-    pthread_rwlock_unlock(&info.lock);
+    INFO_UNLOCK;
 
     sr_free_change_iter(iter);
     return rc;
@@ -885,12 +939,12 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
     struct np2srv_sub_ntf *sub;
     char buf[26], *path = NULL, *datetime = NULL;
     uint32_t i, excluded_count;
-    int rc = SR_ERR_OK;
+    int r, rc = SR_ERR_OK;
 
     ly_ctx = sr_get_context(sr_session_get_connection(session));
 
     /* READ LOCK */
-    pthread_rwlock_rdlock(&info.lock);
+    INFO_RLOCK;
 
     if (lyd_new_path(NULL, ly_ctx, "/ietf-subscribed-notifications:subscriptions", NULL, 0, &root)) {
         rc = SR_ERR_LY;
@@ -979,7 +1033,7 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
 
 cleanup:
     /* UNLOCK */
-    pthread_rwlock_unlock(&info.lock);
+    INFO_UNLOCK;
 
     free(datetime);
     if (rc) {

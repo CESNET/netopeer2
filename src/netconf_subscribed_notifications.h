@@ -62,16 +62,19 @@ struct np2srv_sub_ntf_info {
  * @brief Lock the sub-ntf lock, if possible, and return a subscription.
  *
  * @param[in] nc_sub_id NC sub ID of the subscription.
+ * @param[in] sub_id SR subscription ID in a callback, 0 if not in callback.
  * @param[in] write Whether to write or read-lock.
  * @return Found subscription.
  * @return NULL if subscription was not found or it is terminating.
  */
-struct np2srv_sub_ntf *sub_ntf_find_lock(uint32_t nc_sub_id, int write);
+struct np2srv_sub_ntf *sub_ntf_find_lock(uint32_t nc_sub_id, uint32_t sub_id, int write);
 
 /**
  * @brief Unlock the sub-ntf lock.
+ *
+ * @param[in] sub_id SR subscription ID in a callback, 0 if not in callback.
  */
-void sub_ntf_unlock(void);
+void sub_ntf_unlock(uint32_t sub_id);
 
 /**
  * @brief Find the next matching sub-ntf subscription structure.

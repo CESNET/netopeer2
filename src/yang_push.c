@@ -348,7 +348,7 @@ yang_push_damp_timer_cb(union sigval sval)
     struct yang_push_cb_arg *arg = sval.sival_ptr;
 
     /* READ LOCK */
-    if (!sub_ntf_find_lock(arg->nc_sub_id, 0)) {
+    if (!sub_ntf_find_lock(arg->nc_sub_id, 0, 0)) {
         return;
     }
 
@@ -362,7 +362,7 @@ yang_push_damp_timer_cb(union sigval sval)
     pthread_mutex_unlock(&arg->yp_data->notif_lock);
 
     /* UNLOCK */
-    sub_ntf_unlock();
+    sub_ntf_unlock(0);
 }
 
 /**
@@ -890,7 +890,7 @@ yang_push_update_timer_cb(union sigval sval)
     struct yang_push_cb_arg *arg = sval.sival_ptr;
 
     /* READ LOCK */
-    if (!sub_ntf_find_lock(arg->nc_sub_id, 0)) {
+    if (!sub_ntf_find_lock(arg->nc_sub_id, 0, 0)) {
         return;
     }
 
@@ -898,7 +898,7 @@ yang_push_update_timer_cb(union sigval sval)
     yang_push_notif_update_send(arg->ncs, arg->yp_data, arg->nc_sub_id);
 
     /* UNLOCK */
-    sub_ntf_unlock();
+    sub_ntf_unlock(0);
 }
 
 /**
@@ -911,7 +911,7 @@ yang_push_stop_timer_cb(union sigval sval)
     struct np2srv_sub_ntf *sub;
 
     /* WRITE LOCK */
-    sub = sub_ntf_find_lock(arg->nc_sub_id, 1);
+    sub = sub_ntf_find_lock(arg->nc_sub_id, 0, 1);
     if (!sub) {
         return;
     }
@@ -920,7 +920,7 @@ yang_push_stop_timer_cb(union sigval sval)
     sub_ntf_terminate_sub(sub, arg->ncs);
 
     /* UNLOCK */
-    sub_ntf_unlock();
+    sub_ntf_unlock(0);
 }
 
 /**
@@ -1698,7 +1698,7 @@ np2srv_rpc_resync_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     nc_sub_id = ((struct lyd_node_term *)node)->value.uint32;
 
     /* READ LOCK */
-    sub = sub_ntf_find_lock(nc_sub_id, 0);
+    sub = sub_ntf_find_lock(nc_sub_id, 0, 0);
     if (!sub || ((struct yang_push_data *)sub->data)->periodic) {
         sr_session_set_error_message(session, "On-change subscription with ID %" PRIu32 " for the current receiver "
                 "does not exist.", nc_sub_id);
@@ -1718,7 +1718,7 @@ np2srv_rpc_resync_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 
 cleanup_unlock:
     /* UNLOCK */
-    sub_ntf_unlock();
+    sub_ntf_unlock(0);
 
     return rc;
 }

@@ -55,6 +55,8 @@ void np2log_printf(NC_VERB_LEVEL level, const char *format, ...);
 
 #define EMEM ERR("Memory allocation failed (%s:%d)", __FILE__, __LINE__)
 #define EINT ERR("Internal error (%s:%d)", __FILE__, __LINE__)
+#define EUNLOCK(rc) ERR("Failed to unlock a lock (%s) (%s:%d)", strerror(rc), __FILE__, __LINE__)
+#define ELOCK(rc) ERR("Failed to lock a lock (%s) (%s:%d)", strerror(rc), __FILE__, __LINE__)
 
 /**
  * @brief printer callback for libnetconf2
