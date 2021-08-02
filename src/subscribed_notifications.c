@@ -30,6 +30,7 @@
 #include "common.h"
 #include "compat.h"
 #include "log.h"
+#include "err_netconf.h"
 #include "netconf_acm.h"
 #include "netconf_monitoring.h"
 #include "netconf_subscribed_notifications.h"
@@ -382,6 +383,7 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
     struct nc_session *ncs;
     struct np2_user_sess *user_sess = NULL;
     struct sub_ntf_data *sn_data = NULL;
+    struct timespec stop;
     const char *stream, *stream_filter_name = NULL, *stream_xpath_filter = NULL;
     char *xp = NULL;
     time_t start = 0;
@@ -408,6 +410,23 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
     lyd_find_path(rpc, "replay-start-time", 0, &node);
     if (node) {
         ly_time_str2time(lyd_get_value(node), &start, NULL);
+    }
+
+    stop = sub->stop_time;
+
+    /* check parameters */
+    if (start && start > time(NULL)) {
+        np_err_bad_element(ev_sess, "replay-start-time", "Specified \"replay-start-time\" is in future.");
+        rc = SR_ERR_INVAL_ARG;
+        goto cleanup;
+    } else if (!start && stop.tv_sec && (stop.tv_sec < time(NULL))) {
+        np_err_bad_element(ev_sess, "stop-time", "Specified \"stop-time\" is in the past.");
+        rc = SR_ERR_INVAL_ARG;
+        goto cleanup;
+    } else if (start && stop.tv_sec && (stop.tv_sec < start)) {
+        np_err_bad_element(ev_sess, "stop-time", "Specified \"stop-time\" is earlier than \"replay-start-time\".");
+        rc = SR_ERR_INVAL_ARG;
+        goto cleanup;
     }
 
     /* allocate specific data */
