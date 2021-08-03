@@ -736,11 +736,6 @@ main(int argc, char **argv)
         cmocka_unit_test(test_autodel_case),
     };
 
-    if (sr_get_su_uid() != getuid()) {
-        puts("Not running as sysrepo super-user. Skipping.");
-        return 0;
-    }
-
     nc_verbosity(NC_VERB_WARNING);
     parse_arg(argc, argv);
     return cmocka_run_group_tests(tests, local_setup, local_teardown);
