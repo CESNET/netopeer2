@@ -275,14 +275,29 @@ void
 np2srv_sub_ntf_session_destroy(struct nc_session *ncs)
 {
     int r;
-    uint32_t i;
+    uint32_t i, count;
 
     /* WRITE LOCK */
     INFO_WLOCK;
 
     for (i = 0; i < info.count; ++i) {
         if (info.subs[i].nc_id == nc_session_get_id(ncs)) {
-            sub_ntf_terminate_sub(&info.subs[i], ncs);
+            switch (info.subs[i].type) {
+            case SUB_TYPE_SUB_NTF:
+                /* unsubscribe all sysrepo subscriptions */
+                count = ATOMIC_LOAD_RELAXED(info.subs[i].sub_id_count);
+                for (i = 0; i < count; ++i) {
+                    /* pass the lock to the notification CB, which removes its sub ID, the final one the whole sub */
+                    sub_ntf_cb_lock_pass(info.subs[i].sub_ids[0]);
+                    sr_unsubscribe_sub(np2srv.sr_notif_sub, info.subs[i].sub_ids[0]);
+                    ATOMIC_STORE_RELAXED(info.sub_id_lock, 0);
+                }
+                break;
+            case SUB_TYPE_YANG_PUSH:
+                /* terminate the subscription */
+                sub_ntf_terminate_sub(&info.subs[i], ncs);
+                break;
+            }
         }
     }
 
