@@ -29,8 +29,8 @@
 
 #include "common.h"
 #include "compat.h"
-#include "log.h"
 #include "err_netconf.h"
+#include "log.h"
 #include "netconf_acm.h"
 #include "netconf_monitoring.h"
 #include "netconf_subscribed_notifications.h"
@@ -415,7 +415,7 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
     stop = sub->stop_time;
 
     /* check parameters */
-    if (start && start > time(NULL)) {
+    if (start && (start > time(NULL))) {
         np_err_bad_element(ev_sess, "replay-start-time", "Specified \"replay-start-time\" is in future.");
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
@@ -478,23 +478,19 @@ int
 sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct timespec stop,
         struct np2srv_sub_ntf *sub)
 {
-    struct lyd_node *node, *stream_subtree_filter = NULL;
+    struct lyd_node *stream_subtree_filter = NULL;
     struct np2_user_sess *user_sess = NULL;
     struct sub_ntf_data *sn_data;
     const char *cur_xp, *stream_filter_name = NULL, *stream_xpath_filter = NULL;
     char *xp = NULL;
     time_t cur_stop;
     int rc = SR_ERR_OK;
-    uint32_t i, nc_sub_id;
+    uint32_t i;
 
     /* get the user session */
     if ((rc = np_get_user_sess(ev_sess, NULL, &user_sess))) {
         goto cleanup;
     }
-
-    /* id */
-    lyd_find_path(rpc, "id", 0, &node);
-    nc_sub_id = ((struct lyd_node_term *)node)->value.uint32;
 
     /* filter, join all into one xpath */
     rc = sub_ntf_rpc_filter2xpath(user_sess->sess, rpc, ev_sess, &xp, &stream_filter_name, &stream_subtree_filter,
@@ -504,12 +500,12 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
     }
 
     /* learn the current filter */
-    rc = sr_event_notif_sub_get_info(np2srv.sr_notif_sub, nc_sub_id, NULL, &cur_xp, NULL, &cur_stop, NULL);
+    rc = sr_event_notif_sub_get_info(np2srv.sr_notif_sub, sub->sub_ids[0], NULL, &cur_xp, NULL, &cur_stop, NULL);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
 
-    if (strcmp(cur_xp, xp)) {
+    if (!cur_xp || strcmp(cur_xp, xp)) {
         /* update the filter */
         for (i = 0; i < sub->sub_id_count; ++i) {
             /* "pass" the lock to the callback */
