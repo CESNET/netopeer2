@@ -30,6 +30,7 @@
 
 #include "common.h"
 #include "compat.h"
+#include "err_netconf.h"
 #include "log.h"
 #include "netconf_acm.h"
 #include "netconf_monitoring.h"
@@ -513,7 +514,7 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 {
     struct lyd_node *node, *ly_ntf;
     struct np2srv_sub_ntf *sub;
-    char *xp = NULL;
+    char *xp = NULL, *message;
     struct timespec stop = {0};
     struct nc_session *ncs;
     int r, rc = SR_ERR_OK;
@@ -538,9 +539,13 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     /* WRITE LOCK */
     sub = sub_ntf_find(nc_sub_id, *nc_id, 1, 0);
     if (!sub) {
+        if (asprintf(&message, "Subscription with ID %" PRIu32 " for the current receiver does not exist.", nc_sub_id) == -1) {
+            rc = SR_ERR_NO_MEMORY;
+            goto cleanup;
+        }
+        np_err_ntf_sub_no_such_sub(session, message);
+        free(message);
         rc = SR_ERR_INVAL_ARG;
-        sr_session_set_error_message(session, "Subscription with ID %" PRIu32 " for the current receiver does not exist.",
-                nc_sub_id);
         goto cleanup;
     }
 
@@ -677,6 +682,7 @@ np2srv_rpc_delete_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     struct lyd_node *node;
     struct np2srv_sub_ntf *sub;
     struct nc_session *ncs;
+    char *message;
     int r, rc = SR_ERR_OK;
     uint32_t nc_sub_id, *nc_id, i, count;
 
@@ -693,8 +699,11 @@ np2srv_rpc_delete_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     /* WRITE LOCK */
     sub = sub_ntf_find(nc_sub_id, *nc_id, 1, 0);
     if (!sub) {
-        sr_session_set_error_message(session, "Subscription with ID %" PRIu32 " for the current receiver does not exist.",
-                nc_sub_id);
+        if (asprintf(&message, "Subscription with ID %" PRIu32 " for the current receiver does not exist.", nc_sub_id) == -1) {
+            return SR_ERR_NO_MEMORY;
+        }
+        np_err_ntf_sub_no_such_sub(session, message);
+        free(message);
         return SR_ERR_INVAL_ARG;
     }
 
@@ -741,6 +750,7 @@ np2srv_rpc_kill_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     struct lyd_node *node;
     struct np2srv_sub_ntf *sub;
     struct nc_session *ncs;
+    char *message;
     int r, rc = SR_ERR_OK;
     uint32_t nc_sub_id, i, count;
 
@@ -756,7 +766,11 @@ np2srv_rpc_kill_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     /* WRITE LOCK */
     sub = sub_ntf_find(nc_sub_id, 0, 1, 0);
     if (!sub) {
-        sr_session_set_error_message(session, "Subscription with ID %" PRIu32 " does not exist.", nc_sub_id);
+        if (asprintf(&message, "Subscription with ID %" PRIu32 " for the current receiver does not exist.", nc_sub_id) == -1) {
+            return SR_ERR_NO_MEMORY;
+        }
+        np_err_ntf_sub_no_such_sub(session, message);
+        free(message);
         return SR_ERR_INVAL_ARG;
     }
 
