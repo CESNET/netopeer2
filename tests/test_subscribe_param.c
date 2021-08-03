@@ -477,7 +477,7 @@ test_stop_time(void **state)
     assert_int_equal(LY_SUCCESS, ly_time_time2str(start, NULL, &start_time));
 
     /* To subscribe to replay of notifications until time was called, should not include any called after */
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(time(NULL), NULL, &stop_time));
+    assert_int_equal(LY_SUCCESS, ly_time_time2str(time(NULL) + 1, NULL, &stop_time));
 
     /* Subscribe to notfications */
     reestablish_sub(state, NULL, start_time, stop_time);
