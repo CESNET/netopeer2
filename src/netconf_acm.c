@@ -3,7 +3,7 @@
  * @author Michal Vasko <mvasko@cesnet.cz>
  * @brief NACM and ietf-netconf-acm callbacks
  *
- * Copyright (c) 2019 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2021 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -300,6 +300,11 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
     return SR_ERR_OK;
 }
 
+/**
+ * @brief Remove all rules from a rule list.
+ *
+ * @param[in,out] list Rule list to remove from.
+ */
 static void
 ncac_remove_rules(struct ncac_rule_list *list)
 {
@@ -318,6 +323,157 @@ ncac_remove_rules(struct ncac_rule_list *list)
     list->rules = NULL;
 }
 
+/**
+ * @brief Get pointer to an item on a specific index.
+ *
+ * @param[in] items Array of items.
+ * @param[in] item_size Size of each item.
+ * @param[in] idx Index of the item to get.
+ * @return Pointer to the item at index.
+ */
+#define ITEM_IDX_PTR(items, item_size, idx) (char **)(((uint64_t)(uintptr_t)items) + ((idx) * (item_size)))
+
+/**
+ * @brief Compare callback for sorting functions like qsort(3) and bsearch(3).
+ *
+ * @param[in] ptr1 Pointer to the first value.
+ * @param[in] ptr2 Pointer to the second value.
+ * @return < 0 if ptr1 < ptr2.
+ * @return   0 if ptr1 == ptr2.
+ * @return > 0 if ptr1 > ptr2.
+ */
+static int
+ncac_sort_strcmp_cb(const void *ptr1, const void *ptr2)
+{
+    const char **str1, **str2;
+
+    str1 = (const char **)ptr1;
+    str2 = (const char **)ptr2;
+
+    return strcmp(*str1, *str2);
+}
+
+/**
+ * @brief Find an item in a sorted array. The item structure first member must be (const char *) in the dictionary.
+ *
+ * @param[in] item Pointer to item to find.
+ * @param[in] item_size Size of an item.
+ * @param[in] items Item array.
+ * @param[in] item_count Number of @p items.
+ * @param[out] match Optional pointer to the found item.
+ * @return Index of the item in @p items.
+ * @return -1 if no matching item was found.
+ */
+static int32_t
+ncac_strarr_sort_find(const char **item, size_t item_size, char **items, uint32_t item_count)
+{
+    const char **m;
+    int32_t idx = -1;
+
+    if (!items) {
+        return idx;
+    }
+
+    m = bsearch(item, items, item_count, item_size, ncac_sort_strcmp_cb);
+    if (m) {
+        idx = ((uint64_t)(uintptr_t)m - (uint64_t)(uintptr_t)items) / item_size;
+    }
+
+    return idx;
+}
+
+/**
+ * @brief Add an item into a sorted array. The item structure first member must be (const char *) in the dictionary.
+ *
+ * @param[in] ly_ctx libyang context.
+ * @param[in] item Pointer to item to add, string does not need to be in the dictionary.
+ * @param[in] item_size Size of an item.
+ * @param[in] check_dup Whether to check for duplicates before adding, returns SR_ERR_OK if duplicate found.
+ * @param[in,out] items Pointer to the item array.
+ * @param[in,out] item_count Pointer to the number of @p items.
+ * @return Sysrepo err value.
+ */
+static int
+ncac_strarr_sort_add(const struct ly_ctx *ly_ctx, const char **item, size_t item_size, int check_dup, char ***items,
+        uint32_t *item_count)
+{
+    void *mem;
+    uint32_t i;
+
+    if (check_dup && (ncac_strarr_sort_find(item, item_size, *items, *item_count) > -1)) {
+        /* already added */
+        return SR_ERR_OK;
+    }
+
+    /* starting index, assume normal distribution and names starting with lowercase letters */
+    if ((*item)[0] < 'a') {
+        i = 0;
+    } else if ((*item)[0] > 'z') {
+        i = *item_count ? *item_count - 1 : 0;
+    } else {
+        i = ((*item)[0] - 'a') * ((double)*item_count / 26.0);
+    }
+
+    /* find the index to add it on */
+    if (*item_count && (strcmp(*ITEM_IDX_PTR(*items, item_size, i), *item) > 0)) {
+        while (i && (strcmp(*ITEM_IDX_PTR(*items, item_size, i - 1), *item) > 0)) {
+            --i;
+        }
+    } else if (*item_count && (strcmp(*ITEM_IDX_PTR(*items, item_size, i), *item) < 0)) {
+        while ((i < *item_count) && (strcmp(*ITEM_IDX_PTR(*items, item_size, i), *item) < 0)) {
+            ++i;
+        }
+    }
+
+    /* realloc */
+    mem = realloc(*items, (*item_count + 1) * item_size);
+    if (!mem) {
+        EMEM;
+        return SR_ERR_NO_MEMORY;
+    }
+    *items = mem;
+
+    /* move all following items */
+    if (i < *item_count) {
+        memmove(ITEM_IDX_PTR(*items, item_size, i + 1), ITEM_IDX_PTR(*items, item_size, i), (*item_count - i) * item_size);
+    }
+
+    /* insert new item */
+    lydict_insert(ly_ctx, *item, 0, (const char **)ITEM_IDX_PTR(*items, item_size, i));
+    ++(*item_count);
+    return SR_ERR_OK;
+}
+
+/**
+ * @brief Remove an item from a sorted array. The item structure first member must be (const char *) in the dictionary.
+ *
+ * @param[in] ly_ctx libyang context.
+ * @param[in] item Pointer to item to remove.
+ * @param[in] item_size Size of an item.
+ * @param[in,out] items Pointer to the item array.
+ * @param[in,out] item_count Pointer to the number of @p items.
+ */
+static void
+ncac_strarr_sort_del(const struct ly_ctx *ly_ctx, const char **item, size_t item_size, char ***items, uint32_t *item_count)
+{
+    int32_t i;
+
+    /* find the item, get its index */
+    i = ncac_strarr_sort_find(item, item_size, *items, *item_count);
+    assert(i > -1);
+
+    /* delete it, keep the order */
+    lydict_remove(ly_ctx, *ITEM_IDX_PTR(*items, item_size, i));
+    --(*item_count);
+    if ((uint32_t)i < *item_count) {
+        memmove(ITEM_IDX_PTR(*items, item_size, i), ITEM_IDX_PTR(*items, item_size, i + 1), (*item_count - i) * item_size);
+    }
+    if (!*item_count) {
+        free(*items);
+        *items = NULL;
+    }
+}
+
 /* /ietf-netconf-acm:nacm/rule-list */
 int
 ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name), const char *xpath,
@@ -332,7 +488,6 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     char *xpath2;
     int rc, len;
     uint32_t i;
-    void *mem;
 
     ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
 
@@ -450,35 +605,14 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
                 group_name = lyd_get_value(node);
 
                 if (op == SR_OP_CREATED) {
-                    mem = realloc(rlist->groups, (rlist->group_count + 1) * sizeof *rlist->groups);
-                    if (!mem) {
-                        EMEM;
+                    if ((rc = ncac_strarr_sort_add(ly_ctx, &group_name, sizeof rlist->groups, 0, &rlist->groups,
+                            &rlist->group_count))) {
                         pthread_mutex_unlock(&nacm.lock);
-                        return SR_ERR_NO_MEMORY;
+                        return rc;
                     }
-                    rlist->groups = mem;
-                    lydict_insert(ly_ctx, group_name, 0, (const char **)&rlist->groups[rlist->group_count]);
-                    ++rlist->group_count;
                 } else {
                     assert(op == SR_OP_DELETED);
-                    for (i = 0; i < rlist->group_count; ++i) {
-                        /* both in dictionary */
-                        if (rlist->groups[i] == group_name) {
-                            break;
-                        }
-                    }
-                    assert(i < rlist->group_count);
-
-                    /* delete it */
-                    lydict_remove(ly_ctx, rlist->groups[i]);
-                    --rlist->group_count;
-                    if (i < rlist->group_count) {
-                        rlist->groups[i] = rlist->groups[rlist->group_count];
-                    }
-                    if (!rlist->group_count) {
-                        free(rlist->groups);
-                        rlist->groups = NULL;
-                    }
+                    ncac_strarr_sort_del(ly_ctx, &group_name, sizeof rlist->groups, &rlist->groups, &rlist->group_count);
                 }
             }
         }
@@ -864,8 +998,8 @@ ncac_allowed_tree(const struct lysc_node *top_node, const char *user)
  *
  * @param[in] ly_ctx libyang context for dictionary.
  * @param[in] user User to collect groups for.
- * @param[out] groups Array of collected groups.
- * @param[out] group_count Number of collected groups.
+ * @param[out] groups Sorted array of collected groups.
+ * @param[out] group_count Number of @p groups.
  * @return 0 on success, -1 on error.
  */
 static int
@@ -873,12 +1007,11 @@ ncac_collect_groups(const struct ly_ctx *ly_ctx, const char *user, char ***group
 {
     struct group grp, *grp_p;
     gid_t user_gid;
-    const char *user_dict = NULL, *grp_dict;
+    const char *user_dict = NULL;
     char *buf = NULL;
     gid_t *gids = NULL;
     ssize_t buflen;
     uint32_t i, j;
-    void *mem;
     int gid_count = 0, ret, rc = -1;
 
     lydict_insert(ly_ctx, user, 0, &user_dict);
@@ -890,14 +1023,9 @@ ncac_collect_groups(const struct ly_ctx *ly_ctx, const char *user, char ***group
     for (i = 0; i < nacm.group_count; ++i) {
         for (j = 0; j < nacm.groups[i].user_count; ++j) {
             if (nacm.groups[i].users[j] == user_dict) {
-                mem = realloc(*groups, (*group_count + 1) * sizeof **groups);
-                if (!mem) {
-                    EMEM;
+                if (ncac_strarr_sort_add(ly_ctx, &nacm.groups[i].name, sizeof **groups, 0, groups, group_count)) {
                     goto cleanup;
                 }
-                *groups = mem;
-                lydict_insert(ly_ctx, nacm.groups[i].name, 0, (const char **)&(*groups)[*group_count]);
-                ++(*group_count);
             }
         }
     }
@@ -946,27 +1074,10 @@ ncac_collect_groups(const struct ly_ctx *ly_ctx, const char *user, char ***group
                 ERR("Getting GID grp entry failed (Group not found).");
                 goto cleanup;
             }
-            lydict_insert(ly_ctx, grp.gr_name, 0, &grp_dict);
 
-            /* check for duplicates */
-            for (j = 0; j < *group_count; ++j) {
-                if ((*groups)[j] == grp_dict) {
-                    break;
-                }
-            }
-
-            if (j < *group_count) {
-                /* duplicate */
-                lydict_remove(ly_ctx, grp_dict);
-            } else {
-                mem = realloc(*groups, (*group_count + 1) * sizeof **groups);
-                if (!mem) {
-                    EMEM;
-                    goto cleanup;
-                }
-                *groups = mem;
-                (*groups)[*group_count] = (char *)grp_dict;
-                ++(*group_count);
+            /* add, if not already there */
+            if (ncac_strarr_sort_add(ly_ctx, (const char **)&grp.gr_name, sizeof **groups, 1, groups, group_count)) {
+                goto cleanup;
             }
         }
     }
@@ -1037,6 +1148,42 @@ ncac_allowed_path(const char *rule_target, const char *node_path)
     }
 }
 
+/**
+ * @brief Check whether any group from a rule list matches one of the user groups.
+ *
+ * @param[in] rlist Rule list with sorted groups.
+ * @param[in] groups User group sorted array.
+ * @param[in] group_count Count of @p groups.
+ * @return 1 if a match is found.
+ * @return 0 if no matching group is found.
+ */
+static int
+ncac_rule_group_match(struct ncac_rule_list *rlist, char **groups, uint32_t group_count)
+{
+    uint32_t i = 0, j = 0;
+    int r;
+
+    while ((i < rlist->group_count) && (j < group_count)) {
+        if (!strcmp(rlist->groups[i], "*")) {
+            /* match for all groups */
+            return 1;
+        }
+
+        r = strcmp(rlist->groups[i], groups[j]);
+        if (r > 0) {
+            ++j;
+        } else if (r < 0) {
+            ++i;
+        } else {
+            /* match */
+            return 1;
+        }
+    }
+
+    /* no match */
+    return 0;
+}
+
 enum ncac_access
 ncac_allowed_node(const struct lyd_node *node, const char *node_path, const struct lysc_node *node_schema,
         const char *user, uint8_t oper)
@@ -1044,7 +1191,7 @@ ncac_allowed_node(const struct lyd_node *node, const char *node_path, const stru
     struct ncac_rule_list *rlist;
     struct ncac_rule *rule;
     char **groups, *path;
-    uint32_t i, j, group_count;
+    uint32_t i, group_count;
     enum ncac_access access = NCAC_ACCESS_DENY;
 
     enum {
@@ -1078,24 +1225,8 @@ ncac_allowed_node(const struct lyd_node *node, const char *node_path, const stru
 
     /* 6) find matching rule lists */
     for (rlist = nacm.rule_lists; rlist; rlist = rlist->next) {
-        for (i = 0; i < rlist->group_count; ++i) {
-            if (strcmp(rlist->groups[i], "*")) {
-                for (j = 0; j < group_count; ++j) {
-                    if (rlist->groups[i] == groups[j]) {
-                        break;
-                    }
-                }
-                if (j < group_count) {
-                    /* match */
-                    break;
-                }
-            } else {
-                /* match for all groups */
-                break;
-            }
-        }
-        if (i == rlist->group_count) {
-            /* no match */
+        if (!ncac_rule_group_match(rlist, groups, group_count)) {
+            /* no group match */
             continue;
         }
 
