@@ -227,3 +227,30 @@ np_err_bad_element(sr_session_ctx_t *ev_sess, const char *elem_name, const char 
 
     sr_session_push_error_data(ev_sess, strlen(elem_name) + 1, elem_name);
 }
+
+void
+np_err_ntf_sub_no_such_sub(sr_session_ctx_t *ev_sess, const char *message)
+{
+    const char *str;
+
+    /* error format */
+    sr_session_set_error_format(ev_sess, "NETCONF");
+
+    /* error-type */
+    str = "application";
+    sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+    /* error-tag */
+    str = "invalid-value";
+    sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+    /* error-message */
+    sr_session_push_error_data(ev_sess, strlen(message) + 1, message);
+
+    /* error-app-tag */
+    str = "ietf-subscribed-notifications:no-such-subscription";
+    sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+    /* error-path */
+    sr_session_push_error_data(ev_sess, 1, "");
+}

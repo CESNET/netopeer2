@@ -29,4 +29,6 @@ void np_err_missing_element(sr_session_ctx_t *ev_sess, const char *elem_name);
 
 void np_err_bad_element(sr_session_ctx_t *ev_sess, const char *elem_name, const char *description);
 
+void np_err_ntf_sub_no_such_sub(sr_session_ctx_t *ev_sess, const char *message);
+
 #endif /* NP2SRV_ERR_NETCONF_H_ */
