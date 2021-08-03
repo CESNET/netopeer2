@@ -40,12 +40,12 @@ local_setup(void **state)
 {
     struct np_test *st;
     sr_conn_ctx_t *conn;
-    const char *features[] = {NULL};
     const char *module1 = NP_TEST_MODULE_DIR "/edit1.yang";
     const char *module2 = NP_TEST_MODULE_DIR "/edit2.yang";
     const char *module3 = NP_TEST_MODULE_DIR "/edit3.yang";
-    const char *module4 = NP_TEST_MODULE_DIR "/example1.yang";
-    const char *module5 = NP_TEST_MODULE_DIR "/example2.yang";
+    const char *module4 = NP_TEST_MODULE_DIR "/edit4.yang";
+    const char *module5 = NP_TEST_MODULE_DIR "/example1.yang";
+    const char *module6 = NP_TEST_MODULE_DIR "/example2.yang";
     int rv;
 
     /* setup environment necessary for installing module */
@@ -54,11 +54,12 @@ local_setup(void **state)
 
     /* connect to server and install test modules */
     assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module1, NULL, features), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module2, NULL, features), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module3, NULL, features), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module4, NULL, features), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module5, NULL, features), SR_ERR_OK);
+    assert_int_equal(sr_install_module(conn, module1, NULL, NULL), SR_ERR_OK);
+    assert_int_equal(sr_install_module(conn, module2, NULL, NULL), SR_ERR_OK);
+    assert_int_equal(sr_install_module(conn, module3, NULL, NULL), SR_ERR_OK);
+    assert_int_equal(sr_install_module(conn, module4, NULL, NULL), SR_ERR_OK);
+    assert_int_equal(sr_install_module(conn, module5, NULL, NULL), SR_ERR_OK);
+    assert_int_equal(sr_install_module(conn, module6, NULL, NULL), SR_ERR_OK);
     assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
 
     /* setup netopeer2 server */
@@ -88,6 +89,7 @@ local_teardown(void **state)
     assert_int_equal(sr_remove_module(conn, "edit1"), SR_ERR_OK);
     assert_int_equal(sr_remove_module(conn, "edit2"), SR_ERR_OK);
     assert_int_equal(sr_remove_module(conn, "edit3"), SR_ERR_OK);
+    assert_int_equal(sr_remove_module(conn, "edit4"), SR_ERR_OK);
     assert_int_equal(sr_remove_module(conn, "example1"), SR_ERR_OK);
     assert_int_equal(sr_remove_module(conn, "example2"), SR_ERR_OK);
     assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
@@ -646,6 +648,79 @@ test_ex2(void **state)
     ASSERT_EMPTY_CONFIG(st);
 }
 
+static void
+test_autodel_case(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* create case #1 */
+    data =
+            "<top xmlns=\"ed4\">"
+            "  <l1>value</l1>"
+            "  <l2/>"
+            "</top>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* check data */
+    GET_CONFIG(st);
+    assert_non_null(strstr(st->str, "l1"));
+    assert_non_null(strstr(st->str, "l2"));
+    FREE_TEST_VARS(st);
+
+    /* create case #2 */
+    data =
+            "<top xmlns=\"ed4\">"
+            "  <c2>58</c2>"
+            "</top>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* check data */
+    GET_CONFIG(st);
+    assert_null(strstr(st->str, "l1"));
+    assert_null(strstr(st->str, "l2"));
+    assert_non_null(strstr(st->str, "c2"));
+    FREE_TEST_VARS(st);
+
+    /* create case #3 */
+    data =
+            "<top xmlns=\"ed4\">"
+            "  <cont>"
+            "    <l3>-256</l3>"
+            "  </cont>"
+            "</top>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* check data */
+    GET_CONFIG(st);
+    assert_null(strstr(st->str, "c2"));
+    assert_non_null(strstr(st->str, "l3"));
+    FREE_TEST_VARS(st);
+
+    /* create case #4 */
+    data =
+            "<top xmlns=\"ed4\">"
+            "  <l4>a</l4>"
+            "  <l5>b</l5>"
+            "</top>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* check data */
+    GET_CONFIG(st);
+    assert_null(strstr(st->str, "l3"));
+    assert_non_null(strstr(st->str, "l4"));
+    assert_non_null(strstr(st->str, "l5"));
+    FREE_TEST_VARS(st);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -658,6 +733,7 @@ main(int argc, char **argv)
         cmocka_unit_test(test_remove),
         cmocka_unit_test(test_ex1),
         cmocka_unit_test(test_ex2),
+        cmocka_unit_test(test_autodel_case),
     };
 
     if (sr_get_su_uid() != getuid()) {
