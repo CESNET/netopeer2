@@ -158,6 +158,31 @@
     state->msgtype = nc_recv_notif(state->nc_sess, 10, &state->envp, &state->op); \
     assert_int_equal(NC_MSG_WOULDBLOCK, state->msgtype); \
 
+#define ASSERT_OK_SUB_NTF(state) \
+    st->msgtype = NC_MSG_NOTIF; \
+    while (st->msgtype == NC_MSG_NOTIF) { \
+        st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op); \
+    } \
+    assert_int_equal(state->msgtype, NC_MSG_REPLY); \
+    assert_non_null(state->op); \
+    assert_string_equal(LYD_NAME(lyd_child(state->op)), "id");  \
+    state->ntf_id = (uint32_t) strtoul(lyd_get_value(lyd_child(state->op)), NULL, 10);
+
+#define SEND_RPC_ESTABSUB(st, filter, stream, start_time, stop_time) \
+    st->rpc = nc_rpc_establishsub(filter, stream, start_time, stop_time, NULL, NC_PARAMTYPE_CONST); \
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid); \
+    assert_int_equal(NC_MSG_RPC, st->msgtype);
+
+#define SEND_RPC_DELSUB(st, id) \
+    st->rpc = nc_rpc_deletesub(id); \
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid); \
+    assert_int_equal(NC_MSG_RPC, st->msgtype);
+
+#define SEND_RPC_MODSUB(st, id, filter, stop_time) \
+    st->rpc = nc_rpc_modifysub(id, filter, stop_time, NC_PARAMTYPE_CONST); \
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid); \
+    assert_int_equal(NC_MSG_RPC, st->msgtype);
+
 /* test state structure */
 struct np_test {
     pid_t server_pid;
@@ -175,6 +200,7 @@ struct np_test {
     uint64_t msgid;
     struct lyd_node *envp, *op;
     char *str;
+    uint32_t ntf_id;
 };
 
 int np_glob_setup_np2(void **state);
