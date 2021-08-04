@@ -183,6 +183,11 @@
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid); \
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
+#define SEND_RPC_KILLSUB(st, id) \
+    st->rpc = nc_rpc_killsub(id); \
+    st->msgtype =  nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid); \
+    assert_int_equal(NC_MSG_RPC, st->msgtype);
+
 /* test state structure */
 struct np_test {
     pid_t server_pid;
