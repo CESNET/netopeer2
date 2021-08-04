@@ -977,7 +977,7 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
     struct lyd_node *ly_ntf = NULL;
     NC_MSG_TYPE msg_type;
     char *datetime = NULL;
-    time_t stop;
+    struct timespec stop, cur_ts;
 
     /* create these notifications, sysrepo only emulates them */
     if (notif_type == SR_EV_NOTIF_REPLAY_COMPLETE) {
@@ -990,8 +990,9 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
         lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/nc-notifications:replayComplete", NULL, 0, &ly_ntf);
         notif = ly_ntf;
     } else if (notif_type == SR_EV_NOTIF_TERMINATED) {
-        sr_event_notif_sub_get_info(np2srv.sr_notif_sub, sub_id, NULL, NULL, NULL, &stop, NULL);
-        if (!stop || (stop > time(NULL))) {
+        sr_notif_sub_get_info(np2srv.sr_notif_sub, sub_id, NULL, NULL, NULL, &stop, NULL);
+        cur_ts = np_gettimespec(1);
+        if (!stop.tv_sec || (np_difftimespec(&stop, &cur_ts) < 0)) {
             /* no stop-time or it was not reached so no notification should be generated */
             goto cleanup;
         }
@@ -1058,7 +1059,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     const char *stream;
     struct np2_filter filter = {0};
     char *xp = NULL;
-    struct timespec start = {0}, stop = {0};
+    struct timespec start = {0}, stop = {0}, cur_ts;
     int rc = SR_ERR_OK, has_nc_ntf_status = 0;
     const sr_error_info_t *err_info;
     uint32_t idx;
@@ -1138,7 +1139,8 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     }
 
     /* check parameters */
-    if (start.tv_sec > time(NULL)) {
+    cur_ts = np_gettimespec(1);
+    if (start.tv_sec && (np_difftimespec(&start, &cur_ts) < 0)) {
         np_err_bad_element(session, "startTime", "Specified \"startTime\" is in future.");
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
@@ -1146,7 +1148,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         np_err_missing_element(session, "startTime");
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
-    } else if (stop.tv_sec && (stop.tv_sec < start.tv_sec)) {
+    } else if (start.tv_sec && stop.tv_sec && (np_difftimespec(&stop, &start) > 0)) {
         np_err_bad_element(session, "stopTime", "Specified \"stopTime\" is earlier than \"startTime\".");
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
@@ -1187,8 +1189,9 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         cb_data->sr_sub_count = mod_set.count;
         for (idx = 0; idx < mod_set.count; ++idx) {
             ly_mod = mod_set.objs[idx];
-            rc = sr_event_notif_subscribe_tree(user_sess->sess, ly_mod->name, xp, start.tv_sec, stop.tv_sec,
-                    np2srv_rpc_subscribe_ntf_cb, cb_data, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
+            rc = sr_notif_subscribe_tree(user_sess->sess, ly_mod->name, xp, start.tv_sec ? &start : NULL,
+                    stop.tv_sec ? &stop : NULL, np2srv_rpc_subscribe_ntf_cb, cb_data, SR_SUBSCR_CTX_REUSE,
+                    &np2srv.sr_notif_sub);
             if (rc != SR_ERR_OK) {
                 sr_session_get_error(user_sess->sess, &err_info);
                 sr_session_set_error_message(session, err_info->err[0].message);
@@ -1198,7 +1201,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     } else {
         /* subscribe to the specific module (stream) */
         cb_data->sr_sub_count = 1;
-        rc = sr_event_notif_subscribe_tree(user_sess->sess, stream, xp, start.tv_sec, stop.tv_sec,
+        rc = sr_notif_subscribe_tree(user_sess->sess, stream, xp, start.tv_sec ? &start : NULL, stop.tv_sec ? &stop : NULL,
                 np2srv_rpc_subscribe_ntf_cb, cb_data, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {
             sr_session_get_error(user_sess->sess, &err_info);

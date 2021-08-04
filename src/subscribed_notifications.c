@@ -151,8 +151,9 @@ cleanup:
  * @return Sysrepo error value.
  */
 static int
-sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char *xpath, time_t start,
-        time_t stop, struct sub_ntf_cb_arg *cb_arg, sr_session_ctx_t *ev_sess, uint32_t **sub_ids, uint32_t *sub_id_count)
+sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char *xpath, const struct timespec *start,
+        const struct timespec *stop, struct sub_ntf_cb_arg *cb_arg, sr_session_ctx_t *ev_sess, uint32_t **sub_ids,
+        uint32_t *sub_id_count)
 {
     const struct ly_ctx *ly_ctx = sr_get_context(sr_session_get_connection(user_sess));
     const struct lys_module *ly_mod;
@@ -197,7 +198,7 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
             ly_mod = mod_set.objs[idx];
 
             /* subscribe to the module */
-            rc = sr_event_notif_subscribe_tree(user_sess, ly_mod->name, xpath, start, stop, np2srv_rpc_establish_sub_ntf_cb,
+            rc = sr_notif_subscribe_tree(user_sess, ly_mod->name, xpath, start, stop, np2srv_rpc_establish_sub_ntf_cb,
                     cb_arg, SR_SUBSCR_CTX_REUSE | SR_SUBSCR_THREAD_SUSPEND, &np2srv.sr_notif_sub);
             if (rc != SR_ERR_OK) {
                 sr_session_get_error(user_sess, &err_info);
@@ -223,7 +224,7 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
         cb_arg->sr_sub_count = 1;
 
         /* subscribe to the specific module (stream) */
-        rc = sr_event_notif_subscribe_tree(user_sess, stream, xpath, start, stop, np2srv_rpc_establish_sub_ntf_cb,
+        rc = sr_notif_subscribe_tree(user_sess, stream, xpath, start, stop, np2srv_rpc_establish_sub_ntf_cb,
                 cb_arg, SR_SUBSCR_CTX_REUSE | SR_SUBSCR_THREAD_SUSPEND, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {
             sr_session_get_error(user_sess, &err_info);
@@ -383,10 +384,10 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
     struct nc_session *ncs;
     struct np2_user_sess *user_sess = NULL;
     struct sub_ntf_data *sn_data = NULL;
-    struct timespec stop;
+    struct timespec stop, cur_ts;
     const char *stream, *stream_filter_name = NULL, *stream_xpath_filter = NULL;
     char *xp = NULL;
-    time_t start = 0;
+    struct timespec start = {0};
     uint32_t sub_id_count;
     int rc = SR_ERR_OK;
 
@@ -409,21 +410,22 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
     /* replay start time */
     lyd_find_path(rpc, "replay-start-time", 0, &node);
     if (node) {
-        ly_time_str2time(lyd_get_value(node), &start, NULL);
+        ly_time_str2ts(lyd_get_value(node), &start);
     }
 
     stop = sub->stop_time;
 
     /* check parameters */
-    if (start && (start > time(NULL))) {
+    cur_ts = np_gettimespec(1);
+    if (start.tv_sec && (np_difftimespec(&start, &cur_ts) < 0)) {
         np_err_bad_element(ev_sess, "replay-start-time", "Specified \"replay-start-time\" is in future.");
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
-    } else if (!start && stop.tv_sec && (stop.tv_sec < time(NULL))) {
+    } else if (!start.tv_sec && stop.tv_sec && (np_difftimespec(&stop, &cur_ts) > 0)) {
         np_err_bad_element(ev_sess, "stop-time", "Specified \"stop-time\" is in the past.");
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
-    } else if (start && stop.tv_sec && (stop.tv_sec < start)) {
+    } else if (start.tv_sec && stop.tv_sec && (np_difftimespec(&stop, &start) > 0)) {
         np_err_bad_element(ev_sess, "stop-time", "Specified \"stop-time\" is earlier than \"replay-start-time\".");
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
@@ -458,8 +460,8 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
     sn_data->cb_arg.nc_sub_id = sub->nc_sub_id;
 
     /* subscribe to sysrepo notifications, cb_arg is managed (freed) by the callback */
-    rc = sub_ntf_sr_subscribe(user_sess->sess, stream, xp, start, sub->stop_time.tv_sec, &sn_data->cb_arg, ev_sess,
-            &sub->sub_ids, &sub_id_count);
+    rc = sub_ntf_sr_subscribe(user_sess->sess, stream, xp, start.tv_sec ? &start : NULL,
+            sub->stop_time.tv_sec ? &sub->stop_time : NULL, &sn_data->cb_arg, ev_sess, &sub->sub_ids, &sub_id_count);
     ATOMIC_STORE_RELAXED(sub->sub_id_count, sub_id_count);
     if (rc != SR_ERR_OK) {
         goto cleanup;
@@ -483,7 +485,7 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
     struct sub_ntf_data *sn_data;
     const char *cur_xp, *stream_filter_name = NULL, *stream_xpath_filter = NULL;
     char *xp = NULL;
-    time_t cur_stop;
+    struct timespec cur_stop;
     int rc = SR_ERR_OK;
     uint32_t i;
 
@@ -500,7 +502,7 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
     }
 
     /* learn the current filter */
-    rc = sr_event_notif_sub_get_info(np2srv.sr_notif_sub, sub->sub_ids[0], NULL, &cur_xp, NULL, &cur_stop, NULL);
+    rc = sr_notif_sub_get_info(np2srv.sr_notif_sub, sub->sub_ids[0], NULL, &cur_xp, NULL, &cur_stop, NULL);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
@@ -516,12 +518,12 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
             }
         }
     }
-    if (stop.tv_sec && (cur_stop != stop.tv_sec)) {
+    if (np_difftimespec(&cur_stop, &stop) != 0) {
         /* update stop time */
         for (i = 0; i < sub->sub_id_count; ++i) {
             /* "pass" the lock to the callback */
             sub_ntf_cb_lock_pass(sub->sub_ids[i]);
-            rc = sr_event_notif_sub_modify_stop_time(np2srv.sr_notif_sub, sub->sub_ids[i], stop.tv_sec);
+            rc = sr_notif_sub_modify_stop_time(np2srv.sr_notif_sub, sub->sub_ids[i], stop.tv_sec ? &stop : NULL);
             if (rc != SR_ERR_OK) {
                 goto cleanup;
             }
@@ -684,8 +686,8 @@ sub_ntf_oper_subscription(struct lyd_node *subscription, void *data)
     }
 
     /* replay-start-time */
-    if (sn_data->replay_start_time) {
-        ly_time_time2str(sn_data->replay_start_time, NULL, &buf);
+    if (sn_data->replay_start_time.tv_sec) {
+        ly_time_ts2str(&sn_data->replay_start_time, &buf);
         if (lyd_new_term(subscription, NULL, "replay-start-time", buf, 0, NULL)) {
             free(buf);
             return SR_ERR_LY;
@@ -705,7 +707,7 @@ sub_ntf_oper_receiver_excluded(struct np2srv_sub_ntf *sub)
     /* excluded-event-records */
     for (i = 0; i < ATOMIC_LOAD_RELAXED(sub->sub_id_count); ++i) {
         /* get filter-out count for the subscription */
-        r = sr_event_notif_sub_get_info(np2srv.sr_notif_sub, sub->sub_ids[i], NULL, NULL, NULL, NULL, &filtered_out);
+        r = sr_notif_sub_get_info(np2srv.sr_notif_sub, sub->sub_ids[i], NULL, NULL, NULL, NULL, &filtered_out);
         if (r != SR_ERR_OK) {
             return r;
         }

@@ -45,7 +45,7 @@ struct sub_ntf_data {
     struct lyd_node *stream_subtree_filter;
     char *stream_xpath_filter;
     char *stream;
-    time_t replay_start_time;
+    struct timespec replay_start_time;
 
     /* internal data */
     struct sub_ntf_cb_arg cb_arg;
