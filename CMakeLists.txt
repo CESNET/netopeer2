@@ -45,6 +45,11 @@ set(NP2SRV_VERSION 2.0.18)
 # libyang required SO version
 set(LIBYANG_DEP_SOVERSION_MAJOR 2)
 
+# Version of sysrepo that this netopeer2 version depends on
+set(SYSREPO_DEP_VERSION 2.0.33)
+set(SYSREPO_DEP_SOVERSION 6.4.0)
+set(SYSREPO_DEP_SOVERSION_MAJOR 6)
+
 #
 # compilation flags
 #
@@ -274,7 +279,7 @@ list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBYANG_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBYANG_LIBRARIES})
 
 # sysrepo
-find_package(Sysrepo REQUIRED)
+find_package(Sysrepo ${SYSREPO_DEP_SOVERSION} REQUIRED)
 target_link_libraries(netopeer2-server ${SYSREPO_LIBRARIES})
 include_directories(${SYSREPO_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${SYSREPO_INCLUDE_DIRS})
