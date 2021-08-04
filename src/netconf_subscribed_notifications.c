@@ -219,6 +219,15 @@ sub_ntf_cb_lock_pass(uint32_t sub_id)
 }
 
 void
+sub_ntf_cb_lock_clear(uint32_t sub_id)
+{
+    assert(ATOMIC_LOAD_RELAXED(info.sub_id_lock) == sub_id);
+    (void)sub_id;
+
+    ATOMIC_STORE_RELAXED(info.sub_id_lock, 0);
+}
+
+void
 sub_ntf_inc_denied(uint32_t nc_sub_id)
 {
     struct np2srv_sub_ntf *sub;
@@ -276,29 +285,15 @@ void
 np2srv_sub_ntf_session_destroy(struct nc_session *ncs)
 {
     int r;
-    uint32_t i, count;
+    uint32_t i;
 
     /* WRITE LOCK */
     INFO_WLOCK;
 
     for (i = 0; i < info.count; ++i) {
         if (info.subs[i].nc_id == nc_session_get_id(ncs)) {
-            switch (info.subs[i].type) {
-            case SUB_TYPE_SUB_NTF:
-                /* unsubscribe all sysrepo subscriptions */
-                count = ATOMIC_LOAD_RELAXED(info.subs[i].sub_id_count);
-                for (i = 0; i < count; ++i) {
-                    /* pass the lock to the notification CB, which removes its sub ID, the final one the whole sub */
-                    sub_ntf_cb_lock_pass(info.subs[i].sub_ids[0]);
-                    sr_unsubscribe_sub(np2srv.sr_notif_sub, info.subs[i].sub_ids[0]);
-                    ATOMIC_STORE_RELAXED(info.sub_id_lock, 0);
-                }
-                break;
-            case SUB_TYPE_YANG_PUSH:
-                /* terminate the subscription */
-                sub_ntf_terminate_sub(&info.subs[i], ncs);
-                break;
-            }
+            /* terminate the subscription */
+            sub_ntf_terminate_sub(&info.subs[i], ncs);
         }
     }
 
@@ -599,22 +594,30 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
     int r, rc = SR_ERR_OK;
     struct lyd_node *ly_ntf;
     char buf[11];
-    uint32_t idx;
+    uint32_t idx, sub_id_count, sub_id;
+    enum sub_ntf_type sub_type = sub->type;
 
     /* unsubscribe all sysrepo subscriptions */
-    while (ATOMIC_LOAD_RELAXED(sub->sub_id_count)) {
-        /* pass the lock to the notification CB */
-        sub_ntf_cb_lock_pass(sub->sub_ids[0]);
-        r = sr_unsubscribe_sub(np2srv.sr_notif_sub, sub->sub_ids[0]);
+    sub_id_count = ATOMIC_LOAD_RELAXED(sub->sub_id_count);
+    for (idx = 0; idx < sub_id_count; ++idx) {
+        /* pass the lock to the notification CB, which removes its sub ID, the final one the whole sub */
+        sub_id = sub->sub_ids[0];
+        sub_ntf_cb_lock_pass(sub_id);
+        r = sr_unsubscribe_sub(np2srv.sr_notif_sub, sub_id);
+        sub_ntf_cb_lock_clear(sub_id);
         if (r != SR_ERR_OK) {
             rc = r;
         }
-        ATOMIC_STORE_RELAXED(info.sub_id_lock, 0);
     }
 
     /* terminate any asynchronous tasks */
-    switch (sub->type) {
+    switch (sub_type) {
     case SUB_TYPE_SUB_NTF:
+        if (sub_id_count) {
+            /* this subscription item was already freed as part of unsubscribe terminate notification */
+            return rc;
+        }
+
         sub_ntf_terminate_async(sub->data);
         break;
     case SUB_TYPE_YANG_PUSH:
@@ -684,7 +687,7 @@ np2srv_rpc_delete_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     struct nc_session *ncs;
     char *message;
     int r, rc = SR_ERR_OK;
-    uint32_t nc_sub_id, *nc_id, i, count;
+    uint32_t nc_sub_id, *nc_id;
 
     if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case (not supported) */
@@ -712,27 +715,10 @@ np2srv_rpc_delete_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         goto cleanup_unlock;
     }
 
-    switch (sub->type) {
-    case SUB_TYPE_SUB_NTF:
-        /* unsubscribe all sysrepo subscriptions */
-        count = ATOMIC_LOAD_RELAXED(sub->sub_id_count);
-        for (i = 0; i < count; ++i) {
-            /* pass the lock to the notification CB, which removes its sub ID, the final one the whole sub */
-            sub_ntf_cb_lock_pass(sub->sub_ids[0]);
-            r = sr_unsubscribe_sub(np2srv.sr_notif_sub, sub->sub_ids[0]);
-            if (r != SR_ERR_OK) {
-                rc = r;
-            }
-            ATOMIC_STORE_RELAXED(info.sub_id_lock, 0);
-        }
-        break;
-    case SUB_TYPE_YANG_PUSH:
-        /* terminate the subscription */
-        rc = sub_ntf_terminate_sub(sub, ncs);
-        if (rc != SR_ERR_OK) {
-            goto cleanup_unlock;
-        }
-        break;
+    /* terminate the subscription */
+    rc = sub_ntf_terminate_sub(sub, ncs);
+    if (rc != SR_ERR_OK) {
+        goto cleanup_unlock;
     }
 
 cleanup_unlock:
@@ -752,7 +738,7 @@ np2srv_rpc_kill_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     struct nc_session *ncs;
     char *message;
     int r, rc = SR_ERR_OK;
-    uint32_t nc_sub_id, i, count;
+    uint32_t nc_sub_id;
 
     if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case (not supported) */
@@ -779,27 +765,10 @@ np2srv_rpc_kill_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
         goto cleanup_unlock;
     }
 
-    switch (sub->type) {
-    case SUB_TYPE_SUB_NTF:
-        /* unsubscribe all sysrepo subscriptions */
-        count = ATOMIC_LOAD_RELAXED(sub->sub_id_count);
-        for (i = 0; i < count; ++i) {
-            /* pass the lock to the notification CB, which removes its sub ID, the final one the whole sub */
-            sub_ntf_cb_lock_pass(sub->sub_ids[0]);
-            r = sr_unsubscribe_sub(np2srv.sr_notif_sub, sub->sub_ids[0]);
-            if (r != SR_ERR_OK) {
-                rc = r;
-            }
-            ATOMIC_STORE_RELAXED(info.sub_id_lock, 0);
-        }
-        break;
-    case SUB_TYPE_YANG_PUSH:
-        /* terminate the subscription */
-        rc = sub_ntf_terminate_sub(sub, ncs);
-        if (rc != SR_ERR_OK) {
-            goto cleanup_unlock;
-        }
-        break;
+    /* terminate the subscription */
+    rc = sub_ntf_terminate_sub(sub, ncs);
+    if (rc != SR_ERR_OK) {
+        goto cleanup_unlock;
     }
 
 cleanup_unlock:

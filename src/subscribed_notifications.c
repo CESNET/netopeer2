@@ -513,6 +513,7 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
             /* "pass" the lock to the callback */
             sub_ntf_cb_lock_pass(sub->sub_ids[i]);
             rc = sr_event_notif_sub_modify_xpath(np2srv.sr_notif_sub, sub->sub_ids[i], xp);
+            sub_ntf_cb_lock_clear(sub->sub_ids[i]);
             if (rc != SR_ERR_OK) {
                 goto cleanup;
             }
@@ -524,6 +525,7 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
             /* "pass" the lock to the callback */
             sub_ntf_cb_lock_pass(sub->sub_ids[i]);
             rc = sr_notif_sub_modify_stop_time(np2srv.sr_notif_sub, sub->sub_ids[i], stop.tv_sec ? &stop : NULL);
+            sub_ntf_cb_lock_clear(sub->sub_ids[i]);
             if (rc != SR_ERR_OK) {
                 goto cleanup;
             }
@@ -625,6 +627,7 @@ sub_ntf_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filter,
                 /* "pass" the lock to the callback */
                 sub_ntf_cb_lock_pass(sub->sub_ids[i]);
                 r = sr_event_notif_sub_modify_xpath(np2srv.sr_notif_sub, sub->sub_ids[i], xp);
+                sub_ntf_cb_lock_clear(sub->sub_ids[i]);
                 if (r != SR_ERR_OK) {
                     rc = r;
                 }

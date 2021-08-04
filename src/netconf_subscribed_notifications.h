@@ -104,9 +104,18 @@ int sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, struct timesp
 /**
  * @brief If holding the sub-ntf lock, pass it to another callback that will be called by some following code.
  *
+ * Clear with sub_ntf_cb_lock_clear().
+ *
  * @param[in] sub_id Sysrepo subscription ID obtained in the callback.
  */
 void sub_ntf_cb_lock_pass(uint32_t sub_id);
+
+/**
+ * @brief Clear the passed sub-ntf lock.
+ *
+ * @param[in] sub_id Sysrepo subscription ID that the lock was passed to.
+ */
+void sub_ntf_cb_lock_clear(uint32_t sub_id);
 
 /**
  * @brief Increase denied notification count for a subscription.
