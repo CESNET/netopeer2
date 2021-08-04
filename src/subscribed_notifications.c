@@ -362,7 +362,7 @@ sub_ntf_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *rpc
         assert(!strcmp(node->schema->name, "stream-xpath-filter"));
         if (strlen(lyd_get_value(node))) {
             *xpath = strdup(lyd_get_value(node));
-            if (*xpath) {
+            if (!*xpath) {
                 EMEM;
                 rc = SR_ERR_NO_MEMORY;
                 goto cleanup;
