@@ -1656,7 +1656,9 @@ yang_push_terminate_async(void *data)
             timer_settime(yp_data->damp_timer, TIMER_ABSTIME, &tspec, NULL);
         }
     }
-    timer_settime(yp_data->stop_timer, TIMER_ABSTIME, &tspec, NULL);
+    if (yp_data->stop_timer) {
+        timer_settime(yp_data->stop_timer, TIMER_ABSTIME, &tspec, NULL);
+    }
 }
 
 void
@@ -1678,7 +1680,9 @@ yang_push_data_destroy(void *data)
             }
         }
         free(yp_data->xpath);
-        timer_delete(yp_data->stop_timer);
+        if (yp_data->stop_timer) {
+            timer_delete(yp_data->stop_timer);
+        }
 
         free(yp_data);
     }
