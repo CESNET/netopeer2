@@ -455,8 +455,9 @@ test_stop_time(void **state)
 {
     struct np_test *st = *state;
     const char *data, *expected;
-    time_t start;
+    struct timespec start, stop;
     char *start_time, *stop_time;
+
 
     /* Parse notification into lyd_node */
     data =
@@ -468,16 +469,17 @@ test_stop_time(void **state)
     NOTIF_PARSE(st, data);
 
     /* Send the notification */
-    start = time(NULL);
+    clock_gettime(CLOCK_REALTIME, &start);
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     FREE_TEST_VARS(st);
 
     /* To subscribe to replay of the notification */
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(start, NULL, &start_time));
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&start, &start_time));
 
     /* To subscribe to replay of notifications until time was called, should not include any called after */
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(time(NULL) + 1, NULL, &stop_time));
+    clock_gettime(CLOCK_REALTIME, &stop);
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&stop, &stop_time));
 
     /* Subscribe to notfications */
     reestablish_sub(state, NULL, start_time, stop_time);
