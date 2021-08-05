@@ -928,19 +928,26 @@ yang_push_stop_timer_cb(union sigval sval)
  *
  * @param[in] cb Callback to be called.
  * @param[in] arg Argument for @p cb.
+ * @param[in] force_real Whether to force realtime clock ID or can be monotonic if available.
  * @param[out] timer_id Created timer ID.
  * @return Sysrepo error value.
  */
 static int
-yang_push_create_timer(void (*cb)(union sigval), void *arg, timer_t *timer_id)
+yang_push_create_timer(void (*cb)(union sigval), void *arg, int force_real, timer_t *timer_id)
 {
     struct sigevent sevp = {0};
 
     sevp.sigev_notify = SIGEV_THREAD;
     sevp.sigev_value.sival_ptr = arg;
     sevp.sigev_notify_function = cb;
-    if (timer_create(NP_CLOCK_ID, &sevp, timer_id) == -1) {
-        return SR_ERR_SYS;
+    if (force_real) {
+        if (timer_create(CLOCK_REALTIME, &sevp, timer_id) == -1) {
+            return SR_ERR_SYS;
+        }
+    } else {
+        if (timer_create(NP_CLOCK_ID, &sevp, timer_id) == -1) {
+            return SR_ERR_SYS;
+        }
     }
 
     return SR_ERR_OK;
@@ -1058,7 +1065,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
         ATOMIC_STORE_RELAXED(yp_data->patch_id, 1);
         if (yp_data->dampening_period_ms) {
             /* create dampening timer */
-            rc = yang_push_create_timer(yang_push_damp_timer_cb, &yp_data->cb_arg, &yp_data->damp_timer);
+            rc = yang_push_create_timer(yang_push_damp_timer_cb, &yp_data->cb_arg, 1, &yp_data->damp_timer);
             if (rc != SR_ERR_OK) {
                 goto cleanup;
             }
@@ -1073,7 +1080,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
 
     if (sub->stop_time.tv_sec) {
         /* create stop timer */
-        rc = yang_push_create_timer(yang_push_stop_timer_cb, &yp_data->cb_arg, &yp_data->stop_timer);
+        rc = yang_push_create_timer(yang_push_stop_timer_cb, &yp_data->cb_arg, 1, &yp_data->stop_timer);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
@@ -1088,7 +1095,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
 
     if (periodic) {
         /* create update timer */
-        rc = yang_push_create_timer(yang_push_update_timer_cb, &yp_data->cb_arg, &yp_data->update_timer);
+        rc = yang_push_create_timer(yang_push_update_timer_cb, &yp_data->cb_arg, 1, &yp_data->update_timer);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
@@ -1097,7 +1104,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
         if (yp_data->anchor_time.tv_sec) {
             trspec.it_value = np_modtimespec(&yp_data->anchor_time, yp_data->period_ms);
         } else {
-            trspec.it_value = np_gettimespec(0);
+            trspec.it_value = np_gettimespec(1);
         }
         trspec.it_interval.tv_sec = yp_data->period_ms / 1000;
         trspec.it_interval.tv_nsec = (yp_data->period_ms % 1000) * 1000000;
@@ -1195,7 +1202,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
             if (yp_data->anchor_time.tv_sec) {
                 trspec.it_value = np_modtimespec(&yp_data->anchor_time, yp_data->period_ms);
             } else {
-                trspec.it_value = np_gettimespec(0);
+                trspec.it_value = np_gettimespec(1);
             }
             trspec.it_interval.tv_sec = yp_data->period_ms / 1000;
             trspec.it_interval.tv_nsec = (yp_data->period_ms % 1000) * 1000000;
@@ -1241,7 +1248,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
         if (dampening_period * 10 != yp_data->dampening_period_ms) {
             if (!yp_data->dampening_period_ms) {
                 /* create dampening timer */
-                rc = yang_push_create_timer(yang_push_damp_timer_cb, &yp_data->cb_arg, &yp_data->damp_timer);
+                rc = yang_push_create_timer(yang_push_damp_timer_cb, &yp_data->cb_arg, 1, &yp_data->damp_timer);
                 if (rc != SR_ERR_OK) {
                     goto cleanup;
                 }
@@ -1322,7 +1329,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     if (stop.tv_sec && memcmp(&stop, &sub->stop_time, sizeof stop)) {
         if (!sub->stop_time.tv_sec) {
             /* create stop timer */
-            rc = yang_push_create_timer(yang_push_stop_timer_cb, &yp_data->cb_arg, &yp_data->stop_timer);
+            rc = yang_push_create_timer(yang_push_stop_timer_cb, &yp_data->cb_arg, 1, &yp_data->stop_timer);
             if (rc != SR_ERR_OK) {
                 goto cleanup;
             }
