@@ -164,7 +164,10 @@
         st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op); \
     } \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
-    assert_non_null(state->op); \
+    if (!state->op) { \
+        lyd_print_file(stdout, st->envp, LYD_XML, 0); \
+        fail(); \
+    } \
     assert_string_equal(LYD_NAME(lyd_child(state->op)), "id");  \
     state->ntf_id = (uint32_t) strtoul(lyd_get_value(lyd_child(state->op)), NULL, 10);
 
