@@ -60,7 +60,10 @@ reestablish_sub(void **state, const char *stream, const char *start_time, const 
     }
     assert_int_equal(NC_MSG_REPLY, st->msgtype);
     assert_null(st->op);
-    assert_string_equal(LYD_NAME(lyd_child(st->envp)), "ok");
+    if (strcmp(LYD_NAME(lyd_child(st->envp)), "ok")) {
+        lyd_print_file(stdout, st->envp, LYD_XML, 0);
+        fail();
+    }
 
     FREE_TEST_VARS(st);
 }
