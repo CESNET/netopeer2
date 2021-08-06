@@ -62,6 +62,8 @@ reestablish_sub(void **state, const char *stream, const char *start_time, const 
     assert_null(st->op);
     if (strcmp(LYD_NAME(lyd_child(st->envp)), "ok")) {
         lyd_print_file(stdout, st->envp, LYD_XML, 0);
+        fprintf(stdout, "start time: %s\n", start_time);
+        fprintf(stdout, "stop time:  %s\n", stop_time);
         fail();
     }
 
