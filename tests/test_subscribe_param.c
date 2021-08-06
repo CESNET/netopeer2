@@ -463,7 +463,6 @@ test_stop_time(void **state)
     struct timespec start, stop;
     char *start_time, *stop_time;
 
-
     /* Parse notification into lyd_node */
     data =
             "<n1 xmlns=\"n1\">\n"
