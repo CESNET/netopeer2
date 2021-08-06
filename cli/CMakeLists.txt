@@ -1,3 +1,7 @@
+if(NOT PROJECT_NAME)
+    message(FATAL_ERROR "Please use the root CMakeLists file instead.")
+endif()
+
 include(CheckFunctionExists)
 
 project(netopeer2-cli C)
