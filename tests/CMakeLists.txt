@@ -37,7 +37,7 @@ set(test_sources "np_test.c")
 
 # list of all the tests
 set(tests test_rpc test_edit test_filter test_subscribe_filter test_subscribe_param test_parallel_sessions
-    test_candidate test_with_defaults test_nacm test_sub_ntf test_sub_ntf_advanced test_yang_push)
+    test_candidate test_with_defaults test_nacm test_sub_ntf test_sub_ntf_advanced test_sub_ntf_filter test_yang_push)
 
 # append url if supported
 if(NP2SRV_URL_CAPAB)
