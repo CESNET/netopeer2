@@ -1,0 +1,14 @@
+module nacm-test2 {
+  namespace "urn:nt2";
+  prefix nt2;
+
+  list people {
+    key "name";
+    leaf name {
+      type string;
+    }
+    leaf weight {
+      type uint16;
+    }
+  }
+}
