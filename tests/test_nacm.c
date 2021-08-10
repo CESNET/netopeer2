@@ -46,6 +46,7 @@ local_setup(void **state)
     const char *module1 = NP_TEST_MODULE_DIR "/edit1.yang";
     const char *module2 = NP_TEST_MODULE_DIR "/example2.yang";
     const char *module3 = NP_TEST_MODULE_DIR "/nacm-test1.yang";
+    const char *module4 = NP_TEST_MODULE_DIR "/nacm-test2.yang";
     int rv;
 
     /* setup environment necessary for installing module */
@@ -57,6 +58,7 @@ local_setup(void **state)
     assert_int_equal(sr_install_module(conn, module1, NULL, features), SR_ERR_OK);
     assert_int_equal(sr_install_module(conn, module2, NULL, features), SR_ERR_OK);
     assert_int_equal(sr_install_module(conn, module3, NULL, features), SR_ERR_OK);
+    assert_int_equal(sr_install_module(conn, module4, NULL, features), SR_ERR_OK);
     assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
 
     /* setup netopeer2 server */
@@ -90,24 +92,11 @@ local_teardown(void **state)
     assert_int_equal(sr_remove_module(conn, "edit1"), SR_ERR_OK);
     assert_int_equal(sr_remove_module(conn, "example2"), SR_ERR_OK);
     assert_int_equal(sr_remove_module(conn, "nacm-test1"), SR_ERR_OK);
+    assert_int_equal(sr_remove_module(conn, "nacm-test2"), SR_ERR_OK);
     assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
 
     /* close netopeer2 server */
     return np_glob_teardown(state);
-}
-
-static int
-setup_test_read_default(void **state)
-{
-    struct np_test *st = *state;
-    const char *data =
-            "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
-            "  <read-default>deny</read-default>\n"
-            "</nacm>\n";
-
-    SR_EDIT(st, data);
-    FREE_TEST_VARS(st);
-    return 0;
 }
 
 static int
@@ -121,6 +110,12 @@ teardown_common(void **state)
             "xc:operation=\"remove\"></top>\n"
             "<top xmlns=\"urn:nt1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
             "xc:operation=\"remove\"></top>\n"
+            "<people xmlns=\"urn:nt2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
+            "xc:operation=\"remove\"><name>John</name></people>\n"
+            "<people xmlns=\"urn:nt2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
+            "xc:operation=\"remove\"><name>Thomas</name></people>\n"
+            "<people xmlns=\"urn:nt2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
+            "xc:operation=\"remove\"><name>Arnold</name></people>\n"
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\" "
             "xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <read-default xc:operation=\"remove\">deny</read-default>\n"
@@ -139,6 +134,67 @@ teardown_common(void **state)
             "xc:operation=\"remove\"></top>\n";
     /* Remove from candidate as well */
     SR_EDIT_SESSION(st, st->sr_sess2, data);
+    FREE_TEST_VARS(st);
+    return 0;
+}
+
+static int
+setup_test_exec_get(void **state)
+{
+    struct np_test *st = *state;
+    const char *data =
+            "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
+            "  <write-default>permit</write-default>\n"
+            "  <rule-list>\n"
+            "     <name>rule1</name>\n"
+            "     <group>test-group</group>\n"
+            "     <rule>\n"
+            "       <name>disallow-get</name>\n"
+            "       <module-name>ietf-netconf</module-name>\n"
+            "       <rpc-name>get</rpc-name>\n"
+            "       <access-operations>exec</access-operations>\n"
+            "       <action>deny</action>\n"
+            "     </rule>\n"
+            "     <rule>\n"
+            "       <name>disallow-get-config</name>\n"
+            "       <module-name>ietf-netconf</module-name>\n"
+            "       <rpc-name>get-config</rpc-name>\n"
+            "       <access-operations>exec</access-operations>\n"
+            "       <action>deny</action>\n"
+            "     </rule>\n"
+            "   </rule-list>\n"
+            "</nacm>\n";
+
+    SR_EDIT(st, data);
+    FREE_TEST_VARS(st);
+    return 0;
+}
+
+static void
+test_exec_get(void **state)
+{
+    struct np_test *st = *state;
+
+    /* get and get-config bypass execution permissions */
+    GET_FILTER(st, NULL);
+    assert_non_null(st->str);
+    FREE_TEST_VARS(st);
+
+    GET_CONFIG(st);
+    assert_non_null(st->str);
+    FREE_TEST_VARS(st);
+}
+
+static int
+setup_test_read_default(void **state)
+{
+    struct np_test *st = *state;
+    const char *data =
+            "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
+            "  <read-default>deny</read-default>\n"
+            "</nacm>\n";
+
+    SR_EDIT(st, data);
     FREE_TEST_VARS(st);
     return 0;
 }
@@ -254,6 +310,170 @@ test_get_config_filter(void **state)
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data/>\n"
             "</get-config>\n";
+    assert_string_equal(st->str, expected);
+    FREE_TEST_VARS(st);
+}
+
+static int
+setup_test_xpath_filter_denied(void **state)
+{
+    struct np_test *st = *state;
+    const char *data =
+            "<people xmlns=\"urn:nt2\">\n"
+            "  <name>John</name>\n"
+            "  <weight>75</weight>\n"
+            "</people>\n"
+            "<people xmlns=\"urn:nt2\">\n"
+            "  <name>Thomas</name>\n"
+            "  <weight>100</weight>\n"
+            "</people>\n"
+            "<people xmlns=\"urn:nt2\">\n"
+            "  <name>Arnold</name>\n"
+            "  <weight>110</weight>\n"
+            "</people>\n"
+            "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
+            "  <rule-list>\n"
+            "    <name>rule1</name>\n"
+            "    <group>test-group</group>\n"
+            "    <rule>\n"
+            "      <name>disallow-num</name>\n"
+            "      <module-name>nacm-test2</module-name>\n"
+            "      <path xmlns:nt2=\"urn:nt2\">/nt2:people/nt2:weight</path>\n"
+            "      <access-operations>read</access-operations>\n"
+            "      <action>deny</action>\n"
+            "    </rule>\n"
+            "  </rule-list>\n"
+            "</nacm>\n";
+
+    SR_EDIT(st, data);
+    FREE_TEST_VARS(st);
+    return 0;
+}
+
+static void
+test_xpath_filter_denied(void **state)
+{
+    /* Issue #846 */
+    struct np_test *st = *state;
+    const char *expected, *filter = "/people[weight>100]";
+
+    GET_CONFIG_FILTER(st, filter);
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <people xmlns=\"urn:nt2\">\n"
+            "      <name>Arnold</name>\n"
+            "    </people>\n"
+            "  </data>\n"
+            "</get-config>\n";
+    assert_string_equal(st->str, expected);
+    FREE_TEST_VARS(st);
+}
+
+static int
+setup_test_filter_key_list(void **state)
+{
+    struct np_test *st = *state;
+    const char *data =
+            "<people xmlns=\"urn:nt2\">\n"
+            "  <name>John</name>\n"
+            "  <weight>75</weight>\n"
+            "</people>\n"
+            "<people xmlns=\"urn:nt2\">\n"
+            "  <name>Thomas</name>\n"
+            "  <weight>100</weight>\n"
+            "</people>\n"
+            "<people xmlns=\"urn:nt2\">\n"
+            "  <name>Arnold</name>\n"
+            "  <weight>110</weight>\n"
+            "</people>\n"
+            "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
+            "  <rule-list>\n"
+            "    <name>rule1</name>\n"
+            "    <group>test-group</group>\n"
+            "    <rule>\n"
+            "      <name>disallow-num-arnold</name>\n"
+            "      <module-name>nacm-test2</module-name>\n"
+            "      <path xmlns:nt2=\"urn:nt2\">/nt2:people[nt2:name='Arnold']/nt2:weight</path>\n"
+            "      <access-operations>read</access-operations>\n"
+            "      <action>deny</action>\n"
+            "    </rule>\n"
+            "  </rule-list>\n"
+            "</nacm>\n";
+
+    SR_EDIT(st, data);
+    FREE_TEST_VARS(st);
+    return 0;
+}
+
+static void
+test_filter_key_list(void **state)
+{
+    /* Issue #755 */
+    struct np_test *st = *state;
+    const char *expected;
+
+    GET_CONFIG(st);
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <people xmlns=\"urn:nt2\">\n"
+            "      <name>John</name>\n"
+            "      <weight>75</weight>\n"
+            "    </people>\n"
+            "    <people xmlns=\"urn:nt2\">\n"
+            "      <name>Thomas</name>\n"
+            "      <weight>100</weight>\n"
+            "    </people>\n"
+            "    <people xmlns=\"urn:nt2\">\n"
+            "      <name>Arnold</name>\n"
+            "    </people>\n"
+            "  </data>\n"
+            "</get-config>\n";
+    assert_string_equal(st->str, expected);
+    FREE_TEST_VARS(st);
+}
+
+static int
+setup_test_rule_wildcard_groups(void **state)
+{
+    struct np_test *st = *state;
+    const char *data =
+            "<first xmlns=\"ed1\">TestFirst</first>\n"
+            "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
+            "  <read-default>deny</read-default>\n"
+            "  <rule-list>\n"
+            "    <name>rule1</name>\n"
+            "    <group>*</group>\n"
+            "    <rule>\n"
+            "      <name>allow-first</name>\n"
+            "      <module-name>edit1</module-name>\n"
+            "      <path xmlns:ed1=\"ed1\">/ed1:first</path>\n"
+            "      <access-operations>read</access-operations>\n"
+            "      <action>permit</action>\n"
+            "    </rule>\n"
+            "  </rule-list>\n"
+            "</nacm>\n";
+
+    SR_EDIT(st, data);
+    FREE_TEST_VARS(st);
+    return 0;
+}
+
+static void
+test_rule_wildcard_groups(void **state)
+{
+    /* Issue #619 */
+    struct np_test *st = *state;
+    const char *expected =
+            "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <first xmlns=\"ed1\">TestFirst</first>\n"
+            "  </data>\n"
+            "</get>\n";
+
+    /* Since there is an expeption for the <first> element using wildcard for groups it should be returned */
+    GET_FILTER(st, NULL);
     assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
 }
@@ -891,6 +1111,9 @@ main(int argc, char **argv)
         /* not sysrepo super user skip write tests */
         puts("Not running as sysrepo super-user. Skipping tests that depend on it.");
         const struct CMUnitTest tests[] = {
+            cmocka_unit_test_setup_teardown(test_exec_get,
+                    setup_test_exec_get,
+                    teardown_common),
             cmocka_unit_test_setup_teardown(test_read_default,
                     setup_test_read_default,
                     teardown_common),
@@ -902,12 +1125,24 @@ main(int argc, char **argv)
                     teardown_common),
             cmocka_unit_test_setup_teardown(test_get_config_filter,
                     setup_test_get_config,
+                    teardown_common),
+            cmocka_unit_test_setup_teardown(test_xpath_filter_denied,
+                    setup_test_xpath_filter_denied,
+                    teardown_common),
+            cmocka_unit_test_setup_teardown(test_filter_key_list,
+                    setup_test_filter_key_list,
+                    teardown_common),
+            cmocka_unit_test_setup_teardown(test_rule_wildcard_groups,
+                    setup_test_rule_wildcard_groups,
                     teardown_common),
         };
         return cmocka_run_group_tests(tests, local_setup, local_teardown);
     } else {
         /* sysrepo super run with write tests */
         const struct CMUnitTest tests[] = {
+            cmocka_unit_test_setup_teardown(test_exec_get,
+                    setup_test_exec_get,
+                    teardown_common),
             cmocka_unit_test_setup_teardown(test_read_default,
                     setup_test_read_default,
                     teardown_common),
@@ -919,6 +1154,15 @@ main(int argc, char **argv)
                     teardown_common),
             cmocka_unit_test_setup_teardown(test_get_config_filter,
                     setup_test_get_config,
+                    teardown_common),
+            cmocka_unit_test_setup_teardown(test_xpath_filter_denied,
+                    setup_test_xpath_filter_denied,
+                    teardown_common),
+            cmocka_unit_test_setup_teardown(test_filter_key_list,
+                    setup_test_filter_key_list,
+                    teardown_common),
+            cmocka_unit_test_setup_teardown(test_rule_wildcard_groups,
+                    setup_test_rule_wildcard_groups,
                     teardown_common),
             cmocka_unit_test_setup_teardown(test_edit_config,
                     setup_edit_config,
