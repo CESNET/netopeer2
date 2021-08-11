@@ -396,7 +396,6 @@ test_stop_time(void **state)
 
     /* To subscribe to replay of notifications until time was called, should not include any called after */
     assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
-    ts.tv_nsec += 100000000; /* + 0.1s */
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
     SEND_RPC_ESTABSUB(st, NULL, "notif1", start_time, stop_time);
     free(start_time);
@@ -442,48 +441,6 @@ test_stop_time(void **state)
     FREE_TEST_VARS(st);
 
     /* No other notification should arrive */
-    ASSERT_NO_NOTIF(st);
-    FREE_TEST_VARS(st);
-}
-
-static void
-test_stop_time_sub_end(void **state)
-{
-    struct np_test *st = *state;
-    const char *data, *template;
-    char *ntf;
-    struct timespec ts;
-    char *stop_time;
-
-    /* Stop time is now + 0.1, should end almost right away */
-    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
-    ts.tv_nsec += 100000000;
-    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
-    SEND_RPC_ESTABSUB(st, NULL, "notif1", NULL, stop_time);
-    free(stop_time);
-    ASSERT_OK_SUB_NTF(st);
-    FREE_TEST_VARS(st);
-
-    /* Check for subscription-terminated notification */
-    RECV_NOTIF(st);
-    template =
-            "<subscription-terminated xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "  <id>%d</id>\n"
-            "  <reason xmlns:sn=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">sn:no-such-subscription</reason>\n"
-            "</subscription-terminated>\n";
-    assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
-    free(ntf);
-    FREE_TEST_VARS(st);
-
-    /* Try sending a notfication, should not arrive since it is after end of subscription */
-    data =
-            "<n1 xmlns=\"n1\">\n"
-            "  <first>Second</first>\n"
-            "</n1>\n";
-
-    NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     ASSERT_NO_NOTIF(st);
     FREE_TEST_VARS(st);
 }
@@ -566,7 +523,6 @@ main(int argc, char **argv)
         cmocka_unit_test_teardown(test_replay_sub, teardown_common),
         cmocka_unit_test_teardown(test_replay_real_time, teardown_common),
         cmocka_unit_test_teardown(test_stop_time, teardown_common),
-        cmocka_unit_test_teardown(test_stop_time_sub_end, teardown_common),
         cmocka_unit_test_teardown(test_history_only, teardown_common),
         cmocka_unit_test_teardown(test_stream_no_pass, teardown_common),
     };

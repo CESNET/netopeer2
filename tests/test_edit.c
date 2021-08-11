@@ -48,11 +48,11 @@ local_setup(void **state)
     const char *module6 = NP_TEST_MODULE_DIR "/example2.yang";
     int rv;
 
-    /* setup environment necessary for installing module */
+    /* Setup environment necessary for installing module */
     NP_GLOB_SETUP_ENV_FUNC;
     assert_int_equal(setenv_rv, 0);
 
-    /* connect to server and install test modules */
+    /* Connect to server and install test modules */
     assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
     assert_int_equal(sr_install_module(conn, module1, NULL, NULL), SR_ERR_OK);
     assert_int_equal(sr_install_module(conn, module2, NULL, NULL), SR_ERR_OK);
@@ -62,7 +62,7 @@ local_setup(void **state)
     assert_int_equal(sr_install_module(conn, module6, NULL, NULL), SR_ERR_OK);
     assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
 
-    /* setup netopeer2 server */
+    /* Setup netopeer2 server */
     if (!(rv = np_glob_setup_np2(state))) {
         st = *state;
         /* Open the connection to start a session for the tests */
@@ -84,7 +84,7 @@ local_teardown(void **state)
     assert_int_equal(sr_session_stop(st->sr_sess), SR_ERR_OK);
     assert_int_equal(sr_disconnect(st->conn), SR_ERR_OK);
 
-    /* connect to server and remove test modules */
+    /* Connect to server and remove test modules */
     assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
     assert_int_equal(sr_remove_module(conn, "edit1"), SR_ERR_OK);
     assert_int_equal(sr_remove_module(conn, "edit2"), SR_ERR_OK);
@@ -94,384 +94,457 @@ local_teardown(void **state)
     assert_int_equal(sr_remove_module(conn, "example2"), SR_ERR_OK);
     assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
 
-    /* close netopeer2 server */
+    /* Close netopeer2 server */
     return np_glob_teardown(state);
 }
 
-static void
-test_merge(void **state)
+static int
+teardown_common(void **state)
 {
     struct np_test *st = *state;
     const char *data;
 
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
-    /* Send rpc editing module edit1 */
+    data =
+            "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>\n"
+            "<top xmlns=\"ed2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>\n"
+            "<top xmlns=\"ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>\n"
+            "<top xmlns=\"ex1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>\n"
+            "<top xmlns=\"ex2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"/>\n"
+            "<top xmlns=\"ed4\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"/>\n";
     SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed*/
     ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+    return 0;
+}
 
+static void
+test_merge_edit1(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* Send RPC editing module edit1 */
+    data = "<first xmlns=\"ed1\">TestFirst</first>\n";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
     /* Check if added to config */
     GET_CONFIG(st);
     assert_non_null(strstr(st->str, "TestFirst"));
-    FREE_TEST_VARS(st);
-
-    data =
-            "<top xmlns=\"ed2\">"
-            "  <name>TestSecond</name>"
-            "  <num>123</num>"
-            "</top>";
-
-    /* Send rpc editing module edit2 */
-    SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed */
-    ASSERT_OK_REPLY(st);
-
-    FREE_TEST_VARS(st);
-
-    /* Check if added to config */
-    GET_CONFIG(st);
-    assert_non_null(strstr(st->str, "TestSecond"));
-    FREE_TEST_VARS(st);
-
-    data =
-            "<top xmlns=\"ed2\">"
-            "  <name>TestSecond</name>"
-            "  <num>ClearlyNotANumericValue</num>"
-            "</top>";
-
-    /* Send invalid rpc editing module edit2 */
-    SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should fail */
-    ASSERT_RPC_ERROR(st);
-
     FREE_TEST_VARS(st);
 }
 
 static void
-test_delete(void **state)
+test_merge_edit2(void **state)
 {
     struct np_test *st = *state;
     const char *data;
 
-    data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"></first>";
+    /* Send RPC editing module edit2 */
+    data =
+            "<top xmlns=\"ed2\">\n"
+            "  <name>TestSecond</name>\n"
+            "  <num>123</num>\n"
+            "</top>\n";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
 
-    /* Check if the config for both is present */
+    /* Check if added to config */
     GET_CONFIG(st);
-    assert_non_null(strstr(st->str, "TestFirst"));
     assert_non_null(strstr(st->str, "TestSecond"));
     FREE_TEST_VARS(st);
+}
+
+static void
+test_merge_edit2_fail(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* Send invalid RPC editing module edit2 */
+    data =
+            "<top xmlns=\"ed2\">\n"
+            "  <name>TestSecond</name>\n"
+            "  <num>ClearlyNotANumericValue</num>\n"
+            "</top>\n";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    FREE_TEST_VARS(st);
+}
+
+static int
+setup_test_delete_edit1(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    data = "<first xmlns=\"ed1\">TestFirst</first>\n";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+    return 0;
+}
+
+static void
+test_delete_edit1(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
 
     /* Send rpc deleting config in module edit1 */
+    data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"/>\n";
     SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should suceed */
     ASSERT_OK_REPLY(st);
-
-    FREE_TEST_VARS(st);
-
-    /* Check if the config was deleted */
-    GET_CONFIG(st);
-    assert_null(strstr(st->str, "TestFirst"));
-    FREE_TEST_VARS(st);
-
-    data = "<top xmlns=\"ed2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"></top>";
-
-    /* Send rpc deleting config in module edit2 */
-    SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed */
-    ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
 
     /* Check if the config was deleted */
     ASSERT_EMPTY_CONFIG(st);
-
-    data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"></first>";
-
-    /* Try deleting a non-existent config */
-    SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should fail */
-    ASSERT_RPC_ERROR(st);
-
-    FREE_TEST_VARS(st);
 }
 
-static void
-test_merge_advanced(void **state)
+static int
+setup_test_delete_edit2(void **state)
 {
     struct np_test *st = *state;
     const char *data;
 
-    /* Check if config empty */
-    ASSERT_EMPTY_CONFIG(st);
-
+    /* Send RPC editing module edit2 */
     data =
-            "<top xmlns=\"ed2\">"
-            "  <name>TestSecond</name>"
-            "</top>";
+            "<top xmlns=\"ed2\">\n"
+            "  <name>TestSecond</name>\n"
+            "  <num>123</num>\n"
+            "</top>\n";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+    return 0;
+}
+
+static void
+test_delete_edit2(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* Send rpc deleting config in module edit2 */
+    data = "<top xmlns=\"ed2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"/>\n";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* Check if the config was deleted */
+    ASSERT_EMPTY_CONFIG(st);
+}
+
+static void
+test_delete_empty(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* Try deleting a non-existent config, should fail */
+    data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"/>\n";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    FREE_TEST_VARS(st);
+}
+
+static void
+test_merge_patrial(void **state)
+{
+    struct np_test *st = *state;
+    const char *expected, *data =
+            "<top xmlns=\"ed2\">\n"
+            "  <name>TestSecond</name>\n"
+            "</top>\n";
 
     /* Merge a partial config */
     SEND_EDIT_RPC(st, data);
-
-    /* Recieve a reply, should succeed */
     ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
 
-    /* Check if merged*/
+    /* Check if merged successfully */
     GET_CONFIG(st);
-    assert_non_null(strstr(st->str, "TestSecond"));
-    assert_null(strstr(st->str, "123"));
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <top xmlns=\"ed2\">\n"
+            "      <name>TestSecond</name>\n"
+            "    </top>\n"
+            "  </data>\n"
+            "</get-config>\n";
+    assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
+}
 
-    data =
-            "<top xmlns=\"ed2\">"
-            "  <name>TestSecond</name>"
-            "  <num>123</num>"
-            "</top>";
+static int
+setup_test_merge_into_existing(void **state)
+{
+    struct np_test *st = *state;
+    const char *data =
+            "<top xmlns=\"ed2\">\n"
+            "  <name>TestSecond</name>\n"
+            "</top>\n";
 
-    /* Merge a full config */
     SEND_EDIT_RPC(st, data);
-
-    /* Recieve a reply, should succeed */
     ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+    return 0;
+}
 
+static void
+test_merge_into_existing(void **state)
+{
+    struct np_test *st = *state;
+    const char *expected, *data =
+            "<top xmlns=\"ed2\">\n"
+            "  <num>123</num>\n"
+            "</top>\n";
+
+    SEND_EDIT_RPC(st, data);
+    ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
-    /* Check if merged */
+    /* Check if correctly merged */
     GET_CONFIG(st);
-    assert_non_null(strstr(st->str, "TestSecond"));
-    assert_non_null(strstr(st->str, "123"));
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <top xmlns=\"ed2\">\n"
+            "      <name>TestSecond</name>\n"
+            "      <num>123</num>\n"
+            "    </top>\n"
+            "  </data>\n"
+            "</get-config>\n";
+    assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
+}
 
-    data = "<top xmlns=\"ed2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"></top>";
+static int
+setup_test_merge_overwrite(void **state)
+{
+    struct np_test *st = *state;
+    const char *data =
+            "<top xmlns=\"ed2\">\n"
+            "  <name>TestSecond</name>\n"
+            "  <num>123</num>\n"
+            "</top>\n";
 
-    /* Empty the config */
     SEND_EDIT_RPC(st, data);
-
-    /* Recieve a reply, should succeed */
     ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
+    return 0;
+}
 
-    /* Check if config empty */
-    ASSERT_EMPTY_CONFIG(st);
+static void
+test_merge_overwrite(void **state)
+{
+    struct np_test *st = *state;
+    const char *expected, *data =
+            "<top xmlns=\"ed2\">\n"
+            "  <num>456</num>\n"
+            "</top>\n";
 
-    data =
-            "<top xmlns=\"ed3\">"
-            "  <name>TestThird</name>"
-            "  <num>123</num>"
-            "</top>";
-
-    /* Send rpc to merge into edit3 config */
     SEND_EDIT_RPC(st, data);
-
-    /* Recieve a reply, should succeed */
     ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
 
-    /* Check if merged */
+    /* Check if config was correctly overwritten */
     GET_CONFIG(st);
-    assert_non_null(strstr(st->str, "TestThird"));
-    assert_non_null(strstr(st->str, "123"));
-    assert_null(strstr(st->str, "456"));
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <top xmlns=\"ed2\">\n"
+            "      <name>TestSecond</name>\n"
+            "      <num>456</num>\n"
+            "    </top>\n"
+            "  </data>\n"
+            "</get-config>\n";
+    assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
+}
 
-    data =
-            "<top xmlns=\"ed3\">"
-            "  <name>TestThird</name>"
-            "  <num>456</num>"
-            "</top>";
+static int
+setup_test_replace(void **state)
+{
+    struct np_test *st = *state;
+    const char *data =
+            "<top xmlns=\"ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"replace\">\n"
+            "  <name>TestThird</name>\n"
+            "  <num>123</num>\n"
+            "</top>\n";
 
-    /* Send rpc to merge alternate edit3 config */
     SEND_EDIT_RPC(st, data);
-
-    /* Recieve a reply, should succeed */
     ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
-
-    /* Check if merged, should now contain both since merging a leaf-list */
-    GET_CONFIG(st);
-    assert_non_null(strstr(st->str, "TestThird"));
-    assert_non_null(strstr(st->str, "123"));
-    assert_non_null(strstr(st->str, "456"));
-    FREE_TEST_VARS(st);
-
-    data = "<top xmlns=\"ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"></top>";
-
-    /* Empty the config */
-    SEND_EDIT_RPC(st, data);
-
-    /* Recieve a reply, should succeed */
-    ASSERT_OK_REPLY(st);
-
-    FREE_TEST_VARS(st);
-
-    /* Check if config empty */
-    ASSERT_EMPTY_CONFIG(st);
+    return 0;
 }
 
 static void
 test_replace(void **state)
 {
     struct np_test *st = *state;
-    const char *data;
+    const char *expected, *data =
+            "<top xmlns=\"ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"replace\">\n"
+            "  <name>TestThird</name>\n"
+            "  <num>456</num>\n"
+            "</top>\n";
 
-    data =
-            "<top xmlns=\"ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"replace\">"
-            "  <name>TestThird</name>"
-            "  <num>123</num>"
-            "</top>";
-
-    /* Send rpc to replace in an empty config, should create */
     SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed */
     ASSERT_OK_REPLY(st);
-
-    FREE_TEST_VARS(st);
-
-    /* Check if correct config */
-    GET_CONFIG(st);
-    assert_non_null(strstr(st->str, "TestThird"));
-    assert_non_null(strstr(st->str, "123"));
-    assert_null(strstr(st->str, "456"));
-    FREE_TEST_VARS(st);
-
-    data =
-            "<top xmlns=\"ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"replace\">"
-            "  <name>TestThird</name>"
-            "  <num>456</num>"
-            "</top>";
-
-    /* Send rpc to replace the original config */
-    SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed */
-    ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
 
     /* Check if replaced correctly */
     GET_CONFIG(st);
-    assert_non_null(strstr(st->str, "TestThird"));
-    assert_non_null(strstr(st->str, "456"));
-    assert_null(strstr(st->str, "123"));
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <top xmlns=\"ed3\">\n"
+            "      <name>TestThird</name>\n"
+            "      <num>456</num>\n"
+            "    </top>\n"
+            "  </data>\n"
+            "</get-config>\n";
+    assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
+}
 
-    data = "<top xmlns=\"ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"></top>";
+static void
+test_replace_create(void **state)
+{
+    struct np_test *st = *state;
+    const char *expected, *data =
+            "<top xmlns=\"ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"replace\">\n"
+            "  <name>TestThird</name>\n"
+            "  <num>456</num>\n"
+            "</top>\n";
 
-    /* Empty the config */
     SEND_EDIT_RPC(st, data);
-
-    /* Recieve a reply, should succeed */
     ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
 
-    /* Check if config empty */
-    ASSERT_EMPTY_CONFIG(st);
+    /* Check if created correctly */
+    GET_CONFIG(st);
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <top xmlns=\"ed3\">\n"
+            "      <name>TestThird</name>\n"
+            "      <num>456</num>\n"
+            "    </top>\n"
+            "  </data>\n"
+            "</get-config>\n";
+    assert_string_equal(st->str, expected);
+    FREE_TEST_VARS(st);
 }
 
 static void
 test_create(void **state)
 {
     struct np_test *st = *state;
-    const char *data;
-
-    data =
+    const char *expected, *data =
             "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"create\">"
-            "TestFirst"
-            "</first>";
+            "TestFourth"
+            "</first>\n";
 
-    /* Send rpc creating config in module edit1 */
     SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed */
     ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
 
     /* Check if config config now contains edit1 */
     GET_CONFIG(st);
-    assert_non_null(strstr(st->str, "TestFirst"));
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <first xmlns=\"ed1\">TestFourth</first>\n"
+            "  </data>\n"
+            "</get-config>\n";
+    assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
+}
 
-    /* Send rpc creating the same module */
+static int
+setup_test_create_fail(void **state)
+{
+    struct np_test *st = *state;
+    const char *data =
+            "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"create\">"
+            "TestFourth"
+            "</first>\n";
+
     SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should fail */
-    ASSERT_RPC_ERROR(st);
-
-    FREE_TEST_VARS(st);
-
-    data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"></first>";
-
-    /* remove to get an empty config */
-    SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed */
     ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
+    return 0;
+}
 
-    /* check if empty config */
-    ASSERT_EMPTY_CONFIG(st);
+static void
+test_create_fail(void **state)
+{
+    struct np_test *st = *state;
+    const char *data =
+            "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"create\">"
+            "TestFourth"
+            "</first>\n";
+
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    FREE_TEST_VARS(st);
+}
+
+static int
+setup_test_remove(void **state)
+{
+    struct np_test *st = *state;
+    const char *data = "<first xmlns=\"ed1\">TestFirst</first>\n";
+
+    SEND_EDIT_RPC(st, data);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+    return 0;
 }
 
 static void
 test_remove(void **state)
 {
     struct np_test *st = *state;
-    const char *data;
+    const char *data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"></first>\n";
 
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
-
-    /* Send rpc editing module edit1 */
     SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed*/
     ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
-
-    /* Check if config was merged */
-    GET_CONFIG(st);
-    assert_string_not_equal(st->str, EMPTY_GETCONFIG);
-    FREE_TEST_VARS(st);
-
-    data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"></first>";
-
-    /* Try removing the merged config */
-    SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed */
-    ASSERT_OK_REPLY(st);
-
-    FREE_TEST_VARS(st);
-
-    /* Check if config is now empty */
     ASSERT_EMPTY_CONFIG(st);
+}
 
-    /* Try removing the from empty config */
+static void
+test_remove_empty(void **state)
+{
+    struct np_test *st = *state;
+    const char *data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"></first>\n";
+
     SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed */
     ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
-
-    /* Check if config is still empty */
     ASSERT_EMPTY_CONFIG(st);
+}
+
+static int
+setup_test_ex1(void **state)
+{
+    struct np_test *st = *state;
+    const char *data =
+            "<top xmlns=\"ex1\">\n"
+            "  <interface>\n"
+            "    <name>Ethernet0/0</name>\n"
+            "    <mtu>1500</mtu>\n"
+            "  </interface>\n"
+            "</top>\n";
+
+    SEND_EDIT_RPC(st, data);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+    return 0;
 }
 
 static void
@@ -479,71 +552,71 @@ test_ex1(void **state)
 {
     /* First example for edit-config from rfc 6241 section 7.2 */
     struct np_test *st = *state;
-    const char *data;
+    const char *expected, *data;
 
     data =
-            "<top xmlns=\"ex1\">"
-            "  <interface>"
-            "    <name>Ethernet0/0</name>"
-            "    <mtu>1500</mtu>"
-            "  </interface>"
-            "</top>";
+            "<top xmlns=\"ex1\">\n"
+            "  <interface operation=\"replace\"\n>\n"
+            "    <name>Ethernet0/0</name>\n"
+            "    <mtu>1500</mtu>\n"
+            "    <address>\n"
+            "      <name>192.0.2.4</name>\n"
+            "      <prefix-length>24</prefix-length>\n"
+            "    </address>\n"
+            "  </interface>\n"
+            "</top>\n";
 
-    /* Send rpc editing module ex1 */
     SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed */
     ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
 
-    /* Check if there is no address element */
     GET_CONFIG(st);
-    assert_null(strstr(st->str, "address"));
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <top xmlns=\"ex1\">\n"
+            "      <interface>\n"
+            "        <name>Ethernet0/0</name>\n"
+            "        <mtu>1500</mtu>\n"
+            "        <address>\n"
+            "          <name>192.0.2.4</name>\n"
+            "          <prefix-length>24</prefix-length>\n"
+            "        </address>\n"
+            "      </interface>\n"
+            "    </top>\n"
+            "  </data>\n"
+            "</get-config>\n";
+    assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
+}
 
-    data =
-            "<top xmlns=\"ex1\">"
-            "  <interface operation=\"replace\">"
-            "    <name>Ethernet0/0</name>"
-            "    <mtu>1500</mtu>"
-            "    <address>"
-            "      <name>192.0.2.4</name>"
-            "      <prefix-length>24</prefix-length>"
-            "    </address>"
-            "  </interface>"
-            "</top>";
+static int
+setup_test_ex2(void **state)
+{
+    struct np_test *st = *state;
+    const char *data =
+            "<top xmlns=\"ex2\">\n"
+            "  <protocols>\n"
+            "    <ospf>\n"
+            "      <area>\n"
+            "        <name>0.0.0.0</name>\n"
+            "        <interfaces>\n"
+            "          <interface>\n"
+            "            <name>192.0.2.1</name>\n"
+            "          </interface>\n"
+            "          <interface>\n"
+            "            <name>192.0.2.4</name>\n"
+            "          </interface>\n"
+            "        </interfaces>\n"
+            "      </area>\n"
+            "    </ospf>\n"
+            "  </protocols>\n"
+            "</top>\n";
 
-    /* Send rpc replacing module ex1 */
     SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed*/
     ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
-
-    /* Check if the address element is now present */
-    GET_CONFIG(st);
-    assert_non_null(strstr(st->str, "address"));
-    FREE_TEST_VARS(st);
-
-    data =
-            "<top xmlns=\"ex1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
-            "  <interface xc:operation=\"delete\">"
-            "    <name>Ethernet0/0</name>"
-            "  </interface>"
-            "</top>";
-
-    /* Send rpc deleting config in module ex1 */
-    SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed*/
-    ASSERT_OK_REPLY(st);
-
-    FREE_TEST_VARS(st);
-
-    /* Check if empty config */
-    ASSERT_EMPTY_CONFIG(st);
+    return 0;
 }
 
 static void
@@ -551,101 +624,48 @@ test_ex2(void **state)
 {
     /* Second example for edit-config from rfc 6241 section 7.2 */
     struct np_test *st = *state;
-    const char *data;
+    const char *expected, *data =
+            "<top xmlns=\"ex2\">\n"
+            "  <protocols>\n"
+            "    <ospf>\n"
+            "      <area>\n"
+            "        <name>0.0.0.0</name>\n"
+            "        <interfaces xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "          <interface xc:operation=\"delete\">\n"
+            "            <name>192.0.2.4</name>\n"
+            "          </interface>\n"
+            "        </interfaces>\n"
+            "      </area>\n"
+            "    </ospf>\n"
+            "  </protocols>\n"
+            "</top>\n";
 
-    /* Need to have some running config first */
-
-    data =
-            "<top xmlns=\"ex2\">"
-            "  <protocols>"
-            "    <ospf>"
-            "      <area>"
-            "        <name>0.0.0.0</name>"
-            "        <interfaces>"
-            "          <interface>"
-            "            <name>192.0.2.4</name>"
-            "          </interface>"
-            "        </interfaces>"
-            "      </area>"
-            "    </ospf>"
-            "  </protocols>"
-            "</top>";
-
-    /* Send rpc editing module ex2 */
     SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed*/
     ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
 
-    data =
-            "<top xmlns=\"ex2\">"
-            "  <protocols>"
-            "    <ospf>"
-            "      <area>"
-            "        <name>0.0.0.0</name>"
-            "        <interfaces>"
-            "          <interface>"
-            "            <name>192.0.2.1</name>"
-            "          </interface>"
-            "        </interfaces>"
-            "      </area>"
-            "    </ospf>"
-            "  </protocols>"
-            "</top>";
-
-    /* Send another rpc editing module ex2 */
-    SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed */
-    ASSERT_OK_REPLY(st);
-
-    FREE_TEST_VARS(st);
-
-    data =
-            "<top xmlns=\"ex2\">"
-            "  <protocols>"
-            "    <ospf>"
-            "      <area>"
-            "        <name>0.0.0.0</name>"
-            "        <interfaces"
-            "         xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
-            "          <interface xc:operation=\"delete\">"
-            "            <name>192.0.2.4</name>"
-            "          </interface>"
-            "        </interfaces>"
-            "      </area>"
-            "    </ospf>"
-            "  </protocols>"
-            "</top>";
-
-    /* Send rpc deleting part of the data from module ex2 */
-    SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed */
-    ASSERT_OK_REPLY(st);
-
-    FREE_TEST_VARS(st);
-
-    /* Check if the config was patrialy deleted */
     GET_CONFIG(st);
-    assert_null(strstr(st->str, "192.0.2.4"));
-    assert_non_null(strstr(st->str, "192.0.2.1"));
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <top xmlns=\"ex2\">\n"
+            "      <protocols>\n"
+            "        <ospf>\n"
+            "          <area>\n"
+            "            <name>0.0.0.0</name>\n"
+            "            <interfaces>\n"
+            "              <interface>\n"
+            "                <name>192.0.2.1</name>\n"
+            "              </interface>\n"
+            "            </interfaces>\n"
+            "          </area>\n"
+            "        </ospf>\n"
+            "      </protocols>\n"
+            "    </top>\n"
+            "  </data>\n"
+            "</get-config>\n";
+    assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
-
-    data = "<top xmlns=\"ex2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"></top>";
-
-    /* Send rpc deleting part of the data from module ex2 */
-    SEND_EDIT_RPC(st, data);
-
-    /* Receive a reply, should succeed */
-    ASSERT_OK_REPLY(st);
-
-    FREE_TEST_VARS(st);
-
-    /* Check if empty config */
-    ASSERT_EMPTY_CONFIG(st);
 }
 
 static void
@@ -656,10 +676,10 @@ test_autodel_case(void **state)
 
     /* create case #1 */
     data =
-            "<top xmlns=\"ed4\">"
-            "  <l1>value</l1>"
-            "  <l2/>"
-            "</top>";
+            "<top xmlns=\"ed4\">\n"
+            "  <l1>value</l1>\n"
+            "  <l2/>\n"
+            "</top>\n";
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
@@ -672,9 +692,9 @@ test_autodel_case(void **state)
 
     /* create case #2 */
     data =
-            "<top xmlns=\"ed4\">"
-            "  <c2>58</c2>"
-            "</top>";
+            "<top xmlns=\"ed4\">\n"
+            "  <c2>58</c2>\n"
+            "</top>\n";
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
@@ -688,11 +708,11 @@ test_autodel_case(void **state)
 
     /* create case #3 */
     data =
-            "<top xmlns=\"ed4\">"
-            "  <cont>"
-            "    <l3>-256</l3>"
-            "  </cont>"
-            "</top>";
+            "<top xmlns=\"ed4\">\n"
+            "  <cont>\n"
+            "    <l3>-256</l3>\n"
+            "  </cont>\n"
+            "</top>\n";
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
@@ -705,10 +725,10 @@ test_autodel_case(void **state)
 
     /* create case #4 */
     data =
-            "<top xmlns=\"ed4\">"
-            "  <l4>a</l4>"
-            "  <l5>b</l5>"
-            "</top>";
+            "<top xmlns=\"ed4\">\n"
+            "  <l4>a</l4>\n"
+            "  <l5>b</l5>\n"
+            "</top>\n";
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
@@ -725,15 +745,24 @@ int
 main(int argc, char **argv)
 {
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_merge),
-        cmocka_unit_test(test_delete),
-        cmocka_unit_test(test_merge_advanced),
-        cmocka_unit_test(test_replace),
-        cmocka_unit_test(test_create),
-        cmocka_unit_test(test_remove),
-        cmocka_unit_test(test_ex1),
-        cmocka_unit_test(test_ex2),
-        cmocka_unit_test(test_autodel_case),
+        cmocka_unit_test_teardown(test_merge_edit1, teardown_common),
+        cmocka_unit_test_teardown(test_merge_edit2, teardown_common),
+        cmocka_unit_test_teardown(test_merge_edit2_fail, teardown_common),
+        cmocka_unit_test_setup(test_delete_edit1, setup_test_delete_edit1),
+        cmocka_unit_test_setup(test_delete_edit2, setup_test_delete_edit2),
+        cmocka_unit_test(test_delete_empty),
+        cmocka_unit_test_teardown(test_merge_patrial, teardown_common),
+        cmocka_unit_test_setup_teardown(test_merge_into_existing, setup_test_merge_into_existing, teardown_common),
+        cmocka_unit_test_setup_teardown(test_merge_overwrite, setup_test_merge_overwrite, teardown_common),
+        cmocka_unit_test_setup_teardown(test_replace, setup_test_replace, teardown_common),
+        cmocka_unit_test_teardown(test_replace_create, teardown_common),
+        cmocka_unit_test_teardown(test_create, teardown_common),
+        cmocka_unit_test_setup_teardown(test_create_fail, setup_test_create_fail, teardown_common),
+        cmocka_unit_test_setup(test_remove, setup_test_remove),
+        cmocka_unit_test(test_remove_empty),
+        cmocka_unit_test_setup_teardown(test_ex1, setup_test_ex1, teardown_common),
+        cmocka_unit_test_setup_teardown(test_ex2, setup_test_ex2, teardown_common),
+        cmocka_unit_test_teardown(test_autodel_case, teardown_common),
     };
 
     nc_verbosity(NC_VERB_WARNING);

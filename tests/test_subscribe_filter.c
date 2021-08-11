@@ -61,18 +61,17 @@ reestablish_sub(void **state, const char *filter)
 {
     struct np_test *st = *state;
 
-    /* reestablish NETCONF connection */
+    /* Reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
     st->nc_sess = nc_connect_unix(NP_SOCKET_PATH, NULL);
     assert_non_null(st->nc_sess);
 
     /* Get a subscription to receive notifications */
     st->rpc = nc_rpc_subscribe(NULL, filter, NULL, NULL, NC_PARAMTYPE_CONST);
-
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
-    /* check reply */
+    /* Check reply */
     st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op);
     assert_int_equal(NC_MSG_REPLY, st->msgtype);
     assert_null(st->op);
@@ -91,19 +90,19 @@ local_setup(void **state)
     const char *module2 = NP_TEST_MODULE_DIR "/notif2.yang";
     int rv;
 
-    /* setup environment necessary for installing module */
+    /* Setup environment necessary for installing module */
     NP_GLOB_SETUP_ENV_FUNC;
     assert_int_equal(setenv_rv, 0);
 
-    /* connect to server and install test modules */
+    /* Connect to server and install test modules */
     assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
     assert_int_equal(sr_install_module(conn, module1, NULL, features), SR_ERR_OK);
     assert_int_equal(sr_install_module(conn, module2, NULL, features), SR_ERR_OK);
     assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
 
-    /* setup netopeer2 server */
+    /* Setup netopeer2 server */
     if (!(rv = np_glob_setup_np2(state))) {
-        /* state is allocated in np_glob_setup_np2 have to set here */
+        /* State is allocated in np_glob_setup_np2 have to set here */
         st = *state;
         /* Open connection to start a session for the tests */
         assert_int_equal(sr_connect(SR_CONN_DEFAULT, &st->conn), SR_ERR_OK);
@@ -124,13 +123,13 @@ local_teardown(void **state)
     assert_int_equal(sr_session_stop(st->sr_sess), SR_ERR_OK);
     assert_int_equal(sr_disconnect(st->conn), SR_ERR_OK);
 
-    /* connect to server and remove test modules */
+    /* Connect to server and remove test modules */
     assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
     assert_int_equal(sr_remove_module(conn, "notif1"), SR_ERR_OK);
     assert_int_equal(sr_remove_module(conn, "notif2"), SR_ERR_OK);
     assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
 
-    /* close netopeer2 server */
+    /* Close netopeer2 server */
     return np_glob_teardown(state);
 }
 
@@ -140,24 +139,18 @@ test_basic_notif(void **state)
     struct np_test *st = *state;
     const char *data;
 
+    /* Send the notification */
     reestablish_sub(state, NULL);
-
-    /* Parse notification into lyd_node */
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Receive the notification and test the contents */
     RECV_NOTIF(st);
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
 }
 
@@ -167,9 +160,8 @@ test_list_notif(void **state)
     struct np_test *st = *state;
     const char *data;
 
+    /* Send the notification */
     reestablish_sub(state, NULL);
-
-    /* Parse notification into lyd_node */
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -179,17 +171,12 @@ test_list_notif(void **state)
             "    </power-on>\n"
             "  </device>\n"
             "</devices>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Receive the notification and test the contents */
     RECV_NOTIF(st);
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
 }
 
@@ -197,34 +184,30 @@ static void
 test_subtree_filter_no_matching_node(void **state)
 {
     struct np_test *st = *state;
-    const char *filter;
-
-    filter =
+    const char *filter =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
             "    <name>Main</name>\n"
             "  </device>\n"
             "</devices>\n";
 
-    /* reestablish NETCONF connection */
+    /* Reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
     st->nc_sess = nc_connect_unix(NP_SOCKET_PATH, NULL);
     assert_non_null(st->nc_sess);
 
     /* Get a subscription to receive notifications */
     st->rpc = nc_rpc_subscribe(NULL, filter, NULL, NULL, NC_PARAMTYPE_CONST);
-
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
-    /* check reply */
+    /* Check reply */
     st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op);
     assert_int_equal(NC_MSG_REPLY, st->msgtype);
     assert_null(st->op);
 
     /* Should be an rpc-error since no notification can match the filter */
     assert_string_equal(LYD_NAME(lyd_child(st->envp)), "rpc-error");
-
     FREE_TEST_VARS(st);
 }
 
@@ -232,13 +215,10 @@ static void
 test_subtree_filter_notif_selection_node_no_pass(void **state)
 {
     struct np_test *st = *state;
-    const char *filter, *data;
+    const char *data;
 
-    filter = "<n1 xmlns=\"n1\"/>";
-
-    reestablish_sub(state, filter);
-
-    /* Parse notification into lyd_node */
+    /* Send the notification */
+    reestablish_sub(state, "<n1 xmlns=\"n1\"/>");
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -248,15 +228,11 @@ test_subtree_filter_notif_selection_node_no_pass(void **state)
             "    </power-on>\n"
             "  </device>\n"
             "</devices>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* No notification should pass due to the filter */
     ASSERT_NO_NOTIF(st);
-
     FREE_TEST_VARS(st);
 }
 
@@ -264,28 +240,20 @@ static void
 test_subtree_filter_notif_selection_node_pass(void **state)
 {
     struct np_test *st = *state;
-    const char *filter, *data;
+    const char *data;
 
-    filter = "<n1 xmlns=\"n1\"/>";
-
-    reestablish_sub(state, filter);
-
-    /* Parse notification into lyd_node */
+    /* Send the notification */
+    reestablish_sub(state, "<n1 xmlns=\"n1\"/>");
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Notification should pass the filter */
     RECV_NOTIF(st);
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
 }
 
@@ -293,9 +261,7 @@ static void
 test_subtree_filter_notif_content_match_node_no_pass(void **state)
 {
     struct np_test *st = *state;
-    const char *filter, *data;
-
-    filter =
+    const char *data, *filter =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
             "    <name>Main</name>\n"
@@ -303,9 +269,8 @@ test_subtree_filter_notif_content_match_node_no_pass(void **state)
             "  </device>\n"
             "</devices>\n";
 
+    /* Send the notification */
     reestablish_sub(state, filter);
-
-    /* Parse notification into lyd_node */
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -315,15 +280,11 @@ test_subtree_filter_notif_content_match_node_no_pass(void **state)
             "    </power-on>\n"
             "  </device>\n"
             "</devices>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* No notification should pass due to the filter */
     ASSERT_NO_NOTIF(st);
-
     FREE_TEST_VARS(st);
 }
 
@@ -331,9 +292,7 @@ static void
 test_subtree_filter_notif_content_match_node_pass(void **state)
 {
     struct np_test *st = *state;
-    const char *filter, *data;
-
-    filter =
+    const char *data, *filter =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
             "    <name>Main</name>\n"
@@ -341,9 +300,8 @@ test_subtree_filter_notif_content_match_node_pass(void **state)
             "  </device>\n"
             "</devices>\n";
 
+    /* Send the notification */
     reestablish_sub(state, filter);
-
-    /* Parse notification into lyd_node */
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -353,17 +311,12 @@ test_subtree_filter_notif_content_match_node_pass(void **state)
             "    </power-on>\n"
             "  </device>\n"
             "</devices>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Notification should pass the filter */
     RECV_NOTIF(st);
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
 }
 
@@ -371,29 +324,24 @@ static void
 test_xpath_filter_no_matching_node(void **state)
 {
     struct np_test *st = *state;
-    const char *filter;
 
-    filter = "/notif2:devices/device[name='Main']";
-
-    /* reestablish NETCONF connection */
+    /* Reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
     st->nc_sess = nc_connect_unix(NP_SOCKET_PATH, NULL);
     assert_non_null(st->nc_sess);
 
     /* Get a subscription to receive notifications */
-    st->rpc = nc_rpc_subscribe(NULL, filter, NULL, NULL, NC_PARAMTYPE_CONST);
-
+    st->rpc = nc_rpc_subscribe(NULL, "/notif2:devices/device[name='Main']", NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
-    /* check reply */
+    /* Check reply */
     st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op);
     assert_int_equal(NC_MSG_REPLY, st->msgtype);
     assert_null(st->op);
 
     /* Should be an rpc-error since no notification can match the filter */
     assert_string_equal(LYD_NAME(lyd_child(st->envp)), "rpc-error");
-
     FREE_TEST_VARS(st);
 }
 
@@ -401,13 +349,11 @@ static void
 test_xpath_filter_notif_selection_node_no_pass(void **state)
 {
     struct np_test *st = *state;
-    const char *filter, *data;
+    const char *data;
 
-    filter = "/notif1:n1/first";
+    reestablish_sub(state, "/notif1:n1/first");
 
-    reestablish_sub(state, filter);
-
-    /* Parse notification into lyd_node */
+    /* Send the notification */
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -417,15 +363,11 @@ test_xpath_filter_notif_selection_node_no_pass(void **state)
             "    </power-on>\n"
             "  </device>\n"
             "</devices>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* No notification should pass due to the filter */
     ASSERT_NO_NOTIF(st);
-
     FREE_TEST_VARS(st);
 }
 
@@ -433,28 +375,20 @@ static void
 test_xpath_filter_notif_selection_node_pass(void **state)
 {
     struct np_test *st = *state;
-    const char *filter, *data;
+    const char *data;
 
-    filter = "/notif1:n1/first";
-
-    reestablish_sub(state, filter);
-
-    /* Parse notification into lyd_node */
+    /* Send the notification */
+    reestablish_sub(state, "/notif1:n1/first");
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Notification should pass the filter */
     RECV_NOTIF(st);
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
 }
 
@@ -462,13 +396,10 @@ static void
 test_xpath_filter_notif_content_match_node_no_pass(void **state)
 {
     struct np_test *st = *state;
-    const char *filter, *data;
+    const char *data;
 
-    filter = "/notif2:devices/device[name='Main']/power-on";
-
-    reestablish_sub(state, filter);
-
-    /* Parse notification into lyd_node */
+    /* Send the notification */
+    reestablish_sub(state, "/notif2:devices/device[name='Main']/power-on");
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -478,15 +409,11 @@ test_xpath_filter_notif_content_match_node_no_pass(void **state)
             "    </power-on>\n"
             "  </device>\n"
             "</devices>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* No notification should pass due to the filter */
     ASSERT_NO_NOTIF(st);
-
     FREE_TEST_VARS(st);
 }
 
@@ -494,13 +421,10 @@ static void
 test_xpath_filter_notif_content_match_node_pass(void **state)
 {
     struct np_test *st = *state;
-    const char *filter, *data;
+    const char *data;
 
-    filter = "/notif2:devices/device[name='Main']/power-on";
-
-    reestablish_sub(state, filter);
-
-    /* Parse notification into lyd_node */
+    /* Send the notification */
+    reestablish_sub(state, "/notif2:devices/device[name='Main']/power-on");
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -510,17 +434,12 @@ test_xpath_filter_notif_content_match_node_pass(void **state)
             "    </power-on>\n"
             "  </device>\n"
             "</devices>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Notification should pass the filter */
     RECV_NOTIF(st);
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
 }
 
@@ -528,13 +447,11 @@ static void
 test_xpath_boolean_no_pass(void **state)
 {
     struct np_test *st = *state;
-    char *filter, *data;
+    char *data, *filter =
+            "/notif2:devices/device[name='Secondary']/power-on and /notif2:devices/device/power-on[boot-time=12]";
 
-    filter = "/notif2:devices/device[name='Secondary']/power-on and /notif2:devices/device/power-on[boot-time=12]";
-
+    /* Send the notification */
     reestablish_sub(state, filter);
-
-    /* Parse notification into lyd_node */
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -544,15 +461,11 @@ test_xpath_boolean_no_pass(void **state)
             "    </power-on>\n"
             "  </device>\n"
             "</devices>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* No notification should pass due to the filter */
     ASSERT_NO_NOTIF(st);
-
     FREE_TEST_VARS(st);
 }
 
@@ -560,13 +473,11 @@ static void
 test_xpath_boolean_pass(void **state)
 {
     struct np_test *st = *state;
-    char *filter, *data;
+    char *data, *filter =
+            "/notif2:devices/device[name='Main']/power-on and /notif2:devices/device/power-on[boot-time=12]";
 
-    filter = "/notif2:devices/device[name='Main']/power-on and /notif2:devices/device/power-on[boot-time=12]";
-
+    /* Send the notification */
     reestablish_sub(state, filter);
-
-    /* Parse notification into lyd_node */
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -576,17 +487,12 @@ test_xpath_boolean_pass(void **state)
             "    </power-on>\n"
             "  </device>\n"
             "</devices>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Notification should pass the filter */
     RECV_NOTIF(st);
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
 }
 

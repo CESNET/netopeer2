@@ -42,18 +42,17 @@ reestablish_sub(void **state, const char *stream, const char *start_time, const 
 {
     struct np_test *st = *state;
 
-    /* reestablish NETCONF connection */
+    /* Reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
     st->nc_sess = nc_connect_unix(NP_SOCKET_PATH, NULL);
     assert_non_null(st->nc_sess);
 
     /* Get a subscription to receive notifications */
     st->rpc = nc_rpc_subscribe(stream, NULL, start_time, stop_time, NC_PARAMTYPE_CONST);
-
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
-    /* check reply */
+    /* Check reply */
     st->msgtype = NC_MSG_NOTIF;
     while (st->msgtype == NC_MSG_NOTIF) {
         st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op);
@@ -80,7 +79,7 @@ local_setup(void **state)
     const char *module2 = NP_TEST_MODULE_DIR "/notif2.yang";
     int rv;
 
-    /* setup environment necessary for installing module */
+    /* Setup environment necessary for installing module */
     NP_GLOB_SETUP_ENV_FUNC;
     assert_int_equal(setenv_rv, 0);
 
@@ -90,9 +89,9 @@ local_setup(void **state)
     assert_int_equal(sr_install_module(conn, module2, NULL, features), SR_ERR_OK);
     assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
 
-    /* setup netopeer2 server */
+    /* Setup netopeer2 server */
     if (!(rv = np_glob_setup_np2(state))) {
-        /* state is allocated in np_glob_setup_np2 have to set here */
+        /* State is allocated in np_glob_setup_np2 have to set here */
         st = *state;
         /* Open connection to start a session for the tests */
         assert_int_equal(sr_connect(SR_CONN_DEFAULT, &st->conn), SR_ERR_OK);
@@ -162,7 +161,7 @@ local_teardown(void **state)
     assert_int_equal(sr_session_stop(st->sr_sess2), SR_ERR_OK);
     assert_int_equal(sr_disconnect(st->conn), SR_ERR_OK);
 
-    /* connect to server and remove test modules */
+    /* Connect to server and remove test modules */
     assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
     assert_int_equal(sr_remove_module(conn, "notif1"), SR_ERR_OK);
     assert_int_equal(sr_remove_module(conn, "notif2"), SR_ERR_OK);
@@ -191,18 +190,17 @@ test_stop_time_invalid(void **state)
     ts.tv_sec--;
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
 
-    /* reestablish NETCONF connection */
+    /* Reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
     st->nc_sess = nc_connect_unix(NP_SOCKET_PATH, NULL);
     assert_non_null(st->nc_sess);
 
     /* Get a subscription to receive notifications */
     st->rpc = nc_rpc_subscribe(NULL, NULL, start_time, stop_time, NC_PARAMTYPE_CONST);
-
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
-    /* check reply */
+    /* Check reply */
     st->msgtype = NC_MSG_NOTIF;
     while (st->msgtype == NC_MSG_NOTIF) {
         st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op);
@@ -211,15 +209,12 @@ test_stop_time_invalid(void **state)
     assert_null(st->op);
     assert_string_equal(LYD_NAME(lyd_child(st->envp)), "rpc-error");
 
-    /* Check if correct error-tag */
+    /* Check if correct error-tag and error-info */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "bad-element");
-
     expected =
             "    <error-info>\n"
             "      <bad-element>stopTime</bad-element>\n"
             "    </error-info>\n";
-
-    /* Check if correct error-info is given */
     lyd_print_mem(&st->str, st->envp, LYD_XML, 0);
     assert_non_null(strstr(st->str, expected));
 
@@ -241,18 +236,17 @@ test_start_time_invalid(void **state)
     ts.tv_sec += 10;
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &start_time));
 
-    /* reestablish NETCONF connection */
+    /* Reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
     st->nc_sess = nc_connect_unix(NP_SOCKET_PATH, NULL);
     assert_non_null(st->nc_sess);
 
     /* Get a subscription to receive notifications */
     st->rpc = nc_rpc_subscribe(NULL, NULL, start_time, NULL, NC_PARAMTYPE_CONST);
-
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
-    /* check reply */
+    /* Check reply */
     st->msgtype = NC_MSG_NOTIF;
     while (st->msgtype == NC_MSG_NOTIF) {
         st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op);
@@ -261,15 +255,12 @@ test_start_time_invalid(void **state)
     assert_null(st->op);
     assert_string_equal(LYD_NAME(lyd_child(st->envp)), "rpc-error");
 
-    /* Check if correct error-tag */
+    /* Check if correct error-tag and error-info */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "bad-element");
-
     expected =
             "    <error-info>\n"
             "      <bad-element>startTime</bad-element>\n"
             "    </error-info>\n";
-
-    /* Check if correct error-info is given */
     lyd_print_mem(&st->str, st->envp, LYD_XML, 0);
     assert_non_null(strstr(st->str, expected));
 
@@ -289,18 +280,17 @@ test_stop_time_no_start_time(void **state)
     assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
 
-    /* reestablish NETCONF connection */
+    /* Reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
     st->nc_sess = nc_connect_unix(NP_SOCKET_PATH, NULL);
     assert_non_null(st->nc_sess);
 
     /* Get a subscription to receive notifications */
     st->rpc = nc_rpc_subscribe(NULL, NULL, NULL, stop_time, NC_PARAMTYPE_CONST);
-
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
-    /* check reply */
+    /* Check reply */
     st->msgtype = NC_MSG_NOTIF;
     while (st->msgtype == NC_MSG_NOTIF) {
         st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op);
@@ -309,15 +299,12 @@ test_stop_time_no_start_time(void **state)
     assert_null(st->op);
     assert_string_equal(LYD_NAME(lyd_child(st->envp)), "rpc-error");
 
-    /* Check if correct error-tag */
+    /* Check if correct error-tag and error-info */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "missing-element");
-
     expected =
             "    <error-info>\n"
             "      <bad-element>startTime</bad-element>\n"
             "    </error-info>\n";
-
-    /* Check if correct error-info is given */
     lyd_print_mem(&st->str, st->envp, LYD_XML, 0);
     assert_non_null(strstr(st->str, expected));
 
@@ -499,20 +486,22 @@ test_stop_time_sub_end(void **state)
     assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &start_time));
 
-    /* Stop time is now + 0.1s, should end right away */
+    /* stopTime is now, should end right away */
     assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
-    ts.tv_nsec += 100000000;
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
 
+    /* Subscribe to notfications */
     reestablish_sub(state, NULL, start_time, stop_time);
     free(start_time);
     free(stop_time);
 
+    /* Receive the notification and test the contents */
     RECV_NOTIF(st);
     data = "<replayComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
     assert_string_equal(data, st->str);
     FREE_TEST_VARS(st);
 
+    /* Receive the notification and test the contents */
     RECV_NOTIF(st);
     data = "<notificationComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
     assert_string_equal(data, st->str);
@@ -523,7 +512,7 @@ test_stop_time_sub_end(void **state)
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
-    /* check reply */
+    /* Check reply */
     st->msgtype = NC_MSG_NOTIF;
     while (st->msgtype == NC_MSG_NOTIF) {
         st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op);
@@ -562,19 +551,22 @@ test_history_only(void **state)
     ts.tv_sec -= 10;
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &start_time));
 
-    /* Stop time is 5 seconds in the past */
+    /* stopTime is 5 seconds in the past */
     ts.tv_sec += 5;
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
 
+    /* Subscribe to notfications */
     reestablish_sub(state, NULL, start_time, stop_time);
     free(start_time);
     free(stop_time);
 
+    /* Receive the notification and test the contents */
     RECV_NOTIF(st);
     data = "<replayComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
     assert_string_equal(data, st->str);
     FREE_TEST_VARS(st);
 
+    /* Receive the notification and test the contents */
     RECV_NOTIF(st);
     data = "<notificationComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
     assert_string_equal(data, st->str);
