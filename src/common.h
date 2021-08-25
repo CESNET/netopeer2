@@ -71,7 +71,7 @@ int np_sleep(uint32_t ms);
 
 struct timespec np_gettimespec(int force_real);
 
-int32_t np_difftimespec(const struct timespec *ts1, const struct timespec *ts2);
+int64_t np_difftimespec(const struct timespec *ts1, const struct timespec *ts2);
 
 void np_addtimespec(struct timespec *ts, uint32_t msec);
 

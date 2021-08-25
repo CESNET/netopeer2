@@ -71,7 +71,7 @@ np_gettimespec(int force_real)
 }
 
 /* ts1 < ts2 -> +, ts1 > ts2 -> -, returns milliseconds */
-int32_t
+int64_t
 np_difftimespec(const struct timespec *ts1, const struct timespec *ts2)
 {
     int64_t nsec_diff = 0;
