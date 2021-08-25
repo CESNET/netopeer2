@@ -965,6 +965,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
     sr_datastore_t datastore;
     char *xp = NULL;
     uint32_t i, period, dampening_period, sub_id_count;
+    int64_t anchor_msec;
     int rc = SR_ERR_OK, periodic, sync_on_start, excluded_change[YP_OP_OPERATION_COUNT] = {0};
     struct itimerspec trspec = {0};
     struct timespec anchor_time = {0};
@@ -1101,13 +1102,19 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
         }
 
         /* schedule the periodic updates */
+        trspec.it_value = np_gettimespec(1);
         if (yp_data->anchor_time.tv_sec) {
-            trspec.it_value = np_modtimespec(&yp_data->anchor_time, yp_data->period_ms);
-        } else {
-            trspec.it_value = np_gettimespec(1);
+            /* first update at nearest anchor time on period */
+            anchor_msec = np_difftimespec(&yp_data->anchor_time, &trspec.it_value);
+            if (anchor_msec < 0) {
+                anchor_msec *= -1;
+            }
+            anchor_msec %= yp_data->period_ms;
+            np_addtimespec(&trspec.it_value, anchor_msec);
         }
         trspec.it_interval.tv_sec = yp_data->period_ms / 1000;
         trspec.it_interval.tv_nsec = (yp_data->period_ms % 1000) * 1000000;
+
         if (timer_settime(yp_data->update_timer, TIMER_ABSTIME, &trspec, NULL) == -1) {
             rc = SR_ERR_SYS;
             goto cleanup;
