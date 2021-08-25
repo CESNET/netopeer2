@@ -604,7 +604,7 @@ sub_ntf_stream_filter_match_cb(struct np2srv_sub_ntf *sub, const void *match_dat
 }
 
 int
-sub_ntf_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filter, sr_change_oper_t op)
+sub_ntf_config_filters(const struct lyd_node *filter, sr_change_oper_t op)
 {
     int rc = SR_ERR_OK, r;
     struct np2srv_sub_ntf *sub;
@@ -638,14 +638,14 @@ sub_ntf_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filter,
 
         free(xp);
     } else if (op == SR_OP_DELETED) {
-        /* get NETCONF session */
-        if ((rc = np_get_user_sess(ev_sess, &ncs, NULL))) {
-            return rc;
-        }
-
         /* update all the relevant subscriptions */
         sub = NULL;
         while ((sub = sub_ntf_find_next(sub, sub_ntf_stream_filter_match_cb, lyd_get_value(lyd_child(filter))))) {
+            /* get NETCONF session */
+            if ((rc = np_get_nc_sess_by_id(0, sub->nc_id, &ncs))) {
+                return rc;
+            }
+
             /* terminate the subscription with the specific term reason */
             sub->term_reason = "ietf-subscribed-notifications:filter-unavailable";
             r = sub_ntf_terminate_sub(sub, ncs);

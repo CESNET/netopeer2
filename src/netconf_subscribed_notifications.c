@@ -810,7 +810,7 @@ np2srv_config_sub_ntf_filters_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_
     }
 
     while ((r = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
-        rc = sub_ntf_config_filters(session, node, op);
+        rc = sub_ntf_config_filters(node, op);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
@@ -832,7 +832,7 @@ np2srv_config_sub_ntf_filters_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_
     }
 
     while ((r = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
-        rc = yang_push_config_filters(session, node, op);
+        rc = yang_push_config_filters(node, op);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }

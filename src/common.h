@@ -77,7 +77,7 @@ void np_addtimespec(struct timespec *ts, uint32_t msec);
 
 struct timespec np_modtimespec(const struct timespec *ts, uint32_t msec);
 
-struct nc_session *np_get_nc_sess_by_sr_id(uint32_t sr_id);
+int np_get_nc_sess_by_id(uint32_t sr_id, uint32_t nc_id, struct nc_session **nc_sess);
 
 int np_get_user_sess(sr_session_ctx_t *ev_sess, struct nc_session **nc_sess, struct np2_user_sess **user_sess);
 

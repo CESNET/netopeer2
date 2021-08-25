@@ -1471,7 +1471,7 @@ yang_push_datastore_filter_match_cb(struct np2srv_sub_ntf *sub, const void *matc
 }
 
 int
-yang_push_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filter, sr_change_oper_t op)
+yang_push_config_filters(const struct lyd_node *filter, sr_change_oper_t op)
 {
     int rc = SR_ERR_OK, r;
     struct yang_push_data *yp_data;
@@ -1511,14 +1511,14 @@ yang_push_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filte
 
         free(xp);
     } else if (op == SR_OP_DELETED) {
-        /* get NETCONF session */
-        if ((rc = np_get_user_sess(ev_sess, &ncs, NULL))) {
-            return rc;
-        }
-
         /* update all the relevant subscriptions */
         sub = NULL;
         while ((sub = sub_ntf_find_next(sub, yang_push_datastore_filter_match_cb, lyd_get_value(lyd_child(filter))))) {
+            /* get NETCONF session */
+            if ((rc = np_get_nc_sess_by_id(0, sub->nc_id, &ncs))) {
+                return rc;
+            }
+
             /* terminate the subscription with the specific term reason */
             sub->term_reason = "ietf-subscribed-notifications:filter-unavailable";
             r = sub_ntf_terminate_sub(sub, ncs);

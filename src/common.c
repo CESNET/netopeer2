@@ -117,40 +117,59 @@ np_modtimespec(const struct timespec *ts, uint32_t msec)
     return ret;
 }
 
-struct nc_session *
-np_get_nc_sess_by_sr_id(uint32_t sr_id)
+int
+np_get_nc_sess_by_id(uint32_t sr_id, uint32_t nc_id, struct nc_session **nc_sess)
 {
     uint32_t i;
-    struct nc_session *ncs;
+    struct nc_session *ncs = NULL;
     struct np2_user_sess *user_sess;
 
+    assert((sr_id && !nc_id) || (!sr_id && nc_id));
+
     for (i = 0; (ncs = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
-        user_sess = nc_session_get_data(ncs);
-        if (sr_session_get_id(user_sess->sess) == sr_id) {
-            break;
+        if (sr_id) {
+            user_sess = nc_session_get_data(ncs);
+            if (sr_session_get_id(user_sess->sess) == sr_id) {
+                break;
+            }
+        } else {
+            if (nc_session_get_id(ncs) == nc_id) {
+                break;
+            }
         }
     }
 
-    return ncs;
+    if (!ncs) {
+        if (nc_id) {
+            ERR("Failed to find NETCONF session with NC ID %u.", nc_id);
+        }
+        return SR_ERR_INTERNAL;
+    }
+
+    *nc_sess = ncs;
+    return SR_ERR_OK;
 }
 
 int
 np_get_user_sess(sr_session_ctx_t *ev_sess, struct nc_session **nc_sess, struct np2_user_sess **user_sess)
 {
     struct np2_user_sess *us;
-    uint32_t i, *nc_id, size;
+    const char *orig_name;
+    uint32_t *nc_id, size;
     struct nc_session *ncs;
+    int rc;
+
+    orig_name = sr_session_get_orig_name(ev_sess);
+    if (!orig_name || strcmp(orig_name, "netopeer2")) {
+        ERR("Unknown originator name \"%s\" in event session.", orig_name);
+        return SR_ERR_INTERNAL;
+    }
 
     sr_session_get_orig_data(ev_sess, 0, &size, (const void **)&nc_id);
 
-    for (i = 0; (ncs = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
-        if (nc_session_get_id(ncs) == *nc_id) {
-            break;
-        }
-    }
-    if (!ncs) {
-        ERR("Failed to find NETCONF session SID %u.", *nc_id);
-        return SR_ERR_INTERNAL;
+    rc = np_get_nc_sess_by_id(0, *nc_id, &ncs);
+    if (rc) {
+        return rc;
     }
 
     /* NETCONF session */

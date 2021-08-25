@@ -89,12 +89,11 @@ int sub_ntf_notif_modified_append_data(struct lyd_node *ntf, void *data);
  * @brief Called for every configuration change in type-specific filters.
  * sub-ntf lock held.
  *
- * @param[in] ev_sess Event session.
  * @param[in] filter Changed filter node.
  * @param[in] op Sysrepo operation.
  * @return Sysrepo error value.
  */
-int sub_ntf_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filter, sr_change_oper_t op);
+int sub_ntf_config_filters(const struct lyd_node *filter, sr_change_oper_t op);
 
 /**
  * @brief Should append type-specific operational YANG nodes to "subscription" node.
