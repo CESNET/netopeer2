@@ -443,30 +443,23 @@ error:
     return rc;
 }
 
-/**
- * @brief Create a subscription-modified notification.
- *
- * @param[in] sub Subscription structure.
- * @param[out] ly_ntf Created notification.
- * @return Sysrepo error value.
- */
-static int
-sub_ntf_notif_modified(struct np2srv_sub_ntf *sub, struct lyd_node **ly_ntf)
+int
+sub_ntf_send_notif_modified(const struct np2srv_sub_ntf *sub)
 {
     int rc = SR_ERR_OK;
     char buf[11], *datetime = NULL;
-
-    *ly_ntf = NULL;
+    struct lyd_node *ly_ntf = NULL;
+    struct nc_session *ncs;
 
     if (lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/ietf-subscribed-notifications:subscription-modified", NULL,
-            0, ly_ntf)) {
+            0, &ly_ntf)) {
         rc = SR_ERR_LY;
         goto cleanup;
     }
 
     /* id */
     sprintf(buf, "%" PRIu32, sub->nc_sub_id);
-    if (lyd_new_term(*ly_ntf, NULL, "id", buf, 0, NULL)) {
+    if (lyd_new_term(ly_ntf, NULL, "id", buf, 0, NULL)) {
         rc = SR_ERR_LY;
         goto cleanup;
     }
@@ -474,7 +467,7 @@ sub_ntf_notif_modified(struct np2srv_sub_ntf *sub, struct lyd_node **ly_ntf)
     /* stop-time */
     if (sub->stop_time.tv_sec) {
         ly_time_ts2str(&sub->stop_time, &datetime);
-        if (lyd_new_term(*ly_ntf, NULL, "stop-time", datetime, 0, NULL)) {
+        if (lyd_new_term(ly_ntf, NULL, "stop-time", datetime, 0, NULL)) {
             rc = SR_ERR_LY;
             goto cleanup;
         }
@@ -483,22 +476,30 @@ sub_ntf_notif_modified(struct np2srv_sub_ntf *sub, struct lyd_node **ly_ntf)
     /* type-specific data */
     switch (sub->type) {
     case SUB_TYPE_SUB_NTF:
-        rc = sub_ntf_notif_modified_append_data(*ly_ntf, sub->data);
+        rc = sub_ntf_notif_modified_append_data(ly_ntf, sub->data);
         break;
     case SUB_TYPE_YANG_PUSH:
-        rc = yang_push_notif_modified_append_data(*ly_ntf, sub->data);
+        rc = yang_push_notif_modified_append_data(ly_ntf, sub->data);
         break;
     }
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
 
+    /* get NETCONF session */
+    if ((rc = np_get_nc_sess_by_id(0, sub->nc_id, &ncs))) {
+        goto cleanup;
+    }
+
+    /* send the notification */
+    rc = sub_ntf_send_notif(ncs, sub->nc_sub_id, np_gettimespec(1), &ly_ntf, 1);
+    if (rc != SR_ERR_OK) {
+        goto cleanup;
+    }
+
 cleanup:
     free(datetime);
-    if (rc) {
-        lyd_free_tree(*ly_ntf);
-        *ly_ntf = NULL;
-    }
+    lyd_free_tree(ly_ntf);
     return rc;
 }
 
@@ -507,11 +508,10 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
         void *UNUSED(private_data))
 {
-    struct lyd_node *node, *ly_ntf;
+    struct lyd_node *node;
     struct np2srv_sub_ntf *sub;
     char *xp = NULL, *message;
     struct timespec stop = {0};
-    struct nc_session *ncs;
     int r, rc = SR_ERR_OK;
     uint32_t nc_sub_id, *nc_id;
 
@@ -563,18 +563,7 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     }
 
     /* create the notification */
-    rc = sub_ntf_notif_modified(sub, &ly_ntf);
-    if (rc != SR_ERR_OK) {
-        goto cleanup_unlock;
-    }
-
-    /* get NETCONF session */
-    if ((rc = np_get_user_sess(session, &ncs, NULL))) {
-        goto cleanup_unlock;
-    }
-
-    /* send the notification */
-    rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(1), &ly_ntf, 1);
+    rc = sub_ntf_send_notif_modified(sub);
     if (rc != SR_ERR_OK) {
         goto cleanup_unlock;
     }
@@ -803,14 +792,14 @@ np2srv_config_sub_ntf_filters_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_
     INFO_WLOCK;
 
     /* subscribed-notifications */
-    rc = sr_get_changes_iter(session, "/ietf-subscribed-notifications:filters/stream-filter", &iter);
+    rc = sr_get_changes_iter(session, "/ietf-subscribed-notifications:filters/stream-filter/*", &iter);
     if (rc != SR_ERR_OK) {
         ERR("Getting changes iter failed (%s).", sr_strerror(rc));
         goto cleanup;
     }
 
     while ((r = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
-        rc = sub_ntf_config_filters(node, op);
+        rc = sub_ntf_config_filters(lyd_parent(node), op);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
@@ -825,14 +814,14 @@ np2srv_config_sub_ntf_filters_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_
     iter = NULL;
 
     /* yang-push */
-    rc = sr_get_changes_iter(session, "/ietf-subscribed-notifications:filters/ietf-yang-push:selection-filter", &iter);
+    rc = sr_get_changes_iter(session, "/ietf-subscribed-notifications:filters/ietf-yang-push:selection-filter/*", &iter);
     if (rc != SR_ERR_OK) {
         ERR("Getting changes iter failed (%s).", sr_strerror(rc));
         goto cleanup;
     }
 
     while ((r = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
-        rc = yang_push_config_filters(node, op);
+        rc = yang_push_config_filters(lyd_parent(node), op);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }

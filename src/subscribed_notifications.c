@@ -624,16 +624,18 @@ sub_ntf_config_filters(const struct lyd_node *filter, sr_change_oper_t op)
         while ((sub = sub_ntf_find_next(sub, sub_ntf_stream_filter_match_cb, lyd_get_value(lyd_child(filter))))) {
             /* modify the filter of the subscription(s) */
             for (i = 0; i < sub->sub_id_count; ++i) {
-                /* "pass" the lock to the callback */
-                sub_ntf_cb_lock_pass(sub->sub_ids[i]);
+                /* callback ignores this event */
                 r = sr_event_notif_sub_modify_xpath(np2srv.sr_notif_sub, sub->sub_ids[i], xp);
-                sub_ntf_cb_lock_clear(sub->sub_ids[i]);
                 if (r != SR_ERR_OK) {
                     rc = r;
                 }
             }
 
-            /* do not send subscription-modified since, from the perspective of YANG data, it was not modified */
+            /* send subscription-modified notif */
+            r = sub_ntf_send_notif_modified(sub);
+            if (r != SR_ERR_OK) {
+                rc = r;
+            }
         }
 
         free(xp);

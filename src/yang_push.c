@@ -1506,7 +1506,11 @@ yang_push_config_filters(const struct lyd_node *filter, sr_change_oper_t op)
                 }
             }
 
-            /* do not send subscription-modified since, from the perspective of YANG data, it was not modified */
+            /* send subscription-modified notif */
+            r = sub_ntf_send_notif_modified(sub);
+            if (r != SR_ERR_OK) {
+                rc = r;
+            }
         }
 
         free(xp);

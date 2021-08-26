@@ -134,6 +134,14 @@ void sub_ntf_inc_denied(uint32_t nc_sub_id);
  */
 int sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs);
 
+/**
+ * @brief Send a subscription-modified notification.
+ *
+ * @param[in] sub Subscription structure that was modified.
+ * @return Sysrepo error value.
+ */
+int sub_ntf_send_notif_modified(const struct np2srv_sub_ntf *sub);
+
 /*
  * for main.c
  */
