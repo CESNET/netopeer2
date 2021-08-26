@@ -142,7 +142,7 @@ sub_ntf_find_next(struct np2srv_sub_ntf *last, int (*sub_ntf_match_cb)(struct np
 {
     uint32_t i, last_idx = last ? (((char *)last) - ((char *)info.subs)) / sizeof *last : 0;
 
-    for (i = last_idx ? last_idx + 1 : 0; i < info.count; ++i) {
+    for (i = last ? last_idx + 1 : 0; i < info.count; ++i) {
         if (sub_ntf_match_cb(&info.subs[i], match_data)) {
             return &info.subs[i];
         }
