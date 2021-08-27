@@ -180,9 +180,31 @@ yang_push_notif_change_edit_append(struct lyd_node *ly_yp, enum yang_push_op yp_
         const char *prev_value, const char *prev_list, struct yang_push_data *yp_data)
 {
     struct lyd_node *ly_edit, *ly_target, *value_tree;
-    char buf[26], *path = NULL, *point = NULL;
+    struct ly_set *set = NULL;
+    char buf[26], *path = NULL, *point = NULL, *xpath = NULL;
     uint32_t edit_id;
     int rc = SR_ERR_OK;
+
+    /* get the edit target path */
+    path = lyd_path(node, LYD_PATH_STD, NULL, 0);
+    if (!path) {
+        rc = SR_ERR_LY;
+        goto cleanup;
+    }
+
+    /* remove any previous change of this target */
+    if (asprintf(&xpath, "/ietf-yang-push:push-change-update/datastore-changes/yang-patch/edit[target='%s']", path) == -1) {
+        rc = SR_ERR_NO_MEMORY;
+        goto cleanup;
+    }
+    if (lyd_find_xpath(ly_yp, xpath, &set)) {
+        rc = SR_ERR_LY;
+        goto cleanup;
+    }
+    assert((set->count == 0) || (set->count == 1));
+    if (set->count) {
+        lyd_free_tree(set->dnodes[0]);
+    }
 
     /* generate new edit ID */
     edit_id = ATOMIC_INC_RELAXED(yp_data->edit_id);
@@ -201,11 +223,6 @@ yang_push_notif_change_edit_append(struct lyd_node *ly_yp, enum yang_push_op yp_
     }
 
     /* target */
-    path = lyd_path(node, LYD_PATH_STD, NULL, 0);
-    if (!path) {
-        rc = SR_ERR_LY;
-        goto cleanup;
-    }
     if (lyd_new_term(ly_edit, NULL, "target", path, 0, &ly_target)) {
         rc = SR_ERR_LY;
         goto cleanup;
@@ -267,6 +284,8 @@ yang_push_notif_change_edit_append(struct lyd_node *ly_yp, enum yang_push_op yp_
     }
 
 cleanup:
+    ly_set_free(set, NULL);
+    free(xpath);
     free(path);
     free(point);
     return rc;
