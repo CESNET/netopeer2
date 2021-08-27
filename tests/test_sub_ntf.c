@@ -153,16 +153,16 @@ test_invalid_start_time(void **state)
 {
     struct np_test *st = *state;
     char *start_time, *expected;
-    time_t now;
+    struct timespec ts;
 
-    now = time(NULL);
-    assert_int_not_equal(now, -1);
-    now += 10; /* Put start time in the future */
-    assert_int_equal(ly_time_time2str(now, NULL, &start_time), LY_SUCCESS);
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    ts.tv_sec += 10; /* Put start time in the future */
+    assert_int_equal(ly_time_ts2str(&ts, &start_time), LY_SUCCESS);
 
     SEND_RPC_ESTABSUB(st, NULL, "notif1", start_time, NULL);
     free(start_time);
     ASSERT_RPC_ERROR(st);
+
     /* Should fail since start-time has to be in the past */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "bad-element");
     expected =
@@ -181,12 +181,11 @@ test_invalid_stop_time(void **state)
 {
     struct np_test *st = *state;
     char *stop_time, *expected;
-    time_t now;
+    struct timespec ts;
 
-    now = time(NULL);
-    assert_int_not_equal(now, -1);
-    now -= 1; /* Put stop time in the past */
-    assert_int_equal(ly_time_time2str(now, NULL, &stop_time), LY_SUCCESS);
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    ts.tv_sec -= 1; /* Put stop time in the past */
+    assert_int_equal(ly_time_ts2str(&ts, &stop_time), LY_SUCCESS);
 
     /* Should fail since there is no start-time and it is in the past */
     SEND_RPC_ESTABSUB(st, NULL, "notif1", NULL, stop_time);
@@ -209,17 +208,18 @@ test_invalid_start_stop_time(void **state)
 {
     struct np_test *st = *state;
     char *start_time, *stop_time, *expected;
-    time_t now;
+    struct timespec ts;
 
-    now = time(NULL);
-    assert_int_not_equal(now, -1);
-    assert_int_equal(ly_time_time2str(now - 2, NULL, &start_time), LY_SUCCESS);
-    assert_int_equal(ly_time_time2str(now - 3, NULL, &stop_time), LY_SUCCESS);
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    assert_int_equal(ly_time_ts2str(&ts, &start_time), LY_SUCCESS);
+    ts.tv_sec -= 2;
+    assert_int_equal(ly_time_ts2str(&ts, &stop_time), LY_SUCCESS);
 
     SEND_RPC_ESTABSUB(st, NULL, "notif1", start_time, stop_time);
     free(start_time);
     free(stop_time);
     ASSERT_RPC_ERROR(st);
+
     /* Should fail since start-time exists and stop-time is not later than start-time */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "bad-element");
     expected =
@@ -262,13 +262,14 @@ static void
 test_replay_sub(void **state)
 {
     struct np_test *st = *state;
-    time_t cur;
+    struct timespec ts;
     const char *data, *template;
     char *expected;
     char *timestr;
 
-    cur = time(NULL);
-    assert_int_not_equal(-1, cur);
+    /* Subscribe to replay */
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &timestr));
 
     /* Parse notification into lyd_node */
     data =
@@ -278,7 +279,6 @@ test_replay_sub(void **state)
     NOTIF_PARSE(st, data);
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur, NULL, &timestr));
     SEND_RPC_ESTABSUB(st, NULL, "notif1", timestr, NULL);
     free(timestr);
     ASSERT_OK_SUB_NTF(st);
@@ -310,11 +310,12 @@ test_replay_real_time(void **state)
     struct np_test *st = *state;
     const char *data, *expected, *template;
     char *ntf;
-    time_t cur;
+    struct timespec ts;
     char *start_time;
 
-    cur = time(NULL);
-    assert_int_not_equal(-1, time);
+    /* Subscribe to replay */
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &start_time));
 
     /* Send the notification */
     data =
@@ -324,8 +325,6 @@ test_replay_real_time(void **state)
     expected = data;
     NOTIF_PARSE(st, data);
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
-
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur, NULL, &start_time));
 
     /* Subscribe to notifications */
     SEND_RPC_ESTABSUB(st, NULL, "notif1", start_time, NULL);
@@ -378,11 +377,12 @@ test_stop_time(void **state)
     struct np_test *st = *state;
     const char *data, *expected, *template;
     char *ntf;
-    time_t cur;
+    struct timespec ts;
     char *start_time, *stop_time;
 
-    cur = time(NULL);
-    assert_int_not_equal(-1, cur);
+    /* To subscribe to replay of the notification */
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &start_time));
 
     /* Send the notification */
     data =
@@ -394,12 +394,10 @@ test_stop_time(void **state)
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
 
-    /* To subscribe to replay of the notification */
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur, NULL, &start_time));
     /* To subscribe to replay of notifications until time was called, should not include any called after */
-    cur = time(NULL);
-    assert_int_not_equal(-1, cur);
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur + 1, NULL, &stop_time));
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    ts.tv_nsec += 100000000; /* + 0.1s */
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
     SEND_RPC_ESTABSUB(st, NULL, "notif1", start_time, stop_time);
     free(start_time);
     free(stop_time);
@@ -454,19 +452,19 @@ test_stop_time_sub_end(void **state)
     struct np_test *st = *state;
     const char *data, *template;
     char *ntf;
-    time_t cur;
+    struct timespec ts;
     char *stop_time;
 
-    cur = time(NULL);
-    assert_int_not_equal(-1, cur);
-    /* Stop time is now + 1s, should end almost right away */
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur + 1, NULL, &stop_time));
+    /* Stop time is now + 0.1, should end almost right away */
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    ts.tv_nsec += 100000000;
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
     SEND_RPC_ESTABSUB(st, NULL, "notif1", NULL, stop_time);
     free(stop_time);
     ASSERT_OK_SUB_NTF(st);
     FREE_TEST_VARS(st);
 
-    /* Check for subscriptin-terminated notification */
+    /* Check for subscription-terminated notification */
     RECV_NOTIF(st);
     template =
             "<subscription-terminated xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
@@ -496,15 +494,15 @@ test_history_only(void **state)
     struct np_test *st = *state;
     const char *template;
     char *ntf;
-    time_t cur;
+    struct timespec ts;
     char *start_time, *stop_time;
 
-    cur = time(NULL);
-    assert_int_not_equal(-1, cur);
-
     /* Subscription in the past */
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur - 10, NULL, &start_time));
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur - 5, NULL, &stop_time));
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    ts.tv_sec -= 10;
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &start_time));
+    ts.tv_sec += 5;
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
     SEND_RPC_ESTABSUB(st, NULL, "notif1", start_time, stop_time);
     free(start_time);
     free(stop_time);

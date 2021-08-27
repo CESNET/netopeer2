@@ -180,17 +180,16 @@ test_stop_time_invalid(void **state)
 {
     struct np_test *st = *state;
     const char *expected;
-    time_t cur;
+    struct timespec ts;
     char *start_time, *stop_time;
 
-    cur = time(NULL);
-    assert_int_not_equal(-1, time);
-
     /* startTime is current time */
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur, NULL, &start_time));
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &start_time));
 
     /* stopTime is in the past */
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur - 1, NULL, &stop_time));
+    ts.tv_sec--;
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
 
     /* reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
@@ -234,14 +233,13 @@ test_start_time_invalid(void **state)
 {
     struct np_test *st = *state;
     const char *expected;
-    time_t cur;
+    struct timespec ts;
     char *start_time;
 
-    cur = time(NULL);
-    assert_int_not_equal(-1, time);
-
     /* startTime is in the future */
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur + 10, NULL, &start_time));
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    ts.tv_sec += 10;
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &start_time));
 
     /* reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
@@ -284,14 +282,12 @@ test_stop_time_no_start_time(void **state)
 {
     struct np_test *st = *state;
     const char *expected;
-    time_t cur;
+    struct timespec ts;
     char *stop_time;
 
-    cur = time(NULL);
-    assert_int_not_equal(-1, time);
-
     /* stopTime is the current time */
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur, NULL, &stop_time));
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
 
     /* reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
@@ -334,49 +330,38 @@ test_basic_replay(void **state)
 {
     struct np_test *st = *state;
     const char *data;
-    time_t cur;
-    char *timestr;
+    struct timespec ts;
+    char *start_time;
 
-    /* Parse notification into lyd_node */
+    /* Subsrcibe to replay */
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &start_time));
+
+    /* Send the notification */
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
-    cur = time(NULL);
-    assert_int_not_equal(-1, time);
-    cur -= 10; /* To subscribe to replay of notifications  from last 10 seconds*/
-
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur, NULL, &timestr));
-
     /* Subscribe to notfications */
-    reestablish_sub(state, NULL, timestr, NULL);
-    free(timestr);
+    reestablish_sub(state, NULL, start_time, NULL);
+    free(start_time);
 
     /* Receive the notification and test the contents */
     RECV_NOTIF(st);
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
 
     /* Check for replayComplete notification since the replay is done */
     RECV_NOTIF(st);
-
     data = "<replayComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
 
     /* No other notification should arrive */
     ASSERT_NO_NOTIF(st);
-
     FREE_TEST_VARS(st);
 }
 
@@ -385,73 +370,56 @@ test_replay_real_time(void **state)
 {
     struct np_test *st = *state;
     const char *data, *expected;
-    time_t cur;
+    struct timespec ts;
     char *timestr;
 
-    /* Parse notification into lyd_node */
+    /* Subsrcibe to replay */
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &timestr));
+
+    /* Send the notification */
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>First</first>\n"
             "</n1>\n";
     expected = data;
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
-
-    cur = time(NULL);
-    assert_int_not_equal(-1, time);
-    cur -= 10; /* To subscribe to replay of notifications  from last 10 seconds*/
-
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur, NULL, &timestr));
 
     /* Subscribe to notfications */
     reestablish_sub(state, NULL, timestr, NULL);
     free(timestr);
 
-    /* Parse notification into lyd_node */
+    /* Send the notification */
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Second</first>\n"
             "</n1>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Receive the notification and test the contents */
     RECV_NOTIF(st);
-
     assert_string_equal(expected, st->str);
-
     FREE_TEST_VARS(st);
 
     /* Check for replayComplete notification since the replay is done */
     RECV_NOTIF(st);
-
     expected = "<replayComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
-
     assert_string_equal(expected, st->str);
-
     FREE_TEST_VARS(st);
 
     /* Check for real time notification */
     RECV_NOTIF(st);
-
     expected =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Second</first>\n"
             "</n1>\n";
-
     assert_string_equal(expected, st->str);
-
     FREE_TEST_VARS(st);
 
     /* No other notification should arrive */
     ASSERT_NO_NOTIF(st);
-
     FREE_TEST_VARS(st);
 }
 
@@ -463,23 +431,21 @@ test_stop_time(void **state)
     struct timespec start, stop;
     char *start_time, *stop_time;
 
+    /* To subscribe to replay of the notification */
+    clock_gettime(CLOCK_REALTIME, &start);
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&start, &start_time));
+
     /* Parse notification into lyd_node */
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     expected = data;
-
     NOTIF_PARSE(st, data);
 
     /* Send the notification */
-    clock_gettime(CLOCK_REALTIME, &start);
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
-
     FREE_TEST_VARS(st);
-
-    /* To subscribe to replay of the notification */
-    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&start, &start_time));
 
     /* To subscribe to replay of notifications until time was called, should not include any called after */
     clock_gettime(CLOCK_REALTIME, &stop);
@@ -492,45 +458,32 @@ test_stop_time(void **state)
 
     /* Receive the notification and test the contents */
     RECV_NOTIF(st);
-
     assert_string_equal(expected, st->str);
-
     FREE_TEST_VARS(st);
 
     /* Check for replayComplete notification since there was nothing to replay */
     RECV_NOTIF(st);
-
     data = "<replayComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
 
     /* Check for notficationComplete notification since the subscription should be done */
     RECV_NOTIF(st);
-
     data = "<notificationComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
 
-    /* Parse notification into lyd_node */
+    /* Send the notification */
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Another</first>\n"
             "</n1>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
-
     FREE_TEST_VARS(st);
 
     /* No other notification should arrive */
     ASSERT_NO_NOTIF(st);
-
     FREE_TEST_VARS(st);
 }
 
@@ -539,41 +492,34 @@ test_stop_time_sub_end(void **state)
 {
     struct np_test *st = *state;
     const char *data;
-    time_t cur;
+    struct timespec ts;
     char *start_time, *stop_time;
 
-    cur = time(NULL);
-    assert_int_not_equal(-1, time);
-
     /* Needed for stopTime */
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur, NULL, &start_time));
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &start_time));
 
-    /* Stop time is now + 1s, should end right away */
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur + 1, NULL, &stop_time));
+    /* Stop time is now + 0.1s, should end right away */
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    ts.tv_nsec += 100000000;
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
 
     reestablish_sub(state, NULL, start_time, stop_time);
     free(start_time);
     free(stop_time);
 
     RECV_NOTIF(st);
-
     data = "<replayComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
 
     RECV_NOTIF(st);
-
     data = "<notificationComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
 
     /* Subsription should have ended now due to stop time, try to create a new one */
     st->rpc = nc_rpc_subscribe(NULL, NULL, NULL, NULL, NC_PARAMTYPE_CONST);
-
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
@@ -585,26 +531,21 @@ test_stop_time_sub_end(void **state)
     assert_int_equal(NC_MSG_REPLY, st->msgtype);
     assert_null(st->op);
     assert_string_equal(LYD_NAME(lyd_child(st->envp)), "ok");
-
     FREE_TEST_VARS(st);
 
     /* Try sending a notfication real time on new session */
-    /* Parse notification into lyd_node */
+    /* Send the notification */
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Second</first>\n"
             "</n1>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    FREE_TEST_VARS(st);
 
     /* Receive the notification and test the contents */
     RECV_NOTIF(st);
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
 }
 
@@ -613,38 +554,31 @@ test_history_only(void **state)
 {
     struct np_test *st = *state;
     const char *data;
-    time_t cur;
+    struct timespec ts;
     char *start_time, *stop_time;
 
-    cur = time(NULL);
-    assert_int_not_equal(-1, time);
-
     /* startTime is 10 seconds in the past */
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur - 10, NULL, &start_time));
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    ts.tv_sec -= 10;
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &start_time));
 
     /* Stop time is 5 seconds in the past */
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur - 5, NULL, &stop_time));
+    ts.tv_sec += 5;
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
 
     reestablish_sub(state, NULL, start_time, stop_time);
     free(start_time);
     free(stop_time);
 
     RECV_NOTIF(st);
-
     data = "<replayComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
 
     RECV_NOTIF(st);
-
     data = "<notificationComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
-
 }
 
 static void
@@ -656,20 +590,16 @@ test_stream_no_pass(void **state)
     /* Subscribe to notfications from a different stream */
     reestablish_sub(state, "notif2", NULL, NULL);
 
-    /* Parse notification into lyd_node */
+    /* Send the notification */
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* It should no be recieved since it is in a a different stream than subscribed to */
     ASSERT_NO_NOTIF(st);
-
     FREE_TEST_VARS(st);
 }
 
@@ -682,22 +612,17 @@ test_stream_pass(void **state)
     /* Subscribe to notfications from the same stream */
     reestablish_sub(state, "notif1", NULL, NULL);
 
-    /* Parse notification into lyd_node */
+    /* Send the notification */
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Receive the notification and test the contents */
     RECV_NOTIF(st);
-
     assert_string_equal(st->str, data);
-
     FREE_TEST_VARS(st);
 }
 
@@ -706,42 +631,34 @@ test_stream_no_pass_start_time(void **state)
 {
     struct np_test *st = *state;
     const char *data;
-    time_t cur;
-    char *timestr;
+    struct timespec ts;
+    char *start_time;
 
-    /* Parse notification into lyd_node */
+    /* Subscribe to replay */
+    assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
+    assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &start_time));
+
+    /* Send the notification */
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
-
     NOTIF_PARSE(st, data);
-
-    /* Send the notification */
     assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
-
-    cur = time(NULL);
-    assert_int_not_equal(-1, time);
-    cur -= 10; /* To subscribe to replay of notifications  from last 10 seconds*/
-
-    assert_int_equal(LY_SUCCESS, ly_time_time2str(cur, NULL, &timestr));
+    FREE_TEST_VARS(st);
 
     /* Subscribe to notfications from a different stream */
-    reestablish_sub(state, "notif2", timestr, NULL);
-    free(timestr);
+    reestablish_sub(state, "notif2", start_time, NULL);
+    free(start_time);
 
     /* Check for replayComplete notification since the replay is done */
     RECV_NOTIF(st);
-
     data = "<replayComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
-
     assert_string_equal(data, st->str);
-
     FREE_TEST_VARS(st);
 
     /* No other notification should arrive */
     ASSERT_NO_NOTIF(st);
-
     FREE_TEST_VARS(st);
 }
 
