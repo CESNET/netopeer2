@@ -483,6 +483,7 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
     struct lyd_node *stream_subtree_filter = NULL;
     struct np2_user_sess *user_sess = NULL;
     struct sub_ntf_data *sn_data;
+    struct lyd_node *node;
     const char *cur_xp, *stream_filter_name = NULL, *stream_xpath_filter = NULL;
     char *xp = NULL;
     struct timespec cur_stop;
@@ -491,6 +492,15 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
 
     /* get the user session */
     if ((rc = np_get_user_sess(ev_sess, NULL, &user_sess))) {
+        goto cleanup;
+    }
+
+    /* datastore */
+    lyd_find_path(rpc, "ietf-yang-push:datastore", 0, &node);
+    if (node) {
+        sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not yang-push but \"datastore\""
+                " is set.", sub->nc_sub_id);
+        rc = SR_ERR_UNSUPPORTED;
         goto cleanup;
     }
 
