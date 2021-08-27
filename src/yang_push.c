@@ -1733,6 +1733,7 @@ np2srv_rpc_resync_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     yp_data = sub->data;
 
     /* resync the subscription */
+    ATOMIC_STORE_RELAXED(yp_data->patch_id, 1);
     rc = yang_push_notif_update_send(yp_data->cb_arg.ncs, yp_data, nc_sub_id);
     if (rc != SR_ERR_OK) {
         goto cleanup_unlock;
