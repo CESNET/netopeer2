@@ -1160,30 +1160,29 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     char *xp = NULL, *datetime = NULL;
     struct timespec anchor_time, next_notif;
     int rc = SR_ERR_OK;
-    uint32_t i, nc_sub_id, period, dampening_period;
+    uint32_t i, period, dampening_period;
 
     /* get the user session */
     if ((rc = np_get_user_sess(ev_sess, NULL, &user_sess))) {
         goto cleanup;
     }
 
-    /*
-     * id
-     */
-    lyd_find_path(rpc, "id", 0, &node);
-    nc_sub_id = ((struct lyd_node_term *)node)->value.uint32;
-
-    /*
-     * datastore
-     */
+    /* datastore */
     lyd_find_path(rpc, "ietf-yang-push:datastore", 0, &node);
+    if (!node) {
+        sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is yang-push but \"datastore\""
+                " is not set.", sub->nc_sub_id);
+        rc = SR_ERR_UNSUPPORTED;
+        goto cleanup;
+    }
+
     rc = yang_push_ident2ds(lyd_get_value(node), &datastore);
     if (rc != SR_ERR_OK) {
         sr_session_set_error_message(ev_sess, "Unsupported datastore \"%s\".", lyd_get_value(node));
         goto cleanup;
     } else if (datastore != yp_data->datastore) {
-        sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not for \"%s\" datastore.", nc_sub_id,
-                lyd_get_value(node));
+        sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not for \"%s\" datastore.",
+                sub->nc_sub_id, lyd_get_value(node));
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
     }
@@ -1194,7 +1193,8 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     lyd_find_path(rpc, "ietf-yang-push:periodic", 0, &cont);
     if (cont) {
         if (!yp_data->periodic) {
-            sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not \"periodic\".", nc_sub_id);
+            sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not \"periodic\".",
+                    sub->nc_sub_id);
             rc = SR_ERR_INVAL_ARG;
             goto cleanup;
         }
@@ -1244,7 +1244,8 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     lyd_find_path(rpc, "ietf-yang-push:on-change", 0, &cont);
     if (cont) {
         if (yp_data->periodic) {
-            sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not \"on-change\".", nc_sub_id);
+            sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not \"on-change\".",
+                    sub->nc_sub_id);
             rc = SR_ERR_INVAL_ARG;
             goto cleanup;
         }
@@ -1304,7 +1305,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
         xp = NULL;
 
         for (i = 0; i < sub->sub_id_count; ++i) {
-            rc = sr_event_notif_sub_modify_xpath(np2srv.sr_data_sub, sub->sub_ids[i], yp_data->xpath);
+            rc = sr_module_change_sub_modify_xpath(np2srv.sr_data_sub, sub->sub_ids[i], yp_data->xpath);
             if (rc != SR_ERR_OK) {
                 goto cleanup;
             }
