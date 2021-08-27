@@ -55,6 +55,7 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
         return rc;
     }
 
+    /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
@@ -102,6 +103,7 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
         }
     }
 
+    /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
 
     sr_free_change_iter(iter);
@@ -123,6 +125,7 @@ ncac_oper_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(sub_id), const c
 
     assert(*parent);
 
+    /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
     if (!strcmp(path, "/ietf-netconf-acm:nacm/denied-operations")) {
@@ -137,6 +140,7 @@ ncac_oper_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(sub_id), const c
         lyrc = lyd_new_path(*parent, NULL, "denied-notifications", num_str, 0, NULL);
     }
 
+    /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
 
     if (lyrc) {
@@ -175,6 +179,7 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
         return rc;
     }
 
+    /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
@@ -188,8 +193,10 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
                 /* add new group */
                 mem = realloc(nacm.groups, (nacm.group_count + 1) * sizeof *nacm.groups);
                 if (!mem) {
-                    EMEM;
+                    /* NACM UNLOCK */
                     pthread_mutex_unlock(&nacm.lock);
+
+                    EMEM;
                     return SR_ERR_NO_MEMORY;
                 }
                 nacm.groups = mem;
@@ -229,8 +236,10 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
                 group = NULL;
                 break;
             default:
-                EINT;
+                /* NACM UNLOCK */
                 pthread_mutex_unlock(&nacm.lock);
+
+                EINT;
                 return SR_ERR_INTERNAL;
             }
         } else {
@@ -257,8 +266,10 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
                 if (op == SR_OP_CREATED) {
                     mem = realloc(group->users, (group->user_count + 1) * sizeof *group->users);
                     if (!mem) {
-                        EMEM;
+                        /* NACM UNLOCK */
                         pthread_mutex_unlock(&nacm.lock);
+
+                        EMEM;
                         return SR_ERR_NO_MEMORY;
                     }
                     group->users = mem;
@@ -289,6 +300,7 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
         }
     }
 
+    /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
 
     sr_free_change_iter(iter);
@@ -502,6 +514,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
         return rc;
     }
 
+    /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, &prev_list, NULL)) == SR_ERR_OK) {
@@ -531,8 +544,10 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
                     /* create new rule list */
                     rlist = calloc(1, sizeof *rlist);
                     if (!rlist) {
-                        EMEM;
+                        /* NACM UNLOCK */
                         pthread_mutex_unlock(&nacm.lock);
+
+                        EMEM;
                         return SR_ERR_NO_MEMORY;
                     }
                     lydict_insert(ly_ctx, rlist_name, 0, &rlist->name);
@@ -586,8 +601,10 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
                 rlist = NULL;
                 break;
             default:
-                EINT;
+                /* NACM UNLOCK */
                 pthread_mutex_unlock(&nacm.lock);
+
+                EINT;
                 return SR_ERR_INTERNAL;
             }
         } else {
@@ -607,6 +624,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
                 if (op == SR_OP_CREATED) {
                     if ((rc = ncac_strarr_sort_add(ly_ctx, &group_name, sizeof rlist->groups, 0, &rlist->groups,
                             &rlist->group_count))) {
+                        /* NACM UNLOCK */
                         pthread_mutex_unlock(&nacm.lock);
                         return rc;
                     }
@@ -618,6 +636,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
         }
     }
 
+    /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
 
     sr_free_change_iter(iter);
@@ -657,6 +676,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
         return rc;
     }
 
+    /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, &prev_list, NULL)) == SR_ERR_OK) {
@@ -697,6 +717,8 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
                     rule = calloc(1, sizeof *rule);
                     if (!rule) {
                         EMEM;
+
+                        /* NACM UNLOCK */
                         pthread_mutex_unlock(&nacm.lock);
                         return SR_ERR_NO_MEMORY;
                     }
@@ -750,8 +772,10 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
                 free(rule);
                 break;
             default:
-                EINT;
+                /* NACM UNLOCK */
                 pthread_mutex_unlock(&nacm.lock);
+
+                EINT;
                 return SR_ERR_INTERNAL;
             }
         } else {
@@ -847,6 +871,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
         }
     }
 
+    /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
 
     sr_free_change_iter(iter);
@@ -1369,6 +1394,7 @@ ncac_check_operation(const struct lyd_node *data, const char *user)
     const struct lyd_node *op;
     int allowed = 0;
 
+    /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
     /* check access for the whole data tree first */
@@ -1446,6 +1472,8 @@ cleanup:
             ++nacm.denied_notifications;
         }
     }
+
+    /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
     return op;
 }
@@ -1509,12 +1537,14 @@ ncac_check_data_read_filter(struct lyd_node **data, const char *user)
 {
     assert(data);
 
+    /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
     if (*data && !ncac_allowed_tree((*data)->schema, user)) {
         ncac_check_data_read_filter_r(data, user);
     }
 
+    /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
 }
 
@@ -1593,6 +1623,7 @@ ncac_check_diff(const struct lyd_node *diff, const char *user)
 {
     const struct lyd_node *node = NULL;
 
+    /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
     /* any node can be used in this case */
@@ -1603,6 +1634,7 @@ ncac_check_diff(const struct lyd_node *diff, const char *user)
         }
     }
 
+    /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
     return node;
 }

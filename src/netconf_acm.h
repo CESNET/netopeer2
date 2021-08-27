@@ -87,7 +87,7 @@ struct ncac {
         struct ncac_rule_list *next;    /**< Pointer to the next rule list. */
     } *rule_lists;                  /**< List of all the rule lists. */
 
-    pthread_mutex_t lock;
+    pthread_mutex_t lock;           /**< Lock for accessing all the NACM members. */
 };
 
 enum ncac_access {
