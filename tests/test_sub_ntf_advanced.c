@@ -832,9 +832,14 @@ test_killsub_fail_nacm(void **state)
 {
     struct np_test *st = *state;
 
-    SEND_RPC_KILLSUB(st, 1);
+    /* Check for NACM_RECOVERY_UID */
+    if (is_nacm_rec_uid()) {
+        puts("Running as NACM_RECOVERY_UID. Tests will not run correctly as this user bypases NACM. Skipping.");
+        return;
+    }
+
     /* Should fail on NACM */
-    /* TODO: add test for NACM_RECOVERY_UID */
+    SEND_RPC_KILLSUB(st, 1);
     ASSERT_RPC_ERROR(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "access-denied");
     FREE_TEST_VARS(st);
