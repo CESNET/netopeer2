@@ -191,6 +191,14 @@
     st->msgtype =  nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid); \
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
+#define RECV_SUBMOD_NOTIF(st) \
+    RECV_NOTIF(st); \
+    assert_string_equal(LYD_NAME(st->op), "subscription-modified"); \
+    lyd_free_tree(st->envp); \
+    lyd_free_tree(st->op); \
+    ASSERT_OK_REPLY(st); \
+    FREE_TEST_VARS(st); \
+
 /* test state structure */
 struct np_test {
     pid_t server_pid;
