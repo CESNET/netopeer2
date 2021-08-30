@@ -424,19 +424,6 @@ test_validate(void **state)
     /* Functionality tested in test_candidate.c */
 }
 
-static void
-test_unsuported(void **state)
-{
-    struct np_test *st = *state;
-
-    /* Testing RPCs unsupported by netopeer2, all should fail */
-    st->rpc = nc_rpc_cancel(NULL, NC_PARAMTYPE_CONST);
-    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
-    assert_int_equal(NC_MSG_ERROR, st->msgtype);
-
-    nc_rpc_free(st->rpc);
-}
-
 int
 main(int argc, char **argv)
 {
@@ -452,7 +439,6 @@ main(int argc, char **argv)
         cmocka_unit_test(test_discard),
         cmocka_unit_test(test_getconfig),
         cmocka_unit_test(test_validate),
-        cmocka_unit_test(test_unsuported),
     };
 
     nc_verbosity(NC_VERB_WARNING);

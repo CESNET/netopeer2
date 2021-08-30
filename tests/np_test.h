@@ -212,6 +212,7 @@ struct np_test {
     uint64_t msgid;
     struct lyd_node *envp, *op;
     char *str;
+    char *path;
     uint32_t ntf_id;
 };
 

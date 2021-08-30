@@ -139,7 +139,7 @@ np_glob_setup_np2(void **state, const char *test_name)
 {
     struct np_test *st;
     pid_t pid;
-    char str[256], sockparam[128];
+    char str[256], serverdir[256], sockparam[128];
     int fd, pipefd[2], buf;
 
     getcwd(str, 256);
@@ -188,6 +188,9 @@ np_glob_setup_np2(void **state, const char *test_name)
     /* generate path to socket */
     sprintf(sockparam, "-U%s/%s/%s", NP_TEST_DIR, test_name, NP_SOCKET_FILE);
 
+    /* generate path to server-files */
+    sprintf(serverdir, "%s/%s", NP_TEST_DIR, test_name);
+
     /* fork and start the server */
     if (!(pid = fork())) {
         /* open log file */
@@ -215,7 +218,7 @@ np_glob_setup_np2(void **state, const char *test_name)
         /* exec server listening on a unix socket */
         sprintf(str, "-p%s/%s/%s", NP_TEST_DIR, test_name, NP_PID_FILE);
         execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", str, sockparam,
-                "-m 600", (char *)NULL);
+                "-m 600", "-f", serverdir, (char *)NULL);
 
 child_error:
         printf("Child execution failed\n");

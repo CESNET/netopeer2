@@ -52,4 +52,10 @@
 /* NACM recovery UID */
 #define NACM_RECOVERY_UID "@NACM_RECOVERY_UID@"
 
+/** @brief diretory for server backup files */
+#define NP2SRV_TEST_DIR NP_TEST_DIR "/netopeer2_server_files"
+
+/** @brief diretory for server backup files for confirmed commit */
+#define NCC_TEST_DIR NP2SRV_TEST_DIR "/confirmed_commit"
+
 #endif /* _NP_TEST_CONFIG_H_ */
