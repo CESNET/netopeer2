@@ -38,7 +38,7 @@ set(test_sources "np_test.c")
 # list of all the tests
 set(tests test_rpc test_edit test_filter test_subscribe_filter test_subscribe_param test_parallel_sessions
     test_candidate test_with_defaults test_nacm test_sub_ntf test_sub_ntf_advanced test_sub_ntf_filter test_yang_push
-    test_yang_push_advanced)
+    test_yang_push_advanced test_confirmed_commit)
 
 # append url if supported
 if(NP2SRV_URL_CAPAB)
@@ -72,5 +72,6 @@ add_custom_target(test_clean
     COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/repositories
     COMMAND rm -rf /dev/shm/_tests_np_*
     COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/netopeer2-server.sock
+    COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/netopeer2-server-files
     COMMAND ${CMAKE_CURRENT_BINARY_DIR}/scripts/kill_np_server.sh
 )
