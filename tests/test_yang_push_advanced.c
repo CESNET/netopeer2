@@ -279,9 +279,6 @@ test_on_change_modify_filter(void **state)
     const char *template, *data;
     char *ntf;
 
-    /* TODO: Debug */
-    nc_verbosity(NC_VERB_DEBUG);
-
     /* Establish on-change push */
     st->rpc = nc_rpc_establishpush_onchange("ietf-datastores:running", NULL, NULL, NULL, 0, 0,
             NULL, NC_PARAMTYPE_CONST);
@@ -295,7 +292,6 @@ test_on_change_modify_filter(void **state)
             NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
-    ASSERT_OK_REPLY(st);
     RECV_SUBMOD_NOTIF(st);
 
     /* Insert some data */
@@ -306,14 +302,25 @@ test_on_change_modify_filter(void **state)
     /* Receive a notification with the new data */
     RECV_NOTIF(st);
     template =
-            "<push-update xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
+            "<push-change-update xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
             "  <id>%d</id>\n"
-            "  <datastore-contents>\n"
-            "    <first xmlns=\"ed1\">TestFirst</first>\n"
-            "  </datastore-contents>\n"
-            "</push-update>\n";
+            "  <datastore-changes>\n"
+            "    <yang-patch>\n"
+            "      <patch-id>patch-1</patch-id>\n"
+            "      <edit>\n"
+            "        <edit-id>edit-1</edit-id>\n"
+            "        <operation>create</operation>\n"
+            "        <target>/edit1:first</target>\n"
+            "        <value>\n"
+            "          <first xmlns=\"ed1\">TestFirst</first>\n"
+            "        </value>\n"
+            "      </edit>\n"
+            "    </yang-patch>\n"
+            "  </datastore-changes>\n"
+            "</push-change-update>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
     assert_string_equal(st->str, ntf);
+    free(ntf);
     FREE_TEST_VARS(st);
 
     /* Insert some data */
