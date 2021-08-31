@@ -57,7 +57,9 @@
     state->str = NULL;
 
 #define ASSERT_OK_REPLY(state) \
-    state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 2000, &state->envp, &state->op); \
+    do { \
+        state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 2000, &state->envp, &state->op); \
+    } while (state->msgtype == NC_MSG_NOTIF); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
     assert_null(state->op); \
     assert_string_equal(LYD_NAME(lyd_child(state->envp)), "ok");
@@ -149,9 +151,11 @@
     ly_in_free(state->in, 0);
 
 #define RECV_NOTIF(state) \
-    state->msgtype = nc_recv_notif(state->nc_sess, 3000, &state->envp, &state->op); \
+    do { \
+        state->msgtype = nc_recv_notif(state->nc_sess, 3000, &state->envp, &state->op); \
+    } while (state->msgtype == NC_MSG_REPLY); \
     assert_int_equal(NC_MSG_NOTIF, state->msgtype); \
-    while(state->op->parent) state->op = lyd_parent(state->op); \
+    while (state->op->parent) state->op = lyd_parent(state->op); \
     assert_int_equal(lyd_print_mem(&state->str, state->op, LYD_XML, 0), LY_SUCCESS);
 
 #define ASSERT_NO_NOTIF(state) \
@@ -159,10 +163,9 @@
     assert_int_equal(NC_MSG_WOULDBLOCK, state->msgtype); \
 
 #define ASSERT_OK_SUB_NTF(state) \
-    st->msgtype = NC_MSG_NOTIF; \
-    while (st->msgtype == NC_MSG_NOTIF) { \
+    do { \
         st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op); \
-    } \
+    } while (st->msgtype == NC_MSG_NOTIF); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
     if (!state->op) { \
         lyd_print_file(stdout, st->envp, LYD_XML, 0); \
