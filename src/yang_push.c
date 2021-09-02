@@ -302,10 +302,8 @@ cleanup:
 static int
 yang_push_notif_change_send(struct nc_session *ncs, struct yang_push_data *yp_data, uint32_t nc_sub_id)
 {
-    struct lyd_node_any *ly_value;
-    struct lyd_node *ly_target, *next, *iter;
     struct ly_set *set = NULL;
-    uint32_t i, removed;
+    int all_removed = 0;
     int rc = SR_ERR_OK;
 
     assert(yp_data->ly_change_ntf);
@@ -315,29 +313,9 @@ yang_push_notif_change_send(struct nc_session *ncs, struct yang_push_data *yp_da
         rc = SR_ERR_LY;
         goto cleanup;
     }
-    removed = 0;
-    for (i = 0; i < set->count; ++i) {
-        /* check the change itself */
-        lyd_find_path(set->dnodes[i], "target", 0, &ly_target);
-        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(NULL, lyd_get_value(ly_target), ly_target->priv,
-                nc_session_get_username(ncs), NCAC_OP_READ))) {
-            /* not allowed, remove this change */
-            lyd_free_tree(set->dnodes[i]);
-            ++removed;
-            continue;
-        }
+    ncac_check_yang_push_update_notif(nc_session_get_username(ncs), set, &all_removed);
 
-        if (!lyd_find_path(set->dnodes[i], "value", 0, (struct lyd_node **)&ly_value)) {
-            assert(ly_value->value_type == LYD_ANYDATA_DATATREE);
-
-            /* filter out any nested nodes */
-            LY_LIST_FOR_SAFE(lyd_child(ly_value->value.tree), next, iter) {
-                ncac_check_data_read_filter(&iter, nc_session_get_username(ncs));
-            }
-        }
-    }
-
-    if (removed == set->count) {
+    if (all_removed) {
         /* no change is actually readable, notification denied */
         sub_ntf_inc_denied(nc_sub_id);
         goto cleanup;
