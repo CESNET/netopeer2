@@ -118,19 +118,6 @@ void ncac_init(void);
 void ncac_destroy(void);
 
 /**
- * @brief Check NACM access for a single node.
- *
- * @param[in] node Node to check. Can be NULL if @p node_path and @p node_schema are set.
- * @param[in] node_path Node path of the node to check. Can be NULL if @p node is set.
- * @param[in] node_schema Schema of the node to check. Can be NULL if @p node is set.
- * @param[in] user User, whose access to check.
- * @param[in] oper Operation to check.
- * @return NCAC access enum.
- */
-enum ncac_access ncac_allowed_node(const struct lyd_node *node, const char *node_path,
-        const struct lysc_node *node_schema, const char *user, uint8_t oper);
-
-/**
  * @brief Check whether an operation is allowed for a user.
  *
  * According to https://tools.ietf.org/html/rfc8341#section-3.1.3
@@ -169,5 +156,15 @@ void ncac_check_data_read_filter(struct lyd_node **data, const char *user);
  * @return NULL if access allowed, otherwise the denied access data node.
  */
 const struct lyd_node *ncac_check_diff(const struct lyd_node *diff, const char *user);
+
+/**
+ * @brief Filter out any data in the notification the user does not have R access to
+ *
+ * @param[in] user Name of the user to check.
+ * @param[in] set Set of the notification data.
+ * @param[out] all_removed Whether or not all nodes have been removed.
+ * @return NULL if access allowed, otherwise the denied access data node.
+ */
+void ncac_check_yang_push_update_notif(const char *user, struct ly_set *set, int *all_removed);
 
 #endif /* NP2SRV_NETCONF_ACM_H_ */

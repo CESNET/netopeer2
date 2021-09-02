@@ -1209,14 +1209,45 @@ ncac_rule_group_match(struct ncac_rule_list *rlist, char **groups, uint32_t grou
     return 0;
 }
 
-enum ncac_access
+/**
+ * @brief Free all NACM groups. Supposed to be called after @ref ncac_collect_group.
+ *
+ * @param[out] groups Sorted array of collected groups to free
+ * @param[out] group_count Number of @p groups.
+ */
+static void
+ncac_free_groups(char **groups, uint32_t group_count)
+{
+    uint32_t i;
+
+    if (!groups) {
+        return;
+    }
+
+    for (i = 0; i < group_count; ++i) {
+        lydict_remove(sr_get_context(np2srv.sr_conn), groups[i]);
+    }
+    free(groups);
+}
+
+/**
+ * @brief Check NACM access for a single node.
+ *
+ * @param[in] node Node to check. Can be NULL if @p node_path and @p node_schema are set.
+ * @param[in] node_path Node path of the node to check. Can be NULL if @p node is set.
+ * @param[in] node_schema Schema of the node to check. Can be NULL if @p node is set.
+ * @param[in] oper Operation to check.
+ * @param[in] groups Array of groups name to be checked for permissions
+ * @param[in] group_count Length of @p groups
+ * @return NCAC access enum.
+ */
+static enum ncac_access
 ncac_allowed_node(const struct lyd_node *node, const char *node_path, const struct lysc_node *node_schema,
-        const char *user, uint8_t oper)
+        uint8_t oper, char **groups, uint32_t group_count)
 {
     struct ncac_rule_list *rlist;
     struct ncac_rule *rule;
-    char **groups, *path;
-    uint32_t i, group_count;
+    char *path;
     enum ncac_access access = NCAC_ACCESS_DENY;
 
     enum {
@@ -1238,10 +1269,7 @@ ncac_allowed_node(const struct lyd_node *node, const char *node_path, const stru
      * ref https://tools.ietf.org/html/rfc8341#section-3.4.4
      */
 
-    /* 4) collect groups */
-    if (ncac_collect_groups(sr_get_context(np2srv.sr_conn), user, &groups, &group_count)) {
-        goto cleanup;
-    }
+    /* 4) collected groups passed as argument */
 
     /* 5) no groups */
     if (!group_count) {
@@ -1380,11 +1408,6 @@ cleanup:
         /* node itself is allowed but a rule denies access to some descendants */
         access = NCAC_ACCESS_PARTIAL_PERMIT;
     }
-
-    for (i = 0; i < group_count; ++i) {
-        lydict_remove(sr_get_context(np2srv.sr_conn), groups[i]);
-    }
-    free(groups);
     return access;
 }
 
@@ -1392,6 +1415,8 @@ const struct lyd_node *
 ncac_check_operation(const struct lyd_node *data, const char *user)
 {
     const struct lyd_node *op;
+    char **groups = NULL;
+    uint32_t group_count = 0;
     int allowed = 0;
 
     /* NACM LOCK */
@@ -1400,6 +1425,10 @@ ncac_check_operation(const struct lyd_node *data, const char *user)
     /* check access for the whole data tree first */
     if (ncac_allowed_tree(data->schema, user)) {
         allowed = 1;
+        goto cleanup;
+    }
+
+    if (ncac_collect_groups(sr_get_context(np2srv.sr_conn), user, &groups, &group_count)) {
         goto cleanup;
     }
 
@@ -1441,21 +1470,22 @@ ncac_check_operation(const struct lyd_node *data, const char *user)
 
     if (op->schema->nodetype & (LYS_RPC | LYS_ACTION)) {
         /* check X access on the RPC/action */
-        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(op, NULL, NULL, user, NCAC_OP_EXEC))) {
+        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(op, NULL, NULL, NCAC_OP_EXEC, groups, group_count))) {
             goto cleanup;
         }
     } else {
         assert(op->schema->nodetype == LYS_NOTIF);
 
         /* check R access on the notification */
-        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(op, NULL, NULL, user, NCAC_OP_READ))) {
+        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(op, NULL, NULL, NCAC_OP_READ, groups, group_count))) {
             goto cleanup;
         }
     }
 
     if (op->parent) {
         /* check R access on the parents, the last parent must be enough */
-        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(lyd_parent(op), NULL, NULL, user, NCAC_OP_READ))) {
+        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(lyd_parent(op), NULL, NULL, NCAC_OP_READ, groups,
+                group_count))) {
             goto cleanup;
         }
     }
@@ -1463,6 +1493,7 @@ ncac_check_operation(const struct lyd_node *data, const char *user)
     allowed = 1;
 
 cleanup:
+    ncac_free_groups(groups, group_count);
     if (allowed) {
         op = NULL;
     } else if (op) {
@@ -1483,22 +1514,24 @@ cleanup:
  *
  * @param[in,out] first First sibling to filter.
  * @param[in] user User for the NACM filtering.
+ * @param[in] groups Array of collected groups.
+ * @param[in] group_count Number of @p groups.
  * @return Highest access among descendants (recursively), permit is the highest.
  */
 static enum ncac_access
-ncac_check_data_read_filter_r(struct lyd_node **first, const char *user)
+ncac_check_data_read_filter_r(struct lyd_node **first, const char *user, char **groups, uint32_t group_count)
 {
     struct lyd_node *next, *elem;
     enum ncac_access node_access, ret_access = NCAC_ACCESS_DENY;
 
     LY_LIST_FOR_SAFE(*first, next, elem) {
         /* check access of the node */
-        node_access = ncac_allowed_node(elem, NULL, NULL, user, NCAC_OP_READ);
+        node_access = ncac_allowed_node(elem, NULL, NULL, NCAC_OP_READ, groups, group_count);
 
         if (node_access == NCAC_ACCESS_PARTIAL_DENY) {
             /* only partial deny access, we must check children recursively to learn whether this node is allowed or not */
             if (elem->schema->nodetype & LYD_NODE_INNER) {
-                node_access = ncac_check_data_read_filter_r(&((struct lyd_node_inner *)elem)->child, user);
+                node_access = ncac_check_data_read_filter_r(&((struct lyd_node_inner *)elem)->child, user, groups, group_count);
             }
 
             if (node_access != NCAC_ACCESS_PERMIT) {
@@ -1508,7 +1541,7 @@ ncac_check_data_read_filter_r(struct lyd_node **first, const char *user)
         } else if (node_access == NCAC_ACCESS_PARTIAL_PERMIT) {
             /* partial permit, the node will be included in the reply but we must check children as well */
             if (elem->schema->nodetype & LYD_NODE_INNER) {
-                ncac_check_data_read_filter_r(&((struct lyd_node_inner *)elem)->child, user);
+                ncac_check_data_read_filter_r(&((struct lyd_node_inner *)elem)->child, user, groups, group_count);
             }
             node_access = NCAC_ACCESS_PERMIT;
         }
@@ -1535,17 +1568,26 @@ ncac_check_data_read_filter_r(struct lyd_node **first, const char *user)
 void
 ncac_check_data_read_filter(struct lyd_node **data, const char *user)
 {
+    char **groups = NULL;
+    uint32_t group_count;
+
     assert(data);
 
     /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
-    if (*data && !ncac_allowed_tree((*data)->schema, user)) {
-        ncac_check_data_read_filter_r(data, user);
+    if (ncac_collect_groups(sr_get_context(np2srv.sr_conn), user, &groups, &group_count)) {
+        goto cleanup;
     }
 
+    if (*data && !ncac_allowed_tree((*data)->schema, user)) {
+        ncac_check_data_read_filter_r(data, user, groups, group_count);
+    }
+
+cleanup:
     /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
+    ncac_free_groups(groups, group_count);
 }
 
 /**
@@ -1554,10 +1596,12 @@ ncac_check_data_read_filter(struct lyd_node **data, const char *user)
  * @param[in] diff First diff sibling.
  * @param[in] user User for the NACM check.
  * @param[in] parent_op Inherited parent operation.
+ * @param[in] groups Array of collected groups.
+ * @param[in] group_count Number of @p groups.
  * @return NULL if access allowed, otherwise the denied access data node.
  */
 static const struct lyd_node *
-ncac_check_diff_r(const struct lyd_node *diff, const char *user, const char *parent_op)
+ncac_check_diff_r(const struct lyd_node *diff, const char *user, const char *parent_op, char **groups, uint32_t group_count)
 {
     const char *op;
     struct lyd_meta *meta;
@@ -1604,14 +1648,14 @@ ncac_check_diff_r(const struct lyd_node *diff, const char *user, const char *par
         }
 
         /* check access for the node, none operation is always allowed, and partial access is relevant only for read operation */
-        if (oper && !NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(diff, NULL, NULL, user, oper))) {
+        if (oper && !NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(diff, NULL, NULL, oper, groups, group_count))) {
             node = diff;
             break;
         }
 
         /* go recursively */
         if (lyd_child(diff)) {
-            node = ncac_check_diff_r(lyd_child(diff), user, op);
+            node = ncac_check_diff_r(lyd_child(diff), user, op, groups, group_count);
         }
     }
 
@@ -1622,19 +1666,67 @@ const struct lyd_node *
 ncac_check_diff(const struct lyd_node *diff, const char *user)
 {
     const struct lyd_node *node = NULL;
+    char **groups = NULL;
+    uint32_t group_count;
 
     /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
+    if (ncac_collect_groups(sr_get_context(np2srv.sr_conn), user, &groups, &group_count)) {
+        goto cleanup;
+    }
+
     /* any node can be used in this case */
     if (!ncac_allowed_tree(diff->schema, user)) {
-        node = ncac_check_diff_r(diff, user, NULL);
+        node = ncac_check_diff_r(diff, user, NULL, groups, group_count);
         if (node) {
             ++nacm.denied_data_writes;
         }
     }
 
+cleanup:
     /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
+    ncac_free_groups(groups, group_count);
     return node;
+}
+
+void
+ncac_check_yang_push_update_notif(const char *user, struct ly_set *set, int *all_removed)
+{
+    struct lyd_node_any *ly_value;
+    struct lyd_node *ly_target, *next, *iter;
+    uint32_t i, group_count, removed = 0;
+    char **groups;
+
+    if (ncac_collect_groups(sr_get_context(np2srv.sr_conn), user, &groups, &group_count)) {
+        return;
+    }
+
+    for (i = 0; i < set->count; ++i) {
+        /* check the change itself */
+        lyd_find_path(set->dnodes[i], "target", 0, &ly_target);
+        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(NULL, lyd_get_value(ly_target), ly_target->priv,
+                NCAC_OP_READ, groups, group_count))) {
+            /* not allowed, remove this change */
+            lyd_free_tree(set->dnodes[i]);
+            ++removed;
+            continue;
+        }
+
+        if (!lyd_find_path(set->dnodes[i], "value", 0, (struct lyd_node **)&ly_value)) {
+            assert(ly_value->value_type == LYD_ANYDATA_DATATREE);
+
+            /* filter out any nested nodes */
+            LY_LIST_FOR_SAFE(lyd_child(ly_value->value.tree), next, iter) {
+                ncac_check_data_read_filter(&iter, user);
+            }
+        }
+    }
+    ncac_free_groups(groups, group_count);
+    if (removed == set->count) {
+        *all_removed = 1;
+    } else {
+        *all_removed = 0;
+    }
 }
