@@ -70,7 +70,6 @@ np_gettimespec(int force_real)
     return ts;
 }
 
-/* ts1 < ts2 -> +, ts1 > ts2 -> -, returns milliseconds */
 int64_t
 np_difftimespec(const struct timespec *ts1, const struct timespec *ts2)
 {
@@ -354,7 +353,7 @@ np2srv_url_setcap(void)
     }
     if (!sup_prot) {
         /* no protocols supported */
-        return EXIT_SUCCESS;
+        return 0;
     }
 
     /* get max capab string size and allocate it */
@@ -365,7 +364,7 @@ np2srv_url_setcap(void)
     cpblt = malloc(j);
     if (!cpblt) {
         EMEM;
-        return EXIT_FAILURE;
+        return -1;
     }
 
     /* main capability */
@@ -381,7 +380,7 @@ np2srv_url_setcap(void)
 
     nc_server_set_capability(cpblt);
     free(cpblt);
-    return EXIT_SUCCESS;
+    return 0;
 }
 
 struct np2srv_url_mem {
@@ -415,6 +414,13 @@ url_readdata(void *ptr, size_t size, size_t nmemb, void *userdata)
     return copied;
 }
 
+/**
+ * @brief Open specific URL using curl.
+ *
+ * @param[in] url URL to open.
+ * @return FD with the URL contents;
+ * @return -1 on error.
+ */
 static int
 url_open(const char *url)
 {
@@ -504,7 +510,7 @@ op_parse_url(const char *url, uint32_t parse_options, int *rc, sr_session_ctx_t 
 }
 
 int
-op_export_url(const char *url, struct lyd_node *data, uint32_t options, int *rc, sr_session_ctx_t *sr_sess)
+op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, int *rc, sr_session_ctx_t *sr_sess)
 {
     CURL *curl;
     CURLcode res;
@@ -524,7 +530,7 @@ op_export_url(const char *url, struct lyd_node *data, uint32_t options, int *rc,
     if (data) {
         lyd_insert_child(config, data);
     }
-    lyd_print_mem(&str_data, config, LYD_XML, options);
+    lyd_print_mem(&str_data, config, LYD_XML, print_options);
 
     /* do not free data */
     lyd_unlink_siblings(data);
@@ -611,6 +617,13 @@ op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr
     return root;
 }
 
+/**
+ * @brief Learn whether a string is white-space-only.
+ *
+ * @param[in] str String to examine.
+ * @return 1 if there are only white-spaces in @p str;
+ * @return 0 otherwise.
+ */
 static int
 strws(const char *str)
 {
@@ -624,6 +637,15 @@ strws(const char *str)
     return 1;
 }
 
+/**
+ * @brief Add another XPath filter into NP2 filter structure.
+ *
+ * @param[in] new_filter New XPath filter to add.
+ * @param[in] selection Whether @p new_filter is selection or content filter.
+ * @param[in,out] filter NP2 filter structure to add to.
+ * @return 0 on success;
+ * @return -1 on error.
+ */
 static int
 op_filter_xpath_add_filter(const char *new_filter, int selection, struct np2_filter *filter)
 {
@@ -642,6 +664,17 @@ op_filter_xpath_add_filter(const char *new_filter, int selection, struct np2_fil
     return 0;
 }
 
+/**
+ * @brief Append subtree filter metadata to XPath filter string buffer.
+ *
+ * Handles metadata.
+ *
+ * @param[in] meta Subtree filter node metadata.
+ * @param[in,out] buf Current XPath filter buffer.
+ * @param[in] size Current @p buf size.
+ * @return New @p buf size;
+ * @return -1 on error.
+ */
 static int
 filter_xpath_buf_append_attrs(const struct lyd_meta *meta, char **buf, int size)
 {
@@ -665,7 +698,14 @@ filter_xpath_buf_append_attrs(const struct lyd_meta *meta, char **buf, int size)
     return size;
 }
 
-/* top-level content node with namespace and optional attributes */
+/**
+ * @brief Process a subtree top-level content node with namespace and optional attributes.
+ *
+ * @param[in] node Subtree filter node.
+ * @param[in,out] filter NP2 filter structure to add to.
+ * @return 0 on success.
+ * @return -1 on error.
+ */
 static int
 filter_xpath_buf_add_top_content(const struct lyd_node *node, struct np2_filter *filter)
 {
@@ -685,7 +725,7 @@ filter_xpath_buf_add_top_content(const struct lyd_node *node, struct np2_filter 
     size = filter_xpath_buf_append_attrs(node->meta, &buf, size);
     if (size < 1) {
         free(buf);
-        return size;
+        return -1;
     }
 
     if (op_filter_xpath_add_filter(buf, 0, filter)) {
@@ -697,6 +737,13 @@ filter_xpath_buf_add_top_content(const struct lyd_node *node, struct np2_filter 
     return 0;
 }
 
+/**
+ * @brief Get the module to print for a node if needed based on JSON instid module inheritence.
+ *
+ * @param[in] node Node that is printed.
+ * @return Module to print;
+ * @return NULL if no module needs to be printed.
+ */
 static const struct lys_module *
 filter_xpath_print_node_module(const struct lyd_node *node)
 {
@@ -748,7 +795,17 @@ filter_xpath_print_node_module(const struct lyd_node *node)
     return mod;
 }
 
-/* content node with optional namespace and attributes */
+/**
+ * @brief Append subtree filter node to XPath filter string buffer.
+ *
+ * Handles content nodes with optional namespace and attributes.
+ *
+ * @param[in] node Subtree filter node.
+ * @param[in,out] buf Current XPath filter buffer.
+ * @param[in] size Current @p buf size.
+ * @return New @p buf size;
+ * @return -1 on error.
+ */
 static int
 filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int size)
 {
@@ -794,7 +851,17 @@ filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int siz
     return new_size;
 }
 
-/* containment/selection node with namespace and optional attributes */
+/**
+ * @brief Append subtree filter node to XPath filter string buffer.
+ *
+ * Handles containment/selection nodes with namespace and optional attributes.
+ *
+ * @param[in] node Subtree filter node.
+ * @param[in,out] buf Current XPath filter buffer.
+ * @param[in] size Current @p buf size.
+ * @return New @p buf size;
+ * @return -1 on error.
+ */
 static int
 filter_xpath_buf_append_node(const struct lyd_node *node, char **buf, int size)
 {
@@ -824,6 +891,17 @@ filter_xpath_buf_append_node(const struct lyd_node *node, char **buf, int size)
     return size;
 }
 
+/**
+ * @brief Process a subtree filter node by constructing an XPath filter string and adding it
+ * to an NP2 filter structure, recursively.
+ *
+ * @param[in] node Subtree filter node.
+ * @param[in,out] buf Current XPath filter buffer.
+ * @param[in] size Current @p buf size.
+ * @param[in,out] filter NP2 filter structure to add to.
+ * @return 0 on success;
+ * @return -1 on error.
+ */
 static int
 filter_xpath_buf_add_r(const struct lyd_node *node, char **buf, int size, struct np2_filter *filter)
 {
@@ -833,7 +911,7 @@ filter_xpath_buf_add_r(const struct lyd_node *node, char **buf, int size, struct
     /* containment node or selection node */
     size = filter_xpath_buf_append_node(node, buf, size);
     if (size < 1) {
-        return size;
+        return -1;
     }
 
     if (!lyd_child(node)) {
@@ -851,7 +929,7 @@ filter_xpath_buf_add_r(const struct lyd_node *node, char **buf, int size, struct
             /* there is a content filter, append all of them */
             size = filter_xpath_buf_append_content(child, buf, size);
             if (size < 1) {
-                return size;
+                return -1;
             }
         } else {
             /* can no longer be just a content match */
@@ -881,7 +959,7 @@ filter_xpath_buf_add_r(const struct lyd_node *node, char **buf, int size, struct
             if (!s) {
                 continue;
             } else if (s < 0) {
-                return s;
+                return -1;
             }
 
             if (op_filter_xpath_add_filter(*buf, 1, filter)) {
@@ -937,6 +1015,14 @@ op_filter_erase(struct np2_filter *filter)
     filter->count = 0;
 }
 
+/**
+ * @brief Append string to another string by enlarging it.
+ *
+ * @param[in] str String to append.
+ * @param[in,out] ret String to append to, is enlarged.
+ * @return 0 on success;
+ * @return -1 on error.
+ */
 static int
 np_append_str(const char *str, char **ret)
 {

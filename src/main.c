@@ -89,6 +89,11 @@ signal_handler(int sig)
     }
 }
 
+/**
+ * @brief Callback for deleting NC sessions.
+ *
+ * @param[in] session NC session to delete.
+ */
 static void
 np2srv_del_session_cb(struct nc_session *session)
 {
@@ -170,6 +175,12 @@ np2srv_del_session_cb(struct nc_session *session)
     nc_session_free(session, NULL);
 }
 
+/**
+ * @brief Create NC rpc-error from a SR error.
+ *
+ * @param[in] err SR error.
+ * @return NC rpc-error opaque node tree.
+ */
 static struct lyd_node *
 np2srv_err_nc(sr_error_info_err_t *err)
 {
@@ -248,6 +259,12 @@ error:
     return NULL;
 }
 
+/**
+ * @brief Create NC error reply based on SR error info.
+ *
+ * @param[in] err_info SR error info.
+ * @return Server reply structure.
+ */
 static struct nc_server_reply *
 np2srv_err_reply_sr(const sr_error_info_t *err_info)
 {
@@ -290,6 +307,10 @@ np2srv_err_reply_sr(const sr_error_info_t *err_info)
 
 /**
  * @brief Callback for libnetconf2 handling all the RPCs.
+ *
+ * @param[in] rpc Received RPC to process.
+ * @param[in] ncs NC session that received @p rpc.
+ * @return Server reply structure.
  */
 static struct nc_server_reply *
 np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
@@ -380,6 +401,13 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
     return reply;
 }
 
+/**
+ * @brief Sysrepo callback for checking NACM of data diff.
+ *
+ * @param[in] session SR session.
+ * @param[in] diff Diff to check.
+ * @return SR error value.
+ */
 static int
 np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
 {
@@ -406,6 +434,13 @@ np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
     return SR_ERR_OK;
 }
 
+/**
+ * @brief Check SR schema context for all the required schemas and features.
+ *
+ * @param[in] sr_sess SR session to use.
+ * @return 0 on success;
+ * @return -1 on error.
+ */
 static int
 np2srv_check_schemas(sr_session_ctx_t *sr_sess)
 {
@@ -484,6 +519,12 @@ np2srv_content_id_cb(void *UNUSED(user_data))
     return strdup(buf);
 }
 
+/**
+ * @brief Initialize the server,
+ *
+ * @return 0 on succes;
+ * @return -1 on error.
+ */
 static int
 server_init(void)
 {
@@ -583,6 +624,9 @@ error:
     return -1;
 }
 
+/**
+ * @brief Destroy the server.
+ */
 static void
 server_destroy(void)
 {
@@ -640,6 +684,12 @@ np2srv_dummy_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(sub_id), cons
 
 #endif
 
+/**
+ * @brief Subscribe to all the handled RPCs of the server.
+ *
+ * @return 0 on success;
+ * @return -1 on error.
+ */
 static int
 server_rpc_subscribe(void)
 {
@@ -693,6 +743,12 @@ error:
     return -1;
 }
 
+/**
+ * @brief Subscribe to all the handled configuration and operational data by the server.
+ *
+ * @return 0 on success;
+ * @return -1 on error.
+ */
 static int
 server_data_subscribe(void)
 {
@@ -884,6 +940,12 @@ error:
     return -1;
 }
 
+/**
+ * @brief Server worker thread function.
+ *
+ * @param[in] arg Worker index.
+ * @return NULL.
+ */
 static void *
 worker_thread(void *arg)
 {
