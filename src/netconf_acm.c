@@ -1414,7 +1414,7 @@ cleanup:
 const struct lyd_node *
 ncac_check_operation(const struct lyd_node *data, const char *user)
 {
-    const struct lyd_node *op;
+    const struct lyd_node *op = NULL;
     char **groups = NULL;
     uint32_t group_count = 0;
     int allowed = 0;
