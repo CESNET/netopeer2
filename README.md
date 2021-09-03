@@ -189,7 +189,8 @@ connect using `client.crt` certificate and `client.key` private key and having `
 set as trusted. These example certificates can be found in `example_configuration/tls_certs`.
 *netopeer2-cli* can easily be configured this way and the TLS connection tested.
 
-Once connected, the client will be identified with `tls-test` NETCONF username.
+To pass server identity check, the client must be connecting to `localhost`, which is the default
+server domain if left empty. Once connected, the client will be identified with `tls-test` NETCONF username.
 
 ### TLS Call Home
 

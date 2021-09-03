@@ -28,7 +28,7 @@
                                 <cert-maps>
                                     <cert-to-name>
                                         <id>1</id>
-                                        <fingerprint>02:E9:38:1F:F6:8B:62:DE:0A:0B:C5:03:81:A8:03:49:A0:00:7F:8B:F3</fingerprint>
+                                        <fingerprint>02:20:E1:AD:CC:92:71:E9:EA:6A:85:DF:A7:FF:8C:BB:B9:D5:E4:EE:74</fingerprint>
                                         <map-type xmlns:x509c2n="urn:ietf:params:xml:ns:yang:ietf-x509-cert-to-name">x509c2n:specified</map-type>
                                         <name>tls-test</name>
                                     </cert-to-name>
