@@ -73,4 +73,7 @@
 /** @brief Replace %s in NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN by username (1), or by the home dir (0) */
 #cmakedefine01 NP2SRV_SSH_AUTHORIZED_KEYS_ARG_IS_USERNAME
 
+/** @brief diretory for server files */
+#define NP2SRV_DIR "@NP2SRV_DIR@"
+
 #endif /* NP2SRV_CONFIG_H_ */

@@ -24,7 +24,7 @@ GROUP=${NP2_MODULE_GROUP}
 # array of modules to install
 MODULES=(
 "ietf-netconf-acm@2018-02-14.yang"
-"ietf-netconf@2013-09-29.yang -e writable-running -e candidate -e rollback-on-error -e validate -e startup -e url -e xpath"
+"ietf-netconf@2013-09-29.yang -e writable-running -e candidate -e rollback-on-error -e validate -e startup -e url -e xpath -e confirmed-commit"
 "ietf-netconf-monitoring@2010-10-04.yang"
 "ietf-netconf-nmda@2019-01-07.yang -e origin -e with-defaults"
 "nc-notifications@2008-07-14.yang"
