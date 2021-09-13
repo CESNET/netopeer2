@@ -47,6 +47,7 @@
 # include "netconf_server_tls.h"
 #endif
 #include "netconf_acm.h"
+#include "netconf_confirmed_commit.h"
 #include "netconf_monitoring.h"
 #include "netconf_nmda.h"
 #include "netconf_subscribed_notifications.h"
@@ -413,9 +414,14 @@ np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
 {
     const struct lyd_node *node;
     char *path;
-    const char *user;
+    const char *user, *name;
     uint32_t *nc_sid;
 
+    name = sr_session_get_orig_name(session);
+    if (!name || strcmp(name, "netopeer2")) {
+        EINT;
+        return SR_ERR_INTERNAL;
+    }
     sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_sid);
     if (ATOMIC_LOAD_RELAXED(skip_nacm_nc_sid) == *nc_sid) {
         /* skip the NACM check */
@@ -617,6 +623,9 @@ server_init(void)
         }
     }
 
+    /* Restore a previous confirmed commit if restore file exists */
+    ncc_try_restore();
+
     return 0;
 
 error:
@@ -665,6 +674,9 @@ server_destroy(void)
 
     /* NACM cleanup */
     ncac_destroy();
+
+    /* confirmed commit cleanup */
+    ncc_commit_ctx_destroy();
 
     /* ietf-subscribed-notifications cleanup */
     np2srv_sub_ntf_destroy();
@@ -717,6 +729,7 @@ server_rpc_subscribe(void)
     /* keep close-session empty so that internal lnc2 callback is used */
     SR_RPC_SUBSCR("/ietf-netconf:kill-session", np2srv_rpc_kill_cb);
     SR_RPC_SUBSCR("/ietf-netconf:commit", np2srv_rpc_commit_cb);
+    SR_RPC_SUBSCR("/ietf-netconf:cancel-commit", np2srv_rpc_cancel_commit_cb);
     SR_RPC_SUBSCR("/ietf-netconf:discard-changes", np2srv_rpc_discard_cb);
     SR_RPC_SUBSCR("/ietf-netconf:validate", np2srv_rpc_validate_cb);
 
@@ -1035,6 +1048,7 @@ print_usage(char *progname)
     fprintf(stdout, " -h         display help\n");
     fprintf(stdout, " -V         show program version\n");
     fprintf(stdout, " -p path    path to pidfile (default path is \"%s\")\n", NP2SRV_PID_FILE_PATH);
+    fprintf(stdout, " -f path    path to netopeer2 server files directory (default path is \"%s\")\n", SERVER_DIR);
     fprintf(stdout, " -U[path]   listen on a local UNIX socket (default path is \"%s\")\n", NP2SRV_UNIX_SOCK_PATH);
     fprintf(stdout, " -m mode    set mode for the listening UNIX socket\n");
     fprintf(stdout, " -u uid     set UID/user for the listening UNIX socket\n");
@@ -1094,8 +1108,11 @@ main(int argc, char *argv[])
     action.sa_handler = SIG_IGN;
     sigaction(SIGPIPE, &action, NULL);
 
+    /* default value */
+    np2srv.server_dir = SERVER_DIR;
+
     /* process command line options */
-    while ((c = getopt(argc, argv, "dhVp:U::m:u:g:t:v:c:")) != -1) {
+    while ((c = getopt(argc, argv, "dhVp:f:U::m:u:g:t:v:c:")) != -1) {
         switch (c) {
         case 'd':
             daemonize = 0;
@@ -1138,6 +1155,9 @@ main(int argc, char *argv[])
             return EXIT_SUCCESS;
         case 'p':
             pidfile = optarg;
+            break;
+        case 'f':
+            np2srv.server_dir = optarg;
             break;
         case 'U':
             np2srv.unix_path = optarg ? optarg : NP2SRV_UNIX_SOCK_PATH;

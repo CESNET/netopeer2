@@ -60,6 +60,8 @@ struct np2srv {
     gid_t unix_gid;                 /**< UNIX socket GID */
     uint32_t sr_timeout;            /**< timeout in ms for all sysrepo functions */
 
+    const char *server_dir;         /**< path to server files (just confirmed commit for the moment) */
+
     struct nc_pollsession *nc_ps;   /**< libnetconf2 pollsession structure */
     pthread_t workers[NP2SRV_THREAD_COUNT]; /**< worker threads handling sessions */
 };

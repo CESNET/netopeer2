@@ -39,6 +39,10 @@ int np2srv_rpc_kill_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *o
 int np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,
         sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
 
+int np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path,
+        const struct lyd_node *input, sr_event_t event, uint32_t request_id, struct lyd_node *output,
+        void *private_data);
+
 int np2srv_rpc_discard_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,
         sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
 
