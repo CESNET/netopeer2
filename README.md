@@ -72,7 +72,7 @@ $ make
 ### Compilation options
 
 The `netopeer2-server` requires *ietf-netconf-server* and all connected YANG modules to be installed in *sysrepo*
-to work correctly. This is performed autmatically during the installation process. Moreover, default
+to work correctly. This is performed automatically during the installation process. Moreover, default
 SSH configuration listening on all IPv4 interfaces and a newly generated SSH host key are imported
 so that it can be connected to the server out-of-the-box. However, it may not always be desired
 to perform all these steps even though the executed scripts check whether the modules/some configuration
