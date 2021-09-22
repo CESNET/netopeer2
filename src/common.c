@@ -584,7 +584,7 @@ op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr
     struct lyd_node *root = NULL;
     LY_ERR lyrc;
 
-    assert(config && config->schema && (config->schema->nodetype == LYS_ANYXML));
+    assert(config && config->schema && (config->schema->nodetype & LYD_NODE_ANY));
 
     if (!config->value.str) {
         /* nothing to do, no data */
