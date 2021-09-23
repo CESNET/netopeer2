@@ -72,6 +72,21 @@ UPDATE_MODULE() {
     fi
 }
 
+CHANGE_PERMS() {
+    CMD="'$SYSREPOCTL' -c $1 -p '$PERMS' -v2"
+    if [ ! -z ${OWNER} ]; then
+        CMD="$CMD -o '$OWNER'"
+    fi
+    if [ ! -z ${GROUP} ]; then
+        CMD="$CMD -g '$GROUP'"
+    fi
+    eval $CMD
+    local rc=$?
+    if [ $rc -ne 0 ]; then
+        exit $rc
+    fi
+}
+
 ENABLE_FEATURE() {
     "$SYSREPOCTL" -a -c $1 -e $2 -v2
     local rc=$?
@@ -99,6 +114,14 @@ for i in "${MODULES[@]}"; do
         # update module without any features
         file=`echo "$i" | cut -d' ' -f 1`
         UPDATE_MODULE "$file"
+    fi
+
+    sctl_owner=`echo "$SCTL_MODULE" | sed 's/\([^|]*|\)\{3\} \([^:]*\).*/\2/'`
+    sctl_group=`echo "$SCTL_MODULE" | sed 's/\([^|]*|\)\{3\}[^:]*:\([^ ]*\).*/\2/'`
+    sctl_perms=`echo "$SCTL_MODULE" | sed 's/\([^|]*|\)\{4\} \([^ ]*\).*/\2/'`
+    if [ "$sctl_perms" != "$PERMS" ] || [ ! -z ${OWNER} -a "$sctl_owner" != "$OWNER" ] || [ ! -z ${GROUP} -a "$sctl_group" != "$GROUP" ]; then
+        # change permissions/owner
+        CHANGE_PERMS "$name"
     fi
 
     # parse sysrepoctl features and add extra space at the end for easier matching
