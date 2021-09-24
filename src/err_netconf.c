@@ -229,6 +229,40 @@ np_err_bad_element(sr_session_ctx_t *ev_sess, const char *elem_name, const char 
 }
 
 void
+np_err_invalid_value(sr_session_ctx_t *ev_sess, const char *description, const char *bad_elem_name)
+{
+    const char *str;
+
+    /* error format */
+    sr_session_set_error_format(ev_sess, "NETCONF");
+
+    /* error-type */
+    str = "application";
+    sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+    /* error-tag */
+    str = "invalid-value";
+    sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+    /* error-message */
+    sr_session_push_error_data(ev_sess, strlen(description) + 1, description);
+
+    /* error-app-tag */
+    sr_session_push_error_data(ev_sess, 1, "");
+
+    /* error-path */
+    sr_session_push_error_data(ev_sess, 1, "");
+
+    if (bad_elem_name) {
+        /* error-info */
+        str = "bad-element";
+        sr_session_push_error_data(ev_sess, strlen(str) + 1, str);
+
+        sr_session_push_error_data(ev_sess, strlen(bad_elem_name) + 1, bad_elem_name);
+    }
+}
+
+void
 np_err_ntf_sub_no_such_sub(sr_session_ctx_t *ev_sess, const char *message)
 {
     const char *str;

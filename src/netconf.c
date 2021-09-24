@@ -36,6 +36,7 @@
 #include "err_netconf.h"
 #include "log.h"
 #include "netconf_acm.h"
+#include "netconf_confirmed_commit.h"
 #include "netconf_monitoring.h"
 
 static int
@@ -790,47 +791,6 @@ np2srv_rpc_kill_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
     /* success */
 
 cleanup:
-    return rc;
-}
-
-int
-np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
-        const struct lyd_node *UNUSED(input), sr_event_t event, uint32_t UNUSED(request_id),
-        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
-{
-    int rc = SR_ERR_OK;
-    struct np2_user_sess *user_sess = NULL;
-    const sr_error_info_t *err_info;
-
-    if (NP_IGNORE_RPC(session, event)) {
-        /* ignore in this case */
-        return SR_ERR_OK;
-    }
-
-    /* get the user session */
-    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
-        goto cleanup;
-    }
-
-    /* update sysrepo session datastore */
-    sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING);
-
-    /* sysrepo API */
-    rc = sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout);
-    if ((rc == SR_ERR_LOCKED) && NP_IS_ORIG_NP(session)) {
-        /* NETCONF error */
-        sr_session_get_error(user_sess->sess, &err_info);
-        np_err_sr2nc_in_use(session, err_info);
-    } else if (rc) {
-        /* Sysrepo error */
-        sr_session_dup_error(user_sess->sess, session);
-        goto cleanup;
-    }
-
-    /* success */
-
-cleanup:
-    np_release_user_sess(user_sess);
     return rc;
 }
 

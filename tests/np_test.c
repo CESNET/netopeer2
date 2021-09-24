@@ -185,7 +185,7 @@ np_glob_setup_np2(void **state)
 
         /* exec server listening on a unix socket */
         execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-p" NP_PID_PATH,
-                "-U" NP_SOCKET_PATH, "-m 600", (char *)NULL);
+                "-U" NP_SOCKET_PATH, "-m 600", "-b", NP2SRV_TEST_DIR, (char *)NULL);
 
 child_error:
         printf("Child execution failed\n");
