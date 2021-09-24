@@ -290,10 +290,10 @@ configure_file("${PROJECT_SOURCE_DIR}/src/config.h.in" "${PROJECT_BINARY_DIR}/co
 include_directories(${PROJECT_BINARY_DIR})
 
 # set script dir
-set(SCRIPT_DIR "${PROJECT_SOURCE_DIR}/scripts")
+set(SCRIPT_DIR "${PROJECT_SOURCE_DIR}/scripts/")
 
 # install the module files
-install(DIRECTORY "${PROJECT_SOURCE_DIR}/modules" DESTINATION ${YANG_MODULE_DIR})
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/modules/" DESTINATION ${YANG_MODULE_DIR})
 
 # install the binary, required modules, and default configuration
 install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
