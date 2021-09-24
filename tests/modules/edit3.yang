@@ -1,0 +1,13 @@
+module edit3 {
+  namespace ed3;
+  prefix ed3;
+
+  container top {
+    leaf name {
+      type string;
+    }
+    leaf-list num {
+      type int32;
+    }
+  }
+}

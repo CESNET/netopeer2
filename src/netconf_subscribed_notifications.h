@@ -34,7 +34,7 @@ enum sub_ntf_type {
 struct np2srv_sub_ntf_info {
     pthread_rwlock_t lock;
     ATOMIC_T sub_id_lock;   /* subscription ID that holds the lock, if a notification callback is called with this ID,
-                               it must not appempt locking and can access this structure directly */
+                               it must not attempt locking and can access this structure directly */
 
     struct np2srv_sub_ntf {
         uint32_t nc_id;
@@ -62,16 +62,19 @@ struct np2srv_sub_ntf_info {
  * @brief Lock the sub-ntf lock, if possible, and return a subscription.
  *
  * @param[in] nc_sub_id NC sub ID of the subscription.
+ * @param[in] sub_id SR subscription ID in a callback, 0 if not in callback.
  * @param[in] write Whether to write or read-lock.
  * @return Found subscription.
  * @return NULL if subscription was not found or it is terminating.
  */
-struct np2srv_sub_ntf *sub_ntf_find_lock(uint32_t nc_sub_id, int write);
+struct np2srv_sub_ntf *sub_ntf_find_lock(uint32_t nc_sub_id, uint32_t sub_id, int write);
 
 /**
  * @brief Unlock the sub-ntf lock.
+ *
+ * @param[in] sub_id SR subscription ID in a callback, 0 if not in callback.
  */
-void sub_ntf_unlock(void);
+void sub_ntf_unlock(uint32_t sub_id);
 
 /**
  * @brief Find the next matching sub-ntf subscription structure.
@@ -101,9 +104,18 @@ int sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, struct timesp
 /**
  * @brief If holding the sub-ntf lock, pass it to another callback that will be called by some following code.
  *
+ * Clear with sub_ntf_cb_lock_clear().
+ *
  * @param[in] sub_id Sysrepo subscription ID obtained in the callback.
  */
 void sub_ntf_cb_lock_pass(uint32_t sub_id);
+
+/**
+ * @brief Clear the passed sub-ntf lock.
+ *
+ * @param[in] sub_id Sysrepo subscription ID that the lock was passed to.
+ */
+void sub_ntf_cb_lock_clear(uint32_t sub_id);
 
 /**
  * @brief Increase denied notification count for a subscription.
@@ -121,6 +133,14 @@ void sub_ntf_inc_denied(uint32_t nc_sub_id);
  * @return Sysrepo error value.
  */
 int sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs);
+
+/**
+ * @brief Send a subscription-modified notification.
+ *
+ * @param[in] sub Subscription structure that was modified.
+ * @return Sysrepo error value.
+ */
+int sub_ntf_send_notif_modified(const struct np2srv_sub_ntf *sub);
 
 /*
  * for main.c

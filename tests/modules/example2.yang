@@ -1,0 +1,31 @@
+module example2 {
+  namespace ex2;
+  prefix ex2;
+
+  import ietf-inet-types {
+    prefix "inet";
+  }
+
+  description "module that corresponds with one of the rfc6241#7.2 examples";
+
+  container top {
+    container protocols {
+      container ospf {
+        list area {
+          key "name";
+          leaf name {
+            type inet:ip-address;
+          }
+          container interfaces {
+            list interface  {
+              key "name";
+              leaf name {
+                type inet:ip-address;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

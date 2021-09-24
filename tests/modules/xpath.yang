@@ -1,0 +1,14 @@
+module xpath {
+  namespace "x1";
+  prefix "x1";
+  description "Module to test boolean operators for xpath";
+
+  container top {
+    list item {
+      key "price";
+      leaf price {
+        type uint8;
+      }
+    }
+  }
+}

@@ -89,6 +89,11 @@ signal_handler(int sig)
     }
 }
 
+/**
+ * @brief Callback for deleting NC sessions.
+ *
+ * @param[in] session NC session to delete.
+ */
 static void
 np2srv_del_session_cb(struct nc_session *session)
 {
@@ -170,6 +175,12 @@ np2srv_del_session_cb(struct nc_session *session)
     nc_session_free(session, NULL);
 }
 
+/**
+ * @brief Create NC rpc-error from a SR error.
+ *
+ * @param[in] err SR error.
+ * @return NC rpc-error opaque node tree.
+ */
 static struct lyd_node *
 np2srv_err_nc(sr_error_info_err_t *err)
 {
@@ -248,6 +259,12 @@ error:
     return NULL;
 }
 
+/**
+ * @brief Create NC error reply based on SR error info.
+ *
+ * @param[in] err_info SR error info.
+ * @return Server reply structure.
+ */
 static struct nc_server_reply *
 np2srv_err_reply_sr(const sr_error_info_t *err_info)
 {
@@ -290,6 +307,10 @@ np2srv_err_reply_sr(const sr_error_info_t *err_info)
 
 /**
  * @brief Callback for libnetconf2 handling all the RPCs.
+ *
+ * @param[in] rpc Received RPC to process.
+ * @param[in] ncs NC session that received @p rpc.
+ * @return Server reply structure.
  */
 static struct nc_server_reply *
 np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
@@ -315,9 +336,11 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         free(str);
 
         /* set message */
-        asprintf(&str, "Executing the operation is denied because \"%s\" NACM authorization failed.", nc_session_get_username(ncs));
-        nc_err_set_msg(e, str, "en");
-        free(str);
+        if (asprintf(&str, "Executing the operation is denied because \"%s\" NACM authorization failed.",
+                nc_session_get_username(ncs)) > -1) {
+            nc_err_set_msg(e, str, "en");
+            free(str);
+        }
 
         return nc_server_reply_err(e);
     }
@@ -378,6 +401,13 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
     return reply;
 }
 
+/**
+ * @brief Sysrepo callback for checking NACM of data diff.
+ *
+ * @param[in] session SR session.
+ * @param[in] diff Diff to check.
+ * @return SR error value.
+ */
 static int
 np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
 {
@@ -404,6 +434,13 @@ np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
     return SR_ERR_OK;
 }
 
+/**
+ * @brief Check SR schema context for all the required schemas and features.
+ *
+ * @param[in] sr_sess SR session to use.
+ * @return 0 on success;
+ * @return -1 on error.
+ */
 static int
 np2srv_check_schemas(sr_session_ctx_t *sr_sess)
 {
@@ -482,19 +519,30 @@ np2srv_content_id_cb(void *UNUSED(user_data))
     return strdup(buf);
 }
 
+/**
+ * @brief Initialize the server,
+ *
+ * @return 0 on succes;
+ * @return -1 on error.
+ */
 static int
 server_init(void)
 {
     const struct ly_ctx *ly_ctx;
     int rc;
 
-    /* connect to the sysrepo and set edit-config NACM diff check callback */
+    /* connect to sysrepo */
     rc = sr_connect(SR_CONN_CACHE_RUNNING, &np2srv.sr_conn);
     if (rc != SR_ERR_OK) {
         ERR("Connecting to sysrepo failed (%s).", sr_strerror(rc));
         goto error;
     }
-    sr_set_diff_check_callback(np2srv.sr_conn, np2srv_diff_check_cb);
+
+    /* set edit-config NACM diff check callback */
+    rc = sr_set_diff_check_callback(np2srv.sr_conn, np2srv_diff_check_cb);
+    if (rc != SR_ERR_OK) {
+        WRN("Unable to set diff check callback (%s), NACM will not be applied when editing data.", sr_strerror(rc));
+    }
 
     ly_ctx = sr_get_context(np2srv.sr_conn);
 
@@ -576,6 +624,9 @@ error:
     return -1;
 }
 
+/**
+ * @brief Destroy the server.
+ */
 static void
 server_destroy(void)
 {
@@ -633,6 +684,12 @@ np2srv_dummy_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(sub_id), cons
 
 #endif
 
+/**
+ * @brief Subscribe to all the handled RPCs of the server.
+ *
+ * @return 0 on success;
+ * @return -1 on error.
+ */
 static int
 server_rpc_subscribe(void)
 {
@@ -686,6 +743,12 @@ error:
     return -1;
 }
 
+/**
+ * @brief Subscribe to all the handled configuration and operational data by the server.
+ *
+ * @return 0 on success;
+ * @return -1 on error.
+ */
 static int
 server_data_subscribe(void)
 {
@@ -877,6 +940,12 @@ error:
     return -1;
 }
 
+/**
+ * @brief Server worker thread function.
+ *
+ * @param[in] arg Worker index.
+ * @return NULL.
+ */
 static void *
 worker_thread(void *arg)
 {
@@ -1209,7 +1278,7 @@ main(int argc, char *argv[])
     close(pidfd);
 
     /* set printer callbacks for the used libraries and set proper log levels */
-    nc_set_print_clb(np2log_cb_nc2); /* libnetconf2 */
+    nc_set_print_clb_session(np2log_cb_nc2); /* libnetconf2 */
     ly_set_log_clb(np2log_cb_ly, 1); /* libyang */
     sr_log_set_cb(np2log_cb_sr); /* sysrepo, log level is checked by callback */
 

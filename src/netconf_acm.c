@@ -3,7 +3,7 @@
  * @author Michal Vasko <mvasko@cesnet.cz>
  * @brief NACM and ietf-netconf-acm callbacks
  *
- * Copyright (c) 2019 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2021 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
         return rc;
     }
 
+    /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
@@ -102,6 +103,7 @@ ncac_nacm_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
         }
     }
 
+    /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
 
     sr_free_change_iter(iter);
@@ -123,6 +125,7 @@ ncac_oper_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(sub_id), const c
 
     assert(*parent);
 
+    /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
     if (!strcmp(path, "/ietf-netconf-acm:nacm/denied-operations")) {
@@ -137,6 +140,7 @@ ncac_oper_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(sub_id), const c
         lyrc = lyd_new_path(*parent, NULL, "denied-notifications", num_str, 0, NULL);
     }
 
+    /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
 
     if (lyrc) {
@@ -175,6 +179,7 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
         return rc;
     }
 
+    /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
@@ -188,8 +193,10 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
                 /* add new group */
                 mem = realloc(nacm.groups, (nacm.group_count + 1) * sizeof *nacm.groups);
                 if (!mem) {
-                    EMEM;
+                    /* NACM UNLOCK */
                     pthread_mutex_unlock(&nacm.lock);
+
+                    EMEM;
                     return SR_ERR_NO_MEMORY;
                 }
                 nacm.groups = mem;
@@ -229,8 +236,10 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
                 group = NULL;
                 break;
             default:
-                EINT;
+                /* NACM UNLOCK */
                 pthread_mutex_unlock(&nacm.lock);
+
+                EINT;
                 return SR_ERR_INTERNAL;
             }
         } else {
@@ -257,8 +266,10 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
                 if (op == SR_OP_CREATED) {
                     mem = realloc(group->users, (group->user_count + 1) * sizeof *group->users);
                     if (!mem) {
-                        EMEM;
+                        /* NACM UNLOCK */
                         pthread_mutex_unlock(&nacm.lock);
+
+                        EMEM;
                         return SR_ERR_NO_MEMORY;
                     }
                     group->users = mem;
@@ -289,6 +300,7 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
         }
     }
 
+    /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
 
     sr_free_change_iter(iter);
@@ -300,6 +312,11 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
     return SR_ERR_OK;
 }
 
+/**
+ * @brief Remove all rules from a rule list.
+ *
+ * @param[in,out] list Rule list to remove from.
+ */
 static void
 ncac_remove_rules(struct ncac_rule_list *list)
 {
@@ -318,6 +335,157 @@ ncac_remove_rules(struct ncac_rule_list *list)
     list->rules = NULL;
 }
 
+/**
+ * @brief Get pointer to an item on a specific index.
+ *
+ * @param[in] items Array of items.
+ * @param[in] item_size Size of each item.
+ * @param[in] idx Index of the item to get.
+ * @return Pointer to the item at index.
+ */
+#define ITEM_IDX_PTR(items, item_size, idx) (char **)(((uint64_t)(uintptr_t)items) + ((idx) * (item_size)))
+
+/**
+ * @brief Compare callback for sorting functions like qsort(3) and bsearch(3).
+ *
+ * @param[in] ptr1 Pointer to the first value.
+ * @param[in] ptr2 Pointer to the second value.
+ * @return < 0 if ptr1 < ptr2.
+ * @return   0 if ptr1 == ptr2.
+ * @return > 0 if ptr1 > ptr2.
+ */
+static int
+ncac_sort_strcmp_cb(const void *ptr1, const void *ptr2)
+{
+    const char **str1, **str2;
+
+    str1 = (const char **)ptr1;
+    str2 = (const char **)ptr2;
+
+    return strcmp(*str1, *str2);
+}
+
+/**
+ * @brief Find an item in a sorted array. The item structure first member must be (const char *) in the dictionary.
+ *
+ * @param[in] item Pointer to item to find.
+ * @param[in] item_size Size of an item.
+ * @param[in] items Item array.
+ * @param[in] item_count Number of @p items.
+ * @param[out] match Optional pointer to the found item.
+ * @return Index of the item in @p items.
+ * @return -1 if no matching item was found.
+ */
+static int32_t
+ncac_strarr_sort_find(const char **item, size_t item_size, char **items, uint32_t item_count)
+{
+    const char **m;
+    int32_t idx = -1;
+
+    if (!items) {
+        return idx;
+    }
+
+    m = bsearch(item, items, item_count, item_size, ncac_sort_strcmp_cb);
+    if (m) {
+        idx = ((uint64_t)(uintptr_t)m - (uint64_t)(uintptr_t)items) / item_size;
+    }
+
+    return idx;
+}
+
+/**
+ * @brief Add an item into a sorted array. The item structure first member must be (const char *) in the dictionary.
+ *
+ * @param[in] ly_ctx libyang context.
+ * @param[in] item Pointer to item to add, string does not need to be in the dictionary.
+ * @param[in] item_size Size of an item.
+ * @param[in] check_dup Whether to check for duplicates before adding, returns SR_ERR_OK if duplicate found.
+ * @param[in,out] items Pointer to the item array.
+ * @param[in,out] item_count Pointer to the number of @p items.
+ * @return Sysrepo err value.
+ */
+static int
+ncac_strarr_sort_add(const struct ly_ctx *ly_ctx, const char **item, size_t item_size, int check_dup, char ***items,
+        uint32_t *item_count)
+{
+    void *mem;
+    uint32_t i;
+
+    if (check_dup && (ncac_strarr_sort_find(item, item_size, *items, *item_count) > -1)) {
+        /* already added */
+        return SR_ERR_OK;
+    }
+
+    /* starting index, assume normal distribution and names starting with lowercase letters */
+    if ((*item)[0] < 'a') {
+        i = 0;
+    } else if ((*item)[0] > 'z') {
+        i = *item_count ? *item_count - 1 : 0;
+    } else {
+        i = ((*item)[0] - 'a') * ((double)*item_count / 26.0);
+    }
+
+    /* find the index to add it on */
+    if (*item_count && (strcmp(*ITEM_IDX_PTR(*items, item_size, i), *item) > 0)) {
+        while (i && (strcmp(*ITEM_IDX_PTR(*items, item_size, i - 1), *item) > 0)) {
+            --i;
+        }
+    } else if (*item_count && (strcmp(*ITEM_IDX_PTR(*items, item_size, i), *item) < 0)) {
+        while ((i < *item_count) && (strcmp(*ITEM_IDX_PTR(*items, item_size, i), *item) < 0)) {
+            ++i;
+        }
+    }
+
+    /* realloc */
+    mem = realloc(*items, (*item_count + 1) * item_size);
+    if (!mem) {
+        EMEM;
+        return SR_ERR_NO_MEMORY;
+    }
+    *items = mem;
+
+    /* move all following items */
+    if (i < *item_count) {
+        memmove(ITEM_IDX_PTR(*items, item_size, i + 1), ITEM_IDX_PTR(*items, item_size, i), (*item_count - i) * item_size);
+    }
+
+    /* insert new item */
+    lydict_insert(ly_ctx, *item, 0, (const char **)ITEM_IDX_PTR(*items, item_size, i));
+    ++(*item_count);
+    return SR_ERR_OK;
+}
+
+/**
+ * @brief Remove an item from a sorted array. The item structure first member must be (const char *) in the dictionary.
+ *
+ * @param[in] ly_ctx libyang context.
+ * @param[in] item Pointer to item to remove.
+ * @param[in] item_size Size of an item.
+ * @param[in,out] items Pointer to the item array.
+ * @param[in,out] item_count Pointer to the number of @p items.
+ */
+static void
+ncac_strarr_sort_del(const struct ly_ctx *ly_ctx, const char **item, size_t item_size, char ***items, uint32_t *item_count)
+{
+    int32_t i;
+
+    /* find the item, get its index */
+    i = ncac_strarr_sort_find(item, item_size, *items, *item_count);
+    assert(i > -1);
+
+    /* delete it, keep the order */
+    lydict_remove(ly_ctx, *ITEM_IDX_PTR(*items, item_size, i));
+    --(*item_count);
+    if ((uint32_t)i < *item_count) {
+        memmove(ITEM_IDX_PTR(*items, item_size, i), ITEM_IDX_PTR(*items, item_size, i + 1), (*item_count - i) * item_size);
+    }
+    if (!*item_count) {
+        free(*items);
+        *items = NULL;
+    }
+}
+
 /* /ietf-netconf-acm:nacm/rule-list */
 int
 ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name), const char *xpath,
@@ -332,7 +500,6 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     char *xpath2;
     int rc, len;
     uint32_t i;
-    void *mem;
 
     ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
 
@@ -347,6 +514,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
         return rc;
     }
 
+    /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, &prev_list, NULL)) == SR_ERR_OK) {
@@ -376,8 +544,10 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
                     /* create new rule list */
                     rlist = calloc(1, sizeof *rlist);
                     if (!rlist) {
-                        EMEM;
+                        /* NACM UNLOCK */
                         pthread_mutex_unlock(&nacm.lock);
+
+                        EMEM;
                         return SR_ERR_NO_MEMORY;
                     }
                     lydict_insert(ly_ctx, rlist_name, 0, &rlist->name);
@@ -431,8 +601,10 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
                 rlist = NULL;
                 break;
             default:
-                EINT;
+                /* NACM UNLOCK */
                 pthread_mutex_unlock(&nacm.lock);
+
+                EINT;
                 return SR_ERR_INTERNAL;
             }
         } else {
@@ -450,40 +622,21 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
                 group_name = lyd_get_value(node);
 
                 if (op == SR_OP_CREATED) {
-                    mem = realloc(rlist->groups, (rlist->group_count + 1) * sizeof *rlist->groups);
-                    if (!mem) {
-                        EMEM;
+                    if ((rc = ncac_strarr_sort_add(ly_ctx, &group_name, sizeof rlist->groups, 0, &rlist->groups,
+                            &rlist->group_count))) {
+                        /* NACM UNLOCK */
                         pthread_mutex_unlock(&nacm.lock);
-                        return SR_ERR_NO_MEMORY;
+                        return rc;
                     }
-                    rlist->groups = mem;
-                    lydict_insert(ly_ctx, group_name, 0, (const char **)&rlist->groups[rlist->group_count]);
-                    ++rlist->group_count;
                 } else {
                     assert(op == SR_OP_DELETED);
-                    for (i = 0; i < rlist->group_count; ++i) {
-                        /* both in dictionary */
-                        if (rlist->groups[i] == group_name) {
-                            break;
-                        }
-                    }
-                    assert(i < rlist->group_count);
-
-                    /* delete it */
-                    lydict_remove(ly_ctx, rlist->groups[i]);
-                    --rlist->group_count;
-                    if (i < rlist->group_count) {
-                        rlist->groups[i] = rlist->groups[rlist->group_count];
-                    }
-                    if (!rlist->group_count) {
-                        free(rlist->groups);
-                        rlist->groups = NULL;
-                    }
+                    ncac_strarr_sort_del(ly_ctx, &group_name, sizeof rlist->groups, &rlist->groups, &rlist->group_count);
                 }
             }
         }
     }
 
+    /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
 
     sr_free_change_iter(iter);
@@ -523,6 +676,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
         return rc;
     }
 
+    /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
     while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, &prev_list, NULL)) == SR_ERR_OK) {
@@ -563,6 +717,8 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
                     rule = calloc(1, sizeof *rule);
                     if (!rule) {
                         EMEM;
+
+                        /* NACM UNLOCK */
                         pthread_mutex_unlock(&nacm.lock);
                         return SR_ERR_NO_MEMORY;
                     }
@@ -616,8 +772,10 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
                 free(rule);
                 break;
             default:
-                EINT;
+                /* NACM UNLOCK */
                 pthread_mutex_unlock(&nacm.lock);
+
+                EINT;
                 return SR_ERR_INTERNAL;
             }
         } else {
@@ -713,6 +871,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
         }
     }
 
+    /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
 
     sr_free_change_iter(iter);
@@ -864,8 +1023,8 @@ ncac_allowed_tree(const struct lysc_node *top_node, const char *user)
  *
  * @param[in] ly_ctx libyang context for dictionary.
  * @param[in] user User to collect groups for.
- * @param[out] groups Array of collected groups.
- * @param[out] group_count Number of collected groups.
+ * @param[out] groups Sorted array of collected groups.
+ * @param[out] group_count Number of @p groups.
  * @return 0 on success, -1 on error.
  */
 static int
@@ -873,12 +1032,11 @@ ncac_collect_groups(const struct ly_ctx *ly_ctx, const char *user, char ***group
 {
     struct group grp, *grp_p;
     gid_t user_gid;
-    const char *user_dict = NULL, *grp_dict;
+    const char *user_dict = NULL;
     char *buf = NULL;
     gid_t *gids = NULL;
     ssize_t buflen;
     uint32_t i, j;
-    void *mem;
     int gid_count = 0, ret, rc = -1;
 
     lydict_insert(ly_ctx, user, 0, &user_dict);
@@ -890,14 +1048,9 @@ ncac_collect_groups(const struct ly_ctx *ly_ctx, const char *user, char ***group
     for (i = 0; i < nacm.group_count; ++i) {
         for (j = 0; j < nacm.groups[i].user_count; ++j) {
             if (nacm.groups[i].users[j] == user_dict) {
-                mem = realloc(*groups, (*group_count + 1) * sizeof **groups);
-                if (!mem) {
-                    EMEM;
+                if (ncac_strarr_sort_add(ly_ctx, &nacm.groups[i].name, sizeof **groups, 0, groups, group_count)) {
                     goto cleanup;
                 }
-                *groups = mem;
-                lydict_insert(ly_ctx, nacm.groups[i].name, 0, (const char **)&(*groups)[*group_count]);
-                ++(*group_count);
             }
         }
     }
@@ -946,27 +1099,10 @@ ncac_collect_groups(const struct ly_ctx *ly_ctx, const char *user, char ***group
                 ERR("Getting GID grp entry failed (Group not found).");
                 goto cleanup;
             }
-            lydict_insert(ly_ctx, grp.gr_name, 0, &grp_dict);
 
-            /* check for duplicates */
-            for (j = 0; j < *group_count; ++j) {
-                if ((*groups)[j] == grp_dict) {
-                    break;
-                }
-            }
-
-            if (j < *group_count) {
-                /* duplicate */
-                lydict_remove(ly_ctx, grp_dict);
-            } else {
-                mem = realloc(*groups, (*group_count + 1) * sizeof *groups);
-                if (!mem) {
-                    EMEM;
-                    goto cleanup;
-                }
-                *groups = mem;
-                (*groups)[*group_count] = (char *)grp_dict;
-                ++(*group_count);
+            /* add, if not already there */
+            if (ncac_strarr_sort_add(ly_ctx, (const char **)&grp.gr_name, sizeof **groups, 1, groups, group_count)) {
+                goto cleanup;
             }
         }
     }
@@ -1037,14 +1173,81 @@ ncac_allowed_path(const char *rule_target, const char *node_path)
     }
 }
 
-enum ncac_access
+/**
+ * @brief Check whether any group from a rule list matches one of the user groups.
+ *
+ * @param[in] rlist Rule list with sorted groups.
+ * @param[in] groups User group sorted array.
+ * @param[in] group_count Count of @p groups.
+ * @return 1 if a match is found.
+ * @return 0 if no matching group is found.
+ */
+static int
+ncac_rule_group_match(struct ncac_rule_list *rlist, char **groups, uint32_t group_count)
+{
+    uint32_t i = 0, j = 0;
+    int r;
+
+    while ((i < rlist->group_count) && (j < group_count)) {
+        if (!strcmp(rlist->groups[i], "*")) {
+            /* match for all groups */
+            return 1;
+        }
+
+        r = strcmp(rlist->groups[i], groups[j]);
+        if (r > 0) {
+            ++j;
+        } else if (r < 0) {
+            ++i;
+        } else {
+            /* match */
+            return 1;
+        }
+    }
+
+    /* no match */
+    return 0;
+}
+
+/**
+ * @brief Free all NACM groups. Supposed to be called after @ref ncac_collect_group.
+ *
+ * @param[out] groups Sorted array of collected groups to free
+ * @param[out] group_count Number of @p groups.
+ */
+static void
+ncac_free_groups(char **groups, uint32_t group_count)
+{
+    uint32_t i;
+
+    if (!groups) {
+        return;
+    }
+
+    for (i = 0; i < group_count; ++i) {
+        lydict_remove(sr_get_context(np2srv.sr_conn), groups[i]);
+    }
+    free(groups);
+}
+
+/**
+ * @brief Check NACM access for a single node.
+ *
+ * @param[in] node Node to check. Can be NULL if @p node_path and @p node_schema are set.
+ * @param[in] node_path Node path of the node to check. Can be NULL if @p node is set.
+ * @param[in] node_schema Schema of the node to check. Can be NULL if @p node is set.
+ * @param[in] oper Operation to check.
+ * @param[in] groups Array of groups name to be checked for permissions
+ * @param[in] group_count Length of @p groups
+ * @return NCAC access enum.
+ */
+static enum ncac_access
 ncac_allowed_node(const struct lyd_node *node, const char *node_path, const struct lysc_node *node_schema,
-        const char *user, uint8_t oper)
+        uint8_t oper, char **groups, uint32_t group_count)
 {
     struct ncac_rule_list *rlist;
     struct ncac_rule *rule;
-    char **groups, *path;
-    uint32_t i, j, group_count;
+    char *path;
     enum ncac_access access = NCAC_ACCESS_DENY;
 
     enum {
@@ -1066,10 +1269,7 @@ ncac_allowed_node(const struct lyd_node *node, const char *node_path, const stru
      * ref https://tools.ietf.org/html/rfc8341#section-3.4.4
      */
 
-    /* 4) collect groups */
-    if (ncac_collect_groups(sr_get_context(np2srv.sr_conn), user, &groups, &group_count)) {
-        goto cleanup;
-    }
+    /* 4) collected groups passed as argument */
 
     /* 5) no groups */
     if (!group_count) {
@@ -1078,34 +1278,13 @@ ncac_allowed_node(const struct lyd_node *node, const char *node_path, const stru
 
     /* 6) find matching rule lists */
     for (rlist = nacm.rule_lists; rlist; rlist = rlist->next) {
-        for (i = 0; i < rlist->group_count; ++i) {
-            if (strcmp(rlist->groups[i], "*")) {
-                for (j = 0; j < group_count; ++j) {
-                    if (rlist->groups[i] == groups[j]) {
-                        break;
-                    }
-                }
-                if (j < group_count) {
-                    /* match */
-                    break;
-                }
-            } else {
-                /* match for all groups */
-                break;
-            }
-        }
-        if (i == rlist->group_count) {
-            /* no match */
+        if (!ncac_rule_group_match(rlist, groups, group_count)) {
+            /* no group match */
             continue;
         }
 
         /* 7) find matching rules */
         for (rule = rlist->rules; rule; rule = rule->next) {
-            /* module name matching */
-            if (rule->module_name && (rule->module_name != node_schema->module->name)) {
-                continue;
-            }
-
             /* access operation matching */
             if (!(rule->operations & oper)) {
                 continue;
@@ -1157,6 +1336,11 @@ ncac_allowed_node(const struct lyd_node *node, const char *node_path, const stru
                     }
                 }
                 break;
+            }
+
+            /* module name matching, after partial path matches */
+            if (rule->module_name && (rule->module_name != node_schema->module->name)) {
+                continue;
             }
 
             /* 8) rule matched */
@@ -1224,25 +1408,27 @@ cleanup:
         /* node itself is allowed but a rule denies access to some descendants */
         access = NCAC_ACCESS_PARTIAL_PERMIT;
     }
-
-    for (i = 0; i < group_count; ++i) {
-        lydict_remove(sr_get_context(np2srv.sr_conn), groups[i]);
-    }
-    free(groups);
     return access;
 }
 
 const struct lyd_node *
 ncac_check_operation(const struct lyd_node *data, const char *user)
 {
-    const struct lyd_node *op;
+    const struct lyd_node *op = NULL;
+    char **groups = NULL;
+    uint32_t group_count = 0;
     int allowed = 0;
 
+    /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
     /* check access for the whole data tree first */
     if (ncac_allowed_tree(data->schema, user)) {
         allowed = 1;
+        goto cleanup;
+    }
+
+    if (ncac_collect_groups(sr_get_context(np2srv.sr_conn), user, &groups, &group_count)) {
         goto cleanup;
     }
 
@@ -1284,21 +1470,22 @@ ncac_check_operation(const struct lyd_node *data, const char *user)
 
     if (op->schema->nodetype & (LYS_RPC | LYS_ACTION)) {
         /* check X access on the RPC/action */
-        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(op, NULL, NULL, user, NCAC_OP_EXEC))) {
+        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(op, NULL, NULL, NCAC_OP_EXEC, groups, group_count))) {
             goto cleanup;
         }
     } else {
         assert(op->schema->nodetype == LYS_NOTIF);
 
         /* check R access on the notification */
-        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(op, NULL, NULL, user, NCAC_OP_READ))) {
+        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(op, NULL, NULL, NCAC_OP_READ, groups, group_count))) {
             goto cleanup;
         }
     }
 
     if (op->parent) {
         /* check R access on the parents, the last parent must be enough */
-        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(lyd_parent(op), NULL, NULL, user, NCAC_OP_READ))) {
+        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(lyd_parent(op), NULL, NULL, NCAC_OP_READ, groups,
+                group_count))) {
             goto cleanup;
         }
     }
@@ -1306,15 +1493,18 @@ ncac_check_operation(const struct lyd_node *data, const char *user)
     allowed = 1;
 
 cleanup:
+    ncac_free_groups(groups, group_count);
     if (allowed) {
         op = NULL;
-    } else {
+    } else if (op) {
         if (op->schema->nodetype & (LYS_RPC | LYS_ACTION)) {
             ++nacm.denied_operations;
         } else {
             ++nacm.denied_notifications;
         }
     }
+
+    /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
     return op;
 }
@@ -1324,22 +1514,24 @@ cleanup:
  *
  * @param[in,out] first First sibling to filter.
  * @param[in] user User for the NACM filtering.
+ * @param[in] groups Array of collected groups.
+ * @param[in] group_count Number of @p groups.
  * @return Highest access among descendants (recursively), permit is the highest.
  */
 static enum ncac_access
-ncac_check_data_read_filter_r(struct lyd_node **first, const char *user)
+ncac_check_data_read_filter_r(struct lyd_node **first, const char *user, char **groups, uint32_t group_count)
 {
     struct lyd_node *next, *elem;
     enum ncac_access node_access, ret_access = NCAC_ACCESS_DENY;
 
     LY_LIST_FOR_SAFE(*first, next, elem) {
         /* check access of the node */
-        node_access = ncac_allowed_node(elem, NULL, NULL, user, NCAC_OP_READ);
+        node_access = ncac_allowed_node(elem, NULL, NULL, NCAC_OP_READ, groups, group_count);
 
         if (node_access == NCAC_ACCESS_PARTIAL_DENY) {
             /* only partial deny access, we must check children recursively to learn whether this node is allowed or not */
             if (elem->schema->nodetype & LYD_NODE_INNER) {
-                node_access = ncac_check_data_read_filter_r(&((struct lyd_node_inner *)elem)->child, user);
+                node_access = ncac_check_data_read_filter_r(&((struct lyd_node_inner *)elem)->child, user, groups, group_count);
             }
 
             if (node_access != NCAC_ACCESS_PERMIT) {
@@ -1349,7 +1541,7 @@ ncac_check_data_read_filter_r(struct lyd_node **first, const char *user)
         } else if (node_access == NCAC_ACCESS_PARTIAL_PERMIT) {
             /* partial permit, the node will be included in the reply but we must check children as well */
             if (elem->schema->nodetype & LYD_NODE_INNER) {
-                ncac_check_data_read_filter_r(&((struct lyd_node_inner *)elem)->child, user);
+                ncac_check_data_read_filter_r(&((struct lyd_node_inner *)elem)->child, user, groups, group_count);
             }
             node_access = NCAC_ACCESS_PERMIT;
         }
@@ -1376,15 +1568,26 @@ ncac_check_data_read_filter_r(struct lyd_node **first, const char *user)
 void
 ncac_check_data_read_filter(struct lyd_node **data, const char *user)
 {
+    char **groups = NULL;
+    uint32_t group_count;
+
     assert(data);
 
+    /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
-    if (*data && !ncac_allowed_tree((*data)->schema, user)) {
-        ncac_check_data_read_filter_r(data, user);
+    if (ncac_collect_groups(sr_get_context(np2srv.sr_conn), user, &groups, &group_count)) {
+        goto cleanup;
     }
 
+    if (*data && !ncac_allowed_tree((*data)->schema, user)) {
+        ncac_check_data_read_filter_r(data, user, groups, group_count);
+    }
+
+cleanup:
+    /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
+    ncac_free_groups(groups, group_count);
 }
 
 /**
@@ -1393,10 +1596,12 @@ ncac_check_data_read_filter(struct lyd_node **data, const char *user)
  * @param[in] diff First diff sibling.
  * @param[in] user User for the NACM check.
  * @param[in] parent_op Inherited parent operation.
+ * @param[in] groups Array of collected groups.
+ * @param[in] group_count Number of @p groups.
  * @return NULL if access allowed, otherwise the denied access data node.
  */
 static const struct lyd_node *
-ncac_check_diff_r(const struct lyd_node *diff, const char *user, const char *parent_op)
+ncac_check_diff_r(const struct lyd_node *diff, const char *user, const char *parent_op, char **groups, uint32_t group_count)
 {
     const char *op;
     struct lyd_meta *meta;
@@ -1443,14 +1648,14 @@ ncac_check_diff_r(const struct lyd_node *diff, const char *user, const char *par
         }
 
         /* check access for the node, none operation is always allowed, and partial access is relevant only for read operation */
-        if (oper && !NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(diff, NULL, NULL, user, oper))) {
+        if (oper && !NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(diff, NULL, NULL, oper, groups, group_count))) {
             node = diff;
             break;
         }
 
         /* go recursively */
         if (lyd_child(diff)) {
-            node = ncac_check_diff_r(lyd_child(diff), user, op);
+            node = ncac_check_diff_r(lyd_child(diff), user, op, groups, group_count);
         }
     }
 
@@ -1461,17 +1666,67 @@ const struct lyd_node *
 ncac_check_diff(const struct lyd_node *diff, const char *user)
 {
     const struct lyd_node *node = NULL;
+    char **groups = NULL;
+    uint32_t group_count;
 
+    /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
+
+    if (ncac_collect_groups(sr_get_context(np2srv.sr_conn), user, &groups, &group_count)) {
+        goto cleanup;
+    }
 
     /* any node can be used in this case */
     if (!ncac_allowed_tree(diff->schema, user)) {
-        node = ncac_check_diff_r(diff, user, NULL);
+        node = ncac_check_diff_r(diff, user, NULL, groups, group_count);
         if (node) {
             ++nacm.denied_data_writes;
         }
     }
 
+cleanup:
+    /* NACM UNLOCK */
     pthread_mutex_unlock(&nacm.lock);
+    ncac_free_groups(groups, group_count);
     return node;
+}
+
+void
+ncac_check_yang_push_update_notif(const char *user, struct ly_set *set, int *all_removed)
+{
+    struct lyd_node_any *ly_value;
+    struct lyd_node *ly_target, *next, *iter;
+    uint32_t i, group_count, removed = 0;
+    char **groups;
+
+    if (ncac_collect_groups(sr_get_context(np2srv.sr_conn), user, &groups, &group_count)) {
+        return;
+    }
+
+    for (i = 0; i < set->count; ++i) {
+        /* check the change itself */
+        lyd_find_path(set->dnodes[i], "target", 0, &ly_target);
+        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(NULL, lyd_get_value(ly_target), ly_target->priv,
+                NCAC_OP_READ, groups, group_count))) {
+            /* not allowed, remove this change */
+            lyd_free_tree(set->dnodes[i]);
+            ++removed;
+            continue;
+        }
+
+        if (!lyd_find_path(set->dnodes[i], "value", 0, (struct lyd_node **)&ly_value)) {
+            assert(ly_value->value_type == LYD_ANYDATA_DATATREE);
+
+            /* filter out any nested nodes */
+            LY_LIST_FOR_SAFE(lyd_child(ly_value->value.tree), next, iter) {
+                ncac_check_data_read_filter(&iter, user);
+            }
+        }
+    }
+    ncac_free_groups(groups, group_count);
+    if (removed == set->count) {
+        *all_removed = 1;
+    } else {
+        *all_removed = 0;
+    }
 }

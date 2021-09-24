@@ -11,13 +11,9 @@ include(CheckFunctionExists)
 include(CheckIncludeFile)
 include(UseCompat)
 include(SourceFormat)
+include(GenCoverage)
 if(POLICY CMP0075)
     cmake_policy(SET CMP0075 NEW)
-endif()
-
-# check the supported platform
-if(NOT UNIX)
-    message(FATAL_ERROR "Only *nix like systems are supported.")
 endif()
 
 # set default build type if not specified by user and normalize it
@@ -35,21 +31,35 @@ elseif("${BUILD_TYPE_UPPER}" STREQUAL "RELWITHDEBUG")
     set(CMAKE_BUILD_TYPE "RelWithDebug" CACHE STRING "Build Type" FORCE)
 endif()
 
-# compilation flags
-set(CMAKE_C_FLAGS           "${CMAKE_C_FLAGS} -Wall -Wextra -std=gnu99")
-set(CMAKE_C_FLAGS_RELEASE   "-DNDEBUG -O2")
-set(CMAKE_C_FLAGS_DEBUG     "-g -O0")
+# check the supported platform
+if(NOT UNIX)
+    message(FATAL_ERROR "Only *nix like systems are supported.")
+endif()
 
 # Version of the project
 # Generic version of not only the library. Major version is reserved for really big changes of the project,
 # minor version changes with added functionality (new tool, functionality of the tool or library, ...) and
 # micro version is changed with a set of small changes or bugfixes anywhere in the project.
-set(NP2SRV_VERSION 2.0.0)
+set(NP2SRV_VERSION 2.0.28)
 
 # libyang required SO version
 set(LIBYANG_DEP_SOVERSION_MAJOR 2)
 
-# build options
+# Version of sysrepo that this netopeer2 version depends on
+set(SYSREPO_DEP_VERSION 2.0.33)
+set(SYSREPO_DEP_SOVERSION 6.4.0)
+set(SYSREPO_DEP_SOVERSION_MAJOR 6)
+
+#
+# compilation flags
+#
+set(CMAKE_C_FLAGS           "${CMAKE_C_FLAGS} -Wall -Wextra -std=gnu99")
+set(CMAKE_C_FLAGS_RELEASE   "-DNDEBUG -O2")
+set(CMAKE_C_FLAGS_DEBUG     "-g -O0")
+
+#
+# options
+#
 if(("${BUILD_TYPE_UPPER}" STREQUAL "DEBUG") OR ("${BUILD_TYPE_UPPER}" STREQUAL "RELWITHDEBINFO"))
     option(ENABLE_TESTS "Build tests" ON)
     option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" ON)
@@ -57,6 +67,7 @@ else()
     option(ENABLE_TESTS "Build tests" OFF)
     option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" OFF)
 endif()
+option(ENABLE_COVERAGE "Build code coverage report from tests" OFF)
 option(BUILD_CLI "Build and install neotpeer2-cli" ON)
 option(ENABLE_URL "Enable URL capability" ON)
 set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
@@ -99,7 +110,37 @@ if(NOT NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN MATCHES "^[^%]*%s[^%]*$")
     message(FATAL_ERROR "Wrong format string given for NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN: exactly one '%s' expected.")
 endif()
 
-# check that lnc2 supports np2srv thread count
+#
+# sources
+#
+set(SERVER_SRC
+    src/common.c
+    src/netconf.c
+    src/netconf_monitoring.c
+    src/netconf_acm.c
+    src/netconf_nmda.c
+    src/netconf_subscribed_notifications.c
+    src/subscribed_notifications.c
+    src/yang_push.c
+    src/log.c
+    src/err_netconf.c)
+
+# source files to be covered by the 'format' target
+set(FORMAT_SRC
+    compat/*.c
+    compat/*.h*
+    src/*.c
+    src/*.h
+    cli/*.c
+    cli/*.h
+    tests/*.c
+    tests/*.h)
+
+#
+# checks
+#
+
+# lnc2 support for np2srv thread count
 find_package(PkgConfig)
 if(PKG_CONFIG_FOUND)
     execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} "--variable=LNC2_MAX_THREAD_COUNT" "libnetconf2" OUTPUT_VARIABLE LNC2_THREAD_COUNT)
@@ -116,6 +157,36 @@ if(PKG_CONFIG_FOUND)
 else()
     message(STATUS "pkg-config not found, so it was not possible to check if libnetconf2 supports ${THREAD_COUNT} threads")
 endif()
+
+if(ENABLE_VALGRIND_TESTS)
+    find_program(VALGRIND_FOUND valgrind)
+    if(NOT VALGRIND_FOUND)
+        message(WARNING "valgrind executable not found! Disabling memory leaks tests.")
+        set(ENABLE_VALGRIND_TESTS OFF)
+    else()
+        set(ENABLE_TESTS ON)
+    endif()
+endif()
+
+if(ENABLE_TESTS)
+    find_package(CMocka 1.0.0)
+    if(NOT CMOCKA_FOUND)
+        message(STATUS "Disabling tests because of missing CMocka")
+        set(ENABLE_TESTS OFF)
+    endif()
+endif()
+
+if(ENABLE_COVERAGE)
+    gen_coverage_enable(${ENABLE_TESTS})
+endif()
+
+if ("${BUILD_TYPE_UPPER}" STREQUAL "DEBUG")
+    source_format_enable()
+endif()
+
+#
+# targets
+#
 
 # put all binaries into one directory (even from subprojects)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
@@ -140,30 +211,6 @@ include_directories(${LIBNETCONF2_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBNETCONF2_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBNETCONF2_LIBRARIES})
 
-# source files
-set(SERVER_SRC
-    src/common.c
-    src/netconf.c
-    src/netconf_monitoring.c
-    src/netconf_acm.c
-    src/netconf_nmda.c
-    src/netconf_subscribed_notifications.c
-    src/subscribed_notifications.c
-    src/yang_push.c
-    src/log.c
-    src/err_netconf.c)
-
-# source files to be covered by the 'format' target
-set(FORMAT_SRC
-    compat/*.c
-    compat/*.h*
-    src/*.c
-    src/*.h
-    cli/*.c
-    cli/*.h
-    tests/*.c
-    tests/*.h)
-
 # at least some remote transport is enabled
 if(LIBNETCONF2_ENABLED_SSH OR LIBNETCONF2_ENABLED_TLS)
     list(APPEND SERVER_SRC src/netconf_server.c)
@@ -186,22 +233,26 @@ use_compat()
 add_library(serverobj OBJECT ${SERVER_SRC})
 add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> src/main.c ${compatsrc})
 
-# dependencies - librt (not required on OSX or QNX)
+#
+# dependencies
+#
+
+# librt (not required on OSX or QNX)
 find_library(LIBRT rt)
 if(LIBRT)
     target_link_libraries(netopeer2-server ${LIBRT})
 endif()
 
-# dependencies - libnetconf2 (was already found)
+# libnetconf2 (was already found)
 target_link_libraries(netopeer2-server ${LIBNETCONF2_LIBRARIES})
 
-# dependencies - libssh (was already found, if exists)
+# libssh (was already found, if exists)
 if(LIBSSH_FOUND AND LIBNETCONF2_ENABLED_SSH)
     target_link_libraries(netopeer2-server ${LIBSSH_LIBRARIES})
     include_directories(${LIBSSH_INCLUDE_DIRS})
 endif()
 
-# dependencies - libcurl
+# libcurl
 if(ENABLE_URL)
     find_package(CURL)
     if(CURL_FOUND)
@@ -214,21 +265,21 @@ if(ENABLE_URL)
     endif()
 endif()
 
-# dependencies - pthread
+# pthread
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 find_package(Threads REQUIRED)
 target_link_libraries(netopeer2-server ${CMAKE_THREAD_LIBS_INIT})
 list(APPEND CMAKE_REQUIRED_FLAGS ${CMAKE_THREAD_LIBS_INIT})
 
-# dependencies - libyang
+# libyang
 find_package(LibYANG ${LIBYANG_DEP_SOVERSION_MAJOR} REQUIRED)
 target_link_libraries(netopeer2-server ${LIBYANG_LIBRARIES})
 include_directories(${LIBYANG_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBYANG_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBYANG_LIBRARIES})
 
-# dependencies - sysrepo
-find_package(Sysrepo REQUIRED)
+# sysrepo
+find_package(Sysrepo ${SYSREPO_DEP_SOVERSION} REQUIRED)
 target_link_libraries(netopeer2-server ${SYSREPO_LIBRARIES})
 include_directories(${SYSREPO_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${SYSREPO_INCLUDE_DIRS})
@@ -237,26 +288,6 @@ list(APPEND CMAKE_REQUIRED_LIBRARIES ${SYSREPO_LIBRARIES})
 # generate files
 configure_file("${PROJECT_SOURCE_DIR}/src/config.h.in" "${PROJECT_BINARY_DIR}/config.h" ESCAPE_QUOTES @ONLY)
 include_directories(${PROJECT_BINARY_DIR})
-
-if ("${BUILD_TYPE_UPPER}" STREQUAL "DEBUG")
-    # enable before adding tests to let them detect that format checking is available - one of the tests is format checking
-    source_format_enable()
-endif()
-
-# source files to be covered by the 'format' target and a test with 'format-check' target
-source_format(${FORMAT_SRC})
-
-# tests
-if(ENABLE_TESTS)
-    find_package(CMocka 1.0.0)
-    if(CMOCKA_FOUND)
-        enable_testing()
-        add_subdirectory(tests)
-    else()
-        message(STATUS "Disabling tests because of missing CMocka.")
-        set(ENABLE_TESTS NO)
-    endif()
-endif()
 
 # set script dir
 set(SCRIPT_DIR "${PROJECT_SOURCE_DIR}/scripts/")
@@ -300,10 +331,22 @@ if(MERGE_LISTEN_CONFIG)
     ")
 endif()
 
+# tests
+if(ENABLE_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
+
+# create coverage target for generating coverage reports
+gen_coverage("test_.*" "test_.*_valgrind")
+
 # cli
 if(BUILD_CLI)
     add_subdirectory(cli)
 endif()
+
+# source files to be covered by the 'format' target and a test with 'format-check' target
+source_format(${FORMAT_SRC})
 
 # clean cmake cache
 add_custom_target(cleancache

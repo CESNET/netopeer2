@@ -368,7 +368,8 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     /* config */
     lyd_find_xpath(input, "config | url", &nodeset);
     if (!strcmp(nodeset->dnodes[0]->schema->name, "config")) {
-        config = op_parse_config((struct lyd_node_any *)nodeset->dnodes[0], LYD_PARSE_OPAQ | LYD_PARSE_ONLY, &rc, session);
+        config = op_parse_config((struct lyd_node_any *)nodeset->dnodes[0], LYD_PARSE_ONLY | LYD_PARSE_OPAQ |
+                LYD_PARSE_NO_STATE, &rc, session);
         if (rc) {
             ly_set_free(nodeset, NULL);
             goto cleanup;
@@ -376,7 +377,8 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     } else {
         assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_OPAQ | LYD_PARSE_ONLY, &rc, session);
+        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_ONLY | LYD_PARSE_OPAQ | LYD_PARSE_NO_STATE,
+                &rc, session);
         if (rc) {
             ly_set_free(nodeset, NULL);
             goto cleanup;
@@ -436,9 +438,8 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 {
     sr_datastore_t ds = SR_DS_OPERATIONAL, sds = SR_DS_OPERATIONAL;
     struct ly_set *nodeset = NULL;
-    const sr_error_info_t *err_info;
     struct lyd_node *config = NULL;
-    int rc = SR_ERR_OK, run_to_start = 0;
+    int rc = SR_ERR_OK, run_to_start = 0, source_is_config = 0;
     struct np2_user_sess *user_sess = NULL;
     const char *username;
     uint32_t *nc_sid;
@@ -446,6 +447,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 #ifdef NP2SRV_URL_CAPAB
     const char *trg_url = NULL;
     int lyp_wd_flag;
+    uint8_t url = 0;
 #endif
 
     if (NP_IGNORE_RPC(session, event)) {
@@ -465,6 +467,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
         trg_url = lyd_get_value(nodeset->dnodes[0]);
+        url++;
 #else
         ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
@@ -492,21 +495,24 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
             ly_set_free(nodeset, NULL);
             goto cleanup;
         }
+        source_is_config = 1;
     } else {
         assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
+        url++;
         if (trg_url && !strcmp(trg_url, lyd_get_value(nodeset->dnodes[0]))) {
             rc = SR_ERR_INVAL_ARG;
-            sr_session_set_error_message(session, "Source and target URLs are the same.");
+            np_err_sr2nc_same_ds(session, "Source and target URLs are the same.");
             goto cleanup;
         }
 
-        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_STRICT | LYD_PARSE_NO_STATE |
-                LYD_PARSE_ONLY, &rc, session);
+        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_ONLY | LYD_PARSE_OPAQ | LYD_PARSE_NO_STATE,
+                &rc, session);
         if (rc) {
             ly_set_free(nodeset, NULL);
             goto cleanup;
         }
+        source_is_config = 1;
 #else
         ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
@@ -516,14 +522,20 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     }
     ly_set_free(nodeset, NULL);
 
-    if (ds == sds) {
+    /* if both are url it is a valid call */
+#ifdef NP2SRV_URL_CAPAB
+    if ((ds == sds) && (url != 2))
+#else
+    if (ds == sds)
+#endif
+    {
         rc = SR_ERR_INVAL_ARG;
-        sr_session_set_error_message(session, "Source and target datastores are the same.");
+        np_err_sr2nc_same_ds(session, "Source and target datastores are the same.");
         goto cleanup;
     }
 
     /* NACM checks */
-    if (!config && !run_to_start) {
+    if (!source_is_config && !run_to_start) {
         /* get source datastore data and filter them */
         sr_session_switch_ds(session, sds);
         rc = sr_get_data(session, "/*", 0, np2srv.sr_timeout, 0, &config);
@@ -570,22 +582,21 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     } else
 #endif
     {
-        if (config) {
+        if (source_is_config) {
             /* config is spent */
             rc = sr_replace_config(user_sess->sess, NULL, config, np2srv.sr_timeout);
             config = NULL;
         } else {
-            assert(run_to_start);
-
-            /* set SID to skip NACM check, only one copy-config can be executed at once */
-            sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_sid);
-            ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, *nc_sid);
+            if (run_to_start) {
+                /* set SID to skip NACM check, only one copy-config can be executed at once */
+                sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_sid);
+                ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, *nc_sid);
+            }
             rc = sr_copy_config(user_sess->sess, NULL, sds, np2srv.sr_timeout);
             ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, 0);
         }
-        if (rc != SR_ERR_OK) {
-            sr_session_get_error(user_sess->sess, &err_info);
-            sr_session_set_error_message(session, err_info->err[0].message);
+        if (rc) {
+            sr_session_dup_error(user_sess->sess, session);
             goto cleanup;
         }
     }
@@ -607,7 +618,6 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     struct ly_set *nodeset;
     int rc = SR_ERR_OK;
     struct np2_user_sess *user_sess = NULL;
-    const sr_error_info_t *err_info;
 
 #ifdef NP2SRV_URL_CAPAB
     struct lyd_node *config;
@@ -648,7 +658,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
 #ifdef NP2SRV_URL_CAPAB
     if (trg_url) {
         /* import URL to check its validity */
-        config = op_parse_url(trg_url, LYD_PARSE_STRICT | LYD_PARSE_NO_STATE | LYD_PARSE_ONLY, &rc, session);
+        config = op_parse_url(trg_url, LYD_PARSE_ONLY | LYD_PARSE_OPAQ | LYD_PARSE_NO_STATE, &rc, session);
         if (rc) {
             goto cleanup;
         }
@@ -662,9 +672,8 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
 #endif
     {
         rc = sr_replace_config(user_sess->sess, NULL, NULL, np2srv.sr_timeout);
-        if (rc != SR_ERR_OK) {
-            sr_session_get_error(user_sess->sess, &err_info);
-            sr_session_set_error_message(session, err_info->err[0].message);
+        if (rc) {
+            sr_session_dup_error(user_sess->sess, session);
             goto cleanup;
         }
     }
@@ -718,7 +727,7 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     } else if (!strcmp(input->schema->name, "unlock")) {
         rc = sr_unlock(user_sess->sess, NULL);
     }
-    if ((rc == SR_ERR_LOCKED) && sr_session_get_orig_name(session) && !strcmp(sr_session_get_orig_name(session), "netopeer2")) {
+    if ((rc == SR_ERR_LOCKED) && NP_IS_ORIG_NP(session)) {
         /* NETCONF error */
         sr_session_get_error(user_sess->sess, &err_info);
         np_err_sr2nc_lock_denied(session, err_info);
@@ -808,9 +817,13 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
 
     /* sysrepo API */
     rc = sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout);
-    if (rc != SR_ERR_OK) {
+    if ((rc == SR_ERR_LOCKED) && NP_IS_ORIG_NP(session)) {
+        /* NETCONF error */
         sr_session_get_error(user_sess->sess, &err_info);
-        sr_session_set_error_message(session, err_info->err[0].message);
+        np_err_sr2nc_in_use(session, err_info);
+    } else if (rc) {
+        /* Sysrepo error */
+        sr_session_dup_error(user_sess->sess, session);
         goto cleanup;
     }
 
@@ -894,8 +907,8 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     } else {
         assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_STRICT | LYD_PARSE_NO_STATE |
-                LYD_PARSE_ONLY, &rc, session);
+        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_ONLY | LYD_PARSE_OPAQ | LYD_PARSE_NO_STATE,
+                &rc, session);
         if (rc) {
             ly_set_free(nodeset, NULL);
             goto cleanup;
@@ -945,6 +958,13 @@ np2srv_lysc_has_notif_clb(struct lysc_node *node, void *UNUSED(data), ly_bool *U
     return LY_SUCCESS;
 }
 
+struct subscribe_ntf_data {
+    struct nc_session *nc_sess;
+    uint32_t sr_sub_count;
+    ATOMIC_T sr_ntf_replay_complete_count;
+    ATOMIC_T sr_ntf_stop_count;
+};
+
 /**
  * @brief New notification callback used for notifications received on subscription made by \<create-subscription\> RPC.
  */
@@ -953,20 +973,33 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
         const struct lyd_node *notif, struct timespec *timestamp, void *private_data)
 {
     struct nc_server_notif *nc_ntf = NULL;
-    struct nc_session *ncs = (struct nc_session *)private_data;
+    struct subscribe_ntf_data *cb_data = private_data;
     struct lyd_node *ly_ntf = NULL;
     NC_MSG_TYPE msg_type;
-    char *datetime;
-    time_t stop;
+    char *datetime = NULL;
+    struct timespec stop, cur_ts;
 
     /* create these notifications, sysrepo only emulates them */
     if (notif_type == SR_EV_NOTIF_REPLAY_COMPLETE) {
+        ATOMIC_INC_RELAXED(cb_data->sr_ntf_replay_complete_count);
+        if (ATOMIC_LOAD_RELAXED(cb_data->sr_ntf_replay_complete_count) < cb_data->sr_sub_count) {
+            /* ignore, wait for the last SR subscription */
+            goto cleanup;
+        }
+
         lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/nc-notifications:replayComplete", NULL, 0, &ly_ntf);
         notif = ly_ntf;
     } else if (notif_type == SR_EV_NOTIF_TERMINATED) {
-        sr_event_notif_sub_get_info(np2srv.sr_notif_sub, sub_id, NULL, NULL, NULL, &stop, NULL);
-        if (!stop || (stop > time(NULL))) {
+        sr_notif_sub_get_info(np2srv.sr_notif_sub, sub_id, NULL, NULL, NULL, &stop, NULL);
+        cur_ts = np_gettimespec(1);
+        if (!stop.tv_sec || (np_difftimespec(&stop, &cur_ts) < 0)) {
             /* no stop-time or it was not reached so no notification should be generated */
+            goto cleanup;
+        }
+
+        ATOMIC_INC_RELAXED(cb_data->sr_ntf_stop_count);
+        if (ATOMIC_LOAD_RELAXED(cb_data->sr_ntf_stop_count) < cb_data->sr_sub_count) {
+            /* ignore, wait for the last SR subscription */
             goto cleanup;
         }
 
@@ -984,30 +1017,32 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
     }
 
     /* check NACM */
-    if (ncac_check_operation(notif, nc_session_get_username(ncs))) {
+    if (ncac_check_operation(notif, nc_session_get_username(cb_data->nc_sess))) {
         goto cleanup;
     }
 
-    /* create the notification object */
+    /* create the notification object, all the passed arguments must exist until it is sent */
     ly_time_ts2str(timestamp, &datetime);
     nc_ntf = nc_server_notif_new((struct lyd_node *)notif, datetime, NC_PARAMTYPE_CONST);
-    free(datetime);
 
     /* send the notification */
-    msg_type = nc_server_notif_send(ncs, nc_ntf, NP2SRV_NOTIF_SEND_TIMEOUT);
+    msg_type = nc_server_notif_send(cb_data->nc_sess, nc_ntf, NP2SRV_NOTIF_SEND_TIMEOUT);
     if ((msg_type == NC_MSG_ERROR) || (msg_type == NC_MSG_WOULDBLOCK)) {
-        ERR("Sending a notification to session %d %s.", nc_session_get_id(ncs), msg_type == NC_MSG_ERROR ? "failed" : "timed out");
+        ERR("Sending a notification to session %d %s.", nc_session_get_id(cb_data->nc_sess), msg_type == NC_MSG_ERROR ?
+                "failed" : "timed out");
         goto cleanup;
     }
-    ncm_session_notification(ncs);
+    ncm_session_notification(cb_data->nc_sess);
 
-cleanup:
     if (notif_type == SR_EV_NOTIF_TERMINATED) {
         /* subscription finished */
-        nc_session_dec_notif_status(ncs);
+        nc_session_dec_notif_status(cb_data->nc_sess);
+        free(cb_data);
     }
 
+cleanup:
     nc_server_notif_free(nc_ntf);
+    free(datetime);
     lyd_free_all(ly_ntf);
 }
 
@@ -1024,10 +1059,12 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     const char *stream;
     struct np2_filter filter = {0};
     char *xp = NULL;
-    struct timespec start = {0}, stop = {0};
-    int rc = SR_ERR_OK;
+    struct timespec start = {0}, stop = {0}, cur_ts;
+    int rc = SR_ERR_OK, has_nc_ntf_status = 0;
     const sr_error_info_t *err_info;
     uint32_t idx;
+    struct ly_set mod_set = {0};
+    struct subscribe_ntf_data *cb_data = NULL;
 
     if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case (not supported) */
@@ -1080,7 +1117,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
             /* xpath */
             if (strlen(lyd_get_meta_value(meta))) {
                 xp = strdup(lyd_get_meta_value(meta));
-                if (xp) {
+                if (!xp) {
                     EMEM;
                     rc = SR_ERR_NO_MEMORY;
                     goto cleanup;
@@ -1101,12 +1138,38 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         ly_time_str2ts(lyd_get_value(node), &stop);
     }
 
+    /* check parameters */
+    cur_ts = np_gettimespec(1);
+    if (start.tv_sec && (np_difftimespec(&start, &cur_ts) < 0)) {
+        np_err_bad_element(session, "startTime", "Specified \"startTime\" is in future.");
+        rc = SR_ERR_INVAL_ARG;
+        goto cleanup;
+    } else if (stop.tv_sec && !start.tv_sec) {
+        np_err_missing_element(session, "startTime");
+        rc = SR_ERR_INVAL_ARG;
+        goto cleanup;
+    } else if (start.tv_sec && stop.tv_sec && (np_difftimespec(&stop, &start) > 0)) {
+        np_err_bad_element(session, "stopTime", "Specified \"stopTime\" is earlier than \"startTime\".");
+        rc = SR_ERR_INVAL_ARG;
+        goto cleanup;
+    }
+
+    /* create notif CB data */
+    cb_data = calloc(1, sizeof *cb_data);
+    if (!cb_data) {
+        EMEM;
+        rc = SR_ERR_NO_MEMORY;
+        goto cleanup;
+    }
+    cb_data->nc_sess = ncs;
+
     /* set ongoing notifications flag */
     nc_session_inc_notif_status(ncs);
+    has_nc_ntf_status = 1;
 
     /* sysrepo API */
     if (!strcmp(stream, "NETCONF")) {
-        /* subscribe to all modules with notifications */
+        /* find all modules with notifications */
         idx = 0;
         while ((ly_mod = ly_ctx_get_module_iter(LYD_CTX(input), &idx))) {
             if (!ly_mod->implemented) {
@@ -1114,35 +1177,50 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
             }
 
             if (lysc_module_dfs_full(ly_mod, np2srv_lysc_has_notif_clb, NULL) == LY_EEXIST) {
-                /* a notification was found, subscribe to the module */
-                rc = sr_event_notif_subscribe_tree(user_sess->sess, ly_mod->name, xp, start.tv_sec, stop.tv_sec,
-                        np2srv_rpc_subscribe_ntf_cb, ncs, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
-                if (rc != SR_ERR_OK) {
-                    sr_session_get_error(user_sess->sess, &err_info);
-                    sr_session_set_error_message(session, err_info->err[0].message);
-                    break;
+                /* a notification was found */
+                if (ly_set_add(&mod_set, (void *)ly_mod, 1, NULL)) {
+                    rc = SR_ERR_INTERNAL;
+                    goto cleanup;
                 }
+            }
+        }
+
+        /* subscribe to all the modules */
+        cb_data->sr_sub_count = mod_set.count;
+        for (idx = 0; idx < mod_set.count; ++idx) {
+            ly_mod = mod_set.objs[idx];
+            rc = sr_notif_subscribe_tree(user_sess->sess, ly_mod->name, xp, start.tv_sec ? &start : NULL,
+                    stop.tv_sec ? &stop : NULL, np2srv_rpc_subscribe_ntf_cb, cb_data, SR_SUBSCR_CTX_REUSE,
+                    &np2srv.sr_notif_sub);
+            if (rc != SR_ERR_OK) {
+                sr_session_get_error(user_sess->sess, &err_info);
+                sr_session_set_error_message(session, err_info->err[0].message);
+                goto cleanup;
             }
         }
     } else {
         /* subscribe to the specific module (stream) */
-        rc = sr_event_notif_subscribe_tree(user_sess->sess, stream, xp, start.tv_sec, stop.tv_sec, np2srv_rpc_subscribe_ntf_cb,
-                ncs, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
+        cb_data->sr_sub_count = 1;
+        rc = sr_notif_subscribe_tree(user_sess->sess, stream, xp, start.tv_sec ? &start : NULL, stop.tv_sec ? &stop : NULL,
+                np2srv_rpc_subscribe_ntf_cb, cb_data, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {
             sr_session_get_error(user_sess->sess, &err_info);
             sr_session_set_error_message(session, err_info->err[0].message);
+            goto cleanup;
         }
     }
 
-    if (rc) {
-        /* fail */
-        nc_session_dec_notif_status(ncs);
-        goto cleanup;
-    }
+    /* owned now by the callback */
+    cb_data = NULL;
 
     /* success */
 
 cleanup:
+    if (rc && has_nc_ntf_status) {
+        nc_session_dec_notif_status(ncs);
+    }
+    ly_set_erase(&mod_set, NULL);
+    free(cb_data);
     op_filter_erase(&filter);
     free(xp);
     np_release_user_sess(user_sess);

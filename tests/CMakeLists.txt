@@ -1,3 +1,7 @@
+if(NOT PROJECT_NAME)
+    message(FATAL_ERROR "Please use the root CMakeLists file instead.")
+endif()
+
 # correct RPATH usage on OS X
 set(CMAKE_MACOSX_RPATH TRUE)
 
@@ -9,6 +13,10 @@ get_filename_component(ROOT_DIR "${CMAKE_SOURCE_DIR}" REALPATH)
 
 # generate config
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/np_test_config.h.in" "${CMAKE_CURRENT_BINARY_DIR}/np_test_config.h" ESCAPE_QUOTES @ONLY)
+
+# generate config
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/scripts/kill_np_server.sh.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/scripts/kill_np_server.sh" ESCAPE_QUOTES @ONLY)
 
 # compat header include
 add_test(NAME headers
@@ -28,12 +36,19 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 set(test_sources "np_test.c")
 
 # list of all the tests
-set(tests test_rpc)
+set(tests test_rpc test_edit test_filter test_subscribe_filter test_subscribe_param test_parallel_sessions
+    test_candidate test_with_defaults test_nacm test_sub_ntf test_sub_ntf_advanced test_sub_ntf_filter test_yang_push
+    test_yang_push_advanced)
+
+# append url if supported
+if(NP2SRV_URL_CAPAB)
+    list(APPEND tests test_url)
+endif()
 
 # build the executables
 foreach(test_name IN LISTS tests)
     add_executable(${test_name} ${test_sources} ${test_name}.c)
-    target_link_libraries(${test_name} ${CMOCKA_LIBRARIES} ${LIBNETCONF2_LIBRARIES} ${LIBYANG_LIBRARIES})
+    target_link_libraries(${test_name} ${CMOCKA_LIBRARIES} ${LIBNETCONF2_LIBRARIES} ${LIBYANG_LIBRARIES} ${SYSREPO_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
     set_property(TARGET ${test_name} PROPERTY RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endforeach(test_name)
 
@@ -43,22 +58,19 @@ foreach(test_name IN LISTS tests)
     set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT
         "MALLOC_CHECK_=3"
     )
-endforeach(test_name)
+endforeach()
 
 # valgrind tests
 if(ENABLE_VALGRIND_TESTS)
-    find_program(VALGRIND_FOUND valgrind)
-    if(VALGRIND_FOUND)
-        foreach(test_name IN LISTS tests)
-            add_test(NAME ${test_name}_valgrind COMMAND valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ${CMAKE_CURRENT_BINARY_DIR}/${test_name})
-        endforeach(test_name)
-    else()
-        message(WARNING "valgrind executable not found! Disabling memory leak tests.")
-    endif()
+    foreach(test_name IN LISTS tests)
+        add_test(NAME ${test_name}_valgrind COMMAND valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ${CMAKE_CURRENT_BINARY_DIR}/${test_name})
+    endforeach()
 endif()
 
 # phony target for clearing all sysrepo test data
 add_custom_target(test_clean
     COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/repositories
     COMMAND rm -rf /dev/shm/_tests_np_*
+    COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/netopeer2-server.sock
+    COMMAND ${CMAKE_CURRENT_BINARY_DIR}/scripts/kill_np_server.sh
 )

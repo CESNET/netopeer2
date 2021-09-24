@@ -2,7 +2,8 @@
 
 [![BSD license](https://img.shields.io/badge/License-BSD-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![Build Status](https://secure.travis-ci.org/CESNET/Netopeer2.png?branch=master)](http://travis-ci.org/CESNET/Netopeer2)
-[![Coverity Scan Build Status](https://scan.coverity.com/projects/8416/badge.svg)](https://scan.coverity.com/projects/8416)
+[![Coverity](https://scan.coverity.com/projects/8416/badge.svg)](https://scan.coverity.com/projects/8416)
+[![Codecov](https://codecov.io/gh/CESNET/netopeer2/branch/master/graph/badge.svg?token=ue4DTHDcuq)](https://codecov.io/gh/CESNET/netopeer2)
 [![Ohloh Project Status](https://www.openhub.net/p/Netopeer2/widgets/project_thin_badge.gif)](https://www.openhub.net/p/Netopeer2)
 
 **Netopeer2** is a server for implementing network configuration management based
@@ -34,6 +35,14 @@ and it occurs on the `master` branch, the **first response will likely be** to u
 * [libnetconf2](https://github.com/CESNET/libnetconf2)
 * [sysrepo](https://github.com/sysrepo/sysrepo)
 
+### Optional
+
+* cmocka >= 1.0.0 (for [tests](#Tests))
+* valgrind (for enhanced testing)
+* gcov (for code coverage)
+* lcov (for code coverage)
+* genhtml (for code coverage)
+
 ## RFC Compliance
 
 * [RFC 5277](https://www.rfc-editor.org/rfc/rfc5277.html) NETCONF Event Notifications
@@ -63,7 +72,7 @@ $ make
 ### Compilation options
 
 The `netopeer2-server` requires *ietf-netconf-server* and all connected YANG modules to be installed in *sysrepo*
-to work correctly. This is performed autmatically during the installation process. Moreover, default
+to work correctly. This is performed automatically during the installation process. Moreover, default
 SSH configuration listening on all IPv4 interfaces and a newly generated SSH host key are imported
 so that it can be connected to the server out-of-the-box. However, it may not always be desired
 to perform all these steps even though the executed scripts check whether the modules/some configuration
@@ -114,6 +123,42 @@ adjusted by an option:
 BUILD_CLI:ON
 ```
 
+### Tests
+
+There are several tests included and built with [cmocka](https://cmocka.org/). The tests
+can be found in `tests` subdirectory and they are designed for checking library
+functionality after code changes.
+
+The tests are by default built in the `Debug` build mode by running
+```
+$ make
+```
+
+In case of the `Release` mode, the tests are not built by default (it requires
+additional dependency), but they can be enabled via cmake option:
+```
+$ cmake -DENABLE_TESTS=ON ..
+```
+
+Note that if the necessary [cmocka](https://cmocka.org/) headers are not present
+in the system include paths, tests are not available despite the build mode or
+cmake's options.
+
+Tests can be run by the make's `test` target:
+```
+$ make test
+```
+
+### Code Coverage
+
+Based on the tests run, it is possible to generate code coverage report. But
+it must be enabled and these commands are needed to generate the report:
+```
+$ cmake -DENABLE_COVERAGE=ON ..
+$ make
+$ make coverage
+```
+
 ## NACM
 
 This NETCONF server implements full *ietf-netconf-acm* access control that **bypasses** *sysrepo*
@@ -144,7 +189,8 @@ connect using `client.crt` certificate and `client.key` private key and having `
 set as trusted. These example certificates can be found in `example_configuration/tls_certs`.
 *netopeer2-cli* can easily be configured this way and the TLS connection tested.
 
-Once connected, the client will be identified with `tls-test` NETCONF username.
+To pass server identity check, the client must be connecting to `localhost`, which is the default
+server domain if left empty. Once connected, the client will be identified with `tls-test` NETCONF username.
 
 ### TLS Call Home
 

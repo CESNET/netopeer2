@@ -1,0 +1,8 @@
+module edit1 {
+  namespace ed1;
+  prefix ed1;
+
+  leaf first {
+    type string;
+  }
+}

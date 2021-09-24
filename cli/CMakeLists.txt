@@ -1,9 +1,13 @@
+if(NOT PROJECT_NAME)
+    message(FATAL_ERROR "Please use the root CMakeLists file instead.")
+endif()
+
 include(CheckFunctionExists)
 
 project(netopeer2-cli C)
 
 # set version
-set(NP2CLI_VERSION 2.0.62)
+set(NP2CLI_VERSION 2.0.64)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cli_version.h.in" "${PROJECT_BINARY_DIR}/cli_version.h" ESCAPE_QUOTES @ONLY)
 include_directories(${PROJECT_BINARY_DIR})
 

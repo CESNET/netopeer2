@@ -180,9 +180,31 @@ yang_push_notif_change_edit_append(struct lyd_node *ly_yp, enum yang_push_op yp_
         const char *prev_value, const char *prev_list, struct yang_push_data *yp_data)
 {
     struct lyd_node *ly_edit, *ly_target, *value_tree;
-    char buf[26], *path = NULL, *point = NULL;
+    struct ly_set *set = NULL;
+    char buf[26], *path = NULL, *point = NULL, *xpath = NULL;
     uint32_t edit_id;
     int rc = SR_ERR_OK;
+
+    /* get the edit target path */
+    path = lyd_path(node, LYD_PATH_STD, NULL, 0);
+    if (!path) {
+        rc = SR_ERR_LY;
+        goto cleanup;
+    }
+
+    /* remove any previous change of this target */
+    if (asprintf(&xpath, "/ietf-yang-push:push-change-update/datastore-changes/yang-patch/edit[target='%s']", path) == -1) {
+        rc = SR_ERR_NO_MEMORY;
+        goto cleanup;
+    }
+    if (lyd_find_xpath(ly_yp, xpath, &set)) {
+        rc = SR_ERR_LY;
+        goto cleanup;
+    }
+    assert((set->count == 0) || (set->count == 1));
+    if (set->count) {
+        lyd_free_tree(set->dnodes[0]);
+    }
 
     /* generate new edit ID */
     edit_id = ATOMIC_INC_RELAXED(yp_data->edit_id);
@@ -201,11 +223,6 @@ yang_push_notif_change_edit_append(struct lyd_node *ly_yp, enum yang_push_op yp_
     }
 
     /* target */
-    path = lyd_path(node, LYD_PATH_STD, NULL, 0);
-    if (!path) {
-        rc = SR_ERR_LY;
-        goto cleanup;
-    }
     if (lyd_new_term(ly_edit, NULL, "target", path, 0, &ly_target)) {
         rc = SR_ERR_LY;
         goto cleanup;
@@ -267,6 +284,8 @@ yang_push_notif_change_edit_append(struct lyd_node *ly_yp, enum yang_push_op yp_
     }
 
 cleanup:
+    ly_set_free(set, NULL);
+    free(xpath);
     free(path);
     free(point);
     return rc;
@@ -283,10 +302,8 @@ cleanup:
 static int
 yang_push_notif_change_send(struct nc_session *ncs, struct yang_push_data *yp_data, uint32_t nc_sub_id)
 {
-    struct lyd_node_any *ly_value;
-    struct lyd_node *ly_target, *next, *iter;
     struct ly_set *set = NULL;
-    uint32_t i, removed;
+    int all_removed = 0;
     int rc = SR_ERR_OK;
 
     assert(yp_data->ly_change_ntf);
@@ -296,40 +313,20 @@ yang_push_notif_change_send(struct nc_session *ncs, struct yang_push_data *yp_da
         rc = SR_ERR_LY;
         goto cleanup;
     }
-    removed = 0;
-    for (i = 0; i < set->count; ++i) {
-        /* check the change itself */
-        lyd_find_path(set->dnodes[i], "target", 0, &ly_target);
-        if (!NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(NULL, lyd_get_value(ly_target), ly_target->priv,
-                nc_session_get_username(ncs), NCAC_OP_READ))) {
-            /* not allowed, remove this change */
-            lyd_free_tree(set->dnodes[i]);
-            ++removed;
-            continue;
-        }
+    ncac_check_yang_push_update_notif(nc_session_get_username(ncs), set, &all_removed);
 
-        if (!lyd_find_path(set->dnodes[i], "value", 0, (struct lyd_node **)&ly_value)) {
-            assert(ly_value->value_type == LYD_ANYDATA_DATATREE);
-
-            /* filter out any nested nodes */
-            LY_LIST_FOR_SAFE(lyd_child(ly_value->value.tree), next, iter) {
-                ncac_check_data_read_filter(&iter, nc_session_get_username(ncs));
-            }
-        }
-    }
-
-    if (removed == set->count) {
+    if (all_removed) {
         /* no change is actually readable, notification denied */
         sub_ntf_inc_denied(nc_sub_id);
         goto cleanup;
     }
 
     /* send the notification */
-    rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(), &yp_data->ly_change_ntf, 1);
+    rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(1), &yp_data->ly_change_ntf, 1);
 
     if (rc == SR_ERR_OK) {
         /* set last_notif timestamp */
-        yp_data->last_notif = np_gettimespec();
+        yp_data->last_notif = np_gettimespec(1);
     }
 
 cleanup:
@@ -348,7 +345,7 @@ yang_push_damp_timer_cb(union sigval sval)
     struct yang_push_cb_arg *arg = sval.sival_ptr;
 
     /* READ LOCK */
-    if (!sub_ntf_find_lock(arg->nc_sub_id, 0)) {
+    if (!sub_ntf_find_lock(arg->nc_sub_id, 0, 0)) {
         return;
     }
 
@@ -362,7 +359,7 @@ yang_push_damp_timer_cb(union sigval sval)
     pthread_mutex_unlock(&arg->yp_data->notif_lock);
 
     /* UNLOCK */
-    sub_ntf_unlock();
+    sub_ntf_unlock(0);
 }
 
 /**
@@ -396,7 +393,7 @@ yang_push_notif_change_ready(struct yang_push_data *yp_data, int *ready)
     }
 
     /* learn when the next notification is due */
-    cur_time = np_gettimespec();
+    cur_time = np_gettimespec(1);
     next_notif = yp_data->last_notif;
     np_addtimespec(&next_notif, yp_data->dampening_period_ms);
     next_notif_in = np_difftimespec(&cur_time, &next_notif);
@@ -869,7 +866,7 @@ yang_push_notif_update_send(struct nc_session *ncs, struct yang_push_data *yp_da
     data = NULL;
 
     /* send the notification */
-    rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(), &ly_ntf, 1);
+    rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(1), &ly_ntf, 1);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
@@ -890,7 +887,7 @@ yang_push_update_timer_cb(union sigval sval)
     struct yang_push_cb_arg *arg = sval.sival_ptr;
 
     /* READ LOCK */
-    if (!sub_ntf_find_lock(arg->nc_sub_id, 0)) {
+    if (!sub_ntf_find_lock(arg->nc_sub_id, 0, 0)) {
         return;
     }
 
@@ -898,7 +895,7 @@ yang_push_update_timer_cb(union sigval sval)
     yang_push_notif_update_send(arg->ncs, arg->yp_data, arg->nc_sub_id);
 
     /* UNLOCK */
-    sub_ntf_unlock();
+    sub_ntf_unlock(0);
 }
 
 /**
@@ -911,7 +908,7 @@ yang_push_stop_timer_cb(union sigval sval)
     struct np2srv_sub_ntf *sub;
 
     /* WRITE LOCK */
-    sub = sub_ntf_find_lock(arg->nc_sub_id, 1);
+    sub = sub_ntf_find_lock(arg->nc_sub_id, 0, 1);
     if (!sub) {
         return;
     }
@@ -920,7 +917,7 @@ yang_push_stop_timer_cb(union sigval sval)
     sub_ntf_terminate_sub(sub, arg->ncs);
 
     /* UNLOCK */
-    sub_ntf_unlock();
+    sub_ntf_unlock(0);
 }
 
 /**
@@ -928,19 +925,26 @@ yang_push_stop_timer_cb(union sigval sval)
  *
  * @param[in] cb Callback to be called.
  * @param[in] arg Argument for @p cb.
+ * @param[in] force_real Whether to force realtime clock ID or can be monotonic if available.
  * @param[out] timer_id Created timer ID.
  * @return Sysrepo error value.
  */
 static int
-yang_push_create_timer(void (*cb)(union sigval), void *arg, timer_t *timer_id)
+yang_push_create_timer(void (*cb)(union sigval), void *arg, int force_real, timer_t *timer_id)
 {
     struct sigevent sevp = {0};
 
     sevp.sigev_notify = SIGEV_THREAD;
     sevp.sigev_value.sival_ptr = arg;
     sevp.sigev_notify_function = cb;
-    if (timer_create(NP_CLOCK_ID, &sevp, timer_id) == -1) {
-        return SR_ERR_SYS;
+    if (force_real) {
+        if (timer_create(CLOCK_REALTIME, &sevp, timer_id) == -1) {
+            return SR_ERR_SYS;
+        }
+    } else {
+        if (timer_create(NP_CLOCK_ID, &sevp, timer_id) == -1) {
+            return SR_ERR_SYS;
+        }
     }
 
     return SR_ERR_OK;
@@ -958,6 +962,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
     sr_datastore_t datastore;
     char *xp = NULL;
     uint32_t i, period, dampening_period, sub_id_count;
+    int64_t anchor_msec;
     int rc = SR_ERR_OK, periodic, sync_on_start, excluded_change[YP_OP_OPERATION_COUNT] = {0};
     struct itimerspec trspec = {0};
     struct timespec anchor_time = {0};
@@ -1058,7 +1063,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
         ATOMIC_STORE_RELAXED(yp_data->patch_id, 1);
         if (yp_data->dampening_period_ms) {
             /* create dampening timer */
-            rc = yang_push_create_timer(yang_push_damp_timer_cb, &yp_data->cb_arg, &yp_data->damp_timer);
+            rc = yang_push_create_timer(yang_push_damp_timer_cb, &yp_data->cb_arg, 1, &yp_data->damp_timer);
             if (rc != SR_ERR_OK) {
                 goto cleanup;
             }
@@ -1073,7 +1078,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
 
     if (sub->stop_time.tv_sec) {
         /* create stop timer */
-        rc = yang_push_create_timer(yang_push_stop_timer_cb, &yp_data->cb_arg, &yp_data->stop_timer);
+        rc = yang_push_create_timer(yang_push_stop_timer_cb, &yp_data->cb_arg, 1, &yp_data->stop_timer);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
@@ -1088,19 +1093,25 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
 
     if (periodic) {
         /* create update timer */
-        rc = yang_push_create_timer(yang_push_update_timer_cb, &yp_data->cb_arg, &yp_data->update_timer);
+        rc = yang_push_create_timer(yang_push_update_timer_cb, &yp_data->cb_arg, 1, &yp_data->update_timer);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
 
         /* schedule the periodic updates */
+        trspec.it_value = np_gettimespec(1);
         if (yp_data->anchor_time.tv_sec) {
-            trspec.it_value = np_modtimespec(&yp_data->anchor_time, yp_data->period_ms);
-        } else {
-            trspec.it_value = np_gettimespec();
+            /* first update at nearest anchor time on period */
+            anchor_msec = np_difftimespec(&yp_data->anchor_time, &trspec.it_value);
+            if (anchor_msec < 0) {
+                anchor_msec *= -1;
+            }
+            anchor_msec %= yp_data->period_ms;
+            np_addtimespec(&trspec.it_value, anchor_msec);
         }
         trspec.it_interval.tv_sec = yp_data->period_ms / 1000;
         trspec.it_interval.tv_nsec = (yp_data->period_ms % 1000) * 1000000;
+
         if (timer_settime(yp_data->update_timer, TIMER_ABSTIME, &trspec, NULL) == -1) {
             rc = SR_ERR_SYS;
             goto cleanup;
@@ -1146,30 +1157,29 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     char *xp = NULL, *datetime = NULL;
     struct timespec anchor_time, next_notif;
     int rc = SR_ERR_OK;
-    uint32_t i, nc_sub_id, period, dampening_period;
+    uint32_t i, period, dampening_period;
 
     /* get the user session */
     if ((rc = np_get_user_sess(ev_sess, NULL, &user_sess))) {
         goto cleanup;
     }
 
-    /*
-     * id
-     */
-    lyd_find_path(rpc, "id", 0, &node);
-    nc_sub_id = ((struct lyd_node_term *)node)->value.uint32;
-
-    /*
-     * datastore
-     */
+    /* datastore */
     lyd_find_path(rpc, "ietf-yang-push:datastore", 0, &node);
+    if (!node) {
+        sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is yang-push but \"datastore\""
+                " is not set.", sub->nc_sub_id);
+        rc = SR_ERR_UNSUPPORTED;
+        goto cleanup;
+    }
+
     rc = yang_push_ident2ds(lyd_get_value(node), &datastore);
     if (rc != SR_ERR_OK) {
         sr_session_set_error_message(ev_sess, "Unsupported datastore \"%s\".", lyd_get_value(node));
         goto cleanup;
     } else if (datastore != yp_data->datastore) {
-        sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not for \"%s\" datastore.", nc_sub_id,
-                lyd_get_value(node));
+        sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not for \"%s\" datastore.",
+                sub->nc_sub_id, lyd_get_value(node));
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
     }
@@ -1180,7 +1190,8 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     lyd_find_path(rpc, "ietf-yang-push:periodic", 0, &cont);
     if (cont) {
         if (!yp_data->periodic) {
-            sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not \"periodic\".", nc_sub_id);
+            sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not \"periodic\".",
+                    sub->nc_sub_id);
             rc = SR_ERR_INVAL_ARG;
             goto cleanup;
         }
@@ -1195,7 +1206,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
             if (yp_data->anchor_time.tv_sec) {
                 trspec.it_value = np_modtimespec(&yp_data->anchor_time, yp_data->period_ms);
             } else {
-                trspec.it_value = np_gettimespec();
+                trspec.it_value = np_gettimespec(1);
             }
             trspec.it_interval.tv_sec = yp_data->period_ms / 1000;
             trspec.it_interval.tv_nsec = (yp_data->period_ms % 1000) * 1000000;
@@ -1230,7 +1241,8 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     lyd_find_path(rpc, "ietf-yang-push:on-change", 0, &cont);
     if (cont) {
         if (yp_data->periodic) {
-            sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not \"on-change\".", nc_sub_id);
+            sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not \"on-change\".",
+                    sub->nc_sub_id);
             rc = SR_ERR_INVAL_ARG;
             goto cleanup;
         }
@@ -1241,7 +1253,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
         if (dampening_period * 10 != yp_data->dampening_period_ms) {
             if (!yp_data->dampening_period_ms) {
                 /* create dampening timer */
-                rc = yang_push_create_timer(yang_push_damp_timer_cb, &yp_data->cb_arg, &yp_data->damp_timer);
+                rc = yang_push_create_timer(yang_push_damp_timer_cb, &yp_data->cb_arg, 1, &yp_data->damp_timer);
                 if (rc != SR_ERR_OK) {
                     goto cleanup;
                 }
@@ -1290,7 +1302,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
         xp = NULL;
 
         for (i = 0; i < sub->sub_id_count; ++i) {
-            rc = sr_event_notif_sub_modify_xpath(np2srv.sr_data_sub, sub->sub_ids[i], yp_data->xpath);
+            rc = sr_module_change_sub_modify_xpath(np2srv.sr_data_sub, sub->sub_ids[i], yp_data->xpath);
             if (rc != SR_ERR_OK) {
                 goto cleanup;
             }
@@ -1322,7 +1334,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     if (stop.tv_sec && memcmp(&stop, &sub->stop_time, sizeof stop)) {
         if (!sub->stop_time.tv_sec) {
             /* create stop timer */
-            rc = yang_push_create_timer(yang_push_stop_timer_cb, &yp_data->cb_arg, &yp_data->stop_timer);
+            rc = yang_push_create_timer(yang_push_stop_timer_cb, &yp_data->cb_arg, 1, &yp_data->stop_timer);
             if (rc != SR_ERR_OK) {
                 goto cleanup;
             }
@@ -1457,7 +1469,7 @@ yang_push_datastore_filter_match_cb(struct np2srv_sub_ntf *sub, const void *matc
 }
 
 int
-yang_push_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filter, sr_change_oper_t op)
+yang_push_config_filters(const struct lyd_node *filter, sr_change_oper_t op)
 {
     int rc = SR_ERR_OK, r;
     struct yang_push_data *yp_data;
@@ -1492,19 +1504,23 @@ yang_push_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filte
                 }
             }
 
-            /* do not send subscription-modified since, from the perspective of YANG data, it was not modified */
+            /* send subscription-modified notif */
+            r = sub_ntf_send_notif_modified(sub);
+            if (r != SR_ERR_OK) {
+                rc = r;
+            }
         }
 
         free(xp);
     } else if (op == SR_OP_DELETED) {
-        /* get NETCONF session */
-        if ((rc = np_get_user_sess(ev_sess, &ncs, NULL))) {
-            return rc;
-        }
-
         /* update all the relevant subscriptions */
         sub = NULL;
         while ((sub = sub_ntf_find_next(sub, yang_push_datastore_filter_match_cb, lyd_get_value(lyd_child(filter))))) {
+            /* get NETCONF session */
+            if ((rc = np_get_nc_sess_by_id(0, sub->nc_id, &ncs))) {
+                return rc;
+            }
+
             /* terminate the subscription with the specific term reason */
             sub->term_reason = "ietf-subscribed-notifications:filter-unavailable";
             r = sub_ntf_terminate_sub(sub, ncs);
@@ -1649,7 +1665,9 @@ yang_push_terminate_async(void *data)
             timer_settime(yp_data->damp_timer, TIMER_ABSTIME, &tspec, NULL);
         }
     }
-    timer_settime(yp_data->stop_timer, TIMER_ABSTIME, &tspec, NULL);
+    if (yp_data->stop_timer) {
+        timer_settime(yp_data->stop_timer, TIMER_ABSTIME, &tspec, NULL);
+    }
 }
 
 void
@@ -1671,7 +1689,9 @@ yang_push_data_destroy(void *data)
             }
         }
         free(yp_data->xpath);
-        timer_delete(yp_data->stop_timer);
+        if (yp_data->stop_timer) {
+            timer_delete(yp_data->stop_timer);
+        }
 
         free(yp_data);
     }
@@ -1698,7 +1718,7 @@ np2srv_rpc_resync_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     nc_sub_id = ((struct lyd_node_term *)node)->value.uint32;
 
     /* READ LOCK */
-    sub = sub_ntf_find_lock(nc_sub_id, 0);
+    sub = sub_ntf_find_lock(nc_sub_id, 0, 0);
     if (!sub || ((struct yang_push_data *)sub->data)->periodic) {
         sr_session_set_error_message(session, "On-change subscription with ID %" PRIu32 " for the current receiver "
                 "does not exist.", nc_sub_id);
@@ -1711,6 +1731,7 @@ np2srv_rpc_resync_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     yp_data = sub->data;
 
     /* resync the subscription */
+    ATOMIC_STORE_RELAXED(yp_data->patch_id, 1);
     rc = yang_push_notif_update_send(yp_data->cb_arg.ncs, yp_data, nc_sub_id);
     if (rc != SR_ERR_OK) {
         goto cleanup_unlock;
@@ -1718,7 +1739,7 @@ np2srv_rpc_resync_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 
 cleanup_unlock:
     /* UNLOCK */
-    sub_ntf_unlock();
+    sub_ntf_unlock(0);
 
     return rc;
 }

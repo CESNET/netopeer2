@@ -1,0 +1,42 @@
+module edit4 {
+  namespace ed4;
+  prefix ed4;
+
+  container top {
+    choice ch1 {
+      case c1 {
+        leaf l1 {
+          type string;
+        }
+        leaf l2 {
+          type empty;
+        }
+      }
+
+      leaf c2 {
+        type uint32;
+      }
+
+      case c3 {
+        choice ch2 {
+          case c4 {
+            container cont {
+              leaf l3 {
+                type int32;
+              }
+            }
+          }
+
+          case c5 {
+            leaf l4 {
+              type string;
+            }
+            leaf l5 {
+              type string;
+            }
+          }
+        }
+      }
+    }
+  }
+}

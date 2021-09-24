@@ -92,7 +92,7 @@ int yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *r
 
 int yang_push_notif_modified_append_data(struct lyd_node *ntf, void *data);
 
-int yang_push_config_filters(sr_session_ctx_t *ev_sess, const struct lyd_node *filter, sr_change_oper_t op);
+int yang_push_config_filters(const struct lyd_node *filter, sr_change_oper_t op);
 
 int yang_push_oper_subscription(struct lyd_node *subscription, void *data);
 

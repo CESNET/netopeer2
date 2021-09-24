@@ -31,6 +31,8 @@
 /* sysrepo test repositories directory */
 #define NP_SR_REPOS_DIR "@CMAKE_CURRENT_BINARY_DIR@/repositories"
 
+#define NP_TEST_MODULE_DIR "@CMAKE_CURRENT_SOURCE_DIR@/modules"
+
 /* sysrepo SHM prefix */
 #define NP_SR_SHM_PREFIX "_tests_np_"
 
@@ -42,5 +44,10 @@
 
 /* server log file */
 #define NP_LOG_PATH "@CMAKE_CURRENT_BINARY_DIR@/netopeer2-server.log"
+
+/* notifation file path */
+#define SR_NOTIFICATION_PATH "@NOTIFICATION_PATH@"
+
+#define NACM_RECOVERY_UID "@NACM_RECOVERY_UID@"
 
 #endif /* _NP_TEST_CONFIG_H_ */

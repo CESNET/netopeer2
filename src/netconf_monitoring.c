@@ -158,19 +158,20 @@ ncm_session_add(struct nc_session *session)
     new = realloc(stats.sessions, stats.session_count * sizeof *stats.sessions);
     if (!new) {
         EMEM;
-        return;
+        goto cleanup;
     }
     stats.sessions = new;
     new = realloc(stats.session_stats, stats.session_count * sizeof *stats.session_stats);
     if (!new) {
         EMEM;
-        return;
+        goto cleanup;
     }
     stats.session_stats = new;
 
     stats.sessions[stats.session_count - 1] = session;
     memset(&stats.session_stats[stats.session_count - 1], 0, sizeof *stats.session_stats);
 
+cleanup:
     pthread_mutex_unlock(&stats.lock);
 }
 
@@ -253,7 +254,7 @@ ncm_data_add_ds_lock(sr_conn_ctx_t *conn, const char *ds_str, sr_datastore_t ds,
         lyd_new_inner(list, NULL, "locks", 0, &cont);
         lyd_new_inner(cont, NULL, "global-lock", 0, &cont2);
 
-        ncs = np_get_nc_sess_by_sr_id(sid);
+        np_get_nc_sess_by_id(sid, 0, &ncs);
         sprintf(ncid_str, "%" PRIu32, ncs ? nc_session_get_id(ncs) : 0);
         lyd_new_term(cont2, NULL, "locked-by-session", ncid_str, 0, NULL);
 

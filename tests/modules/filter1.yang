@@ -1,0 +1,38 @@
+module filter1 {
+  namespace f1;
+  prefix f1;
+
+  import ietf-inet-types {
+    prefix "inet";
+  }
+
+  container top {
+    container devices {
+      container desktops {
+        list desktop {
+          key "name";
+          leaf name {
+            type string;
+          }
+          leaf address {
+            type inet:ip-address;
+          }
+        }
+      }
+      container servers {
+        list server {
+          key "name";
+          leaf name {
+            type string;
+          }
+          leaf address {
+            type inet:ip-address;
+          }
+          leaf port {
+            type inet:port-number;
+          }
+        }
+      }
+    }
+  }
+}

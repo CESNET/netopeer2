@@ -1,0 +1,14 @@
+module defaults1 {
+  namespace "def1";
+  prefix "def1";
+
+  container top {
+    leaf name {
+      type string;
+      default "Test";
+    }
+    leaf num {
+        type uint32;
+    }
+  }
+}
