@@ -60,11 +60,10 @@ set(CMAKE_C_FLAGS_DEBUG     "-g -O0")
 #
 # options
 #
+option(ENABLE_TESTS "Build tests" ON)
 if(("${BUILD_TYPE_UPPER}" STREQUAL "DEBUG") OR ("${BUILD_TYPE_UPPER}" STREQUAL "RELWITHDEBINFO"))
-    option(ENABLE_TESTS "Build tests" ON)
     option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" ON)
 else()
-    option(ENABLE_TESTS "Build tests" OFF)
     option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" OFF)
 endif()
 option(ENABLE_COVERAGE "Build code coverage report from tests" OFF)
