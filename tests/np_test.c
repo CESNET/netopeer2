@@ -82,7 +82,7 @@ setup_server_socket_wait(void)
 }
 
 int
-setup_setenv_sysrepo(const char *test_name)
+np_glob_setup_env(const char *test_name)
 {
     int ret = 1;
     char *sr_repo_path = NULL, *sr_shm_prefix = NULL;

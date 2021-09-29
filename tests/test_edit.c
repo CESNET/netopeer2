@@ -40,6 +40,7 @@ local_setup(void **state)
 {
     struct np_test *st;
     sr_conn_ctx_t *conn;
+    char test_name[256];
     const char *module1 = NP_TEST_MODULE_DIR "/edit1.yang";
     const char *module2 = NP_TEST_MODULE_DIR "/edit2.yang";
     const char *module3 = NP_TEST_MODULE_DIR "/edit3.yang";
@@ -48,9 +49,12 @@ local_setup(void **state)
     const char *module6 = NP_TEST_MODULE_DIR "/example2.yang";
     int rv;
 
+    /* get test name */
+    NP_GLOB_SETUP_TEST_NAME(test_name);
+
     /* Setup environment necessary for installing module */
-    NP_GLOB_SETUP_ENV_FUNC;
-    assert_int_equal(setenv_rv, 0);
+    rv = np_glob_setup_env(test_name);
+    assert_int_equal(rv, 0);
 
     /* Connect to server and install test modules */
     assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);

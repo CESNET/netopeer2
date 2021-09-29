@@ -74,19 +74,22 @@ local_setup(void **state)
 {
     struct np_test *st;
     sr_conn_ctx_t *conn;
-    const char *features[] = {NULL};
+    char test_name[256];
     const char *module1 = NP_TEST_MODULE_DIR "/notif1.yang";
     const char *module2 = NP_TEST_MODULE_DIR "/notif2.yang";
     int rv;
 
+    /* get test name */
+    NP_GLOB_SETUP_TEST_NAME(test_name);
+
     /* Setup environment necessary for installing module */
-    NP_GLOB_SETUP_ENV_FUNC;
-    assert_int_equal(setenv_rv, 0);
+    rv = np_glob_setup_env(test_name);
+    assert_int_equal(rv, 0);
 
     /* connect to server and install test modules */
     assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module1, NULL, features), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module2, NULL, features), SR_ERR_OK);
+    assert_int_equal(sr_install_module(conn, module1, NULL, NULL), SR_ERR_OK);
+    assert_int_equal(sr_install_module(conn, module2, NULL, NULL), SR_ERR_OK);
     assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
 
     /* Setup netopeer2 server */

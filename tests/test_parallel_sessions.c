@@ -42,8 +42,16 @@
 static int
 local_setup(void **state)
 {
-    NP_GLOB_SETUP_ENV_FUNC;
-    assert_int_equal(setenv_rv, 0);
+    char test_name[256];
+    int rv;
+
+    /* get test name */
+    NP_GLOB_SETUP_TEST_NAME(test_name);
+
+    /* setup environment necessary for installing module */
+    rv = np_glob_setup_env(test_name);
+    assert_int_equal(rv, 0);
+
     return np_glob_setup_np2(state);
 }
 

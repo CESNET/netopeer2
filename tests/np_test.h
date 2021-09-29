@@ -30,14 +30,12 @@
 #include <nc_client.h>
 #include <sysrepo.h>
 
-/* global setup for environment variables for sysrepo*/
-#define NP_GLOB_SETUP_ENV_FUNC \
-    char file[128]; \
-    int setenv_rv; \
-\
-    strcpy(file, __FILE__); \
-    file[strlen(file) - 2] = '\0'; \
-    setenv_rv = setup_setenv_sysrepo(strrchr(file, '/') + 1);
+#define NP_GLOB_SETUP_TEST_NAME(buf) \
+    char *_ptr; \
+    strcpy(buf, __FILE__); \
+    buf[strlen(buf) - 2] = '\0'; \
+    _ptr = strrchr(buf, '/') + 1; \
+    memmove(buf, _ptr, strlen(_ptr) + 1);
 
 #define SETUP_FAIL_LOG \
     printf("Setup fail in %s:%d.\n", __FILE__, __LINE__)
@@ -222,9 +220,9 @@ struct np_test {
     uint32_t ntf_id;
 };
 
-int np_glob_setup_np2(void **state);
+int np_glob_setup_env(const char *test_name);
 
-int setup_setenv_sysrepo(const char *test_name);
+int np_glob_setup_np2(void **state);
 
 int np_glob_teardown(void **state);
 
