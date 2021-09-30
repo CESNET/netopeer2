@@ -3,6 +3,9 @@ NP2_TESTS_BINARY_DIR="@CMAKE_CURRENT_BINARY_DIR@"
 [ -z "$NP2_TESTS_BINARY_DIR" ] &&
         echo "Expected an argument with to the test directory" &&
         exit 1
-pidfile="$NP2_TESTS_BINARY_DIR/netopeer2-server.pid"
-[ -f "$pidfile" ] && kill "$(cat "$pidfile")"
+
+for pidfile in $NP2_TESTS_BINARY_DIR/repositories/*/netopeer2-server.pid
+do
+        [ -f "$pidfile" ] && kill "$(cat "$pidfile")"
+done
 exit 0

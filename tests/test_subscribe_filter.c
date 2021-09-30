@@ -63,7 +63,7 @@ reestablish_sub(void **state, const char *filter)
 
     /* Reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
-    st->nc_sess = nc_connect_unix(NP_SOCKET_PATH, NULL);
+    st->nc_sess = nc_connect_unix(st->socket_path, NULL);
     assert_non_null(st->nc_sess);
 
     /* Get a subscription to receive notifications */
@@ -91,7 +91,7 @@ local_setup(void **state)
     int rv;
 
     /* get test name */
-    NP_GLOB_SETUP_TEST_NAME(test_name);
+    np_glob_setup_test_name(test_name);
 
     /* Setup environment necessary for installing module */
     rv = np_glob_setup_env(test_name);
@@ -104,7 +104,7 @@ local_setup(void **state)
     assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
 
     /* Setup netopeer2 server */
-    if (!(rv = np_glob_setup_np2(state))) {
+    if (!(rv = np_glob_setup_np2(state, test_name))) {
         /* State is allocated in np_glob_setup_np2 have to set here */
         st = *state;
         /* Open connection to start a session for the tests */
@@ -196,7 +196,7 @@ test_subtree_filter_no_matching_node(void **state)
 
     /* Reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
-    st->nc_sess = nc_connect_unix(NP_SOCKET_PATH, NULL);
+    st->nc_sess = nc_connect_unix(st->socket_path, NULL);
     assert_non_null(st->nc_sess);
 
     /* Get a subscription to receive notifications */
@@ -330,7 +330,7 @@ test_xpath_filter_no_matching_node(void **state)
 
     /* Reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
-    st->nc_sess = nc_connect_unix(NP_SOCKET_PATH, NULL);
+    st->nc_sess = nc_connect_unix(st->socket_path, NULL);
     assert_non_null(st->nc_sess);
 
     /* Get a subscription to receive notifications */

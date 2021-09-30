@@ -46,18 +46,24 @@ local_setup(void **state)
     int rv;
 
     /* get test name */
-    NP_GLOB_SETUP_TEST_NAME(test_name);
+    np_glob_setup_test_name(test_name);
 
     /* setup environment necessary for installing module */
     rv = np_glob_setup_env(test_name);
     assert_int_equal(rv, 0);
 
-    return np_glob_setup_np2(state);
+    return np_glob_setup_np2(state, test_name);
 }
 
+struct thread_arg {
+    const char *socket_path;
+    pthread_barrier_t barrier;
+};
+
 static void *
-send_get_rpc(void *barrier)
+send_get_rpc(void *arg)
 {
+    struct thread_arg *targ = arg;
     struct nc_rpc *rpc;
     struct nc_session *nc_sess;
     struct lyd_node *envp, *op;
@@ -65,9 +71,9 @@ send_get_rpc(void *barrier)
     uint64_t msgid;
 
     /* create a NETCONF session */
-    nc_sess = nc_connect_unix(NP_SOCKET_PATH, NULL);
+    nc_sess = nc_connect_unix(targ->socket_path, NULL);
     assert_non_null(nc_sess);
-    pthread_barrier_wait(barrier);
+    pthread_barrier_wait(&targ->barrier);
 
     /* Send get rpc */
     rpc = nc_rpc_get(NULL, NC_WD_ALL, NC_PARAMTYPE_CONST);
@@ -93,13 +99,15 @@ send_get_rpc(void *barrier)
 static void
 test_first(void **state)
 {
-    (void)state;
+    struct np_test *st = *state;
     pthread_t t[THREAD_COUNT];
-    pthread_barrier_t barrier;
+    struct thread_arg targ;
 
-    pthread_barrier_init(&barrier, NULL, THREAD_COUNT);
+    targ.socket_path = st->socket_path;
+    pthread_barrier_init(&targ.barrier, NULL, THREAD_COUNT);
+
     for (uint32_t i = 0; i < THREAD_COUNT; i++) {
-        pthread_create(&t[i], NULL, send_get_rpc, &barrier);
+        pthread_create(&t[i], NULL, send_get_rpc, &targ);
     }
     for (uint32_t i = 0; i < THREAD_COUNT; i++) {
         pthread_join(t[i], NULL);

@@ -55,22 +55,21 @@ endforeach(test_name)
 # add tests with their attributes
 foreach(test_name IN LISTS tests)
     add_test(NAME ${test_name} COMMAND $<TARGET_FILE:${test_name}>)
-    set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT
-        "MALLOC_CHECK_=3"
-    )
+    set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT "MALLOC_CHECK_=3")
+    set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT "TEST_NAME=${test_name}")
 endforeach()
 
 # valgrind tests
 if(ENABLE_VALGRIND_TESTS)
     foreach(test_name IN LISTS tests)
         add_test(NAME ${test_name}_valgrind COMMAND valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ${CMAKE_CURRENT_BINARY_DIR}/${test_name})
+        set_property(TEST ${test_name}_valgrind APPEND PROPERTY ENVIRONMENT "TEST_NAME=${test_name}_vg")
     endforeach()
 endif()
 
 # phony target for clearing all sysrepo test data
 add_custom_target(test_clean
+    COMMAND ${CMAKE_CURRENT_BINARY_DIR}/scripts/kill_np_server.sh
     COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/repositories
     COMMAND rm -rf /dev/shm/_tests_np_*
-    COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/netopeer2-server.sock
-    COMMAND ${CMAKE_CURRENT_BINARY_DIR}/scripts/kill_np_server.sh
 )

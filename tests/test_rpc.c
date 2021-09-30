@@ -45,7 +45,7 @@ local_setup(void **state)
     int rv;
 
     /* get test name */
-    NP_GLOB_SETUP_TEST_NAME(test_name);
+    np_glob_setup_test_name(test_name);
 
     /* setup environment necessary for installing module */
     rv = np_glob_setup_env(test_name);
@@ -57,7 +57,7 @@ local_setup(void **state)
     assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
 
     /* Setup netopeer2 server */
-    if (!(rv = np_glob_setup_np2(state))) {
+    if (!(rv = np_glob_setup_np2(state, test_name))) {
         st = *state;
         /* Open the connection to start a session for the tests */
         assert_int_equal(sr_connect(SR_CONN_DEFAULT, &st->conn), SR_ERR_OK);

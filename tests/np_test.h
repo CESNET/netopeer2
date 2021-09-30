@@ -30,13 +30,6 @@
 #include <nc_client.h>
 #include <sysrepo.h>
 
-#define NP_GLOB_SETUP_TEST_NAME(buf) \
-    char *_ptr; \
-    strcpy(buf, __FILE__); \
-    buf[strlen(buf) - 2] = '\0'; \
-    _ptr = strrchr(buf, '/') + 1; \
-    memmove(buf, _ptr, strlen(_ptr) + 1);
-
 #define SETUP_FAIL_LOG \
     printf("Setup fail in %s:%d.\n", __FILE__, __LINE__)
 
@@ -203,6 +196,8 @@
 /* test state structure */
 struct np_test {
     pid_t server_pid;
+    char socket_path[1024];
+    char test_name[256];
     sr_conn_ctx_t *conn;
     sr_session_ctx_t *sr_sess;
     sr_session_ctx_t *sr_sess2;
@@ -220,9 +215,11 @@ struct np_test {
     uint32_t ntf_id;
 };
 
+void np_glob_setup_test_name(char *buf);
+
 int np_glob_setup_env(const char *test_name);
 
-int np_glob_setup_np2(void **state);
+int np_glob_setup_np2(void **state, const char *test_name);
 
 int np_glob_teardown(void **state);
 

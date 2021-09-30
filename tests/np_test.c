@@ -58,15 +58,15 @@ parse_arg(int argc, char **argv)
 }
 
 static int
-setup_server_socket_wait(void)
+setup_server_socket_wait(const char *socket_path)
 {
-    /* max sleep 5s */
-    const uint32_t sleep_count = 200;
+    /* max sleep 10s */
+    const uint32_t sleep_count = 400;
     const struct timespec ts = {.tv_sec = 0, .tv_nsec = 25000000};
     uint32_t count = 0;
 
     while (count < sleep_count) {
-        if (!access(NP_SOCKET_PATH, F_OK)) {
+        if (!access(socket_path, F_OK)) {
             break;
         }
 
@@ -79,6 +79,22 @@ setup_server_socket_wait(void)
         return 1;
     }
     return 0;
+}
+
+void
+np_glob_setup_test_name(char *buf)
+{
+    char *ptr;
+
+    ptr = getenv("TEST_NAME");
+    if (ptr) {
+        strcpy(buf, ptr);
+    } else {
+        strcpy(buf, __FILE__);
+        buf[strlen(buf) - 2] = '\0';
+        ptr = strrchr(buf, '/') + 1;
+        memmove(buf, ptr, strlen(ptr) + 1);
+    }
 }
 
 int
@@ -119,10 +135,11 @@ cleanup:
 }
 
 int
-np_glob_setup_np2(void **state)
+np_glob_setup_np2(void **state, const char *test_name)
 {
     struct np_test *st;
     pid_t pid;
+    char str[1024], sockparam[1024];
     int fd, pipefd[2], buf;
 
     /* sysrepo environment variables must be set by NP_GLOB_SETUP_ENV_FUNC prior */
@@ -160,10 +177,15 @@ np_glob_setup_np2(void **state)
         }
     }
 
+    /* generate path to socket */
+    sprintf(sockparam, "-U%s/repositories/%s/%s", NP_TEST_DIR, test_name, NP_SOCKET_FILE);
+    printf("%s\n", sockparam);
+
     /* fork and start the server */
     if (!(pid = fork())) {
         /* open log file */
-        fd = open(NP_LOG_PATH, O_WRONLY | O_CREAT | O_TRUNC, 00600);
+        sprintf(str, "%s/repositories/%s/%s", NP_TEST_DIR, test_name, NP_LOG_FILE);
+        fd = open(str, O_WRONLY | O_CREAT | O_TRUNC, 00600);
         if (fd == -1) {
             SETUP_FAIL_LOG;
             goto child_error;
@@ -184,8 +206,9 @@ np_glob_setup_np2(void **state)
         close(fd);
 
         /* exec server listening on a unix socket */
-        execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-p" NP_PID_PATH,
-                "-U" NP_SOCKET_PATH, "-m 600", (char *)NULL);
+        sprintf(str, "-p%s/repositories/%s/%s", NP_TEST_DIR, test_name, NP_PID_FILE);
+        execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", str, sockparam,
+                "-m 600", (char *)NULL);
 
 child_error:
         printf("Child execution failed\n");
@@ -204,7 +227,7 @@ child_error:
     }
 
     /* wait for the server, until it creates its socket */
-    if (setup_server_socket_wait()) {
+    if (setup_server_socket_wait(sockparam + 2)) {
         SETUP_FAIL_LOG;
         return 1;
     }
@@ -217,15 +240,17 @@ child_error:
     }
     *state = st;
     st->server_pid = pid;
+    strcpy(st->socket_path, sockparam + 2);
+    strcpy(st->test_name, test_name);
 
     /* create NETCONF sessions */
-    st->nc_sess = nc_connect_unix(NP_SOCKET_PATH, NULL);
+    st->nc_sess = nc_connect_unix(st->socket_path, NULL);
     if (!st->nc_sess) {
         SETUP_FAIL_LOG;
         return 1;
     }
 
-    st->nc_sess2 = nc_connect_unix(NP_SOCKET_PATH, NULL);
+    st->nc_sess2 = nc_connect_unix(st->socket_path, NULL);
     if (!st->nc_sess2) {
         SETUP_FAIL_LOG;
         return 1;

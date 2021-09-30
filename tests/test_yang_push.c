@@ -48,7 +48,7 @@ local_setup(void **state)
     int rv;
 
     /* get test name */
-    NP_GLOB_SETUP_TEST_NAME(test_name);
+    np_glob_setup_test_name(test_name);
 
     /* setup environment necessary for installing module */
     rv = np_glob_setup_env(test_name);
@@ -61,7 +61,7 @@ local_setup(void **state)
     assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
 
     /* setup netopeer2 server */
-    if (!(rv = np_glob_setup_np2(state))) {
+    if (!(rv = np_glob_setup_np2(state, test_name))) {
         /* state is allocated in np_glob_setup_np2 have to set here */
         st = *state;
         /* Open connection to start a session for the tests */
@@ -75,24 +75,12 @@ local_setup(void **state)
     return rv;
 }
 
-void
-test_path_notif_dir(char **path)
-{
-    if (SR_NOTIFICATION_PATH[0]) {
-        *path = strdup(SR_NOTIFICATION_PATH);
-    } else {
-        if (asprintf(path, "%s/data/notif", sr_get_repo_path()) == -1) {
-            *path = NULL;
-        }
-    }
-}
-
 static int
 teardown_common(void **state)
 {
     struct np_test *st = *state;
     const char *data;
-    char *path, *cmd;
+    char *cmd;
     int ret;
 
     /* stop NETCONF session */
@@ -108,16 +96,10 @@ teardown_common(void **state)
     FREE_TEST_VARS(st);
 
     /* Remove the notifications */
-    test_path_notif_dir(&path);
-    if (!path) {
+    if (asprintf(&cmd, "rm -rf %s/%s/data/notif/notif1.notif*", NP_SR_REPOS_DIR, st->test_name) == -1) {
         return 1;
     }
 
-    if (asprintf(&cmd, "rm -rf %s/notif1.notif*", path) == -1) {
-        return 1;
-    }
-
-    free(path);
     ret = system(cmd);
     free(cmd);
 
@@ -128,7 +110,7 @@ teardown_common(void **state)
     }
 
     /* create new default NETCONF session */
-    st->nc_sess = nc_connect_unix(NP_SOCKET_PATH, NULL);
+    st->nc_sess = nc_connect_unix(st->socket_path, NULL);
     assert_non_null(st->nc_sess);
 
     return 0;
