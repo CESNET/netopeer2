@@ -178,13 +178,13 @@ np_glob_setup_np2(void **state, const char *test_name)
     }
 
     /* generate path to socket */
-    sprintf(sockparam, "-U%s/repositories/%s/%s", NP_TEST_DIR, test_name, NP_SOCKET_FILE);
+    sprintf(sockparam, "-U./repositories/%s/%s", test_name, NP_SOCKET_FILE);
     printf("%s\n", sockparam);
 
     /* fork and start the server */
     if (!(pid = fork())) {
         /* open log file */
-        sprintf(str, "%s/repositories/%s/%s", NP_TEST_DIR, test_name, NP_LOG_FILE);
+        sprintf(str, "./repositories/%s/%s", test_name, NP_LOG_FILE);
         fd = open(str, O_WRONLY | O_CREAT | O_TRUNC, 00600);
         if (fd == -1) {
             SETUP_FAIL_LOG;
@@ -206,7 +206,7 @@ np_glob_setup_np2(void **state, const char *test_name)
         close(fd);
 
         /* exec server listening on a unix socket */
-        sprintf(str, "-p%s/repositories/%s/%s", NP_TEST_DIR, test_name, NP_PID_FILE);
+        sprintf(str, "-p./repositories/%s/%s", test_name, NP_PID_FILE);
         execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", str, sockparam,
                 "-m 600", (char *)NULL);
 
