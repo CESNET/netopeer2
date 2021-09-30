@@ -74,6 +74,10 @@ local_teardown(void **state)
     struct np_test *st = *state;
     sr_conn_ctx_t *conn;
 
+    if (!st) {
+        return 0;
+    }
+
     /* Close the session and connection needed for tests */
     assert_int_equal(sr_session_stop(st->sr_sess), SR_ERR_OK);
     assert_int_equal(sr_disconnect(st->conn), SR_ERR_OK);

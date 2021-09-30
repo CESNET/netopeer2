@@ -120,6 +120,10 @@ local_teardown(void **state)
     struct np_test *st = *state;
     sr_conn_ctx_t *conn;
 
+    if (!st) {
+        return 0;
+    }
+
     /* Disable replay support */
     assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "edit1", 0));
 

@@ -248,6 +248,10 @@ local_teardown(void **state)
     struct np_test *st = *state;
     sr_conn_ctx_t *conn;
 
+    if (!st) {
+        return 0;
+    }
+
     /* Unsubscribe */
     sr_unsubscribe(st->sub);
 
