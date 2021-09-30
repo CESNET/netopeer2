@@ -37,8 +37,8 @@
 /* sysrepo SHM prefix */
 #define NP_SR_SHM_PREFIX "_tests_np_"
 
-/* path to put test-specific directory into */
-#define NP_TEST_DIR "@CMAKE_CURRENT_BINARY_DIR@"
+/* path to put test-specific directory into, just relative NP_SR_REPOS_DIR to NP_BINARY_DIR */
+#define NP_TEST_DIR "./tests/repositories"
 
 /* server PID file */
 #define NP_PID_FILE "np2.pid"

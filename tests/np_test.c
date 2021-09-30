@@ -139,8 +139,16 @@ np_glob_setup_np2(void **state, const char *test_name)
 {
     struct np_test *st;
     pid_t pid;
-    char str[1024], sockparam[1024];
+    char str[256], sockparam[128];
     int fd, pipefd[2], buf;
+
+    getcwd(str, 256);
+    if (strcmp(str, NP_BINARY_DIR)) {
+        printf("Tests must be started from the build directory \"%s\".\n", NP_BINARY_DIR);
+        printf("CWD = %s\n", str);
+        SETUP_FAIL_LOG;
+        return 1;
+    }
 
     /* sysrepo environment variables must be set by NP_GLOB_SETUP_ENV_FUNC prior */
     /* install modules */
@@ -178,13 +186,12 @@ np_glob_setup_np2(void **state, const char *test_name)
     }
 
     /* generate path to socket */
-    sprintf(sockparam, "-U%s/repositories/%s/%s", NP_TEST_DIR, test_name, NP_SOCKET_FILE);
-    printf("%s\n", sockparam);
+    sprintf(sockparam, "-U%s/%s/%s", NP_TEST_DIR, test_name, NP_SOCKET_FILE);
 
     /* fork and start the server */
     if (!(pid = fork())) {
         /* open log file */
-        sprintf(str, "%s/repositories/%s/%s", NP_TEST_DIR, test_name, NP_LOG_FILE);
+        sprintf(str, "%s/%s/%s", NP_TEST_DIR, test_name, NP_LOG_FILE);
         fd = open(str, O_WRONLY | O_CREAT | O_TRUNC, 00600);
         if (fd == -1) {
             SETUP_FAIL_LOG;
@@ -206,7 +213,7 @@ np_glob_setup_np2(void **state, const char *test_name)
         close(fd);
 
         /* exec server listening on a unix socket */
-        sprintf(str, "-p%s/repositories/%s/%s", NP_TEST_DIR, test_name, NP_PID_FILE);
+        sprintf(str, "-p%s/%s/%s", NP_TEST_DIR, test_name, NP_PID_FILE);
         execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", str, sockparam,
                 "-m 600", (char *)NULL);
 

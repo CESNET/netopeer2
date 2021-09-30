@@ -54,7 +54,7 @@ endforeach(test_name)
 
 # add tests with their attributes
 foreach(test_name IN LISTS tests)
-    add_test(NAME ${test_name} COMMAND $<TARGET_FILE:${test_name}>)
+    add_test(NAME ${test_name} COMMAND $<TARGET_FILE:${test_name}> WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
     set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT "MALLOC_CHECK_=3")
     set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT "TEST_NAME=${test_name}")
 endforeach()
@@ -62,8 +62,8 @@ endforeach()
 # valgrind tests
 if(ENABLE_VALGRIND_TESTS)
     foreach(test_name IN LISTS tests)
-        add_test(NAME ${test_name}_valgrind COMMAND valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ${CMAKE_CURRENT_BINARY_DIR}/${test_name})
-        set_property(TEST ${test_name}_valgrind APPEND PROPERTY ENVIRONMENT "TEST_NAME=${test_name}_vg")
+        add_test(NAME ${test_name}_valgrind COMMAND valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ${CMAKE_CURRENT_BINARY_DIR}/${test_name} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+        set_property(TEST ${test_name}_valgrind APPEND PROPERTY ENVIRONMENT "TEST_NAME=${test_name}_valgrind")
     endforeach()
 endif()
 
