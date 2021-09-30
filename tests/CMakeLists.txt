@@ -1,4 +1,4 @@
-if(NOT PROJECT_NAME)
+if(NOT NP2SRV_VERSION)
     message(FATAL_ERROR "Please use the root CMakeLists file instead.")
 endif()
 
