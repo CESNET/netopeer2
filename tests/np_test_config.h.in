@@ -41,13 +41,13 @@
 #define NP_TEST_DIR "@CMAKE_CURRENT_BINARY_DIR@"
 
 /* server PID file */
-#define NP_PID_FILE "netopeer2-server.pid"
+#define NP_PID_FILE "np2.pid"
 
 /* server socket path */
-#define NP_SOCKET_FILE "netopeer2-server.sock"
+#define NP_SOCKET_FILE "np2.sock"
 
 /* server log file */
-#define NP_LOG_FILE "netopeer2-server.log"
+#define NP_LOG_FILE "np2.log"
 
 /* NACM recovery UID */
 #define NACM_RECOVERY_UID "@NACM_RECOVERY_UID@"
