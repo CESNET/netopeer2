@@ -1,6 +1,6 @@
 /**
  * @file test_parallel_sessions.c
- * @author * @author Tadeas Vintrlik <xvintr04@stud.fit.vutbr.cz>
+ * @author Tadeas Vintrlik <xvintr04@stud.fit.vutbr.cz>
  * @brief tests for sending parallel requests on more threads
  *
  * @copyright
