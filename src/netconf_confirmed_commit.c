@@ -36,6 +36,7 @@
 #include <sysrepo.h>
 
 #include "common.h"
+#include "compat.h"
 #include "err_netconf.h"
 #include "log.h"
 
