@@ -88,9 +88,9 @@ np_glob_setup_test_name(char *buf)
 
     ptr = getenv("TEST_NAME");
     if (ptr) {
-        strcpy(buf, ptr);
+        strncpy(buf, ptr, 255);
     } else {
-        strcpy(buf, __FILE__);
+        strncpy(buf, __FILE__, 255);
         buf[strlen(buf) - 2] = '\0';
         ptr = strrchr(buf, '/') + 1;
         memmove(buf, ptr, strlen(ptr) + 1);
@@ -250,8 +250,8 @@ child_error:
     }
     *state = st;
     st->server_pid = pid;
-    strcpy(st->socket_path, sockparam + 2);
-    strcpy(st->test_name, test_name);
+    strncpy(st->socket_path, sockparam + 2, sizeof st->socket_path - 1);
+    strncpy(st->test_name, test_name, sizeof st->test_name - 1);
 
     /* create NETCONF sessions */
     st->nc_sess = nc_connect_unix(st->socket_path, NULL);

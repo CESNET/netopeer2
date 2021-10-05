@@ -196,7 +196,7 @@
 /* test state structure */
 struct np_test {
     pid_t server_pid;
-    char socket_path[1024];
+    char socket_path[256];
     char test_name[256];
     sr_conn_ctx_t *conn;
     sr_session_ctx_t *sr_sess;
