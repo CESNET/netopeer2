@@ -186,12 +186,9 @@ ncc_check_dir_exists(const char *path)
 {
     int rc = SR_ERR_OK;
 
-    if (access(path, F_OK)) {
-        VRB("Creating directory \"%s\".", path);
-        if (mkdir(path, S_IRWXU) == -1) {
-            ERR("Failed creating directory \"%s\" (%s).", path, strerror(errno));
-            rc = SR_ERR_SYS;
-        }
+    if ((mkdir(path, S_IRWXU) == -1) && (errno != EEXIST)) {
+        ERR("Failed creating directory \"%s\" (%s).", path, strerror(errno));
+        rc = SR_ERR_SYS;
     }
 
     return rc;
@@ -243,22 +240,12 @@ static int
 ncc_check_dir_permissions(const char *path)
 {
     int rc = SR_ERR_OK;
-    struct stat statbuf;
-    mode_t expected_mode;
+    mode_t expected_mode = S_IRWXU;
 
-    expected_mode = S_IRWXU;
-    if (stat(path, &statbuf) == -1) {
-        ERR("Failed getting permissions of directory \"%s\" (%s).", path, strerror(errno));
+    if (chmod(path, expected_mode) == -1) {
+        ERR("Failed changing permissions of directory \"%s\" (%s).", path, strerror(errno));
         rc = SR_ERR_SYS;
         goto cleanup;
-    }
-    if (!(statbuf.st_mode & expected_mode)) {
-        VRB("Changing permissions of directory \"%s\".", path);
-        if (chmod(path, expected_mode) == -1) {
-            ERR("Failed changing permissions of directory \"%s\" (%s).", path, strerror(errno));
-            rc = SR_ERR_SYS;
-            goto cleanup;
-        }
     }
 
 cleanup:
