@@ -37,7 +37,7 @@ and it occurs on the `master` branch, the **first response will likely be** to u
 
 ### Optional
 
-* cmocka >= 1.0.0 (for [tests](#Tests))
+* cmocka >= 1.0.1 (for [tests](#Tests))
 * valgrind (for enhanced testing)
 * gcov (for code coverage)
 * lcov (for code coverage)
