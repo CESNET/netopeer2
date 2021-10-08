@@ -1615,7 +1615,11 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
         }
         free(text);
 
-        ftruncate(fileno(file), written);
+        if (ftruncate(fileno(file), written) < 0) {
+            ERROR("knownhosts", "ftruncate() on known hosts file failed (%s)", strerror(ferror(file)));
+            fclose(file);
+            return EXIT_FAILURE;
+        }
     }
 
     fclose(file);
