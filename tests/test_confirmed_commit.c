@@ -542,10 +542,7 @@ teardown_test_failed_file(void **state)
             continue;
         }
         if (strstr(file->d_name, ".failed")) {
-            asprintf(&path, "%s/%s", st->path, file->d_name);
-            if (!path) {
-                return 1;
-            }
+            assert_return_code(asprintf(&path, "%s/%s", st->path, file->d_name), 0);
             if (unlink(path) == -1) {
                 printf("%s", strerror(errno));
                 return 1;

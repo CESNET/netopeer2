@@ -390,8 +390,7 @@ changes_rollback(union sigval UNUSED(sev))
         }
     }
 
-    asprintf(&meta, "%s/%s/%s", np2srv.server_dir, NCC_DIR, META_FILE);
-    if (!meta) {
+    if (asprintf(&meta, "%s/%s/%s", np2srv.server_dir, NCC_DIR, META_FILE) < 0) {
         EMEM;
         goto cleanup;
     }
@@ -581,8 +580,7 @@ read_meta_file(time_t *time, uint32_t *timeout_s)
     *timeout_s = 0;
 
     /* Check for file */
-    asprintf(&meta, "%s/%s/%s", np2srv.server_dir, NCC_DIR, META_FILE);
-    if (!meta) {
+    if (asprintf(&meta, "%s/%s/%s", np2srv.server_dir, NCC_DIR, META_FILE) < 0) {
         EMEM;
         rc = SR_ERR_NO_MEMORY;
         goto cleanup;
@@ -710,8 +708,7 @@ create_meta_file(uint32_t timeout_s)
     FILE *file = NULL;
     char *meta;
 
-    asprintf(&meta, "%s/%s/%s", np2srv.server_dir, NCC_DIR, META_FILE);
-    if (!meta) {
+    if (asprintf(&meta, "%s/%s/%s", np2srv.server_dir, NCC_DIR, META_FILE) < 0) {
         EMEM;
         goto cleanup;
     }
