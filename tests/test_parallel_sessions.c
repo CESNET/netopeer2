@@ -77,8 +77,19 @@ send_get_rpc(void *arg)
     /* recieve reply, should succeed */
     msgtype = nc_recv_reply(nc_sess, rpc, msgid, THREAD_COUNT * 2000, &envp, &op);
     assert_int_equal(msgtype, NC_MSG_REPLY);
-    assert_non_null(op);
-    assert_non_null(envp);
+    if (!op || !envp) {
+        printf("op:\n");
+        if (op) {
+            lyd_print_file(stdout, op, LYD_XML, 0);
+        }
+        printf("\n");
+        printf("envp:\n");
+        if (envp) {
+            lyd_print_file(stdout, envp, LYD_XML, 0);
+        }
+        printf("\n");
+        fail();
+    }
 
     nc_rpc_free(rpc);
     lyd_free_tree(op);
