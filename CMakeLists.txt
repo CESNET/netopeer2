@@ -21,10 +21,13 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 string(TOUPPER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_UPPER)
+# see https://github.com/CESNET/libyang/pull/1692 for why CMAKE_C_FLAGS_<type> are not used directly
 if("${BUILD_TYPE_UPPER}" STREQUAL "RELEASE")
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build Type" FORCE)
+    set(CMAKE_C_FLAGS "-DNDEBUG -O2 ${CMAKE_C_FLAGS}")
 elseif("${BUILD_TYPE_UPPER}" STREQUAL "DEBUG")
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build Type" FORCE)
+    set(CMAKE_C_FLAGS "-g -O0 ${CMAKE_C_FLAGS}")
 elseif("${BUILD_TYPE_UPPER}" STREQUAL "RELWITHDEBINFO")
     set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Build Type" FORCE)
 elseif("${BUILD_TYPE_UPPER}" STREQUAL "RELWITHDEBUG")
@@ -50,12 +53,7 @@ set(SYSREPO_DEP_VERSION 2.0.33)
 set(SYSREPO_DEP_SOVERSION 6.4.0)
 set(SYSREPO_DEP_SOVERSION_MAJOR 6)
 
-#
-# compilation flags
-#
 set(CMAKE_C_FLAGS           "${CMAKE_C_FLAGS} -Wall -Wextra -std=gnu99")
-set(CMAKE_C_FLAGS_RELEASE   "-DNDEBUG -O2")
-set(CMAKE_C_FLAGS_DEBUG     "-g -O0")
 
 #
 # options
