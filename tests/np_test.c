@@ -136,7 +136,10 @@ np_glob_setup_np2(void **state, const char *test_name)
     char str[256], serverdir[256], sockparam[128];
     int fd, pipefd[2], buf;
 
-    getcwd(str, 256);
+    if (!getcwd(str, 256)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
     if (strcmp(str, NP_BINARY_DIR)) {
         printf("Tests must be started from the build directory \"%s\".\n", NP_BINARY_DIR);
         printf("CWD = %s\n", str);
@@ -199,7 +202,10 @@ np_glob_setup_np2(void **state, const char *test_name)
             printf("pid of netopeer server is: %ld\n", (long) getpid());
             puts("Press return to continue the tests...");
             buf = getc(stdin);
-            write(pipefd[1], &buf, sizeof buf);
+            if (write(pipefd[1], &buf, sizeof buf) != sizeof buf) {
+                SETUP_FAIL_LOG;
+                exit(1);
+            }
             close(pipefd[1]);
         }
 
