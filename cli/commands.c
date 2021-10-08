@@ -3,6 +3,8 @@
  * @author Michal Vasko <mvasko@cesnet.cz>
  * @brief netopeer2-cli commands
  *
+ * @copyright
+ * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
  * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
