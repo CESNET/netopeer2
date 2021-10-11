@@ -585,14 +585,13 @@ read_meta_file(time_t *time, uint32_t *timeout_s)
         rc = SR_ERR_NO_MEMORY;
         goto cleanup;
     }
-    if (access(meta, F_OK)) {
-        goto cleanup;
-    }
 
     file = fopen(meta, "r");
     if (!file) {
-        ERR("Confirmed commit meta file found but not readable.");
-        rc = SR_ERR_SYS;
+        if (errno != ENOENT) {
+            ERR("Confirmed commit meta file opening failed (%s).", strerror(errno));
+            rc = SR_ERR_SYS;
+        } /* else does not exist */
         goto cleanup;
     }
 
