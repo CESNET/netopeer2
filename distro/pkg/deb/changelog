@@ -1,0 +1,5 @@
+netopeer2 ({{ version }}-{{ release }}) unstable; urgency=medium
+
+  * upstream packaging
+
+ -- Michal Vaško <mvasko@cesnet.cz>  Fri, 01 Oct 2021 14:29:03 +0200
