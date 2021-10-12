@@ -1,0 +1,10 @@
+[project]
+name = "netopeer2"
+make_archive_script = "distro/scripts/make-archive.sh"
+
+[upstream]
+archive_url = "https://github.com/CESNET/netopeer2/archive/v{{ version }}.tar.gz"
+version_script = "distro/scripts/upstream-version.sh"
+
+[apkg]
+compat = 1
