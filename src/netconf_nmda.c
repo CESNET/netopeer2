@@ -356,7 +356,11 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, const char *UNUSED(op_path), c
     /* success */
 
 cleanup:
-    np_unref_user_sess(session);
+    if (user_sess) {
+        /* discard any changes that possibly failed to be applied */
+        sr_discard_changes(user_sess);
+        np_unref_user_sess(session);
+    }
     lyd_free_withsiblings(config);
     return rc;
 }
