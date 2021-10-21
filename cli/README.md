@@ -27,7 +27,7 @@ CRLs of your trusted CAs for netopeer-cli.
 
 ## Certificates
 
-The `certs` directory includes copies of the needed example
+The `netopeer2/example_configuration/tls_certs` directory includes copies of the needed example
 client certificates, which will work with the server example
 certificates.
 
