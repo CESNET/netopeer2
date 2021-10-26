@@ -975,21 +975,14 @@ ncac_getpwnam(const char *user, uid_t *uid, gid_t *gid)
  * @brief Check NACM acces for the data tree. If this check passes, no other check is necessary.
  * If not, each node must be checked separately to decide.
  *
- * @param[in] top_node Top-level node of the data.
+ * @param[in] root Root schema node of the data subtree.
  * @param[in] user User, whose access to check.
  * @return non-zero if access allowed, 0 if more checks are required.
  */
 static int
-ncac_allowed_tree(const struct lysc_node *top_node, const char *user)
+ncac_allowed_tree(const struct lysc_node *root, const char *user)
 {
-    struct lysc_node *parent;
     uid_t user_uid;
-
-    for (parent = top_node->parent; parent && (parent->nodetype & (LYS_CASE | LYS_CHOICE)); parent = parent->parent) {}
-    if (parent) {
-        EINT;
-        return 0;
-    }
 
     /* 1) NACM is off */
     if (!nacm.enabled) {
@@ -1002,18 +995,18 @@ ncac_allowed_tree(const struct lysc_node *top_node, const char *user)
     }
 
     /* 3) <close-session> and notifications <replayComplete>, <notificationComplete> always allowed */
-    if ((top_node->nodetype == LYS_RPC) && !strcmp(top_node->name, "close-session") &&
-            !strcmp(top_node->module->name, "ietf-netconf")) {
+    if ((root->nodetype == LYS_RPC) && !strcmp(root->name, "close-session") &&
+            !strcmp(root->module->name, "ietf-netconf")) {
         return 1;
-    } else if ((top_node->nodetype == LYS_NOTIF) && !strcmp(top_node->module->name, "nc-notifications")) {
+    } else if ((root->nodetype == LYS_NOTIF) && !strcmp(root->module->name, "nc-notifications")) {
         return 1;
     }
 
     /* 4) <get>, <get-config>, and <get-data> not checked for execute permission - RFC 8341 section 3.2.4
      * (assume it is the same for <get-data>) */
-    if ((top_node->nodetype == LYS_RPC) && (((!strcmp(top_node->name, "get") || !strcmp(top_node->name, "get-config")) &&
-            !strcmp(top_node->module->name, "ietf-netconf")) || (!strcmp(top_node->name, "get-data") &&
-            !strcmp(top_node->module->name, "ietf-netconf-nmda")))) {
+    if ((root->nodetype == LYS_RPC) && (((!strcmp(root->name, "get") || !strcmp(root->name, "get-config")) &&
+            !strcmp(root->module->name, "ietf-netconf")) || (!strcmp(root->name, "get-data") &&
+            !strcmp(root->module->name, "ietf-netconf-nmda")))) {
         return 1;
     }
 
