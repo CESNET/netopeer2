@@ -82,7 +82,7 @@ recv_reply_error_print(struct np_test *st, const struct lyd_node *op, const stru
     f = fopen(path, "r");
     free(path);
     if (!f) {
-        fprintf("Opening netopeer2 log file failed.\n");
+        printf("Opening netopeer2 log file failed.\n");
         return;
     }
     while (getline(&line, &line_len, f) != -1) {
