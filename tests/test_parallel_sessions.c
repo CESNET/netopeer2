@@ -19,6 +19,7 @@
 #include <pthread.h>
 #include <setjmp.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -50,9 +51,42 @@ local_setup(void **state)
 }
 
 struct thread_arg {
-    const char *socket_path;
+    struct np_test *st;
     pthread_barrier_t barrier;
 };
+
+static void
+recv_reply_error_print(struct np_test *st, const struct lyd_node *op, const struct lyd_node *envp)
+{
+    char *path, *line = NULL;
+    size_t line_len = 0;
+    FILE *f;
+
+    /* print op */
+    printf("op:\n");
+    if (op) {
+        lyd_print_file(stdout, op, LYD_XML, 0);
+    }
+    printf("\n");
+
+    /* print envelope */
+    printf("envp:\n");
+    if (envp) {
+        lyd_print_file(stdout, envp, LYD_XML, 0);
+    }
+    printf("\n");
+
+    /* print netopeer2 log */
+    printf("np2 log:\n");
+    asprintf(&path, "%s/%s/%s", NP_SR_REPOS_DIR, st->test_name, NP_LOG_FILE);
+    f = fopen(path, "r");
+    free(path);
+    while (getline(&line, &line_len, f) != -1) {
+        fputs(line, stdout);
+    }
+    free(line);
+    fclose(f);
+}
 
 static void *
 send_get_rpc(void *arg)
@@ -65,7 +99,7 @@ send_get_rpc(void *arg)
     uint64_t msgid;
 
     /* create a NETCONF session */
-    nc_sess = nc_connect_unix(targ->socket_path, NULL);
+    nc_sess = nc_connect_unix(targ->st->socket_path, NULL);
     assert_non_null(nc_sess);
     pthread_barrier_wait(&targ->barrier);
 
@@ -78,16 +112,7 @@ send_get_rpc(void *arg)
     msgtype = nc_recv_reply(nc_sess, rpc, msgid, THREAD_COUNT * 2000, &envp, &op);
     assert_int_equal(msgtype, NC_MSG_REPLY);
     if (!op || !envp) {
-        printf("op:\n");
-        if (op) {
-            lyd_print_file(stdout, op, LYD_XML, 0);
-        }
-        printf("\n");
-        printf("envp:\n");
-        if (envp) {
-            lyd_print_file(stdout, envp, LYD_XML, 0);
-        }
-        printf("\n");
+        recv_reply_error_print(targ->st, op, envp);
         fail();
     }
 
@@ -108,7 +133,7 @@ test_first(void **state)
     pthread_t t[THREAD_COUNT];
     struct thread_arg targ;
 
-    targ.socket_path = st->socket_path;
+    targ.st = st;
     pthread_barrier_init(&targ.barrier, NULL, THREAD_COUNT);
 
     for (uint32_t i = 0; i < THREAD_COUNT; i++) {
