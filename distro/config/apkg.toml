@@ -7,4 +7,4 @@ archive_url = "https://github.com/CESNET/netopeer2/archive/v{{ version }}.tar.gz
 version_script = "distro/scripts/upstream-version.sh"
 
 [apkg]
-compat = 1
+compat = 2
