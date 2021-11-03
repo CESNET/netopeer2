@@ -78,7 +78,7 @@ recv_reply_error_print(struct np_test *st, const struct lyd_node *op, const stru
 
     /* print netopeer2 log */
     printf("np2 log:\n");
-    asprintf(&path, "%s/%s/%s", NP_SR_REPOS_DIR, st->test_name, NP_LOG_FILE);
+    assert_int_not_equal(-1, asprintf(&path, "%s/%s/%s", NP_SR_REPOS_DIR, st->test_name, NP_LOG_FILE));
     f = fopen(path, "r");
     free(path);
     if (!f) {
