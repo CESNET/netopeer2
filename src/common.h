@@ -165,6 +165,16 @@ int np_ly_mod_has_notif(const struct lys_module *mod);
 int np_ly_mod_has_data(const struct lys_module *mod, uint32_t config_mask);
 
 /**
+ * @brief NP2 callback for acquiring context.
+ */
+const struct ly_ctx *np2srv_acquire_ctx_cb(void *cb_data);
+
+/**
+ * @brief NP2 callback for releasing context.
+ */
+void np2srv_release_ctx_cb(void *cb_data);
+
+/**
  * @brief NP2 callback for a new session creation.
  *
  * @param[in] client_name CH client name, unused.

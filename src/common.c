@@ -243,6 +243,18 @@ np_ly_mod_has_data(const struct lys_module *mod, uint32_t config_mask)
     return 0;
 }
 
+const struct ly_ctx *
+np2srv_acquire_ctx_cb(void *cb_data)
+{
+    return sr_acquire_context(cb_data);
+}
+
+void
+np2srv_release_ctx_cb(void *cb_data)
+{
+    sr_release_context(cb_data);
+}
+
 int
 np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_session)
 {
@@ -250,6 +262,7 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
     sr_val_t *event_data;
     sr_session_ctx_t *sr_sess = NULL;
     struct np2_user_sess *user_sess = NULL;
+    const struct ly_ctx *ly_ctx;
     const struct lys_module *mod;
     char *host = NULL;
     uint32_t nc_id;
@@ -296,7 +309,8 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
         goto error;
     }
 
-    if ((mod = ly_ctx_get_module_implemented(sr_get_context(np2srv.sr_conn), "ietf-netconf-notifications"))) {
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
+    if ((mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-netconf-notifications"))) {
         /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
         if (nc_session_get_ti(new_session) != NC_TI_UNIX) {
             host = (char *)nc_session_get_host(new_session);
@@ -313,8 +327,8 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
             event_data[2].type = SR_STRING_T;
             event_data[2].data.string_val = host;
         }
-        c = sr_event_notif_send(np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-start", event_data,
-                host ? 3 : 2, np2srv.sr_timeout, 1);
+        c = sr_notif_send(np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-start", event_data, host ? 3 : 2,
+                np2srv.sr_timeout, 1);
         if (c != SR_ERR_OK) {
             WRN("Failed to send a notification (%s).", sr_strerror(c));
         } else {
@@ -322,6 +336,7 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
         }
         free(event_data);
     }
+    sr_release_context(np2srv.sr_conn);
 
     return 0;
 
@@ -470,31 +485,31 @@ url_open(const char *url)
 struct lyd_node *
 op_parse_url(const char *url, uint32_t parse_options, int *rc, sr_session_ctx_t *sr_sess)
 {
-    struct lyd_node *config, *data;
+    struct lyd_node *config, *data = NULL;
     struct ly_ctx *ly_ctx;
     struct lyd_node_opaq *opaq;
     int fd;
 
-    ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
+    ly_ctx = (struct ly_ctx *)sr_acquire_context(np2srv.sr_conn);
 
     fd = url_open(url);
     if (fd == -1) {
         *rc = SR_ERR_INVAL_ARG;
         sr_session_set_error_message(sr_sess, "Could not open URL.");
-        return NULL;
+        goto cleanup;
     }
 
     /* load the whole config element */
     if (lyd_parse_data_fd(ly_ctx, fd, LYD_XML, parse_options, 0, &config)) {
         *rc = SR_ERR_LY;
         sr_session_set_error_message(sr_sess, ly_errmsg(ly_ctx));
-        return NULL;
+        goto cleanup;
     }
 
     if (!config || config->schema) {
         *rc = SR_ERR_UNSUPPORTED;
         sr_session_set_error_message(sr_sess, "Missing top-level \"config\" element in URL data.");
-        return NULL;
+        goto cleanup;
     }
 
     opaq = (struct lyd_node_opaq *)config;
@@ -502,12 +517,15 @@ op_parse_url(const char *url, uint32_t parse_options, int *rc, sr_session_ctx_t 
         *rc = SR_ERR_UNSUPPORTED;
         sr_session_set_error_message(sr_sess, "Invalid top-level element in URL data, expected \"config\" with "
                 "namespace \"urn:ietf:params:xml:ns:netconf:base:1.0\".");
-        return NULL;
+        goto cleanup;
     }
 
     data = opaq->child;
     lyd_unlink_siblings(data);
     lyd_free_tree(config);
+
+cleanup:
+    sr_release_context(np2srv.sr_conn);
     return data;
 }
 
@@ -520,14 +538,16 @@ op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, in
     char curl_buffer[CURL_ERROR_SIZE], *str_data;
     struct lyd_node *config;
     struct ly_ctx *ly_ctx;
+    int ret = 0;
 
-    ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
+    ly_ctx = (struct ly_ctx *)sr_acquire_context(np2srv.sr_conn);
 
     /* print the config as expected by the other end */
     if (lyd_new_opaq2(NULL, ly_ctx, "config", NULL, NULL, "urn:ietf:params:xml:ns:netconf:base:1.0", &config)) {
         *rc = SR_ERR_LY;
         sr_session_set_error_message(sr_sess, ly_errmsg(ly_ctx));
-        return -1;
+        ret = -1;
+        goto cleanup;
     }
     if (data) {
         lyd_insert_child(config, data);
@@ -560,13 +580,17 @@ op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, in
         ERR("Failed to upload data (curl: %s).", curl_buffer);
         *rc = SR_ERR_SYS;
         sr_session_set_error_message(sr_sess, curl_buffer);
-        return -1;
+        ret = -1;
+        goto curl_cleanup;
     }
 
-    /* cleanup */
+curl_cleanup:
     curl_easy_cleanup(curl);
     curl_global_cleanup();
-    return 0;
+
+cleanup:
+    sr_release_context(np2srv.sr_conn);
+    return ret;
 }
 
 #else
@@ -1112,13 +1136,14 @@ op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_oper_op
         const struct np2_filter *filter, sr_session_ctx_t *ev_sess, struct lyd_node **data)
 {
     const sr_error_info_t *err_info;
-    struct lyd_node *node;
+    sr_data_t *sr_data;
     uint32_t i;
     int rc;
+    LY_ERR lyrc;
 
     for (i = 0; i < filter->count; ++i) {
         /* get the selected data */
-        rc = sr_get_data(session, filter->filters[i].str, max_depth, np2srv.sr_timeout, get_opts, &node);
+        rc = sr_get_data(session, filter->filters[i].str, max_depth, np2srv.sr_timeout, get_opts, &sr_data);
         if (rc) {
             ERR("Getting data \"%s\" from sysrepo failed (%s).", filter->filters[i].str, sr_strerror(rc));
             sr_session_get_error(session, &err_info);
@@ -1127,8 +1152,10 @@ op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_oper_op
         }
 
         /* merge */
-        if (lyd_merge_siblings(data, node, LYD_MERGE_DESTRUCT)) {
-            lyd_free_siblings(node);
+        lyrc = lyd_merge_siblings(data, sr_data->tree, LYD_MERGE_DESTRUCT);
+        sr_data->tree = NULL;
+        sr_release_data(sr_data);
+        if (lyrc) {
             return SR_ERR_LY;
         }
     }

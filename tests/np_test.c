@@ -129,12 +129,13 @@ cleanup:
 }
 
 int
-np_glob_setup_np2(void **state, const char *test_name)
+np_glob_setup_np2(void **state, const char *test_name, const char *modules[], uint32_t mod_count)
 {
     struct np_test *st;
     pid_t pid;
     char str[256], serverdir[256], sockparam[128];
     int fd, pipefd[2], buf;
+    uint32_t i;
 
     if (!getcwd(str, 256)) {
         SETUP_FAIL_LOG;
@@ -253,6 +254,28 @@ child_error:
     strncpy(st->socket_path, sockparam + 2, sizeof st->socket_path - 1);
     strncpy(st->test_name, test_name, sizeof st->test_name - 1);
 
+    /* create connection and install modules */
+    if (sr_connect(SR_CONN_DEFAULT, &st->conn)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    for (i = 0; i < mod_count; ++i) {
+        if (sr_install_module(st->conn, modules[i], NULL, NULL)) {
+            SETUP_FAIL_LOG;
+            return 1;
+        }
+    }
+
+    /* start session and acquire context */
+    if (sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (!(st->ctx = sr_acquire_context(st->conn))) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+
     /* create NETCONF sessions */
     st->nc_sess = nc_connect_unix(st->socket_path, NULL);
     if (!st->nc_sess) {
@@ -270,18 +293,36 @@ child_error:
 }
 
 int
-np_glob_teardown(void **state)
+np_glob_teardown(void **state, const char *modules[], uint32_t mod_count)
 {
     struct np_test *st = *state;
-    int ret = 0, wstatus;
+    int ret = 0, wstatus, rc;
+    uint32_t i;
 
     if (!st) {
         return 0;
     }
 
-    /* stop the NETCONF session */
+    /* stop NETCONF sessions */
     nc_session_free(st->nc_sess, NULL);
     nc_session_free(st->nc_sess2, NULL);
+
+    /* release context */
+    sr_release_context(st->conn);
+
+    /* uninstall modules */
+    for (i = 0; i < mod_count; ++i) {
+        if ((rc = sr_remove_module(st->conn, modules[i], 0))) {
+            printf("sr_remove_module() failed (%s)\n", sr_strerror(rc));
+            ret = 1;
+        }
+    }
+
+    /* disconnect */
+    if ((rc = sr_disconnect(st->conn))) {
+        printf("sr_disconnect() failed (%s)\n", sr_strerror(rc));
+        ret = 1;
+    }
 
     /* terminate the server */
     if (kill(st->server_pid, SIGTERM)) {

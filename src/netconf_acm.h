@@ -58,7 +58,7 @@ struct ncac {
      * @brief NACM group.
      */
     struct ncac_group {
-        const char *name;           /**< Group name. */
+        char *name;                 /**< Group name. */
         char **users;               /**< Array of users belonging to this group. */
         uint32_t user_count;        /**< Number of users. */
     } *groups;                      /**< Sorted array of existing groups. */
@@ -68,7 +68,7 @@ struct ncac {
      * @brief NACM rule list.
      */
     struct ncac_rule_list {
-        const char *name;           /**< Rule list name. */
+        char *name;                 /**< Rule list name. */
         char **groups;              /**< Sorted all groups associated with this rule list. */
         uint32_t group_count;       /**< Number of groups. */
 
@@ -76,13 +76,13 @@ struct ncac {
          * @brief NACM rule.
          */
         struct ncac_rule {
-            const char *name;       /**< Rule name. */
-            const char *module_name;    /**< Rule module name. */
-            const char *target;     /**< Rule target. */
+            char *name;             /**< Rule name. */
+            char *module_name;      /**< Rule module name. */
+            char *target;           /**< Rule target. */
             NCAC_TARGET_TYPE target_type;   /**< Rule target type. */
             uint8_t operations;     /**< Rule operations associated with it. */
             char action_deny;       /**< Whether the rule action is "deny" (otherwise "permit"). */
-            const char *comment;    /**< Rule comment. */
+            char *comment;          /**< Rule comment. */
             struct ncac_rule *next; /**< Pointer to the next rule. */
         } *rules;                   /**< List of rules in the rule list. */
 

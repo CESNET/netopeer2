@@ -105,20 +105,8 @@ a table with the exact data format.
 | 0 | `uint32_t` | NETCONF session ID |
 | 1 | `char *` | NETCONF username |
 
-It is also possible to communicate a specific NETCONF error back to the server. The error format must be `NETCONF`
-and the meaning of every piece of data corresponds to the [rpc-error](https://tools.ietf.org/html/rfc6241#section-4.3)
-elements. All the expected types are strings (`char *`). Arbitrary optional elements can be skipped by being set to
-an empty string.
-
-| Index | Mandatory | Name |
-|:----- |:---------:|:----:|
-| 0 | yes | `error-type` |
-| 1 | yes | `error-tag` |
-| 2 | yes | `error-message` |
-| 3 | no | `error-app-tag` |
-| 4 | no | `error-path` |
-| n | no | `error-info` element |
-| n + 1 | no | `error-info` value |
+It is also possible to communicate a specific `NETCONF` error back to the server, use *sysrepo* utility functions
+to create it.
 
 ### CLI
 

@@ -319,7 +319,8 @@ np2srv_ch_client_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const ch
         if (op == SR_OP_CREATED) {
             rc = nc_server_ch_add_client(client_name);
             if (!rc) {
-                rc = nc_connect_ch_client_dispatch(client_name, np2srv_new_session_cb);
+                rc = nc_connect_ch_client_dispatch(client_name, np2srv_acquire_ctx_cb, np2srv_release_ctx_cb,
+                        np2srv.sr_conn, np2srv_new_session_cb);
             }
         } else if (op == SR_OP_DELETED) {
             rc = nc_server_ch_del_client(client_name);

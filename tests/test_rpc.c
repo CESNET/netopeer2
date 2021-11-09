@@ -32,57 +32,39 @@
 static int
 local_setup(void **state)
 {
-    struct np_test *st = *state;
-    sr_conn_ctx_t *conn;
     char test_name[256];
-    const char *module1 = NP_TEST_MODULE_DIR "/edit1.yang";
-    int rv;
+    const char *modules[] = {NP_TEST_MODULE_DIR "/edit1.yang"};
+    int rc;
 
     /* get test name */
     np_glob_setup_test_name(test_name);
 
     /* setup environment necessary for installing module */
-    rv = np_glob_setup_env(test_name);
-    assert_int_equal(rv, 0);
+    rc = np_glob_setup_env(test_name);
+    assert_int_equal(rc, 0);
 
-    /* Connect to server and install test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module1, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
+    /* setup netopeer2 server */
+    rc = np_glob_setup_np2(state, test_name, modules, sizeof modules / sizeof *modules);
+    assert_int_equal(rc, 0);
 
-    /* Setup netopeer2 server */
-    if (!(rv = np_glob_setup_np2(state, test_name))) {
-        st = *state;
-        /* Open the connection to start a session for the tests */
-        assert_int_equal(sr_connect(SR_CONN_DEFAULT, &st->conn), SR_ERR_OK);
-        assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess), SR_ERR_OK);
-        assert_non_null(st->ctx = sr_get_context(st->conn));
-        rv |= setup_nacm(state);
-    }
-    return rv;
+    /* setup NACM */
+    rc = setup_nacm(state);
+    assert_int_equal(rc, 0);
+
+    return 0;
 }
 
 static int
 local_teardown(void **state)
 {
-    struct np_test *st = *state;
-    sr_conn_ctx_t *conn;
+    const char *modules[] = {"edit1"};
 
-    if (!st) {
-        return 0;
+    /* close netopeer2 server */
+    if (*state) {
+        return np_glob_teardown(state, modules, sizeof modules / sizeof *modules);
     }
 
-    /* Close the session and connection needed for tests */
-    assert_int_equal(sr_session_stop(st->sr_sess), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(st->conn), SR_ERR_OK);
-
-    /* Connect to server and remove test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "edit1"), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
-
-    /* Close netopeer2 server */
-    return np_glob_teardown(state);
+    return 0;
 }
 
 static int

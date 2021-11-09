@@ -35,69 +35,50 @@ static int
 local_setup(void **state)
 {
     struct np_test *st;
-    sr_conn_ctx_t *conn;
     char test_name[256];
-    const char *module1 = NP_TEST_MODULE_DIR "/edit1.yang";
-    const char *module2 = NP_TEST_MODULE_DIR "/example2.yang";
-    const char *module3 = NP_TEST_MODULE_DIR "/nacm-test1.yang";
-    const char *module4 = NP_TEST_MODULE_DIR "/nacm-test2.yang";
-    int rv;
+    const char *modules[] = {
+        NP_TEST_MODULE_DIR "/edit1.yang", NP_TEST_MODULE_DIR "/example2.yang",
+        NP_TEST_MODULE_DIR "/nacm-test1.yang", NP_TEST_MODULE_DIR "/nacm-test2.yang"
+    };
+    int rc;
 
     /* get test name */
     np_glob_setup_test_name(test_name);
 
-    /* setup environment necessary for installing module */
-    rv = np_glob_setup_env(test_name);
-    assert_int_equal(rv, 0);
-
-    /* connect to server and install test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module1, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module2, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module3, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module4, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
+    /* setup environment */
+    rc = np_glob_setup_env(test_name);
+    assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    if (!(rv = np_glob_setup_np2(state, test_name))) {
-        st = *state;
-        /* Open two connections to start a session for the tests
-         * One for Candidate and other for running
-         */
-        assert_int_equal(sr_connect(SR_CONN_DEFAULT, &st->conn), SR_ERR_OK);
-        assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess), SR_ERR_OK);
-        assert_non_null(st->ctx = sr_get_context(st->conn));
-        assert_int_equal(sr_session_start(st->conn, SR_DS_CANDIDATE, &st->sr_sess2), SR_ERR_OK);
-        rv |= setup_nacm(state);
-    }
-    return rv;
+    rc = np_glob_setup_np2(state, test_name, modules, sizeof modules / sizeof *modules);
+    assert_int_equal(rc, 0);
+    st = *state;
+
+    /* candidate session */
+    assert_int_equal(sr_session_start(st->conn, SR_DS_CANDIDATE, &st->sr_sess2), SR_ERR_OK);
+
+    /* setup NACM */
+    rc = setup_nacm(state);
+    assert_int_equal(rc, 0);
+
+    return 0;
 }
 
 static int
 local_teardown(void **state)
 {
     struct np_test *st = *state;
-    sr_conn_ctx_t *conn;
+    const char *modules[] = {"edit1", "example2", "nacm-test1", "nacm-test2"};
 
     if (!st) {
         return 0;
     }
 
-    /* Close the sessions and connection needed for tests */
-    assert_int_equal(sr_session_stop(st->sr_sess), SR_ERR_OK);
+    /* close the session */
     assert_int_equal(sr_session_stop(st->sr_sess2), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(st->conn), SR_ERR_OK);
-
-    /* connect to server and remove test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "edit1"), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "example2"), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "nacm-test1"), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "nacm-test2"), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
 
     /* close netopeer2 server */
-    return np_glob_teardown(state);
+    return np_glob_teardown(state, modules, sizeof modules / sizeof *modules);
 }
 
 static int

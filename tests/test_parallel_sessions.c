@@ -38,16 +38,27 @@ static int
 local_setup(void **state)
 {
     char test_name[256];
-    int rv;
+    int rc;
 
     /* get test name */
     np_glob_setup_test_name(test_name);
 
     /* setup environment necessary for installing module */
-    rv = np_glob_setup_env(test_name);
-    assert_int_equal(rv, 0);
+    rc = np_glob_setup_env(test_name);
+    assert_int_equal(rc, 0);
 
-    return np_glob_setup_np2(state, test_name);
+    return np_glob_setup_np2(state, test_name, NULL, 0);
+}
+
+static int
+local_teardown(void **state)
+{
+    if (!*state) {
+        return 0;
+    }
+
+    /* close netopeer2 server */
+    return np_glob_teardown(state, NULL, 0);
 }
 
 struct thread_arg {
@@ -157,5 +168,5 @@ main(int argc, char **argv)
 
     nc_verbosity(NC_VERB_WARNING);
     parse_arg(argc, argv);
-    return cmocka_run_group_tests(tests, local_setup, np_glob_teardown);
+    return cmocka_run_group_tests(tests, local_setup, local_teardown);
 }

@@ -46,7 +46,7 @@ MODULES=(
 
 # functions
 INSTALL_MODULE() {
-    CMD="'$SYSREPOCTL' -a -i $MODDIR/$1 -s '$MODDIR' -p '$PERMS' -v2"
+    CMD="'$SYSREPOCTL' -i $MODDIR/$1 -s '$MODDIR' -p '$PERMS' -v2"
     if [ ! -z ${OWNER} ]; then
         CMD="$CMD -o '$OWNER'"
     fi
@@ -61,7 +61,7 @@ INSTALL_MODULE() {
 }
 
 UPDATE_MODULE() {
-    CMD="'$SYSREPOCTL' -a -U $MODDIR/$1 -s '$MODDIR' -p '$PERMS' -v2"
+    CMD="'$SYSREPOCTL' -U $MODDIR/$1 -s '$MODDIR' -p '$PERMS' -v2"
     if [ ! -z ${OWNER} ]; then
         CMD="$CMD -o '$OWNER'"
     fi
@@ -91,7 +91,7 @@ CHANGE_PERMS() {
 }
 
 ENABLE_FEATURE() {
-    "$SYSREPOCTL" -a -c $1 -e $2 -v2
+    "$SYSREPOCTL" -c $1 -e $2 -v2
     local rc=$?
     if [ $rc -ne 0 ]; then
         exit $rc
@@ -122,7 +122,7 @@ for i in "${MODULES[@]}"; do
     sctl_owner=`echo "$SCTL_MODULE" | sed 's/\([^|]*|\)\{3\} \([^:]*\).*/\2/'`
     sctl_group=`echo "$SCTL_MODULE" | sed 's/\([^|]*|\)\{3\}[^:]*:\([^ ]*\).*/\2/'`
     sctl_perms=`echo "$SCTL_MODULE" | sed 's/\([^|]*|\)\{4\} \([^ ]*\).*/\2/'`
-    if [ "$sctl_perms" != "$PERMS" ] || [ ! -z ${OWNER} -a "$sctl_owner" != "$OWNER" ] || [ ! -z ${GROUP} -a "$sctl_group" != "$GROUP" ]; then
+    if [ "$sctl_perms" != "$PERMS" ] || [ ! -z "${OWNER}" -a "$sctl_owner" != "$OWNER" ] || [ ! -z "${GROUP}" -a "$sctl_group" != "$GROUP" ]; then
         # change permissions/owner
         CHANGE_PERMS "$name"
     fi

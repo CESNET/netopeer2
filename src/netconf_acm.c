@@ -152,6 +152,20 @@ ncac_oper_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(sub_id), const c
     return SR_ERR_OK;
 }
 
+static struct ncac_group *
+ncac_group_find(const char *group_name)
+{
+    uint32_t i;
+
+    for (i = 0; i < nacm.group_count; ++i) {
+        if (!strcmp(nacm.groups[i].name, group_name)) {
+            return &nacm.groups[i];
+        }
+    }
+
+    return NULL;
+}
+
 /* /ietf-netconf-acm:nacm/groups/group */
 int
 ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name), const char *xpath,
@@ -162,13 +176,10 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
     const struct lyd_node *node;
     const char *group_name, *user_name;
     struct ncac_group *group = NULL;
-    struct ly_ctx *ly_ctx;
-    uint32_t i, j;
+    uint32_t i;
     char *xpath2;
     int rc;
     void *mem;
-
-    ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
 
     if (asprintf(&xpath2, "%s//.", xpath) == -1) {
         EMEM;
@@ -205,25 +216,18 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
                 group = &nacm.groups[nacm.group_count];
                 ++nacm.group_count;
 
-                lydict_insert(ly_ctx, group_name, 0, &group->name);
+                group->name = strdup(group_name);
                 group->users = NULL;
                 group->user_count = 0;
                 break;
             case SR_OP_DELETED:
                 /* find it */
-                for (i = 0; i < nacm.group_count; ++i) {
-                    /* both in dictionary */
-                    if (nacm.groups[i].name == group_name) {
-                        group = &nacm.groups[i];
-                        break;
-                    }
-                }
-                assert(i < nacm.group_count);
+                group = ncac_group_find(group_name);
 
                 /* delete it */
-                lydict_remove(ly_ctx, group->name);
-                for (j = 0; j < group->user_count; ++j) {
-                    lydict_remove(ly_ctx, group->users[j]);
+                free(group->name);
+                for (i = 0; i < group->user_count; ++i) {
+                    free(group->users[i]);
                 }
                 free(group->users);
 
@@ -247,15 +251,7 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
         } else {
             /* name must be present */
             assert(!strcmp(node->parent->child->schema->name, "name"));
-            group_name = lyd_get_value(node->parent->child);
-            group = NULL;
-            for (i = 0; i < nacm.group_count; ++i) {
-                /* both in dictionary */
-                if (nacm.groups[i].name == group_name) {
-                    group = &nacm.groups[i];
-                    break;
-                }
-            }
+            group = ncac_group_find(lyd_get_value(node->parent->child));
 
             if (!strcmp(node->schema->name, "user-name")) {
                 if ((op == SR_OP_DELETED) && !group) {
@@ -275,20 +271,19 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
                         return SR_ERR_NO_MEMORY;
                     }
                     group->users = mem;
-                    lydict_insert(ly_ctx, user_name, 0, (const char **)&group->users[group->user_count]);
+                    group->users[group->user_count] = strdup(user_name);
                     ++group->user_count;
                 } else {
                     assert(op == SR_OP_DELETED);
                     for (i = 0; i < group->user_count; ++i) {
-                        /* both in dictionary */
-                        if (group->users[i] == user_name) {
+                        if (!strcmp(group->users[i], user_name)) {
                             break;
                         }
                     }
                     assert(i < group->user_count);
 
                     /* delete it */
-                    lydict_remove(ly_ctx, group->users[i]);
+                    free(group->users[i]);
                     --group->user_count;
                     if (i < group->user_count) {
                         group->users[i] = group->users[group->user_count];
@@ -323,15 +318,12 @@ static void
 ncac_remove_rules(struct ncac_rule_list *list)
 {
     struct ncac_rule *rule, *tmp;
-    struct ly_ctx *ly_ctx;
-
-    ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
 
     LY_LIST_FOR_SAFE(list->rules, tmp, rule) {
-        lydict_remove(ly_ctx, rule->name);
-        lydict_remove(ly_ctx, rule->module_name);
-        lydict_remove(ly_ctx, rule->target);
-        lydict_remove(ly_ctx, rule->comment);
+        free(rule->name);
+        free(rule->module_name);
+        free(rule->target);
+        free(rule->comment);
         free(rule);
     }
     list->rules = NULL;
@@ -368,7 +360,7 @@ ncac_sort_strcmp_cb(const void *ptr1, const void *ptr2)
 }
 
 /**
- * @brief Find an item in a sorted array. The item structure first member must be (const char *) in the dictionary.
+ * @brief Find an item in a sorted array.
  *
  * @param[in] item Pointer to item to find.
  * @param[in] item_size Size of an item.
@@ -397,10 +389,9 @@ ncac_strarr_sort_find(const char **item, size_t item_size, char **items, uint32_
 }
 
 /**
- * @brief Add an item into a sorted array. The item structure first member must be (const char *) in the dictionary.
+ * @brief Add an item into a sorted array.
  *
- * @param[in] ly_ctx libyang context.
- * @param[in] item Pointer to item to add, string does not need to be in the dictionary.
+ * @param[in] item Pointer to item to add.
  * @param[in] item_size Size of an item.
  * @param[in] check_dup Whether to check for duplicates before adding, returns SR_ERR_OK if duplicate found.
  * @param[in,out] items Pointer to the item array.
@@ -408,8 +399,7 @@ ncac_strarr_sort_find(const char **item, size_t item_size, char **items, uint32_
  * @return Sysrepo err value.
  */
 static int
-ncac_strarr_sort_add(const struct ly_ctx *ly_ctx, const char **item, size_t item_size, int check_dup, char ***items,
-        uint32_t *item_count)
+ncac_strarr_sort_add(const char **item, size_t item_size, int check_dup, char ***items, uint32_t *item_count)
 {
     void *mem;
     uint32_t i;
@@ -453,22 +443,21 @@ ncac_strarr_sort_add(const struct ly_ctx *ly_ctx, const char **item, size_t item
     }
 
     /* insert new item */
-    lydict_insert(ly_ctx, *item, 0, (const char **)ITEM_IDX_PTR(*items, item_size, i));
+    *ITEM_IDX_PTR(*items, item_size, i) = strdup(*item);
     ++(*item_count);
     return SR_ERR_OK;
 }
 
 /**
- * @brief Remove an item from a sorted array. The item structure first member must be (const char *) in the dictionary.
+ * @brief Remove an item from a sorted array.
  *
- * @param[in] ly_ctx libyang context.
  * @param[in] item Pointer to item to remove.
  * @param[in] item_size Size of an item.
  * @param[in,out] items Pointer to the item array.
  * @param[in,out] item_count Pointer to the number of @p items.
  */
 static void
-ncac_strarr_sort_del(const struct ly_ctx *ly_ctx, const char **item, size_t item_size, char ***items, uint32_t *item_count)
+ncac_strarr_sort_del(const char **item, size_t item_size, char ***items, uint32_t *item_count)
 {
     int32_t i;
 
@@ -477,7 +466,7 @@ ncac_strarr_sort_del(const struct ly_ctx *ly_ctx, const char **item, size_t item
     assert(i > -1);
 
     /* delete it, keep the order */
-    lydict_remove(ly_ctx, *ITEM_IDX_PTR(*items, item_size, i));
+    free(*ITEM_IDX_PTR(*items, item_size, i));
     --(*item_count);
     if ((uint32_t)i < *item_count) {
         memmove(ITEM_IDX_PTR(*items, item_size, i), ITEM_IDX_PTR(*items, item_size, i + 1), (*item_count - i) * item_size);
@@ -496,14 +485,11 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    struct ly_ctx *ly_ctx;
     const char *prev_list, *rlist_name, *group_name;
     struct ncac_rule_list *rlist = NULL, *prev_rlist;
     char *xpath2;
     int rc, len;
     uint32_t i;
-
-    ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
 
     if (asprintf(&xpath2, "%s//.", xpath) == -1) {
         EMEM;
@@ -529,7 +515,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
             case SR_OP_MOVED:
                 /* find it */
                 prev_rlist = NULL;
-                for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next) {
+                for (rlist = nacm.rule_lists; rlist && strcmp(rlist->name, rlist_name); rlist = rlist->next) {
                     prev_rlist = rlist;
                 }
                 assert(rlist);
@@ -552,7 +538,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
                         EMEM;
                         return SR_ERR_NO_MEMORY;
                     }
-                    lydict_insert(ly_ctx, rlist_name, 0, &rlist->name);
+                    rlist->name = strdup(rlist_name);
                 }
 
                 /* find previous list */
@@ -582,15 +568,15 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
             case SR_OP_DELETED:
                 /* find it */
                 prev_rlist = NULL;
-                for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next) {
+                for (rlist = nacm.rule_lists; rlist && strcmp(rlist->name, rlist_name); rlist = rlist->next) {
                     prev_rlist = rlist;
                 }
                 assert(rlist);
 
                 /* delete it */
-                lydict_remove(ly_ctx, rlist->name);
+                free(rlist->name);
                 for (i = 0; i < rlist->group_count; ++i) {
-                    lydict_remove(ly_ctx, rlist->groups[i]);
+                    free(rlist->groups[i]);
                 }
                 free(rlist->groups);
                 ncac_remove_rules(rlist);
@@ -613,7 +599,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
             /* name must be present */
             assert(!strcmp(node->parent->child->schema->name, "name"));
             rlist_name = lyd_get_value(node->parent->child);
-            for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next) {}
+            for (rlist = nacm.rule_lists; rlist && strcmp(rlist->name, rlist_name); rlist = rlist->next) {}
 
             if (!strcmp(node->schema->name, "group")) {
                 if ((op == SR_OP_DELETED) && !rlist) {
@@ -624,7 +610,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
                 group_name = lyd_get_value(node);
 
                 if (op == SR_OP_CREATED) {
-                    if ((rc = ncac_strarr_sort_add(ly_ctx, &group_name, sizeof rlist->groups, 0, &rlist->groups,
+                    if ((rc = ncac_strarr_sort_add(&group_name, sizeof rlist->groups, 0, &rlist->groups,
                             &rlist->group_count))) {
                         /* NACM UNLOCK */
                         pthread_mutex_unlock(&nacm.lock);
@@ -632,7 +618,7 @@ ncac_rule_list_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
                     }
                 } else {
                     assert(op == SR_OP_DELETED);
-                    ncac_strarr_sort_del(ly_ctx, &group_name, sizeof rlist->groups, &rlist->groups, &rlist->group_count);
+                    ncac_strarr_sort_del(&group_name, sizeof rlist->groups, &rlist->groups, &rlist->group_count);
                 }
             }
         }
@@ -658,14 +644,11 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node;
-    struct ly_ctx *ly_ctx;
     const char *prev_list, *rule_name, *rlist_name, *str;
     struct ncac_rule_list *rlist;
     struct ncac_rule *rule = NULL, *prev_rule;
     char *xpath2;
     int rc, len;
-
-    ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
 
     if (asprintf(&xpath2, "%s//.", xpath) == -1) {
         EMEM;
@@ -686,7 +669,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
             /* find parent rule list */
             assert(!strcmp(node->parent->child->schema->name, "name"));
             rlist_name = lyd_get_value(node->parent->child);
-            for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next) {}
+            for (rlist = nacm.rule_lists; rlist && strcmp(rlist->name, rlist_name); rlist = rlist->next) {}
             if ((op == SR_OP_DELETED) && !rlist) {
                 /* even parent rule-list was deleted */
                 continue;
@@ -701,7 +684,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
             case SR_OP_MOVED:
                 /* find it */
                 prev_rule = NULL;
-                for (rule = rlist->rules; rule && (rule->name != rule_name); rule = rule->next) {
+                for (rule = rlist->rules; rule && strcmp(rule->name, rule_name); rule = rule->next) {
                     prev_rule = rule;
                 }
                 assert(rule);
@@ -724,7 +707,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
                         pthread_mutex_unlock(&nacm.lock);
                         return SR_ERR_NO_MEMORY;
                     }
-                    lydict_insert(ly_ctx, rule_name, 0, &rule->name);
+                    rule->name = strdup(rule_name);
                     rule->target_type = NCAC_TARGET_ANY;
                 }
                 assert(rule);
@@ -756,16 +739,16 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
             case SR_OP_DELETED:
                 /* find it */
                 prev_rule = NULL;
-                for (rule = rlist->rules; rule && (rule->name != rule_name); rule = rule->next) {
+                for (rule = rlist->rules; rule && strcmp(rule->name, rule_name); rule = rule->next) {
                     prev_rule = rule;
                 }
                 assert(rule);
 
                 /* delete it */
-                lydict_remove(ly_ctx, rule->name);
-                lydict_remove(ly_ctx, rule->module_name);
-                lydict_remove(ly_ctx, rule->target);
-                lydict_remove(ly_ctx, rule->comment);
+                free(rule->name);
+                free(rule->module_name);
+                free(rule->target);
+                free(rule->comment);
                 if (prev_rule) {
                     prev_rule->next = rule->next;
                 } else {
@@ -784,7 +767,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
             /* find parent rule list */
             assert(!strcmp(node->parent->parent->child->schema->name, "name"));
             rlist_name = lyd_get_value(node->parent->parent->child);
-            for (rlist = nacm.rule_lists; rlist && (rlist->name != rlist_name); rlist = rlist->next) {}
+            for (rlist = nacm.rule_lists; rlist && strcmp(rlist->name, rlist_name); rlist = rlist->next) {}
             if ((op == SR_OP_DELETED) && !rlist) {
                 /* even parent rule-list was deleted */
                 continue;
@@ -794,7 +777,7 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
             /* name must be present */
             assert(!strcmp(node->parent->child->schema->name, "name"));
             rule_name = lyd_get_value(node->parent->child);
-            for (rule = rlist->rules; rule && (rule->name != rule_name); rule = rule->next) {}
+            for (rule = rlist->rules; rule && strcmp(rule->name, rule_name); rule = rule->next) {}
             if ((op == SR_OP_DELETED) && !rule) {
                 /* even parent rule was deleted */
                 continue;
@@ -803,25 +786,25 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
 
             if (!strcmp(node->schema->name, "module-name")) {
                 str = lyd_get_value(node);
-                lydict_remove(ly_ctx, rule->module_name);
+                free(rule->module_name);
                 if (!strcmp(str, "*")) {
                     rule->module_name = NULL;
                 } else {
-                    lydict_insert(ly_ctx, str, 0, &rule->module_name);
+                    rule->module_name = strdup(str);
                 }
             } else if (!strcmp(node->schema->name, "rpc-name") || !strcmp(node->schema->name, "notification-name") ||
                     !strcmp(node->schema->name, "path")) {
                 if (op == SR_OP_DELETED) {
-                    lydict_remove(ly_ctx, rule->target);
+                    free(rule->target);
                     rule->target = NULL;
                     rule->target_type = NCAC_TARGET_ANY;
                 } else {
                     str = lyd_get_value(node);
-                    lydict_remove(ly_ctx, rule->target);
+                    free(rule->target);
                     if (!strcmp(str, "*")) {
                         rule->target = NULL;
                     } else {
-                        lydict_insert(ly_ctx, str, 0, &rule->target);
+                        rule->target = strdup(str);
                     }
                     if (!strcmp(node->schema->name, "rpc-name")) {
                         rule->target_type = NCAC_TARGET_RPC;
@@ -862,12 +845,12 @@ ncac_rule_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNU
                 }
             } else if (!strcmp(node->schema->name, "comment")) {
                 if (op == SR_OP_DELETED) {
-                    lydict_remove(ly_ctx, rule->comment);
+                    free(rule->comment);
                     rule->comment = NULL;
                 } else {
                     assert((op == SR_OP_MODIFIED) || (op == SR_OP_CREATED));
-                    lydict_remove(ly_ctx, rule->comment);
-                    lydict_insert(ly_ctx, lyd_get_value(node), 0, &rule->comment);
+                    free(rule->comment);
+                    rule->comment = strdup(lyd_get_value(node));
                 }
             }
         }
@@ -896,25 +879,22 @@ ncac_destroy(void)
 {
     struct ncac_group *group;
     struct ncac_rule_list *rule_list, *tmp;
-    struct ly_ctx *ly_ctx;
     uint32_t i, j;
-
-    ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
 
     for (i = 0; i < nacm.group_count; ++i) {
         group = &nacm.groups[i];
-        lydict_remove(ly_ctx, group->name);
+        free(group->name);
         for (j = 0; j < group->user_count; ++j) {
-            lydict_remove(ly_ctx, group->users[j]);
+            free(group->users[j]);
         }
         free(group->users);
     }
     free(nacm.groups);
 
     LY_LIST_FOR_SAFE(nacm.rule_lists, tmp, rule_list) {
-        lydict_remove(ly_ctx, rule_list->name);
+        free(rule_list->name);
         for (i = 0; i < rule_list->group_count; ++i) {
-            lydict_remove(ly_ctx, rule_list->groups[i]);
+            free(rule_list->groups[i]);
         }
         free(rule_list->groups);
         ncac_remove_rules(rule_list);
@@ -1016,25 +996,21 @@ ncac_allowed_tree(const struct lysc_node *root, const char *user)
 /**
  * @brief Collect all NACM groups for a user. If enabled, even system ones.
  *
- * @param[in] ly_ctx libyang context for dictionary.
  * @param[in] user User to collect groups for.
  * @param[out] groups Sorted array of collected groups.
  * @param[out] group_count Number of @p groups.
  * @return 0 on success, -1 on error.
  */
 static int
-ncac_collect_groups(const struct ly_ctx *ly_ctx, const char *user, char ***groups, uint32_t *group_count)
+ncac_collect_groups(const char *user, char ***groups, uint32_t *group_count)
 {
     struct group grp, *grp_p;
     gid_t user_gid;
-    const char *user_dict = NULL;
     char *buf = NULL;
     gid_t *gids = NULL;
     ssize_t buflen;
     uint32_t i, j;
     int gid_count = 0, ret, rc = -1;
-
-    lydict_insert(ly_ctx, user, 0, &user_dict);
 
     *groups = NULL;
     *group_count = 0;
@@ -1042,8 +1018,8 @@ ncac_collect_groups(const struct ly_ctx *ly_ctx, const char *user, char ***group
     /* collect NACM groups */
     for (i = 0; i < nacm.group_count; ++i) {
         for (j = 0; j < nacm.groups[i].user_count; ++j) {
-            if (nacm.groups[i].users[j] == user_dict) {
-                if (ncac_strarr_sort_add(ly_ctx, &nacm.groups[i].name, sizeof **groups, 0, groups, group_count)) {
+            if (!strcmp(nacm.groups[i].users[j], user)) {
+                if (ncac_strarr_sort_add((const char **)&nacm.groups[i].name, sizeof **groups, 0, groups, group_count)) {
                     goto cleanup;
                 }
             }
@@ -1096,7 +1072,7 @@ ncac_collect_groups(const struct ly_ctx *ly_ctx, const char *user, char ***group
             }
 
             /* add, if not already there */
-            if (ncac_strarr_sort_add(ly_ctx, (const char **)&grp.gr_name, sizeof **groups, 1, groups, group_count)) {
+            if (ncac_strarr_sort_add((const char **)&grp.gr_name, sizeof **groups, 1, groups, group_count)) {
                 goto cleanup;
             }
         }
@@ -1108,7 +1084,6 @@ ncac_collect_groups(const struct ly_ctx *ly_ctx, const char *user, char ***group
 cleanup:
     free(gids);
     free(buf);
-    lydict_remove(ly_ctx, user_dict);
     return rc;
 }
 
@@ -1220,7 +1195,7 @@ ncac_free_groups(char **groups, uint32_t group_count)
     }
 
     for (i = 0; i < group_count; ++i) {
-        lydict_remove(sr_get_context(np2srv.sr_conn), groups[i]);
+        free(groups[i]);
     }
     free(groups);
 }
@@ -1291,7 +1266,7 @@ ncac_allowed_node(const struct lyd_node *node, const char *node_path, const stru
                 if (node_schema->nodetype != LYS_RPC) {
                     continue;
                 }
-                if (rule->target && (rule->target != node_schema->name)) {
+                if (rule->target && strcmp(rule->target, node_schema->name)) {
                     /* exact match needed */
                     continue;
                 }
@@ -1301,7 +1276,7 @@ ncac_allowed_node(const struct lyd_node *node, const char *node_path, const stru
                 if (node_schema->parent || (node_schema->nodetype != LYS_NOTIF)) {
                     continue;
                 }
-                if (rule->target && (rule->target != node_schema->name)) {
+                if (rule->target && strcmp(rule->target, node_schema->name)) {
                     /* exact match needed */
                     continue;
                 }
@@ -1334,7 +1309,7 @@ ncac_allowed_node(const struct lyd_node *node, const char *node_path, const stru
             }
 
             /* module name matching, after partial path matches */
-            if (rule->module_name && (rule->module_name != node_schema->module->name)) {
+            if (rule->module_name && strcmp(rule->module_name, node_schema->module->name)) {
                 continue;
             }
 
@@ -1423,7 +1398,7 @@ ncac_check_operation(const struct lyd_node *data, const char *user)
         goto cleanup;
     }
 
-    if (ncac_collect_groups(sr_get_context(np2srv.sr_conn), user, &groups, &group_count)) {
+    if (ncac_collect_groups(user, &groups, &group_count)) {
         goto cleanup;
     }
 
@@ -1571,7 +1546,7 @@ ncac_check_data_read_filter(struct lyd_node **data, const char *user)
     /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
-    if (ncac_collect_groups(sr_get_context(np2srv.sr_conn), user, &groups, &group_count)) {
+    if (ncac_collect_groups(user, &groups, &group_count)) {
         goto cleanup;
     }
 
@@ -1642,7 +1617,8 @@ ncac_check_diff_r(const struct lyd_node *diff, const char *user, const char *par
             return NULL;
         }
 
-        /* check access for the node, none operation is always allowed, and partial access is relevant only for read operation */
+        /* check access for the node, none operation is always allowed, and partial access is relevant only for
+         * read operation */
         if (oper && !NCAC_ACCESS_IS_NODE_PERMIT(ncac_allowed_node(diff, NULL, NULL, oper, groups, group_count))) {
             node = diff;
             break;
@@ -1667,7 +1643,7 @@ ncac_check_diff(const struct lyd_node *diff, const char *user)
     /* NACM LOCK */
     pthread_mutex_lock(&nacm.lock);
 
-    if (ncac_collect_groups(sr_get_context(np2srv.sr_conn), user, &groups, &group_count)) {
+    if (ncac_collect_groups(user, &groups, &group_count)) {
         goto cleanup;
     }
 
@@ -1694,7 +1670,7 @@ ncac_check_yang_push_update_notif(const char *user, struct ly_set *set, int *all
     uint32_t i, group_count, removed = 0;
     char **groups;
 
-    if (ncac_collect_groups(sr_get_context(np2srv.sr_conn), user, &groups, &group_count)) {
+    if (ncac_collect_groups(user, &groups, &group_count)) {
         return;
     }
 

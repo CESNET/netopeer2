@@ -308,10 +308,11 @@ yang_push_notif_change_send(struct nc_session *ncs, struct yang_push_data *yp_da
     int all_removed = 0;
     int rc = SR_ERR_OK;
 
-    assert(yp_data->ly_change_ntf);
+    assert(yp_data->change_ntf);
 
     /* NACM filtering */
-    if (lyd_find_xpath(yp_data->ly_change_ntf, "/ietf-yang-push:push-change-update/datastore-changes/yang-patch/edit", &set)) {
+    if (lyd_find_xpath(yp_data->change_ntf->tree, "/ietf-yang-push:push-change-update/datastore-changes/yang-patch/edit",
+            &set)) {
         rc = SR_ERR_LY;
         goto cleanup;
     }
@@ -324,7 +325,7 @@ yang_push_notif_change_send(struct nc_session *ncs, struct yang_push_data *yp_da
     }
 
     /* send the notification */
-    rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(1), &yp_data->ly_change_ntf, 1);
+    rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(1), &yp_data->change_ntf->tree, 1);
 
     if (rc == SR_ERR_OK) {
         /* set last_notif timestamp */
@@ -333,8 +334,8 @@ yang_push_notif_change_send(struct nc_session *ncs, struct yang_push_data *yp_da
 
 cleanup:
     ly_set_free(set, NULL);
-    lyd_free_tree(yp_data->ly_change_ntf);
-    yp_data->ly_change_ntf = NULL;
+    sr_release_data(yp_data->change_ntf);
+    yp_data->change_ntf = NULL;
     return rc;
 }
 
@@ -428,6 +429,7 @@ np2srv_change_yang_push_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     sr_change_iter_t *iter = NULL;
     sr_change_oper_t op;
     const struct lyd_node *node;
+    const struct ly_ctx *ly_ctx = NULL;
     struct lyd_node *ly_yp = NULL;
     const char *prev_value, *prev_list;
     enum yang_push_op yp_op;
@@ -462,18 +464,24 @@ np2srv_change_yang_push_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
         }
 
         /* there is a change */
-        if (!arg->yp_data->ly_change_ntf) {
+        if (!arg->yp_data->change_ntf) {
+            /* store as SR data with context lock, is unlocked on error */
+            ly_ctx = sr_acquire_context(np2srv.sr_conn);
+            if (sr_acquire_data(np2srv.sr_conn, NULL, &arg->yp_data->change_ntf)) {
+                goto cleanup_unlock;
+            }
+
             /* create basic structure for push-change-update notification */
             sprintf(buf, "%" PRIu32, arg->nc_sub_id);
-            if (lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/ietf-yang-push:push-change-update/id", buf, 0,
-                    &arg->yp_data->ly_change_ntf)) {
+            if (lyd_new_path(NULL, ly_ctx, "/ietf-yang-push:push-change-update/id", buf, 0,
+                    &arg->yp_data->change_ntf->tree)) {
                 goto cleanup_unlock;
             }
 
             /* generate a new patch-id */
             patch_id = ATOMIC_INC_RELAXED(arg->yp_data->patch_id);
             sprintf(buf, "patch-%" PRIu32, patch_id);
-            if (lyd_new_path(arg->yp_data->ly_change_ntf, NULL, "datastore-changes/yang-patch/patch-id", buf, 0, NULL)) {
+            if (lyd_new_path(arg->yp_data->change_ntf->tree, NULL, "datastore-changes/yang-patch/patch-id", buf, 0, NULL)) {
                 goto cleanup_unlock;
             }
 
@@ -481,7 +489,7 @@ np2srv_change_yang_push_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
             ATOMIC_STORE_RELAXED(arg->yp_data->edit_id, 1);
         }
         if (!ly_yp) {
-            ly_yp = lyd_child(lyd_child(arg->yp_data->ly_change_ntf)->next);
+            ly_yp = lyd_child(lyd_child(arg->yp_data->change_ntf->tree)->next);
         }
 
         /* append a new edit */
@@ -490,7 +498,7 @@ np2srv_change_yang_push_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
         }
     }
 
-    if (!arg->yp_data->ly_change_ntf) {
+    if (!arg->yp_data->change_ntf) {
         /* there are actually no changes */
         goto cleanup_unlock;
     }
@@ -547,7 +555,7 @@ yang_push_sr_subscribe_mod(const struct lys_module *ly_mod, sr_session_ctx_t *us
 
     /* subscribe to the module */
     rc = sr_module_change_subscribe(user_sess, ly_mod->name, xpath, np2srv_change_yang_push_cb, private_data,
-            0, SR_SUBSCR_CTX_REUSE | SR_SUBSCR_PASSIVE | SR_SUBSCR_DONE_ONLY, &np2srv.sr_data_sub);
+            0, SR_SUBSCR_PASSIVE | SR_SUBSCR_DONE_ONLY, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         sr_session_get_error(user_sess, &err_info);
         sr_session_set_error_message(ev_sess, err_info->err[0].message);
@@ -639,11 +647,13 @@ static int
 yang_push_sr_subscribe(sr_session_ctx_t *user_sess, sr_datastore_t ds, const char *xpath, void *private_data,
         sr_session_ctx_t *ev_sess, uint32_t **sub_ids, uint32_t *sub_id_count)
 {
-    const struct ly_ctx *ly_ctx = sr_get_context(sr_session_get_connection(user_sess));
+    const struct ly_ctx *ly_ctx;
     const struct lys_module *ly_mod;
     struct ly_set *mod_set = NULL;
     int rc;
     uint32_t idx, config_mask = (ds == SR_DS_OPERATIONAL) ? LYS_CONFIG_MASK : LYS_CONFIG_W;
+
+    ly_ctx = sr_session_acquire_context(user_sess);
 
     *sub_ids = NULL;
     *sub_id_count = 0;
@@ -684,10 +694,12 @@ yang_push_sr_subscribe(sr_session_ctx_t *user_sess, sr_datastore_t ds, const cha
         }
     }
 
+    sr_session_release_context(user_sess);
     ly_set_free(mod_set, NULL);
     return SR_ERR_OK;
 
 error:
+    sr_session_release_context(user_sess);
     ly_set_free(mod_set, NULL);
 
     for (idx = 0; idx < *sub_id_count; ++idx) {
@@ -716,7 +728,8 @@ yang_push_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *r
         char **xpath, const char **selection_filter_ref, struct lyd_node **datastore_subtree_filter,
         const char **datastore_xpath_filter)
 {
-    struct lyd_node *node = NULL, *subtree = NULL;
+    struct lyd_node *node = NULL;
+    sr_data_t *subtree = NULL;
     struct ly_set *nodeset;
     const sr_error_info_t *err_info;
     struct np2_filter filter = {0};
@@ -783,12 +796,12 @@ yang_push_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *r
             goto cleanup;
         }
 
-        if (!lyd_child(subtree)->next) {
+        if (!lyd_child(subtree->tree)->next) {
             ERR("Selection filter \"%s\" does not define any actual filter.", lyd_get_value(node));
             rc = SR_ERR_INVAL_ARG;
             goto cleanup;
         }
-        node = lyd_child(subtree)->next;
+        node = lyd_child(subtree->tree)->next;
     }
 
     if (!strcmp(node->schema->name, "datastore-subtree-filter")) {
@@ -816,7 +829,7 @@ yang_push_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *r
     }
 
 cleanup:
-    lyd_free_tree(subtree);
+    sr_release_data(subtree);
     op_filter_erase(&filter);
     return rc;
 }
@@ -833,7 +846,9 @@ static int
 yang_push_notif_update_send(struct nc_session *ncs, struct yang_push_data *yp_data, uint32_t nc_sub_id)
 {
     struct np2_user_sess *user_sess;
-    struct lyd_node *data = NULL, *ly_ntf = NULL;
+    struct lyd_node *ly_ntf = NULL;
+    const struct ly_ctx *ly_ctx;
+    sr_data_t *data = NULL;
     char buf[11];
     int rc = SR_ERR_OK;
 
@@ -851,21 +866,29 @@ yang_push_notif_update_send(struct nc_session *ncs, struct yang_push_data *yp_da
     }
 
     /* NACM filter */
-    ncac_check_data_read_filter(&data, nc_session_get_username(ncs));
+    if (data) {
+        ncac_check_data_read_filter(&data->tree, nc_session_get_username(ncs));
+    }
+
+    /* context lock is already held by data */
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
+    sr_release_context(np2srv.sr_conn);
 
     /* create the notification */
     sprintf(buf, "%" PRIu32, nc_sub_id);
-    if (lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/ietf-yang-push:push-update/id", buf, 0, &ly_ntf)) {
+    if (lyd_new_path(NULL, ly_ctx, "/ietf-yang-push:push-update/id", buf, 0, &ly_ntf)) {
         rc = SR_ERR_LY;
         goto cleanup;
     }
 
     /* datastore-contents */
-    if (lyd_new_any(ly_ntf, NULL, "datastore-contents", data, 1, LYD_ANYDATA_DATATREE, 0, NULL)) {
+    if (lyd_new_any(ly_ntf, NULL, "datastore-contents", data ? data->tree : NULL, 1, LYD_ANYDATA_DATATREE, 0, NULL)) {
         rc = SR_ERR_LY;
         goto cleanup;
     }
-    data = NULL;
+    if (data) {
+        data->tree = NULL;
+    }
 
     /* send the notification */
     rc = sub_ntf_send_notif(ncs, nc_sub_id, np_gettimespec(1), &ly_ntf, 1);
@@ -874,7 +897,7 @@ yang_push_notif_update_send(struct nc_session *ncs, struct yang_push_data *yp_da
     }
 
 cleanup:
-    lyd_free_siblings(data);
+    sr_release_data(data);
     lyd_free_tree(ly_ntf);
     np_release_user_sess(user_sess);
     return rc;
@@ -1685,7 +1708,7 @@ yang_push_data_destroy(void *data)
             timer_delete(yp_data->update_timer);
         } else {
             pthread_mutex_destroy(&yp_data->notif_lock);
-            lyd_free_tree(yp_data->ly_change_ntf);
+            sr_release_data(yp_data->change_ntf);
             if (yp_data->dampening_period_ms) {
                 timer_delete(yp_data->damp_timer);
             }

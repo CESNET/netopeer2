@@ -48,12 +48,15 @@ set(NP2SRV_VERSION 2.0.35)
 # libyang required SO version
 set(LIBYANG_DEP_SOVERSION_MAJOR 2)
 
-# Version of sysrepo that this netopeer2 version depends on
-set(SYSREPO_DEP_VERSION 2.0.33)
-set(SYSREPO_DEP_SOVERSION 6.4.0)
-set(SYSREPO_DEP_SOVERSION_MAJOR 6)
+# libnetconf2 required SO version
+set(LIBNETCONF2_DEP_SOVERSION_MAJOR 3)
 
-set(CMAKE_C_FLAGS           "${CMAKE_C_FLAGS} -Wall -Wextra -std=gnu99")
+# Version of sysrepo that this netopeer2 version depends on
+set(SYSREPO_DEP_VERSION 2.1.0)
+set(SYSREPO_DEP_SOVERSION 7.0.0)
+set(SYSREPO_DEP_SOVERSION_MAJOR 7)
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -std=gnu99")
 
 #
 # options
@@ -212,7 +215,7 @@ if(LIBSSH_FOUND)
 endif()
 
 # dependencies - libnetconf2 (now, because we need to configure outselves based on it)
-find_package(LibNETCONF2 REQUIRED)
+find_package(LibNETCONF2 ${LIBNETCONF2_DEP_SOVERSION_MAJOR} REQUIRED)
 include_directories(${LIBNETCONF2_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBNETCONF2_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBNETCONF2_LIBRARIES})

@@ -214,9 +214,9 @@ void np_glob_setup_test_name(char *buf);
 
 int np_glob_setup_env(const char *test_name);
 
-int np_glob_setup_np2(void **state, const char *test_name);
+int np_glob_setup_np2(void **state, const char *test_name, const char *modules[], uint32_t mod_count);
 
-int np_glob_teardown(void **state);
+int np_glob_teardown(void **state, const char *modules[], uint32_t mod_count);
 
 void parse_arg(int argc, char **argv);
 

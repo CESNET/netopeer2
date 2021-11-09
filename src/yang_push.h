@@ -71,7 +71,7 @@ struct yang_push_data {
 
             /* internal data */
             pthread_mutex_t notif_lock;
-            struct lyd_node *ly_change_ntf;
+            sr_data_t *change_ntf;
             ATOMIC_T patch_id;
             ATOMIC_T edit_id;
             struct timespec last_notif;
