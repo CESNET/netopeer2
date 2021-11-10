@@ -16,8 +16,7 @@ Vcs-Git: https://github.com/CESNET/netopeer2.git
 Package: netopeer2
 Depends: ${misc:Depends},
          ${shlibs:Depends},
-         sysrepoctl,
-         sysrepocfg,
+         sysrepo-tools,
          openssl
 Architecture: any
 Description: A NETCONF server
