@@ -1038,7 +1038,6 @@ static void
 print_version(void)
 {
     fprintf(stdout, "netopeer2-server %s\n", NP2SRV_VERSION);
-    fprintf(stdout, "compile time: %s, %s\n", __DATE__, __TIME__);
 }
 
 static void
