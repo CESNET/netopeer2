@@ -37,6 +37,9 @@ MODULES=(
 "ietf-ssh-server@2019-07-02.yang -e local-client-auth-supported"
 "ietf-tls-server@2019-07-02.yang -e local-client-auth-supported"
 "ietf-netconf-server@2019-07-02.yang -e ssh-listen -e tls-listen -e ssh-call-home -e tls-call-home"
+"ietf-interfaces@2018-02-20.yang"
+"ietf-ip@2018-02-22.yang"
+"ietf-network-instance@2019-01-21.yang"
 "ietf-subscribed-notifications@2019-09-09.yang -e encode-xml -e replay -e subtree -e xpath"
 "ietf-yang-push@2019-09-09.yang -e on-change"
 )
