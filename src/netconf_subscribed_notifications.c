@@ -939,7 +939,7 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
     struct lyd_node *list, *receiver, *root;
     struct np2srv_sub_ntf *sub;
     char buf[26], *path = NULL, *datetime = NULL;
-    uint32_t i, excluded_count;
+    uint32_t i, excluded_count = 0;
     int r, rc = SR_ERR_OK;
 
     ly_ctx = sr_get_context(sr_session_get_connection(session));

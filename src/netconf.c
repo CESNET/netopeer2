@@ -838,7 +838,7 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
         const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
         void *UNUSED(private_data))
 {
-    sr_datastore_t ds;
+    sr_datastore_t ds = 0;
     struct lyd_node *config = NULL;
     struct ly_set *nodeset = NULL;
     struct np2_user_sess *user_sess = NULL;

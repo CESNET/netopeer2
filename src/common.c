@@ -584,7 +584,7 @@ op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr
 {
     const struct ly_ctx *ly_ctx;
     struct lyd_node *root = NULL;
-    LY_ERR lyrc;
+    LY_ERR lyrc = 0;
 
     assert(config && config->schema && (config->schema->nodetype & LYD_NODE_ANY));
 
