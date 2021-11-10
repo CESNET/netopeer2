@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# {% raw %} - jinja2 command to not process "{#" in the script
 
 # optional env variable override
 if [ -n "$SYSREPOCTL_EXECUTABLE" ]; then
@@ -93,3 +94,5 @@ for (( i = 0; i < $MODULES_LEN; i++ )); do
         continue
     fi
 done
+
+# {% endraw %}
