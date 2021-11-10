@@ -363,4 +363,6 @@ add_custom_target(cleancache
 )
 
 # uninstall
-add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_MODULE_PATH}/uninstall.cmake")
+add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_MODULE_PATH}/uninstall.cmake"
+    COMMAND ${SCRIPT_DIR}/remove.sh
+    COMMENT "Removing netopeer2 modules from sysrepo...")
