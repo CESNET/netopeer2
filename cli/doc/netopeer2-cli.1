@@ -1,12 +1,13 @@
 .\" Process this file with
 .\" groff -man -Tascii netopeer2-cli.1
 .\"
-.TH "netopeer2-cli" 1 "Wed February 24 2016" "Netopeer"
+
+.TH "netopeer2-cli" 1 "2021-11-10" "Netopeer"
 .SH NAME
 netopeer2-cli \- NETCONF client with command line interface build on libnetconf2
+.
 .SH DESCRIPTION
-.B netopeer2-cli
-serves as a generic NETCONF client providing a simple interactive command line
+\fBnetopeer2-cli\fP serves as a generic NETCONF client providing a simple interactive command line
 interface. It allows user to establish a NETCONF session with a NETCONF-enabled
 device on the network and to obtain and manipulate its configuration data.
 .B netopeer2-cli
@@ -43,61 +44,12 @@ Access Control (RFC 6536)
 :url capability
 .IP \(bu 2
 :xpath capability
-
-
-.SH FILES
-.I ~/.netopeer2-cli/config.xml
-.RS
-Per user configuration for NETCONF <hello> message (see RFC 6241 for further
-details).
-.RE
-.PP
-.I ~/.netopeer2-cli/history
-.RS
-Per user history of executed commands.
-.RE
-.PP
-.I ~/.netopeer2-cli/client.pem
-.RS
-Per user certificate with its private key that is sent to the server for verification. If present together with
-.B client.crt
-and
-.B client.key
-it is not utilized. Only with TLS support.
-.RE
-.PP
-.I ~/.netopeer2-cli/client.crt
-.RS
-Per user certificate that is sent to the server for verification. Needs a corresponding private key to be utilized. Only with TLS support.
-.RE
-.PP
-.I ~/.netopeer2-cli/client.key
-.RS
-Per user private key for the user certificate. Needs a corresponding certificate to be utilized. Only with TLS support.
-.RE
-.PP
-.I ~/.netopeer2-cli/certs
-.RS
-Per user trusted Certificate Authority directory that is searched when verifying a server certificate. Only with TLS support.
-.RE
-.PP
-.I ~/.netopeer2-cli/crl
-.RS
-Per user Certificate Revocation List directory that is searched when verifying a server certificate. Only with TLS support.
-.RE
-.PP
-.I ~/.ssh/netconf_known_hosts
-.RS
-Alternative known_hosts file if the original file contains libssh incompatible
-records. Only with SSH support.
-
-
+.
 .SH TRANSPORT
 The supported transport protocols are detected automatically based on how was libnetconf2 compiled.
 Unsupported (sub)commands are then not available and are hidden in the help. This page, however,
 contains them all.
-
-
+.
 .SH COMMANDS
 
 .SS help
@@ -920,7 +872,48 @@ Set CLI verbosity. Only errors are printed by default.
 Quit the program.
 
 
-.SH "SEE ALSO"
+.SH FILES
+.I ~/.netopeer2-cli/config.xml
+.RS
+Per user configuration for NETCONF <hello> message (see RFC 6241 for further
+details).
+.RE
+.PP
+.I ~/.netopeer2-cli/history
+.RS
+Per user history of executed commands.
+.RE
+.PP
+.I ~/.netopeer2-cli/client.pem
+.RS
+Per user certificate with its private key that is sent to the server for verification. If present together with
+.B client.crt
+and
+.B client.key
+it is not utilized. Only with TLS support.
+.RE
+.PP
+.I ~/.netopeer2-cli/client.crt
+.RS
+Per user certificate that is sent to the server for verification. Needs a corresponding private key to be utilized. Only with TLS support.
+.RE
+.PP
+.I ~/.netopeer2-cli/client.key
+.RS
+Per user private key for the user certificate. Needs a corresponding certificate to be utilized. Only with TLS support.
+.RE
+.PP
+.I ~/.netopeer2-cli/certs
+.RS
+Per user trusted Certificate Authority directory that is searched when verifying a server certificate. Only with TLS support.
+.RE
+.PP
+.I ~/.netopeer2-cli/crl
+.RS
+Per user Certificate Revocation List directory that is searched when verifying a server certificate. Only with TLS support.
+
+
+.SH SEE ALSO
 RFC 5277 (Event Notifications)
 .br
 RFC 6241 (NETCONF v1.1)
@@ -938,13 +931,12 @@ http://tools.ietf.org/html/draft-ietf-netconf-reverse-ssh-05 (Call Home)
 .br
 https://github.com/CESNET/netopeer2 (Netopeer homepage)
 .ad
-.SH MAILING LIST
-To discuss various topics about
-.B netopeer2-cli,
-look at Netopeer2 issue tracker at <https://github.com/CESNET/netopeer2/issues>.
-.SH REPORTING BUGS
-Report bugs to the issue tracker at the same URL.
 .SH AUTHORS
+Michal Vasko <mvasko@cesnet.cz>
+.br
 Radek Krejci <rkrejci@cesnet.cz>
+.
 .SH COPYRIGHT
-Copyright \(co 2012-2016 CESNET, z.s.p.o.
+Copyright \(co 2012-2021 CESNET, a.l.e.
+.br
+Copyright \(co 2018-2021 Deutsche Telekom AG.

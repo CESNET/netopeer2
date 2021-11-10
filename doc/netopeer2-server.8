@@ -1,0 +1,85 @@
+.\" Process this file with
+.\" groff -man -Tascii netopeer2-server.8
+.\"
+
+.TH "netopeer2-server" 8 "2021-11-10" "Netopeer"
+.SH NAME
+netopeer2-server \- NETCONF server daemon build on libnetconf2 with sysrepo datastore
+.
+.SH SYNOPSIS
+.B netopeer2-server
+[\fB-dhV\fP] [\fB-p\fP \fIPATH\fP] [\fB-U\fP[\fIPATH\fP]] [\fB-m\fP \fIMODE\fP] [\fB-u\fP \fIUID\fP]
+[\fB-g\fP \fIGID\fP] [\fB-t\fP \fITIMEOUT\fP] [\fB-v\fP \fILEVEL\fP] [\fB-c\fP \fICATEGORY\fP]
+.br
+.
+.SH DESCRIPTION
+\fBnetopeer2-server\fP is as a full-fledged NETCONF server providing a remote NETCONF
+interface for sysrepo datastore. It configures itself based on \fIietf-netconf-server\fP
+YANG module data in sysrepo.
+.
+.SH OPTIONS
+.TP
+.BR "\-d"
+Debug mode (do not daemonize and print verbose messages to stderr instead of syslog).
+.TP
+.BR "\-h"
+Display help.
+.TP
+.BR "\-V"
+Show program version.
+.TP
+.BR "\-p \fIPATH\fP"
+Path to pidfile.
+.TP
+.BR "\-f \fIPATH\fP"
+Path to netopeer2 server files directory.
+.TP
+.BR "\-U[\fIPATH\fP]"
+Listen on a local UNIX socket.
+.TP
+.BR "\-m \fIMODE\fP"
+Set mode for the listening UNIX socket.
+.TP
+.BR "\-u \fIUID\fP"
+Set UID/user for the listening UNIX socket.
+.TP
+.BR "\-g \fIGID\fP"
+Set GID/group for the listening UNIX socket.
+.TP
+.BR "\-t \fITIMEOUT\fP"
+Timeout in seconds of all sysrepo functions (applying edit-config, reading data, ...),
+if 0 (default), the default sysrepo timeouts are used.
+.TP
+.BR "\-v \fILEVEL\fP"
+Verbose output \fILEVEL\fP:
+ \[bu] \fB0\fP - errors
+ \[bu] \fB1\fP - errors and warnings
+ \[bu] \fB2\fP - errors, warnings, and verbose messages
+.TP
+.BR "\-c \fICATEGORY\fP[,\fICATEGORY\fP...]"
+Verbose debug level, print only these debug message categories.
+Categories:
+ \[bu] \fBDICT\fP
+ \[bu] \fBYANG\fP
+ \[bu] \fBYIN\fP
+ \[bu] \fBXPATH\fP
+ \[bu] \fBDIFF\fP
+ \[bu] \fBMSG\fP
+ \[bu] \fBLN2DBG\fP
+ \[bu] \fBSSH\fP
+ \[bu] \fBSYSREPO\fP
+.
+.SH SEE ALSO
+https://sysrepo.org (sysrepo home page with basic information about netopeer2-server)
+.br
+https://github.com/CESNET/netopeer2 (Netopeer2 Git repository)
+.
+.SH AUTHORS
+Michal Vasko <mvasko@cesnet.cz>
+.br
+Radek Krejci <rkrejci@cesnet.cz>
+.
+.SH COPYRIGHT
+Copyright \(co 2018-2021 CESNET, a.l.e.
+.br
+Copyright \(co 2018-2021 Deutsche Telekom AG.

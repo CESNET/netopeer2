@@ -1,4 +1,4 @@
-if(NOT PROJECT_NAME)
+if(NOT NP2SRV_VERSION)
     message(FATAL_ERROR "Please use the root CMakeLists file instead.")
 endif()
 
@@ -51,18 +51,6 @@ if(HAVE_MKSTEMPS)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DHAVE_MKSTEMPS")
 endif(HAVE_MKSTEMPS)
 
-# install binary
+# install
 install(TARGETS netopeer2-cli DESTINATION ${CMAKE_INSTALL_BINDIR})
-
-# man -> html
-find_program(ROFF2HTML roff2html)
-if(NOT ROFF2HTML)
-    message(STATUS "roff2html not found, html version of man pages cannot be generated!")
-else()
-    add_custom_target(doc ${ROFF2HTML} "${CMAKE_CURRENT_SOURCE_DIR}/doc/${PROJECT_NAME}.1" >
-        "${CMAKE_CURRENT_SOURCE_DIR}/doc/${PROJECT_NAME}.1.html"
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/doc/${PROJECT_NAME}.1)
-endif()
-
-# install doc (man)
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/${PROJECT_NAME}.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/netopeer2-cli.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)

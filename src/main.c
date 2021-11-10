@@ -1044,33 +1044,32 @@ print_version(void)
 static void
 print_usage(char *progname)
 {
-    fprintf(stdout, "Usage: %s [-dhV] [-p path] [-U (path)] [-m mode] [-u uid] [-g gid] [-t timeout] [-v level] [-c category]\n", progname);
-    fprintf(stdout, " -d         debug mode (do not daemonize and print verbose messages to stderr instead of syslog)\n");
-    fprintf(stdout, " -h         display help\n");
-    fprintf(stdout, " -V         show program version\n");
-    fprintf(stdout, " -p path    path to pidfile (default path is \"%s\")\n", NP2SRV_PID_FILE_PATH);
-    fprintf(stdout, " -f path    path to netopeer2 server files directory (default path is \"%s\")\n", SERVER_DIR);
-    fprintf(stdout, " -U[path]   listen on a local UNIX socket (default path is \"%s\")\n", NP2SRV_UNIX_SOCK_PATH);
-    fprintf(stdout, " -m mode    set mode for the listening UNIX socket\n");
-    fprintf(stdout, " -u uid     set UID/user for the listening UNIX socket\n");
-    fprintf(stdout, " -g gid     set GID/group for the listening UNIX socket\n");
-    fprintf(stdout, " -t timeout timeout in seconds of all sysrepo functions (applying edit-config, reading data, ...),\n");
-    fprintf(stdout, "            if 0 (default), the default sysrepo timeouts are used\n");
-    fprintf(stdout, " -v level   verbose output level:\n");
+    fprintf(stdout, "Usage: %s [-dhV] [-p PATH] [-U[PATH]] [-m MODE] [-u UID] [-g GID] [-t TIMEOUT] [-v LEVEL] [-c CATEGORY]\n", progname);
+    fprintf(stdout, " -d         Debug mode (do not daemonize and print verbose messages to stderr instead of syslog).\n");
+    fprintf(stdout, " -h         Display help.\n");
+    fprintf(stdout, " -V         Show program version.\n");
+    fprintf(stdout, " -p PATH    Path to pidfile (default path is \"%s\").\n", NP2SRV_PID_FILE_PATH);
+    fprintf(stdout, " -f PATH    Path to netopeer2 server files directory (default path is \"%s\")\n", SERVER_DIR);
+    fprintf(stdout, " -U[PATH]   Listen on a local UNIX socket (default path is \"%s\").\n", NP2SRV_UNIX_SOCK_PATH);
+    fprintf(stdout, " -m MODE    Set mode for the listening UNIX socket.\n");
+    fprintf(stdout, " -u UID     Set UID/user for the listening UNIX socket.\n");
+    fprintf(stdout, " -g GID     Set GID/group for the listening UNIX socket.\n");
+    fprintf(stdout, " -t TIMEOUT Timeout in seconds of all sysrepo functions (applying edit-config, reading data, ...),\n");
+    fprintf(stdout, "            if 0 (default), the default sysrepo timeouts are used.\n");
+    fprintf(stdout, " -v LEVEL   Verbose output level:\n");
     fprintf(stdout, "                0 - errors\n");
     fprintf(stdout, "                1 - errors and warnings\n");
     fprintf(stdout, "                2 - errors, warnings, and verbose messages\n");
+    fprintf(stdout, " -c CATEGORY[,CATEGORY...]\n");
 #ifndef NDEBUG
-    fprintf(stdout, " -c category[,category]*\n");
-    fprintf(stdout, "            verbose debug level, print only these debug message categories\n");
+    fprintf(stdout, "            Verbose debug level, print only these debug message categories.\n");
 # ifdef NC_ENABLED_SSH
-    fprintf(stdout, "            categories: DICT, YANG, YIN, XPATH, DIFF, MSG, LN2DBG, SSH, SYSREPO\n");
+    fprintf(stdout, "            Categories: DICT, YANG, YIN, XPATH, DIFF, MSG, LN2DBG, SSH, SYSREPO\n");
 # else
-    fprintf(stdout, "            categories: DICT, YANG, YIN, XPATH, DIFF, MSG, LN2DBG, SYSREPO\n");
+    fprintf(stdout, "            Categories: DICT, YANG, YIN, XPATH, DIFF, MSG, LN2DBG, SYSREPO\n");
 # endif
 #else
-    fprintf(stdout, " -c category[,category]*\n");
-    fprintf(stdout, "            verbose debug level, NOT SUPPORTED in release build type\n");
+    fprintf(stdout, "            Verbose debug level, NOT SUPPORTED in release build type.\n");
 #endif
     fprintf(stdout, "\n");
 }
