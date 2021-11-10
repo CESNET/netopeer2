@@ -1,21 +1,24 @@
 Source: netopeer2
-Section: libs
+Section: admin
 Homepage: https://github.com/CESNET/netopeer2/
 Maintainer: CESNET <mvasko@cesnet.cz>
 Priority: optional
 Standards-Version: 4.5.0
 Build-Depends: cmake,
                debhelper (>= 10),
-               libyang2-dev,
-               libnetconf2-dev,
-               sysrepo-dev,
+               libyang2-dev (>= 2),
+               libnetconf2-dev (>= 2),
+               libsysrepo-dev (>= 2),
                pkg-config
-Vcs-Browser: https://github.com/CESNET/libnetconf2/tree/master
-Vcs-Git: https://github.com/CESNET/libnetconf2.git
+Vcs-Browser: https://github.com/CESNET/netopeer2/tree/master
+Vcs-Git: https://github.com/CESNET/netopeer2.git
 
 Package: netopeer2
 Depends: ${misc:Depends},
-         ${shlibs:Depends}
+         ${shlibs:Depends},
+         sysrepoctl,
+         sysrepocfg,
+         openssl
 Architecture: any
 Description: A NETCONF server
  Netopeer2 is a server for implementing network configuration management based
@@ -23,4 +26,3 @@ Description: A NETCONF server
  as the Netopeer project. Netopeer2 is based on the new generation of the
  NETCONF and YANG libraries - libyang and libnetconf2. The Netopeer2 server
  uses sysrepo as a NETCONF datastore implementation.
-

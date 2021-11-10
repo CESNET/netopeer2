@@ -13,6 +13,9 @@ BuildRequires:  pkgconfig(libyang) >= 2
 BuildRequires:  pkgconfig(libnetconf2) >= 2
 BuildRequires:  pkgconfig(sysrepo) >= 2
 
+# needed by scripts/setup.sh (run in post)
+Requires: sysrepo-tools
+
 # needed by scripts/merge_hostkey.sh (run in post)
 Requires: openssl
 
@@ -56,11 +59,17 @@ NP2_MODULE_GROUP=netconf
 {% include 'scripts/merge_hostkey.sh' %}
 {% include 'scripts/merge_config.sh' %}
 
+%postun
+{% include 'scripts/remove.sh' %}
+
+groupdel netconf
+
 %files
 %license LICENSE
 %{_bindir}/netopeer2-cli
 %{_bindir}/netopeer2-server
 %{_datadir}/man/man1/netopeer2-cli.1.gz
+%{_datadir}/man/man8/netopeer2-server.8.gz
 %{_datadir}/yang/modules/netopeer2/*.yang
 %dir %{_datadir}/yang/modules/netopeer2/
 
