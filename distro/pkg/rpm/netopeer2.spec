@@ -26,6 +26,10 @@ as the Netopeer project. Netopeer2 is based on the new generation of the
 NETCONF and YANG libraries - libyang and libnetconf2. The Netopeer2 server
 uses sysrepo as a NETCONF datastore implementation.
 
+Netopeer2 configuration is stored as "ietf-netconf-server" YANG module
+data in sysrepo. They are accessible for "root" and any user beloning to
+the group "netconf", which is created if it does not exist.
+
 %prep
 %autosetup -p1
 mkdir build
