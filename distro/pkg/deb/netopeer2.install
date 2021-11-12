@@ -2,3 +2,4 @@ usr/bin/netopeer2-server
 usr/bin/netopeer2-cli
 usr/share/man/man1
 usr/share/man/man8
+usr/share/yang/modules/netopeer2

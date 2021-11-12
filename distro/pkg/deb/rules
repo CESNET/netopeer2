@@ -14,4 +14,7 @@ override_dh_auto_configure:
 		-DINSTALL_MODULES=OFF \
 		-DMERGE_LISTEN_CONFIG=OFF
 
+# to handle changed DESTDIR to debian/<package> instead of debian/tmp for a single binary package
+override_dh_install:
+
 override_dh_auto_test:
