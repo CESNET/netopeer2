@@ -29,20 +29,6 @@ This means that when only stable official releases are to be used, either `maste
 If all the latest bugfixes should be applied, `devel` branch is the  one to be used. Note that whenever **a new issue is created**
 and it occurs on the `master` branch, the **first response will likely be** to use `devel` before any further provided support.
 
-## Requirements
-
-* [libyang](https://github.com/CESNET/libyang)
-* [libnetconf2](https://github.com/CESNET/libnetconf2)
-* [sysrepo](https://github.com/sysrepo/sysrepo)
-
-### Optional
-
-* cmocka >= 1.0.1 (for [tests](#Tests))
-* valgrind (for enhanced testing)
-* gcov (for code coverage)
-* lcov (for code coverage)
-* genhtml (for code coverage)
-
 ## RFC Compliance
 
 * [RFC 5277](https://www.rfc-editor.org/rfc/rfc5277.html) NETCONF Event Notifications
@@ -59,6 +45,25 @@ and it occurs on the `master` branch, the **first response will likely be** to u
 * [RFC 8639](https://www.rfc-editor.org/rfc/rfc8639.html) Subscription to YANG Notifications
 * [RFC 8640](https://www.rfc-editor.org/rfc/rfc8640.html) Dynamic Subscription to YANG Events and Datastores over NETCONF
 * [RFC 8641](https://www.rfc-editor.org/rfc/rfc8641.html) Subscription to YANG Notifications for Datastore Updates
+
+## Packages
+
+Binary RPM or DEB packages of the latest release can be built locally using `apkg`, look into `README` in
+the `distro` directory.
+
+## Requirements
+
+* [libyang](https://github.com/CESNET/libyang)
+* [libnetconf2](https://github.com/CESNET/libnetconf2)
+* [sysrepo](https://github.com/sysrepo/sysrepo)
+
+### Optional
+
+* cmocka >= 1.0.1 (for [tests](#Tests))
+* valgrind (for enhanced testing)
+* gcov (for code coverage)
+* lcov (for code coverage)
+* genhtml (for code coverage)
 
 ## Compilation and installation
 
