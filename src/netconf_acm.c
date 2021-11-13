@@ -223,6 +223,7 @@ ncac_group_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UN
             case SR_OP_DELETED:
                 /* find it */
                 group = ncac_group_find(group_name);
+                assert(group && nacm.group_count);
 
                 /* delete it */
                 free(group->name);
