@@ -52,6 +52,10 @@ local_setup(void **state)
     /* candidate session */
     assert_int_equal(sr_session_start(st->conn, SR_DS_CANDIDATE, &st->sr_sess2), SR_ERR_OK);
 
+    /* setup NACM */
+    rc = setup_nacm(state);
+    assert_int_equal(rc, 0);
+
     return 0;
 }
 
