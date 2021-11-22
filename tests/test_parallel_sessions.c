@@ -87,6 +87,9 @@ recv_reply_error_print(struct np_test *st, const struct lyd_node *op, const stru
     }
     printf("\n");
 
+    /* wait until all output is written to the file */
+    sleep(2);
+
     /* print netopeer2 log */
     printf("np2 log:\n");
     assert_int_not_equal(-1, asprintf(&path, "%s/%s/%s", NP_SR_REPOS_DIR, st->test_name, NP_LOG_FILE));
