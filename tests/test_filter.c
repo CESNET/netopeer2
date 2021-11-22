@@ -68,7 +68,6 @@ setup_data(void **state)
             "    </ospf>\n"
             "  </protocols>\n"
             "</top>\n";
-
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -93,7 +92,6 @@ setup_data(void **state)
             "    <price>13</price>\n"
             "  </item>\n"
             "</top>\n";
-
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -107,7 +105,6 @@ setup_data(void **state)
             "      </feature>\n"
             "  </component>\n"
             "</hardware>\n";
-
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -152,35 +149,40 @@ setup_data(void **state)
             "      </desktop>\n"
             "    </desktops>\n"
             "  </devices>\n"
+            "  <some-list>\n"
+            "    <k>a</k>\n"
+            "    <val xmlns:f1i=\"urn:f1i\">f1i:ident-val1</val>\n"
+            "  </some-list>\n"
+            "  <some-list>\n"
+            "    <k>b</k>\n"
+            "    <val xmlns:f1i=\"urn:f1i\">f1i:ident-val2</val>\n"
+            "  </some-list>\n"
             "</top>\n";
-
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
     data = "<first xmlns=\"ed1\">Test</first>\n";
-
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 }
 
 static int
-change_cb(sr_session_ctx_t *session, uint32_t sub_id,
-        const char *module_name, const char *xpath,
-        sr_event_t event, uint32_t request_id, void *private_data)
+change_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath, sr_event_t event,
+        uint32_t request_id, void *private_data)
 {
     (void) session; (void) sub_id; (void) module_name; (void) xpath;
     (void) event; (void) request_id; (void) private_data;
+
     return SR_ERR_OK;
 }
 
 static int
-change_serial_num(sr_session_ctx_t *session, uint32_t sub_id,
-        const char *module_name, const char *path,
-        const char *request_xpath, uint32_t request_id,
-        struct lyd_node **parent, void *private_data)
+change_serial_num(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *path,
+        const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
 {
     (void) session; (void) sub_id; (void) module_name; (void) path;
     (void) request_xpath; (void) request_id; (void) private_data;
+
     if (!lyd_new_path(*parent, NULL, "serial-num", "1234", 0, NULL)) {
         return SR_ERR_OK;
     } else {
@@ -194,7 +196,7 @@ local_setup(void **state)
     struct np_test *st;
     char test_name[256];
     const char *modules[] = {
-        NP_TEST_MODULE_DIR "/example2.yang", NP_TEST_MODULE_DIR "/filter1.yang",
+        NP_TEST_MODULE_DIR "/example2.yang", NP_TEST_MODULE_DIR "/filter1-imp.yang", NP_TEST_MODULE_DIR "/filter1.yang",
         NP_TEST_MODULE_DIR "/xpath.yang", NP_TEST_MODULE_DIR "/issue1.yang", NP_TEST_MODULE_DIR "/edit1.yang"
     };
     int rc;
@@ -226,7 +228,7 @@ static int
 local_teardown(void **state)
 {
     struct np_test *st = *state;
-    const char *modules[] = {"example2", "filter1", "xpath", "issue1", "edit1"};
+    const char *modules[] = {"example2", "filter1-imp", "filter1", "xpath", "issue1", "edit1"};
 
     if (!st) {
         return 0;
@@ -521,6 +523,14 @@ test_xpath_namespaces(void **state)
             "          </server>\n"
             "        </servers>\n"
             "      </devices>\n"
+            "      <some-list>\n"
+            "        <k>a</k>\n"
+            "        <val xmlns:f1i=\"urn:f1i\">f1i:ident-val1</val>\n"
+            "      </some-list>\n"
+            "      <some-list>\n"
+            "        <k>b</k>\n"
+            "        <val xmlns:f1i=\"urn:f1i\">f1i:ident-val2</val>\n"
+            "      </some-list>\n"
             "    </top>\n"
             "    <top xmlns=\"x1\">\n"
             "      <item>\n"
@@ -607,6 +617,31 @@ test_subtree_content_match(void **state)
             "          </area>\n"
             "        </ospf>\n"
             "      </protocols>\n"
+            "    </top>\n"
+            "  </data>\n"
+            "</get-config>\n";
+
+    assert_string_equal(st->str, expected);
+
+    FREE_TEST_VARS(st);
+
+    filter =
+            "<top xmlns=\"f1\" xmlns:f1i=\"urn:f1i\">\n"
+            "  <some-list>\n"
+            "    <val>f1i:ident-val1</val>\n"
+            "  </some-list>\n"
+            "</top>\n";
+
+    GET_CONFIG_FILTER(st, filter);
+
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <top xmlns=\"f1\">\n"
+            "      <some-list>\n"
+            "        <k>a</k>\n"
+            "        <val xmlns:f1i=\"urn:f1i\">f1i:ident-val1</val>\n"
+            "      </some-list>\n"
             "    </top>\n"
             "  </data>\n"
             "</get-config>\n";

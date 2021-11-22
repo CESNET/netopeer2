@@ -38,6 +38,7 @@
 #endif
 
 #include <libyang/libyang.h>
+#include <libyang/plugins_types.h>
 #include <nc_server.h>
 
 #include "common.h"
@@ -822,6 +823,53 @@ filter_xpath_print_node_module(const struct lyd_node *node)
 }
 
 /**
+ * @brief Get value of a node to use in XPath filter.
+ *
+ * @param[in] node Subtree filter node.
+ * @param[out] dynamic Whether the value eneds to be freed.
+ * @return String value to use;
+ * @return NULL on error.
+ */
+static char *
+filter_xpath_buf_get_value(const struct lyd_node *node, int *dynamic)
+{
+    struct lyd_node_opaq *opaq;
+    const char *ptr;
+    const struct lys_module *mod;
+    char *val_str;
+
+    *dynamic = 0;
+
+    if (node->schema) {
+        /* data node, canonical value should be fine */
+        return (char *)lyd_get_value(node);
+    }
+
+    opaq = (struct lyd_node_opaq *)node;
+
+    if (!(ptr = strchr(opaq->value, ':'))) {
+        /* no prefix, use it directly */
+        return (char *)opaq->value;
+    }
+
+    /* assume identity, try to get its module */
+    mod = lyplg_type_identity_module(LYD_CTX(node), NULL, opaq->value, ptr - opaq->value, opaq->format,
+            opaq->val_prefix_data);
+
+    if (!mod) {
+        /* unknown module, use as is */
+        return (char *)opaq->value;
+    }
+
+    /* print the module name instead of the prefix */
+    if (asprintf(&val_str, "%s:%s", mod->name, ptr + 1) == -1) {
+        return NULL;
+    }
+    *dynamic = 1;
+    return val_str;
+}
+
+/**
  * @brief Append subtree filter node to XPath filter string buffer.
  *
  * Handles content nodes with optional namespace and attributes.
@@ -836,8 +884,8 @@ static int
 filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int size)
 {
     const struct lys_module *mod = NULL;
-    int new_size;
-    char *buf_new, quot;
+    int new_size, dynamic;
+    char *buf_new, *val_str, quot;
 
     assert(!node->schema || (node->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST)));
 
@@ -867,12 +915,19 @@ filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int siz
     }
     *buf = buf_new;
 
+    /* learn which quotes are safe to use */
     if (strchr(lyd_get_value(node), '\'')) {
         quot = '\"';
     } else {
         quot = '\'';
     }
-    sprintf((*buf) + (size - 1), "=%c%s%c]", quot, lyd_get_value(node), quot);
+
+    /* get proper value */
+    val_str = filter_xpath_buf_get_value(node, &dynamic);
+    sprintf((*buf) + (size - 1), "=%c%s%c]", quot, val_str, quot);
+    if (dynamic) {
+        free(val_str);
+    }
 
     return new_size;
 }

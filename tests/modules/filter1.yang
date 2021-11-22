@@ -6,6 +6,10 @@ module filter1 {
     prefix "inet";
   }
 
+  import filter1-imp {
+    prefix f1i;
+  }
+
   container top {
     container devices {
       container desktops {
@@ -31,6 +35,18 @@ module filter1 {
           leaf port {
             type inet:port-number;
           }
+        }
+      }
+    }
+
+    list some-list {
+      key "k";
+      leaf k {
+        type string;
+      }
+      leaf val {
+        type identityref {
+          base f1i:ident-base;
         }
       }
     }
