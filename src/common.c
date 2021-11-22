@@ -1151,6 +1151,11 @@ op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_oper_op
             return rc;
         }
 
+        if (!sr_data) {
+            /* no data */
+            continue;
+        }
+
         /* merge */
         lyrc = lyd_merge_siblings(data, sr_data->tree, LYD_MERGE_DESTRUCT);
         sr_data->tree = NULL;
