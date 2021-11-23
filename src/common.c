@@ -884,7 +884,7 @@ static int
 filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int size)
 {
     const struct lys_module *mod = NULL;
-    int new_size, dynamic;
+    int new_size, dynamic = 0;
     char *buf_new, *val_str, quot;
 
     assert(!node->schema || (node->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST)));
@@ -895,8 +895,7 @@ filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int siz
     new_size = size + 1 + (mod ? strlen(mod->name) + 1 : 0) + strlen(LYD_NAME(node));
     buf_new = realloc(*buf, new_size);
     if (!buf_new) {
-        EMEM;
-        return -1;
+        goto error;
     }
     *buf = buf_new;
     sprintf((*buf) + (size - 1), "[%s%s%s", (mod ? mod->name : ""), (mod ? ":" : ""), LYD_NAME(node));
@@ -904,32 +903,43 @@ filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int siz
 
     size = filter_xpath_buf_append_attrs(node->meta, buf, size);
     if (size < 1) {
-        return size;
+        goto error;
     }
 
-    new_size = size + 2 + strlen(lyd_get_value(node)) + 2;
+    /* get proper value */
+    val_str = filter_xpath_buf_get_value(node, &dynamic);
+    if (!val_str) {
+        goto error;
+    }
+
+    new_size = size + 2 + strlen(val_str) + 2;
     buf_new = realloc(*buf, new_size);
     if (!buf_new) {
-        EMEM;
-        return -1;
+        goto error;
     }
     *buf = buf_new;
 
     /* learn which quotes are safe to use */
-    if (strchr(lyd_get_value(node), '\'')) {
+    if (strchr(val_str, '\'')) {
         quot = '\"';
     } else {
         quot = '\'';
     }
 
-    /* get proper value */
-    val_str = filter_xpath_buf_get_value(node, &dynamic);
+    /* append */
     sprintf((*buf) + (size - 1), "=%c%s%c]", quot, val_str, quot);
+
     if (dynamic) {
         free(val_str);
     }
-
     return new_size;
+
+error:
+    EMEM;
+    if (dynamic) {
+        free(val_str);
+    }
+    return -1;
 }
 
 /**
