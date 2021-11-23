@@ -197,7 +197,7 @@ test_start_time_invalid(void **state)
 
     /* startTime is in the future */
     assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
-    ts.tv_sec += 10;
+    ts.tv_sec += 30;
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &start_time));
 
     /* Reestablish NETCONF connection */
@@ -211,10 +211,9 @@ test_start_time_invalid(void **state)
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
     /* Check reply */
-    st->msgtype = NC_MSG_NOTIF;
-    while (st->msgtype == NC_MSG_NOTIF) {
+    do {
         st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op);
-    }
+    } while (st->msgtype == NC_MSG_NOTIF);
     assert_int_equal(NC_MSG_REPLY, st->msgtype);
     assert_null(st->op);
     assert_string_equal(LYD_NAME(lyd_child(st->envp)), "rpc-error");
