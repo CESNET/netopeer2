@@ -218,7 +218,7 @@ np_glob_setup_np2(void **state, const char *test_name, const char *modules[], ui
 
         /* exec server listening on a unix socket */
         sprintf(str, "-p%s/%s/%s", NP_TEST_DIR, test_name, NP_PID_FILE);
-        execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", str, sockparam,
+        execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", str, sockparam,
                 "-m 600", "-f", serverdir, (char *)NULL);
 
 child_error:
