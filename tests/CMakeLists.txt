@@ -52,24 +52,40 @@ foreach(test_name IN LISTS tests)
     set_property(TARGET ${test_name} PROPERTY RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endforeach(test_name)
 
+if(${CMAKE_VERSION} VERSION_GREATER "3.7")
+    # tests cleanup fixture, keep repos with server log files
+    add_test(NAME tests_done COMMAND make test_clean_keep_repos)
+    set_tests_properties(tests_done PROPERTIES FIXTURES_CLEANUP tests_cleanup)
+endif()
+
 # add tests with their attributes
 foreach(test_name IN LISTS tests)
     add_test(NAME ${test_name} COMMAND $<TARGET_FILE:${test_name}> WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
     set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT "MALLOC_CHECK_=3")
     set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT "TEST_NAME=${test_name}")
+    if(${CMAKE_VERSION} VERSION_GREATER "3.7")
+        set_tests_properties(${test_name} PROPERTIES FIXTURES_REQUIRED tests_cleanup)
+    endif()
 endforeach()
 
 # valgrind tests
 if(ENABLE_VALGRIND_TESTS)
     foreach(test_name IN LISTS tests)
         add_test(NAME ${test_name}_valgrind COMMAND valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ${CMAKE_CURRENT_BINARY_DIR}/${test_name} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-        set_property(TEST ${test_name}_valgrind APPEND PROPERTY ENVIRONMENT "TEST_NAME=${test_name}_valgrind")
+        set(test_name "${test_name}_valgrind")
+        set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT "TEST_NAME=${test_name}")
+        if(${CMAKE_VERSION} VERSION_GREATER "3.7")
+            set_tests_properties(${test_name} PROPERTIES FIXTURES_REQUIRED tests_cleanup)
+        endif()
     endforeach()
 endif()
 
 # phony target for clearing all sysrepo test data
-add_custom_target(test_clean
+add_custom_target(test_clean_keep_repos
     COMMAND ${CMAKE_CURRENT_BINARY_DIR}/scripts/kill_np_server.sh
-    COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/repositories
     COMMAND rm -rf /dev/shm/_tests_np_*
+)
+add_custom_target(test_clean
+    DEPENDS test_clean_keep_repos
+    COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/repositories
 )
