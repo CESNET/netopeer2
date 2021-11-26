@@ -46,8 +46,19 @@
         state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
     } while (state->msgtype == NC_MSG_NOTIF); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
-    assert_null(state->op); \
-    assert_string_equal(LYD_NAME(lyd_child(state->envp)), "ok");
+    if (strcmp(LYD_NAME(lyd_child(state->envp)), "ok")) { \
+        printf("Expected \"ok\" reply, received \"%s\" instead.\n", LYD_NAME(lyd_child(state->envp))); \
+        printf("op:\n"); \
+        if (state->op) { \
+            lyd_print_file(stdout, state->op, LYD_XML, 0); \
+        } \
+        printf("\nenvp:\n"); \
+        if (state->envp) { \
+            lyd_print_file(stdout, state->envp, LYD_XML, 0); \
+        } \
+        fail(); \
+    } \
+    assert_null(state->op);
 
 #define ASSERT_OK_REPLY_SESS2(state) \
     state->msgtype = nc_recv_reply(state->nc_sess2, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
@@ -58,8 +69,19 @@
 #define ASSERT_RPC_ERROR(state) \
     state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
-    assert_null(state->op); \
-    assert_string_equal(LYD_NAME(lyd_child(state->envp)), "rpc-error");
+    if (strcmp(LYD_NAME(lyd_child(state->envp)), "rpc-error")) { \
+        printf("Expected \"rpc-error\" reply, received \"%s\" instead.\n", LYD_NAME(lyd_child(state->envp))); \
+        printf("op:\n"); \
+        if (state->op) { \
+            lyd_print_file(stdout, state->op, LYD_XML, 0); \
+        } \
+        printf("\nenvp:\n"); \
+        if (state->envp) { \
+            lyd_print_file(stdout, state->envp, LYD_XML, 0); \
+        } \
+        fail(); \
+    } \
+    assert_null(state->op);
 
 #define ASSERT_RPC_ERROR_SESS2(state) \
     state->msgtype = nc_recv_reply(state->nc_sess2, state->rpc, state->msgid, 3000, &state->envp, &state->op); \

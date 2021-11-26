@@ -476,13 +476,7 @@ test_stop_time_sub_end(void **state)
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
     /* Check reply */
-    st->msgtype = NC_MSG_NOTIF;
-    while (st->msgtype == NC_MSG_NOTIF) {
-        st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op);
-    }
-    assert_int_equal(NC_MSG_REPLY, st->msgtype);
-    assert_null(st->op);
-    assert_string_equal(LYD_NAME(lyd_child(st->envp)), "ok");
+    ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
     /* Try sending a notfication real time on new session */
