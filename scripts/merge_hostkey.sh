@@ -12,8 +12,9 @@ else
     SYSREPOCFG=`which sysrepocfg`
 fi
 
-# avoid problems with sudo PATH
-if [ `id -u` -eq 0 ]; then
+if [ -n "$OPENSSL_EXECUTABLE" ]; then
+    OPENSSL="$OPENSSL_EXECUTABLE"
+elif [ `id -u` -eq 0 ]; then
     OPENSSL=`su -c 'which openssl' -l $USER`
 else
     OPENSSL=`which openssl`
