@@ -12,9 +12,9 @@ if [ -n "$SYSREPOCTL_EXECUTABLE" ]; then
     SYSREPOCTL="$SYSREPOCTL_EXECUTABLE"
 # avoid problems with sudo PATH
 elif [ `id -u` -eq 0 ]; then
-    SYSREPOCTL=`su -c 'which sysrepoctl' -l $USER`
+    SYSREPOCTL=`su -c 'command -v sysrepoctl' -l $USER`
 else
-    SYSREPOCTL=`which sysrepoctl`
+    SYSREPOCTL=`command -v sysrepoctl`
 fi
 MODDIR=${DESTDIR}${NP2_MODULE_DIR}
 PERMS=${NP2_MODULE_PERMS}

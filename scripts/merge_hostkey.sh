@@ -7,17 +7,17 @@ if [ -n "$SYSREPOCFG_EXECUTABLE" ]; then
     SYSREPOCFG="$SYSREPOCFG_EXECUTABLE"
 # avoid problems with sudo PATH
 elif [ `id -u` -eq 0 ]; then
-    SYSREPOCFG=`su -c 'which sysrepocfg' -l $USER`
+    SYSREPOCFG=`su -c 'command -v sysrepocfg' -l $USER`
 else
-    SYSREPOCFG=`which sysrepocfg`
+    SYSREPOCFG=`command -v sysrepocfg`
 fi
 
 if [ -n "$OPENSSL_EXECUTABLE" ]; then
     OPENSSL="$OPENSSL_EXECUTABLE"
 elif [ `id -u` -eq 0 ]; then
-    OPENSSL=`su -c 'which openssl' -l $USER`
+    OPENSSL=`su -c 'command -v openssl' -l $USER`
 else
-    OPENSSL=`which openssl`
+    OPENSSL=`command -v openssl`
 fi
 
 # check that there is no SSH key with this name yet

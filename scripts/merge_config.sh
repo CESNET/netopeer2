@@ -7,9 +7,9 @@ if [ -n "$SYSREPOCFG_EXECUTABLE" ]; then
     SYSREPOCFG="$SYSREPOCFG_EXECUTABLE"
 # avoid problems with sudo PATH
 elif [ `id -u` -eq 0 ]; then
-    SYSREPOCFG=`su -c 'which sysrepocfg' -l $USER`
+    SYSREPOCFG=`su -c 'command -v sysrepocfg' -l $USER`
 else
-    SYSREPOCFG=`which sysrepocfg`
+    SYSREPOCFG=`command -v sysrepocfg`
 fi
 KS_KEY_NAME=genkey
 
