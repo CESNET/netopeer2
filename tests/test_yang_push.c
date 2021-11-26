@@ -122,14 +122,14 @@ test_periodic_basic(void **state)
     const char *template, *data;
     char *ntf;
 
-    /* Establish periodic push */
+    /* establish periodic push */
     st->rpc = nc_rpc_establishpush_periodic("ietf-datastores:running", NULL, NULL, NULL, 10, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_SUB_NTF(st);
     FREE_TEST_VARS(st);
 
-    /* Receive a notification */
+    /* receive a notification */
     RECV_NOTIF(st);
     template =
             "<push-update xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
@@ -141,13 +141,21 @@ test_periodic_basic(void **state)
     free(ntf);
     FREE_TEST_VARS(st);
 
-    /* Put some data into the datastore */
+    /* put some data into the datastore */
     data = "<first xmlns=\"ed1\">TestFirst</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
-    /* Receive a notification with the new data */
+    /* receive a notification */
     RECV_NOTIF(st);
+    if (!strcmp(st->str, ntf)) {
+        /* rare result of a data race when a notification arrived still with the previous data */
+        FREE_TEST_VARS(st);
+
+        /* receive next notification, now it must have the new data (unless the edit took longer than is
+         * the subscription period, hope not) */
+        RECV_NOTIF(st);
+    }
     template =
             "<push-update xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
             "  <id>%d</id>\n"
@@ -156,10 +164,9 @@ test_periodic_basic(void **state)
             "  </datastore-contents>\n"
             "</push-update>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
     FREE_TEST_VARS(st);
 
-    /* Test yet again if arives with the same data */
+    /* test yet again if arives with the same data */
     RECV_NOTIF(st);
     assert_string_equal(st->str, ntf);
     FREE_TEST_VARS(st);
