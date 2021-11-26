@@ -43,26 +43,26 @@
 
 #define ASSERT_OK_REPLY(state) \
     do { \
-        state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 2000, &state->envp, &state->op); \
+        state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
     } while (state->msgtype == NC_MSG_NOTIF); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
     assert_null(state->op); \
     assert_string_equal(LYD_NAME(lyd_child(state->envp)), "ok");
 
 #define ASSERT_OK_REPLY_SESS2(state) \
-    state->msgtype = nc_recv_reply(state->nc_sess2, state->rpc, state->msgid, 2000, &state->envp, &state->op); \
+    state->msgtype = nc_recv_reply(state->nc_sess2, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
     assert_null(state->op); \
     assert_string_equal(LYD_NAME(lyd_child(state->envp)), "ok");
 
 #define ASSERT_RPC_ERROR(state) \
-    state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 2000, &state->envp, &state->op); \
+    state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
     assert_null(state->op); \
     assert_string_equal(LYD_NAME(lyd_child(state->envp)), "rpc-error");
 
 #define ASSERT_RPC_ERROR_SESS2(state) \
-    state->msgtype = nc_recv_reply(state->nc_sess2, state->rpc, state->msgid, 2000, &state->envp, &state->op); \
+    state->msgtype = nc_recv_reply(state->nc_sess2, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
     assert_null(state->op); \
     assert_string_equal(LYD_NAME(lyd_child(state->envp)), "rpc-error");
@@ -71,7 +71,7 @@
     state->rpc = nc_rpc_getconfig(ds, filter, wd, NC_PARAMTYPE_CONST); \
     state->msgtype = nc_send_rpc(state->nc_sess, state->rpc, 1000, &state->msgid); \
     assert_int_equal(NC_MSG_RPC, state->msgtype); \
-    state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 2000, &state->envp, &state->op); \
+    state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
     assert_non_null(state->op); \
     assert_non_null(state->envp); \
@@ -93,7 +93,7 @@
     state->rpc = nc_rpc_get(filter, NC_WD_ALL, NC_PARAMTYPE_CONST); \
     state->msgtype = nc_send_rpc(state->nc_sess, state->rpc, 1000, &state->msgid); \
     assert_int_equal(NC_MSG_RPC, state->msgtype); \
-    state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 2000, &state->envp, &state->op); \
+    state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
     assert_non_null(state->op); \
     assert_non_null(state->envp); \
@@ -149,7 +149,7 @@
 
 #define ASSERT_OK_SUB_NTF(state) \
     do { \
-        st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op); \
+        st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 3000, &st->envp, &st->op); \
     } while (st->msgtype == NC_MSG_NOTIF); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
     if (!state->op) { \
