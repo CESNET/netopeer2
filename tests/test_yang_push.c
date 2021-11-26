@@ -138,7 +138,6 @@ test_periodic_basic(void **state)
             "</push-update>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
     assert_string_equal(st->str, ntf);
-    free(ntf);
     FREE_TEST_VARS(st);
 
     /* put some data into the datastore */
@@ -163,6 +162,7 @@ test_periodic_basic(void **state)
             "    <first xmlns=\"ed1\">TestFirst</first>\n"
             "  </datastore-contents>\n"
             "</push-update>\n";
+    free(ntf);
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
     FREE_TEST_VARS(st);
 
