@@ -1,0 +1,24 @@
+From: =?utf-8?b?T25kxZllaiBTdXLDvQ==?= <ondrej@sury.org>
+Date: Fri, 26 Nov 2021 13:34:13 +0100
+Subject: Allow overriding openssl binary path
+
+---
+ scripts/merge_hostkey.sh | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/scripts/merge_hostkey.sh b/scripts/merge_hostkey.sh
+index 791ea61..65383ec 100755
+--- a/scripts/merge_hostkey.sh
++++ b/scripts/merge_hostkey.sh
+@@ -12,8 +12,10 @@ else
+     SYSREPOCFG=`which sysrepocfg`
+ fi
+ 
++if [ -n "$OPENSSL_EXECUTABLE" ]; then
++    OPENSSL="$OPENSSL_EXECUTABLE"
+ # avoid problems with sudo PATH
+-if [ `id -u` -eq 0 ]; then
++elif [ `id -u` -eq 0 ]; then
+     OPENSSL=`su -c 'which openssl' -l $USER`
+ else
+     OPENSSL=`which openssl`

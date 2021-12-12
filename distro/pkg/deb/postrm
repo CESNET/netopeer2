@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-
-{% include 'scripts/remove.sh' %}
-
-groupdel netconf

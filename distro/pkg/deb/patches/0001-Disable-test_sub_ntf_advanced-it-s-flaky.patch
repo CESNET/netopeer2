@@ -1,0 +1,21 @@
+From: =?utf-8?b?T25kxZllaiBTdXLDvQ==?= <ondrej@sury.org>
+Date: Fri, 26 Nov 2021 13:20:30 +0100
+Subject: Disable test_sub_ntf_advanced; it's flaky
+
+---
+ tests/CMakeLists.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tests/CMakeLists.txt b/tests/CMakeLists.txt
+index 60209ed..32dc9d4 100644
+--- a/tests/CMakeLists.txt
++++ b/tests/CMakeLists.txt
+@@ -37,7 +37,7 @@ set(test_sources "np_test.c")
+ 
+ # list of all the tests
+ set(tests test_rpc test_edit test_filter test_subscribe_filter test_subscribe_param test_parallel_sessions
+-    test_candidate test_with_defaults test_nacm test_sub_ntf test_sub_ntf_advanced test_sub_ntf_filter test_yang_push
++    test_candidate test_with_defaults test_nacm test_sub_ntf test_sub_ntf_filter test_yang_push
+     test_yang_push_advanced test_confirmed_commit)
+ 
+ # append url if supported

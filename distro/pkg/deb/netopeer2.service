@@ -1,0 +1,17 @@
+[Unit]
+Description=server for implementing network configuration management
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/netopeer2-server -d -v 1
+PIDFile=/run/netopeer2-server.pid
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=yes
+ProtectHome=yes
+SystemCallArchitectures=native
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
