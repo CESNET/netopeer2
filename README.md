@@ -110,11 +110,14 @@ to create it.
 
 ### CLI
 
-A command-line NETCONF client `netopeer2-cli` is included and build/installed by default. This can be
+A simple command-line NETCONF client `netopeer2-cli` is included and build/installed by default. This can be
 adjusted by an option:
 ```
 BUILD_CLI:ON
 ```
+
+There is also a separate [netconf-cli](https://github.com/CESNET/netconf-cli) project that you may want to
+give a try if you need an advanced and more user-friendly command-line NETCONF client.
 
 ### Tests
 
