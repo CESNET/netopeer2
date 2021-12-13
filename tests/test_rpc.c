@@ -365,6 +365,11 @@ test_getconfig(void **state)
     const char *expected;
     char *configuration;
 
+    if (is_nacm_rec_uid()) {
+        puts("Skipping the test.");
+        return;
+    }
+
     /* Try getting configuration */
     st->rpc = nc_rpc_getconfig(NC_DATASTORE_RUNNING, NULL, NC_WD_ALL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);

@@ -717,6 +717,11 @@ test_autodel_case(void **state)
 int
 main(int argc, char **argv)
 {
+    if (is_nacm_rec_uid()) {
+        puts("Running as NACM_RECOVERY_UID. Tests will not run correctly as this user bypases NACM. Skipping.");
+        return 0;
+    }
+
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_teardown(test_merge_edit1, teardown_common),
         cmocka_unit_test_teardown(test_merge_edit2, teardown_common),

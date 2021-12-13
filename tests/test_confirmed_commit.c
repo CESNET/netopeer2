@@ -550,6 +550,11 @@ teardown_test_failed_file(void **state)
 int
 main(int argc, char **argv)
 {
+    if (is_nacm_rec_uid()) {
+        puts("Running as NACM_RECOVERY_UID. Tests will not run correctly as this user bypases NACM. Skipping.");
+        return 0;
+    }
+
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_basic),
         cmocka_unit_test_setup_teardown(test_sameas_commit, setup_common, teardown_common),
