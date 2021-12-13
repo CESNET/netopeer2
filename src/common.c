@@ -1254,7 +1254,7 @@ op_filter_data_filter(struct lyd_node **data, const struct np2_filter *filter, i
         has_filter = 1;
 
         /* apply content (or even selection) filter */
-        if (lyd_find_xpath(*data, filter->filters[i].str, &set)) {
+        if (lyd_find_xpath3(NULL, *data, filter->filters[i].str, NULL, &set)) {
             rc = SR_ERR_LY;
             goto cleanup;
         }

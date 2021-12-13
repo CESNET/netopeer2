@@ -46,6 +46,8 @@ endif()
 set(NP2SRV_VERSION 2.1.2)
 
 # libyang required SO version
+set(LIBYANG_DEP_VERSION 2.0.128)
+set(LIBYANG_DEP_SOVERSION 2.14.0)
 set(LIBYANG_DEP_SOVERSION_MAJOR 2)
 
 # libnetconf2 required SO version
@@ -281,7 +283,7 @@ target_link_libraries(netopeer2-server ${CMAKE_THREAD_LIBS_INIT})
 list(APPEND CMAKE_REQUIRED_FLAGS ${CMAKE_THREAD_LIBS_INIT})
 
 # libyang
-find_package(LibYANG ${LIBYANG_DEP_SOVERSION_MAJOR} REQUIRED)
+find_package(LibYANG ${LIBYANG_DEP_SOVERSION} REQUIRED)
 target_link_libraries(netopeer2-server ${LIBYANG_LIBRARIES})
 include_directories(${LIBYANG_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBYANG_INCLUDE_DIRS})
