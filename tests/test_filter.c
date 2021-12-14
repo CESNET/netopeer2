@@ -869,6 +869,46 @@ test_get_operational_data(void **state)
     FREE_TEST_VARS(st);
 }
 
+static void
+test_getdata_operational_data(void **state)
+{
+    struct np_test *st = *state;
+    char *filter, *expected;
+
+    filter =
+            "<hardware xmlns=\"i1\">\n"
+            "  <component>\n"
+            "    <class>O-RAN-RADIO</class>\n"
+            "    <serial-num>1234</serial-num>\n"
+            "    <feature>\n"
+            "      <wireless>true</wireless>\n"
+            "    </feature>\n"
+            "  </component>\n"
+            "</hardware>\n";
+
+    GET_DATA_FILTER(st, "ietf-datastores:operational", filter, NULL, NULL, 0, 0, 0, 0, NC_WD_ALL);
+
+    expected =
+            "<get-data xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-nmda\">\n"
+            "  <data>\n"
+            "    <hardware xmlns=\"i1\">\n"
+            "      <component>\n"
+            "        <name>ComponentName</name>\n"
+            "        <class>O-RAN-RADIO</class>\n"
+            "        <serial-num>1234</serial-num>\n"
+            "        <feature>\n"
+            "          <wireless>true</wireless>\n"
+            "        </feature>\n"
+            "      </component>\n"
+            "    </hardware>\n"
+            "  </data>\n"
+            "</get-data>\n";
+
+    assert_string_equal(st->str, expected);
+
+    FREE_TEST_VARS(st);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -885,6 +925,7 @@ main(int argc, char **argv)
         cmocka_unit_test(test_get_containment_node),
         cmocka_unit_test(test_get_content_match_node),
         cmocka_unit_test(test_get_operational_data),
+		cmocka_unit_test(test_getdata_operational_data),
     };
 
     nc_verbosity(NC_VERB_WARNING);

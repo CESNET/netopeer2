@@ -122,6 +122,17 @@
     assert_string_equal(LYD_NAME(lyd_child(state->op)), "data"); \
     assert_int_equal(LY_SUCCESS, lyd_print_mem(&state->str, state->op, LYD_XML, 0));
 
+#define GET_DATA_FILTER(state, ds, filter, config_filter, origin_filter, origin_filter_count, neg_origin_filter, max_depth, with_origin, wd_mode) \
+    state->rpc = nc_rpc_getdata(ds, filter, config_filter, origin_filter, origin_filter_count, neg_origin_filter, max_depth, with_origin, wd_mode, NC_PARAMTYPE_CONST); \
+    state->msgtype = nc_send_rpc(state->nc_sess, state->rpc, 1000, &state->msgid); \
+    assert_int_equal(NC_MSG_RPC, state->msgtype); \
+    state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 2000, &state->envp, &state->op); \
+    assert_int_equal(state->msgtype, NC_MSG_REPLY); \
+    assert_non_null(state->op); \
+    assert_non_null(state->envp); \
+    assert_string_equal(LYD_NAME(lyd_child(state->op)), "data"); \
+    assert_int_equal(LY_SUCCESS, lyd_print_mem(&state->str, state->op, LYD_XML, 0));
+
 #define SEND_EDIT_RPC_DS(state, ds, config) \
     state->rpc = nc_rpc_edit(ds, NC_RPC_EDIT_DFLTOP_MERGE, NC_RPC_EDIT_TESTOPT_SET, NC_RPC_EDIT_ERROPT_ROLLBACK, \
             config, NC_PARAMTYPE_CONST); \
