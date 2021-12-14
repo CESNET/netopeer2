@@ -357,6 +357,13 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         return nc_server_reply_err(e);
     }
 
+    /* use default lnc2 callbacks when available */
+    if (!strcmp(LYD_NAME(rpc), "get-schema") && !strcmp(lyd_owner_module(rpc)->name, "ietf-netconf-monitoring")) {
+        return nc_clb_default_get_schema(rpc, ncs);
+    } else if (!strcmp(LYD_NAME(rpc), "close-session") && !strcmp(lyd_owner_module(rpc)->name, "ietf-netconf")) {
+        return nc_clb_default_close_session(rpc, ncs);
+    }
+
     /* get this user session with its originator data, no need to use ref-count */
     user_sess = nc_session_get_data(ncs);
 

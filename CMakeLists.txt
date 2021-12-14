@@ -45,15 +45,17 @@ endif()
 # micro version is changed with a set of small changes or bugfixes anywhere in the project.
 set(NP2SRV_VERSION 2.1.3)
 
-# libyang required SO version
+# libyang required version
 set(LIBYANG_DEP_VERSION 2.0.128)
 set(LIBYANG_DEP_SOVERSION 2.14.0)
 set(LIBYANG_DEP_SOVERSION_MAJOR 2)
 
-# libnetconf2 required SO version
+# libnetconf2 required version
+set(LIBNETCONF2_DEP_VERSION 2.1.3)
+set(LIBNETCONF2_DEP_SOVERSION 3.1.0)
 set(LIBNETCONF2_DEP_SOVERSION_MAJOR 3)
 
-# Version of sysrepo that this netopeer2 version depends on
+# sysrepo required version
 set(SYSREPO_DEP_VERSION 2.1.0)
 set(SYSREPO_DEP_SOVERSION 7.0.0)
 set(SYSREPO_DEP_SOVERSION_MAJOR 7)
@@ -217,7 +219,7 @@ if(LIBSSH_FOUND)
 endif()
 
 # dependencies - libnetconf2 (now, because we need to configure outselves based on it)
-find_package(LibNETCONF2 ${LIBNETCONF2_DEP_SOVERSION_MAJOR} REQUIRED)
+find_package(LibNETCONF2 ${LIBNETCONF2_DEP_SOVERSION} REQUIRED)
 include_directories(${LIBNETCONF2_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBNETCONF2_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBNETCONF2_LIBRARIES})
