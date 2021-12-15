@@ -997,7 +997,7 @@ static int
 filter_xpath_buf_add_r(const struct lyd_node *node, char **buf, int size, struct np2_filter *filter)
 {
     const struct lyd_node *child;
-    int s, only_content_match;
+    int s, only_content_match, selection;
 
     /* containment node or selection node */
     size = filter_xpath_buf_append_node(node, buf, size);
@@ -1053,7 +1053,8 @@ filter_xpath_buf_add_r(const struct lyd_node *node, char **buf, int size, struct
                 return -1;
             }
 
-            if (op_filter_xpath_add_filter(*buf, 1, filter)) {
+            selection = (lyd_get_value(child) && !strws(lyd_get_value(child))) ? 0 : 1;
+            if (op_filter_xpath_add_filter(*buf, selection, filter)) {
                 return -1;
             }
         }
