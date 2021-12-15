@@ -925,7 +925,7 @@ main(int argc, char **argv)
         cmocka_unit_test(test_get_containment_node),
         cmocka_unit_test(test_get_content_match_node),
         cmocka_unit_test(test_get_operational_data),
-		cmocka_unit_test(test_getdata_operational_data),
+        cmocka_unit_test(test_getdata_operational_data),
     };
 
     nc_verbosity(NC_VERB_WARNING);
