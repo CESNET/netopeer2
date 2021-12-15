@@ -338,7 +338,7 @@ ncac_remove_rules(struct ncac_rule_list *list)
  * @param[in] idx Index of the item to get.
  * @return Pointer to the item at index.
  */
-#define ITEM_IDX_PTR(items, item_size, idx) (char **)(((uint64_t)(uintptr_t)items) + ((idx) * (item_size)))
+#define ITEM_IDX_PTR(items, item_size, idx) (char **)(((uintptr_t)items) + ((idx) * (item_size)))
 
 /**
  * @brief Compare callback for sorting functions like qsort(3) and bsearch(3).
@@ -383,7 +383,7 @@ ncac_strarr_sort_find(const char **item, size_t item_size, char **items, uint32_
 
     m = bsearch(item, items, item_count, item_size, ncac_sort_strcmp_cb);
     if (m) {
-        idx = ((uint64_t)(uintptr_t)m - (uint64_t)(uintptr_t)items) / item_size;
+        idx = ((uintptr_t)m - (uintptr_t)items) / item_size;
     }
 
     return idx;
