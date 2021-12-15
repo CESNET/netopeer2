@@ -1149,15 +1149,8 @@ op_filter_filter2xpath(const struct np2_filter *filter, char **xpath)
 
     *xpath = NULL;
 
-    /* all selection filters first */
+    /* combine all filters into one */
     for (i = 0; i < filter->count; ++i) {
-        if (!filter->filters[i].selection && (filter->count > 1)) {
-            ERR("Several top-level content match filters are not supported as they are redundant.");
-            rc = SR_ERR_UNSUPPORTED;
-            goto error;
-        }
-
-        /* put all selection filters into parentheses */
         if (!*xpath) {
             if (np_append_str("(", xpath)) {
                 rc = SR_ERR_NO_MEMORY;
