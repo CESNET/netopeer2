@@ -18,6 +18,7 @@
 
 #include <setjmp.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -120,7 +121,7 @@ test_lock_fail(void **state)
     template =
             "<rpc-reply "
             "xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
-            "message-id=\"%ld\">\n"
+            "message-id=\"%" PRIu64 "\">\n"
             "  <rpc-error>\n"
             "    <error-type>protocol</error-type>\n"
             "    <error-tag>lock-denied</error-tag>\n"
@@ -128,7 +129,7 @@ test_lock_fail(void **state)
             "    <error-message xml:lang=\"en\">Access to the requested lock is denied"
             " because the lock is currently held by another entity.</error-message>\n"
             "    <error-info>\n"
-            "      <session-id>%d</session-id>\n"
+            "      <session-id>%" PRIu32 "</session-id>\n"
             "    </error-info>\n"
             "  </rpc-error>\n"
             "</rpc-reply>\n";
@@ -251,7 +252,7 @@ test_unlock_fail(void **state)
     template =
             "<rpc-reply "
             "xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
-            "message-id=\"%ld\">\n"
+            "message-id=\"%" PRIu64 "\">\n"
             "  <rpc-error>\n"
             "    <error-type>protocol</error-type>\n"
             "    <error-tag>lock-denied</error-tag>\n"
@@ -259,7 +260,7 @@ test_unlock_fail(void **state)
             "    <error-message xml:lang=\"en\">Access to the requested lock is denied"
             " because the lock is currently held by another entity.</error-message>\n"
             "    <error-info>\n"
-            "      <session-id>%d</session-id>\n"
+            "      <session-id>%" PRIu32 "</session-id>\n"
             "    </error-info>\n"
             "  </rpc-error>\n"
             "</rpc-reply>\n";
@@ -310,7 +311,7 @@ test_kill(void **state)
     get_username(&username);
     template =
             "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
-            "message-id=\"%ld\">\n"
+            "message-id=\"%" PRIu64 "\">\n"
             "  <rpc-error>\n"
             "    <error-type>application</error-type>\n"
             "    <error-tag>access-denied</error-tag>\n"
