@@ -445,7 +445,7 @@ test_stop_time_sub_end(void **state)
     struct timespec ts;
     char *start_time, *stop_time;
 
-    /* Needed for stopTime */
+    /* needed for stopTime */
     assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &start_time));
 
@@ -453,34 +453,37 @@ test_stop_time_sub_end(void **state)
     assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
 
-    /* Subscribe to notfications */
+    /* subscribe to notfications */
     reestablish_sub(state, NULL, start_time, stop_time);
     free(start_time);
     free(stop_time);
 
-    /* Receive the notification and test the contents */
+    /* receive the notification and test the contents */
     RECV_NOTIF(st);
     data = "<replayComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
     assert_string_equal(data, st->str);
     FREE_TEST_VARS(st);
 
-    /* Receive the notification and test the contents */
+    /* receive the notification and test the contents */
     RECV_NOTIF(st);
     data = "<notificationComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
     assert_string_equal(data, st->str);
     FREE_TEST_VARS(st);
 
-    /* Subsription should have ended now due to stop time, try to create a new one */
+    /* wait a bit to increase chances that the subscription thread was scheduled and the subscription finished due to stop time */
+    usleep(10000);
+
+    /* create new subscription */
     st->rpc = nc_rpc_subscribe(NULL, NULL, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
-    /* Check reply */
+    /* check reply */
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
-    /* Try sending a notfication real time on new session */
-    /* Send the notification */
+    /* try sending a notfication real time on new session */
+    /* send the notification */
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Second</first>\n"
@@ -489,7 +492,7 @@ test_stop_time_sub_end(void **state)
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
 
-    /* Receive the notification and test the contents */
+    /* receive the notification and test the contents */
     RECV_NOTIF(st);
     assert_string_equal(data, st->str);
     FREE_TEST_VARS(st);
