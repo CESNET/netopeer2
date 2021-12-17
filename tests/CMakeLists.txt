@@ -24,7 +24,7 @@ add_test(NAME headers
 
 # format
 if (${SOURCE_FORMAT_ENABLED})
-    add_test(NAME format WORKING_DIRECTORY ${CMAKE_BINARY_DIR} COMMAND make format-check)
+    add_test(NAME format WORKING_DIRECTORY ${CMAKE_BINARY_DIR} COMMAND cmake --build ${CMAKE_BINARY_DIR} --target format-check)
 endif()
 
 # include dirs
