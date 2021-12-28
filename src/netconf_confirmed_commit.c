@@ -675,7 +675,7 @@ set_running_backup(void)
         }
 
         /* Check if has both read and write permission for module in sysrepo */
-        if ((rc = sr_check_module_ds_access(np2srv.sr_conn, "edit1", SR_DS_RUNNING, &read, &write))) {
+        if ((rc = sr_check_module_ds_access(np2srv.sr_conn, module->name, SR_DS_RUNNING, &read, &write))) {
             ERR("Failed getting permissions of module \"%s\".", module->name);
             goto cleanup;
         }
