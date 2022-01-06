@@ -461,8 +461,10 @@ cleanup:
 static void
 ncc_commit_confirmed(void)
 {
-    timer_delete(commit_ctx.timer);
-    commit_ctx.timer = 0;
+    if (commit_ctx.timer) {
+        timer_delete(commit_ctx.timer);
+        commit_ctx.timer = 0;
+    }
     clean_backup_directory();
 }
 
