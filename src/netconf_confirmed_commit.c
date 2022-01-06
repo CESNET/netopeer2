@@ -906,11 +906,21 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     if (node) {
         persist_id = lyd_get_value(node);
     }
+
     /* LOCK */
     pthread_mutex_lock(&commit_ctx.lock);
+
+    /* check there is a confirmed commit to cancel */
+    if (!commit_ctx.timer) {
+        np_err_invalid_value(session, "No pending confirmed commit to cancel.", NULL);
+        rc = SR_ERR_INVAL_ARG;
+        goto cleanup;
+    }
+
+    /* check persist-id */
     persist = commit_ctx.persist;
     if ((persist && !persist_id) || (!persist && persist_id) || (persist && persist_id && strcmp(persist, persist_id))) {
-        np_err_invalid_value(session, "Confirming commit does not match pending confirmed commit.", persist_id);
+        np_err_invalid_value(session, "Cancel commit does not match pending confirmed commit.", persist_id);
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
     }

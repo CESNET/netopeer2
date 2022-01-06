@@ -315,6 +315,15 @@ test_cancel(void **state)
     /* Prior to the test running should be empty */
     ASSERT_EMPTY_CONFIG(st);
 
+    /* Send cancel-commit rpc, should fail as there is no commit */
+    st->rpc = nc_rpc_cancel(NULL, NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+
+    /* Check if received an error reply */
+    ASSERT_RPC_ERROR(st);
+    FREE_TEST_VARS(st);
+
     /* Send a confirmed-commit rpc with 10m timeout */
     st->rpc = nc_rpc_commit(1, 0, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
