@@ -5,4 +5,13 @@ module edit1 {
   leaf first {
     type string;
   }
+
+  container cont {
+    leaf second {
+      type empty;
+    }
+    leaf third {
+      type uint32;
+    }
+  }
 }

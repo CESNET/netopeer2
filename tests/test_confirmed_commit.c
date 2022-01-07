@@ -106,7 +106,8 @@ teardown_common(void **state)
 {
     struct np_test *st = *state;
     const char *data =
-            "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
+            "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>"
+            "<cont xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
 
     SR_EDIT_SESSION(st, st->sr_sess, data);
     FREE_TEST_VARS(st);
@@ -310,30 +311,35 @@ static void
 test_cancel(void **state)
 {
     struct np_test *st = *state;
-    const char *expected;
+    const char *expected, *data;
 
-    /* Prior to the test running should be empty */
+    /* prior to the test running should be empty */
     ASSERT_EMPTY_CONFIG(st);
 
-    /* Send cancel-commit rpc, should fail as there is no commit */
+    /* send cancel-commit rpc, should fail as there is no commit */
     st->rpc = nc_rpc_cancel(NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
 
-    /* Check if received an error reply */
+    /* check if received an error reply */
     ASSERT_RPC_ERROR(st);
     FREE_TEST_VARS(st);
 
-    /* Send a confirmed-commit rpc with 10m timeout */
+    /* edit running */
+    data = "<first xmlns=\"ed1\">val</first><cont xmlns=\"ed1\"><second/><third>5</third></cont>";
+    SR_EDIT_SESSION(st, st->sr_sess, data);
+    FREE_TEST_VARS(st);
+
+    /* send a confirmed-commit rpc with 10m timeout */
     st->rpc = nc_rpc_commit(1, 0, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
 
-    /* Check if received an OK reply */
+    /* check if received an OK reply */
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
-    /* Running should now be same as candidate */
+    /* running should now be same as candidate */
     GET_CONFIG(st);
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -344,17 +350,29 @@ test_cancel(void **state)
     assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
 
-    /* Send cancel-commit rpc */
+    /* send cancel-commit rpc */
     st->rpc = nc_rpc_cancel(NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
 
-    /* Check if received an OK reply */
+    /* check if received an OK reply */
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
-    /* Running should now be empty */
-    ASSERT_EMPTY_CONFIG(st);
+    /* running should now be back how it was */
+    GET_CONFIG(st);
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <first xmlns=\"ed1\">val</first>\n"
+            "    <cont xmlns=\"ed1\">\n"
+            "      <second/>\n"
+            "      <third>5</third>\n"
+            "    </cont>\n"
+            "  </data>\n"
+            "</get-config>\n";
+    assert_string_equal(st->str, expected);
+    FREE_TEST_VARS(st);
 }
 
 static void

@@ -516,7 +516,7 @@ backup_module(sr_session_ctx_t *session, const struct lys_module *module)
         rc = SR_ERR_NO_MEMORY;
         goto cleanup;
     }
-    if (lyd_print_path(path, data ? data->tree : NULL, LYD_JSON, LY_PRINT_SHRINK)) {
+    if (lyd_print_path(path, data ? data->tree : NULL, LYD_JSON, LYD_PRINT_WITHSIBLINGS | LYD_PRINT_SHRINK)) {
         ERR("Failed backing up node of module \"%s\" into file \"%s\".", module->name, path);
         rc = SR_ERR_LY;
         goto cleanup;
