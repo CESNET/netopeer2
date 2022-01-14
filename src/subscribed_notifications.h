@@ -55,14 +55,24 @@ struct sub_ntf_data {
 
 /**
  * @brief Called on establish-subscription RPC, should create any required sysrepo subscriptions and type-specific data.
- * sub-ntf lock held.
+ * sub-ntf lock NOT held, @p sub not yet in subscriptions.
  *
  * @param[in] ev_sess Event session.
  * @param[in] rpc RPC data.
- * @param[in,out] sub Subscription structure to fill.
+ * @param[in,out] sub Subscription structure to prepare.
  * @return Sysrepo error value.
  */
-int sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct np2srv_sub_ntf *sub);
+int sub_ntf_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct np2srv_sub_ntf *sub);
+
+/**
+ * @brief Called on establish-subscription RPC, should start any asynchronous tasks.
+ * sub-ntf lock held.
+ *
+ * @param[in] ev_sess Event session.
+ * @param[in,out] sub Prepared subscription structure.
+ * @return Sysrepo error value.
+ */
+int sub_ntf_rpc_establish_sub_start_async(sr_session_ctx_t *ev_sess, struct np2srv_sub_ntf *sub);
 
 /**
  * @brief Called on modify-subscription RPC, should update sysrepo subscriptions and type-specific data accordingly.

@@ -87,7 +87,9 @@ struct yang_push_data {
 };
 
 /* for documentation, see subscribed_notifications.h */
-int yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct np2srv_sub_ntf *sub);
+int yang_push_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct np2srv_sub_ntf *sub);
+
+int yang_push_rpc_establish_sub_start_async(sr_session_ctx_t *ev_sess, struct np2srv_sub_ntf *sub);
 
 int yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct timespec stop,
         struct np2srv_sub_ntf *sub);

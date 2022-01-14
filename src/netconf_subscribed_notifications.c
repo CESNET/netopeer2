@@ -244,41 +244,27 @@ sub_ntf_inc_denied(uint32_t nc_sub_id)
 }
 
 /**
- * @brief Add a subscription into internal subscriptions.
+ * @brief Add a prepared and valid subscription into internal subscriptions.
  *
- * @param[in] nc_id NETCONF SID of the session creating this subscription.
- * @param[in] nc_sub_id NETCONF subscription ID.
- * @param[in] term_reason Default termination reason.
- * @param[in] stop_time Subscription stop time.
- * @param[in] type Subscription type.
- * @param[out] sub_p Created subscription.
+ * @param[in] sub Subscription to add.
+ * @param[out] sub_p Pointer to the stored subscription.
  * @return 0 on success.
  * @return -1 on error.
  */
 static int
-sub_ntf_new(uint32_t nc_id, uint32_t nc_sub_id, const char *term_reason, struct timespec stop_time, enum sub_ntf_type type,
-        struct np2srv_sub_ntf **sub_p)
+sub_ntf_add(const struct np2srv_sub_ntf *sub, struct np2srv_sub_ntf **sub_p)
 {
     void *mem;
-    struct np2srv_sub_ntf *sub;
 
     mem = realloc(info.subs, (info.count + 1) * sizeof *info.subs);
     if (!mem) {
         return -1;
     }
     info.subs = mem;
-    sub = &info.subs[info.count];
-    memset(sub, 0, sizeof *sub);
 
-    /* fill known members */
-    sub->nc_id = nc_id;
-    sub->nc_sub_id = nc_sub_id;
-    sub->term_reason = term_reason;
-    sub->stop_time = stop_time;
-    sub->type = type;
-
+    info.subs[info.count] = *sub;
+    *sub_p = &info.subs[info.count];
     ++info.count;
-    *sub_p = sub;
 
     return 0;
 }
@@ -347,7 +333,7 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
 {
     struct lyd_node *node;
     struct nc_session *ncs;
-    struct np2srv_sub_ntf *sub;
+    struct np2srv_sub_ntf sub = {0}, *sub_p;
     char id_str[11];
     struct timespec stop = {0};
     int r, rc, ntf_status = 0;
@@ -396,26 +382,43 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     /* get new NC sub ID */
     nc_sub_id = ATOMIC_INC_RELAXED(new_nc_sub_id);
 
-    /* WRITE LOCK */
-    INFO_WLOCK;
-
-    /* allocate a new subscription */
+    /* prepare a new subscription */
     sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_id);
-    if (sub_ntf_new(*nc_id, nc_sub_id, "ietf-subscribed-notifications:no-such-subscription", stop, type, &sub)) {
-        rc = SR_ERR_INTERNAL;
-        goto error_unlock;
-    }
+    sub.nc_id = *nc_id;
+    sub.nc_sub_id = nc_sub_id;
+    sub.term_reason = "ietf-subscribed-notifications:no-such-subscription";
+    sub.stop_time = stop;
+    sub.type = type;
 
     /* create sysrepo subscriptions and type-specific data */
     switch (type) {
     case SUB_TYPE_SUB_NTF:
-        rc = sub_ntf_rpc_establish_sub(session, input, sub);
+        rc = sub_ntf_rpc_establish_sub_prepare(session, input, &sub);
         break;
     case SUB_TYPE_YANG_PUSH:
-        rc = yang_push_rpc_establish_sub(session, input, sub);
+        rc = yang_push_rpc_establish_sub_prepare(session, input, &sub);
         break;
     }
-    if (rc != SR_ERR_OK) {
+    if (rc) {
+        goto error;
+    }
+
+    /* WRITE LOCK */
+    INFO_WLOCK;
+
+    /* add into subscriptions, is not accessible before */
+    sub_ntf_add(&sub, &sub_p);
+
+    /* start even asynchronous tasks that may access subscriptions and require lock to be held now */
+    switch (type) {
+    case SUB_TYPE_SUB_NTF:
+        rc = sub_ntf_rpc_establish_sub_start_async(session, sub_p);
+        break;
+    case SUB_TYPE_YANG_PUSH:
+        rc = yang_push_rpc_establish_sub_start_async(session, sub_p);
+        break;
+    }
+    if (rc) {
         goto error_unlock;
     }
 

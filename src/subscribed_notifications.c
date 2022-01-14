@@ -252,16 +252,16 @@ error:
     for (idx = 0; idx < *sub_id_count; ++idx) {
         sr_unsubscribe_sub(np2srv.sr_notif_sub, (*sub_ids)[idx]);
     }
+    if (suspended) {
+        /* resume subscription thread */
+        sr_subscription_thread_resume(np2srv.sr_notif_sub);
+    }
     free(*sub_ids);
     *sub_ids = NULL;
     *sub_id_count = 0;
 
 cleanup:
     sr_session_release_context(user_sess);
-    if (suspended) {
-        /* resume subscription thread */
-        sr_subscription_thread_resume(np2srv.sr_notif_sub);
-    }
     ly_set_erase(&mod_set, NULL);
     return rc;
 }
@@ -388,7 +388,7 @@ cleanup:
 }
 
 int
-sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct np2srv_sub_ntf *sub)
+sub_ntf_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct np2srv_sub_ntf *sub)
 {
     struct lyd_node *node, *stream_subtree_filter = NULL;
     struct nc_session *ncs;
@@ -484,6 +484,15 @@ cleanup:
         sub_ntf_data_destroy(sn_data);
     }
     return rc;
+}
+
+int
+sub_ntf_rpc_establish_sub_start_async(sr_session_ctx_t *UNUSED(ev_sess), struct np2srv_sub_ntf *UNUSED(sub))
+{
+    /* resume subscription thread */
+    sr_subscription_thread_resume(np2srv.sr_notif_sub);
+
+    return 0;
 }
 
 int

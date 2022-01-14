@@ -976,7 +976,7 @@ yang_push_create_timer(void (*cb)(union sigval), void *arg, int force_real, time
 }
 
 int
-yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct np2srv_sub_ntf *sub)
+yang_push_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct np2srv_sub_ntf *sub)
 {
     struct lyd_node *node, *child, *datastore_subtree_filter = NULL;
     struct nc_session *ncs;
@@ -986,10 +986,8 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
     const char *selection_filter_ref = NULL, *datastore_xpath_filter = NULL;
     sr_datastore_t datastore;
     char *xp = NULL;
-    uint32_t i, period, dampening_period, sub_id_count;
-    int64_t anchor_msec;
+    uint32_t i, period, dampening_period;
     int rc = SR_ERR_OK, periodic, sync_on_start, excluded_change[YP_OP_OPERATION_COUNT] = {0};
-    struct itimerspec trspec = {0};
     struct timespec anchor_time = {0};
 
     /* get the NETCONF session and user session */
@@ -1076,7 +1074,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
     yp_data->cb_arg.yp_data = yp_data;
     yp_data->cb_arg.nc_sub_id = sub->nc_sub_id;
 
-    if (periodic) {
+    if (yp_data->periodic) {
         yp_data->period_ms = period * 10;
         yp_data->anchor_time = anchor_time;
     } else {
@@ -1107,7 +1105,42 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
+    }
 
+    if (yp_data->periodic) {
+        /* create update timer */
+        rc = yang_push_create_timer(yang_push_update_timer_cb, &yp_data->cb_arg, 1, &yp_data->update_timer);
+        if (rc != SR_ERR_OK) {
+            goto cleanup;
+        }
+    }
+
+cleanup:
+    free(xp);
+    np_release_user_sess(user_sess);
+    if (rc) {
+        yang_push_data_destroy(yp_data);
+    }
+    return rc;
+}
+
+int
+yang_push_rpc_establish_sub_start_async(sr_session_ctx_t *ev_sess, struct np2srv_sub_ntf *sub)
+{
+    struct np2_user_sess *user_sess = NULL;
+    struct nc_session *ncs;
+    struct yang_push_data *yp_data = sub->data;
+    uint32_t sub_id_count;
+    int64_t anchor_msec;
+    int rc = SR_ERR_OK;
+    struct itimerspec trspec = {0};
+
+    /* get the NETCONF session and user session */
+    if ((rc = np_get_user_sess(ev_sess, &ncs, &user_sess))) {
+        goto cleanup;
+    }
+
+    if (sub->stop_time.tv_sec) {
         /* schedule subscription stop */
         trspec.it_value = sub->stop_time;
         if (timer_settime(yp_data->stop_timer, TIMER_ABSTIME, &trspec, NULL) == -1) {
@@ -1116,13 +1149,7 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
         }
     }
 
-    if (periodic) {
-        /* create update timer */
-        rc = yang_push_create_timer(yang_push_update_timer_cb, &yp_data->cb_arg, 1, &yp_data->update_timer);
-        if (rc != SR_ERR_OK) {
-            goto cleanup;
-        }
-
+    if (yp_data->periodic) {
         /* schedule the periodic updates */
         trspec.it_value = np_gettimespec(1);
         if (yp_data->anchor_time.tv_sec) {
@@ -1152,8 +1179,8 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
 
         /* subscribe to sysrepo module data changes */
         sub_id_count = 0;
-        rc = yang_push_sr_subscribe(user_sess->sess, datastore, yp_data->xpath, &yp_data->cb_arg, ev_sess, &sub->sub_ids,
-                &sub_id_count);
+        rc = yang_push_sr_subscribe(user_sess->sess, yp_data->datastore, yp_data->xpath, &yp_data->cb_arg, ev_sess,
+                &sub->sub_ids, &sub_id_count);
         ATOMIC_STORE_RELAXED(sub->sub_id_count, sub_id_count);
         if (rc != SR_ERR_OK) {
             goto cleanup;
@@ -1161,7 +1188,6 @@ yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rp
     }
 
 cleanup:
-    free(xp);
     np_release_user_sess(user_sess);
     if (rc) {
         yang_push_data_destroy(yp_data);
