@@ -232,12 +232,12 @@ np_ly_mod_has_data(const struct lys_module *mod, uint32_t config_mask)
     const struct lysc_node *root, *node;
 
     LY_LIST_FOR(mod->compiled->data, root) {
-        LYSC_TREE_DFS_BEGIN(mod->compiled->data, node) {
+        LYSC_TREE_DFS_BEGIN(root, node) {
             if (node->flags & config_mask) {
                 return 1;
             }
 
-            LYSC_TREE_DFS_END(mod->compiled->data, node);
+            LYSC_TREE_DFS_END(root, node);
         }
     }
 
