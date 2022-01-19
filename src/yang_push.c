@@ -646,8 +646,8 @@ yang_push_sr_subscribe_filter_collect_mods(const struct ly_ctx *ly_ctx, const ch
         }
         ly_mod = snode->module;
 
-        if (!ly_mod->implemented || !strcmp(ly_mod->name, "ietf-netconf")) {
-            /* skip import-only modules and ietf-netconf (as it has no data, only in libyang) */
+        if (!ly_mod->implemented || !strcmp(ly_mod->name, "sysrepo") || !strcmp(ly_mod->name, "ietf-netconf")) {
+            /* skip import-only modules, sysrepo, and ietf-netconf (as it has no data, only in libyang) */
             continue;
         }
 
@@ -695,7 +695,7 @@ yang_push_sr_subscribe(sr_session_ctx_t *user_sess, sr_datastore_t ds, const cha
         /* subscribe to all modules with (configuration) data */
         idx = 0;
         while ((ly_mod = ly_ctx_get_module_iter(ly_ctx, &idx))) {
-            if (!ly_mod->implemented) {
+            if (!ly_mod->implemented || !strcmp(ly_mod->name, "sysrepo") || !strcmp(ly_mod->name, "ietf-netconf")) {
                 continue;
             }
 
