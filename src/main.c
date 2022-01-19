@@ -658,11 +658,6 @@ server_destroy(void)
 {
     struct nc_session *sess;
 
-    /* stop subscriptions */
-    sr_unsubscribe(np2srv.sr_rpc_sub);
-    sr_unsubscribe(np2srv.sr_data_sub);
-    sr_unsubscribe(np2srv.sr_notif_sub);
-
 #if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
     /* remove all CH clients so they do not reconnect */
     nc_server_ch_del_client(NULL);
@@ -678,6 +673,11 @@ server_destroy(void)
         }
         nc_ps_free(np2srv.nc_ps);
     }
+
+    /* stop subscriptions */
+    sr_unsubscribe(np2srv.sr_rpc_sub);
+    sr_unsubscribe(np2srv.sr_data_sub);
+    sr_unsubscribe(np2srv.sr_notif_sub);
 
     /* libnetconf2 cleanup */
     nc_server_destroy();
