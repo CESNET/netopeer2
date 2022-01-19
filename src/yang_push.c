@@ -167,6 +167,44 @@ yang_push_op_sr2yp(sr_change_oper_t op, const struct lyd_node *node)
 }
 
 /**
+ * @brief Remove any previous edits in a YANG patch of a target.
+ *
+ * @param[in] ly_yp YANG patch node.
+ * @param[in] target Target edits to remove.
+ * @return Sysrepo error value.
+ */
+static int
+yang_push_notif_change_edit_clear_target(struct lyd_node *ly_yp, const char *target)
+{
+    int rc = SR_ERR_OK;
+    struct ly_set *set = NULL;
+    char quot, *xpath = NULL;
+
+    /* find the edit of this target, be careful with the quotes in the XPath */
+    quot = strchr(target, '\'') ? '\"' : '\'';
+    if (asprintf(&xpath, "/ietf-yang-push:push-change-update/datastore-changes/yang-patch/edit[target=%c%s%c]",
+            quot, target, quot) == -1) {
+        rc = SR_ERR_NO_MEMORY;
+        goto cleanup;
+    }
+    if (lyd_find_xpath(ly_yp, xpath, &set)) {
+        rc = SR_ERR_LY;
+        goto cleanup;
+    }
+    assert((set->count == 0) || (set->count == 1));
+
+    /* remove the previous change of this target */
+    if (set->count) {
+        lyd_free_tree(set->dnodes[0]);
+    }
+
+cleanup:
+    free(xpath);
+    ly_set_free(set, NULL);
+    return rc;
+}
+
+/**
  * @brief Append a new edit (change) to a YANG patch.
  *
  * @param[in] ly_yp YANG patch node to append to.
@@ -182,8 +220,7 @@ yang_push_notif_change_edit_append(struct lyd_node *ly_yp, enum yang_push_op yp_
         const char *prev_value, const char *prev_list, struct yang_push_data *yp_data)
 {
     struct lyd_node *ly_edit, *ly_target, *value_tree;
-    struct ly_set *set = NULL;
-    char buf[26], *path = NULL, *point = NULL, *xpath = NULL;
+    char buf[26], *path = NULL, *point = NULL, quot;
     uint32_t edit_id;
     int rc = SR_ERR_OK;
 
@@ -195,17 +232,8 @@ yang_push_notif_change_edit_append(struct lyd_node *ly_yp, enum yang_push_op yp_
     }
 
     /* remove any previous change of this target */
-    if (asprintf(&xpath, "/ietf-yang-push:push-change-update/datastore-changes/yang-patch/edit[target='%s']", path) == -1) {
-        rc = SR_ERR_NO_MEMORY;
+    if ((rc = yang_push_notif_change_edit_clear_target(ly_yp, path))) {
         goto cleanup;
-    }
-    if (lyd_find_xpath(ly_yp, xpath, &set)) {
-        rc = SR_ERR_LY;
-        goto cleanup;
-    }
-    assert((set->count == 0) || (set->count == 1));
-    if (set->count) {
-        lyd_free_tree(set->dnodes[0]);
     }
 
     /* generate new edit ID */
@@ -238,7 +266,8 @@ yang_push_notif_change_edit_append(struct lyd_node *ly_yp, enum yang_push_op yp_
         if (node->schema->nodetype == LYS_LEAFLIST) {
             assert(prev_value);
             if (prev_value[0]) {
-                if (asprintf(&point, "%s[.='%s']", path, prev_value) == -1) {
+                quot = strchr(prev_value, '\'') ? '\"' : '\'';
+                if (asprintf(&point, "%s[.=%c%s%c]", path, quot, prev_value, quot) == -1) {
                     rc = SR_ERR_NO_MEMORY;
                     goto cleanup;
                 }
@@ -286,10 +315,11 @@ yang_push_notif_change_edit_append(struct lyd_node *ly_yp, enum yang_push_op yp_
     }
 
 cleanup:
-    ly_set_free(set, NULL);
-    free(xpath);
     free(path);
     free(point);
+    if (rc) {
+        ERR("Failed to store data edit for an on-change notification.");
+    }
     return rc;
 }
 
