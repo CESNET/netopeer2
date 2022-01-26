@@ -66,7 +66,7 @@ NP2_MODULE_GROUP=netconf
 %postun
 {% include 'scripts/remove.sh' %}
 
-groupdel netconf
+groupdel netconf &> /dev/null
 
 %files
 %license LICENSE
