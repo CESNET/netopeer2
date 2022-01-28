@@ -40,11 +40,11 @@
 #include <libyang/libyang.h>
 #include <libyang/plugins_types.h>
 #include <nc_server.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "common.h"
 #include "compat.h"
 #include "log.h"
-#include "netconf_acm.h"
 #include "netconf_monitoring.h"
 
 struct np2srv np2srv = {.unix_mode = -1, .unix_uid = -1, .unix_gid = -1};

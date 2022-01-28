@@ -437,12 +437,10 @@ int
 is_nacm_rec_uid()
 {
     uid_t uid;
-    char streuid[10];
 
     /* Get UID */
     uid = geteuid();
-    sprintf(streuid, "%d", (int) uid);
-    if (!strcmp(streuid, NACM_RECOVERY_UID)) {
+    if (uid == sr_get_su_uid()) {
         return 1;
     }
     return 0;

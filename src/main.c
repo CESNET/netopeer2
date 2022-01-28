@@ -32,6 +32,7 @@
 #include <nc_server.h>
 #include <sysrepo.h>
 #include <sysrepo/error_format.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "common.h"
 #include "compat.h"
@@ -48,7 +49,6 @@
 #ifdef NC_ENABLED_TLS
 # include "netconf_server_tls.h"
 #endif
-#include "netconf_acm.h"
 #include "netconf_confirmed_commit.h"
 #include "netconf_monitoring.h"
 #include "netconf_nmda.h"
@@ -342,8 +342,15 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
     char *str;
     int rc;
 
+    /* get this user session with its originator data, no need to use ref-count */
+    user_sess = nc_session_get_data(ncs);
+
     /* check NACM */
-    if ((denied = ncac_check_operation(rpc, nc_session_get_username(ncs)))) {
+    rc = sr_nacm_check_operation(user_sess->sess, rpc, &denied);
+    if (rc) {
+        return np2srv_err_reply_sr(err_info);
+    }
+    if (denied) {
         e = nc_err(LYD_CTX(rpc), NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_APP);
 
         /* set path */
@@ -423,44 +430,6 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
 
     sr_release_data(output);
     return reply;
-}
-
-/**
- * @brief Sysrepo callback for checking NACM of data diff.
- *
- * @param[in] session SR session.
- * @param[in] diff Diff to check.
- * @return SR error value.
- */
-static int
-np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
-{
-    const struct lyd_node *node;
-    char *path;
-    const char *user, *name;
-    uint32_t *nc_sid;
-
-    name = sr_session_get_orig_name(session);
-    if (!name || strcmp(name, "netopeer2")) {
-        EINT;
-        return SR_ERR_INTERNAL;
-    }
-    sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_sid);
-    if (ATOMIC_LOAD_RELAXED(skip_nacm_nc_sid) == *nc_sid) {
-        /* skip the NACM check */
-        return SR_ERR_OK;
-    }
-
-    sr_session_get_orig_data(session, 1, NULL, (const void **)&user);
-    if ((node = ncac_check_diff(diff, user))) {
-        /* access denied */
-        path = lysc_path(node->schema, LYSC_PATH_LOG, NULL, 0);
-        np_err_nacm_access_denied(session, node->schema->module->name, user, path);
-        free(path);
-        return SR_ERR_UNAUTHORIZED;
-    }
-
-    return SR_ERR_OK;
 }
 
 /**
@@ -568,12 +537,6 @@ server_init(void)
         goto error;
     }
 
-    /* set edit-config NACM diff check callback */
-    rc = sr_set_diff_check_callback(np2srv.sr_conn, np2srv_diff_check_cb);
-    if (rc != SR_ERR_OK) {
-        WRN("Unable to set diff check callback (%s), NACM will not be applied when editing data.", sr_strerror(rc));
-    }
-
     /* set the content-id callback */
     nc_server_set_content_id_clb(np2srv_content_id_cb, NULL, NULL);
 
@@ -593,7 +556,7 @@ server_init(void)
     ncm_init();
 
     /* init NACM */
-    ncac_init();
+    sr_nacm_init(np2srv.sr_sess, 0, &np2srv.sr_nacm_sub);
 
     /* init libnetconf2 */
     if (nc_server_init()) {
@@ -696,7 +659,7 @@ server_destroy(void)
     ncm_destroy();
 
     /* NACM cleanup */
-    ncac_destroy();
+    sr_nacm_destroy();
 
     /* confirmed commit cleanup */
     ncc_commit_ctx_destroy();
@@ -942,32 +905,6 @@ server_data_subscribe(void)
     xpath = "/ietf-truststore:truststore/certificates";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_dummy_cb);
 #endif
-
-    /*
-     * ietf-netconf-acm
-     */
-    mod_name = "ietf-netconf-acm";
-    xpath = "/ietf-netconf-acm:nacm";
-    SR_CONFIG_SUBSCR(mod_name, xpath, ncac_nacm_params_cb);
-
-    xpath = "/ietf-netconf-acm:nacm/groups/group";
-    SR_CONFIG_SUBSCR(mod_name, xpath, ncac_group_cb);
-
-    xpath = "/ietf-netconf-acm:nacm/rule-list";
-    SR_CONFIG_SUBSCR(mod_name, xpath, ncac_rule_list_cb);
-
-    xpath = "/ietf-netconf-acm:nacm/rule-list/rule";
-    SR_CONFIG_SUBSCR(mod_name, xpath, ncac_rule_cb);
-
-    /* state data */
-    xpath = "/ietf-netconf-acm:nacm/denied-operations";
-    SR_OPER_SUBSCR(mod_name, xpath, ncac_oper_cb);
-
-    xpath = "/ietf-netconf-acm:nacm/denied-data-writes";
-    SR_OPER_SUBSCR(mod_name, xpath, ncac_oper_cb);
-
-    xpath = "/ietf-netconf-acm:nacm/denied-notifications";
-    SR_OPER_SUBSCR(mod_name, xpath, ncac_oper_cb);
 
     return 0;
 

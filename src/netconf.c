@@ -32,12 +32,12 @@
 
 #include <libyang/libyang.h>
 #include <sysrepo.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "common.h"
 #include "compat.h"
 #include "err_netconf.h"
 #include "log.h"
-#include "netconf_acm.h"
 #include "netconf_confirmed_commit.h"
 #include "netconf_monitoring.h"
 
@@ -299,7 +299,10 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
 
     /* perform correct NACM filtering */
     sr_session_get_orig_data(session, 1, NULL, (const void **)&username);
-    ncac_check_data_read_filter(&data_get, username);
+    rc = sr_nacm_check_data_read_filter(user_sess->sess, &data_get);
+    if (rc) {
+        goto cleanup;
+    }
 
     /* add output */
     if (lyd_new_any(output, NULL, "data", data_get, 1, LYD_ANYDATA_DATATREE, 1, &node)) {
@@ -547,7 +550,11 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         sr_release_data(sr_data);
 
         sr_session_get_orig_data(session, 1, NULL, (const void **)&username);
-        ncac_check_data_read_filter(&config, username);
+        rc = sr_nacm_check_data_read_filter(user_sess->sess, &config);
+        if (rc) {
+            rc = SR_ERR_INTERNAL;
+            goto cleanup;
+        }
     }
 
     /* get the user session */
@@ -930,16 +937,19 @@ struct subscribe_ntf_data {
  * @brief New notification callback used for notifications received on subscription made by \<create-subscription\> RPC.
  */
 static void
-np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, const sr_ev_notif_type_t notif_type,
+np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *session, uint32_t sub_id, const sr_ev_notif_type_t notif_type,
         const struct lyd_node *notif, struct timespec *timestamp, void *private_data)
 {
     struct nc_server_notif *nc_ntf = NULL;
+    struct np2_user_sess *user_sess = NULL;
     struct subscribe_ntf_data *cb_data = private_data;
+    const struct lyd_node *denied_node = NULL;
     struct lyd_node *ly_ntf = NULL;
     const struct ly_ctx *ly_ctx;
     NC_MSG_TYPE msg_type;
     char *datetime = NULL;
     struct timespec stop, cur_ts;
+    int rc;
 
     ly_ctx = sr_acquire_context(np2srv.sr_conn);
 
@@ -980,8 +990,18 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
         notif = lyd_parent(notif);
     }
 
+    /* get the user session */
+    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
+        goto cleanup;
+    }
+
     /* check NACM */
-    if (ncac_check_operation(notif, nc_session_get_username(cb_data->nc_sess))) {
+    rc = sr_nacm_check_operation(user_sess->sess, notif, &denied_node);
+    if (rc) {
+        /* TODO: maybe we should log an internal error here? And elsewhere? */
+        goto cleanup;
+    }
+    if (denied_node) {
         goto cleanup;
     }
 

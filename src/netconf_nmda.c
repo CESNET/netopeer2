@@ -26,12 +26,12 @@
 
 #include <libyang/libyang.h>
 #include <sysrepo.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "common.h"
 #include "compat.h"
 #include "config.h"
 #include "log.h"
-#include "netconf_acm.h"
 
 /**
  * @brief Perform origin filtering.
@@ -222,7 +222,10 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
 
     /* perform correct NACM filtering */
     sr_session_get_orig_data(session, 1, NULL, (const void **)&username);
-    ncac_check_data_read_filter(&data, username);
+    rc = sr_nacm_check_data_read_filter(user_sess->sess, &data);
+    if (rc) {
+        goto cleanup;
+    }
 
     /* add output */
     if (lyd_new_any(output, NULL, "data", data, 1, LYD_ANYDATA_DATATREE, 1, NULL)) {

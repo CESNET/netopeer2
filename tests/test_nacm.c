@@ -1080,7 +1080,7 @@ int
 main(int argc, char **argv)
 {
     if (is_nacm_rec_uid()) {
-        puts("Running as NACM_RECOVERY_UID. Tests will not run correctly as this user bypases NACM. Skipping.");
+        puts("Running as sysrepo superuser. Tests will not run correctly as this user bypases NACM. Skipping.");
         return 0;
     }
 

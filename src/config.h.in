@@ -38,10 +38,6 @@
 #   define NP2SRV_THREAD_COUNT @THREAD_COUNT@
 #endif
 
-/** @brief NACM recovery session UID
- */
-#define NP2SRV_NACM_RECOVERY_UID @NACM_RECOVERY_UID@
-
 /** @brief Timeout for nc_ps_poll() call
  */
 #define NP2SRV_POLL_IO_TIMEOUT @POLL_IO_TIMEOUT@

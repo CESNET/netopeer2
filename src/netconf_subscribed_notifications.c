@@ -29,12 +29,12 @@
 
 #include <libyang/libyang.h>
 #include <sysrepo.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "common.h"
 #include "compat.h"
 #include "err_netconf.h"
 #include "log.h"
-#include "netconf_acm.h"
 #include "netconf_monitoring.h"
 #include "subscribed_notifications.h"
 #include "yang_push.h"
@@ -157,7 +157,9 @@ int
 sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, struct timespec timestamp, struct lyd_node **ly_ntf,
         int use_ntf)
 {
+    const struct lyd_node *node;
     struct np2srv_sub_ntf *sub;
+    struct np2_user_sess *user_sess;
     struct nc_server_notif *nc_ntf = NULL;
     NC_MSG_TYPE msg_type;
     char *datetime = NULL;
@@ -171,8 +173,15 @@ sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, struct timespec t
         goto cleanup;
     }
 
+    /* get the user session */
+    user_sess = nc_session_get_data(ncs);
+
     /* check NACM of the notification itself */
-    if (ncac_check_operation(*ly_ntf, nc_session_get_username(ncs))) {
+    rc = sr_nacm_check_operation(user_sess->sess, *ly_ntf, &node);
+    if (rc) {
+        goto cleanup;
+    }
+    if (node) {
         /* denied */
         ATOMIC_INC_RELAXED(sub->denied_count);
 

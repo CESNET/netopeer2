@@ -27,11 +27,11 @@
 
 #include <libyang/libyang.h>
 #include <sysrepo.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "common.h"
 #include "compat.h"
 #include "log.h"
-#include "netconf_acm.h"
 #include "netconf_subscribed_notifications.h"
 
 /**
@@ -336,6 +336,7 @@ yang_push_notif_change_send(struct nc_session *ncs, struct yang_push_data *yp_da
 {
     struct ly_set *set = NULL;
     int all_removed = 0;
+    struct np2_user_sess *user_sess;
     int rc = SR_ERR_OK;
 
     assert(yp_data->change_ntf);
@@ -346,7 +347,11 @@ yang_push_notif_change_send(struct nc_session *ncs, struct yang_push_data *yp_da
         rc = SR_ERR_LY;
         goto cleanup;
     }
-    ncac_check_yang_push_update_notif(nc_session_get_username(ncs), set, &all_removed);
+    user_sess = nc_session_get_data(ncs);
+    rc = sr_nacm_check_yang_push_update_notif(user_sess->sess, set, &all_removed);
+    if (rc) {
+        goto cleanup;
+    }
 
     if (all_removed) {
         /* no change is actually readable, notification denied */
@@ -897,7 +902,11 @@ yang_push_notif_update_send(struct nc_session *ncs, struct yang_push_data *yp_da
 
     /* NACM filter */
     if (data) {
-        ncac_check_data_read_filter(&data->tree, nc_session_get_username(ncs));
+        rc = sr_nacm_check_data_read_filter(user_sess->sess, &data->tree);
+        if (rc) {
+            rc = SR_ERR_INTERNAL;
+            goto cleanup;
+        }
     }
 
     /* context lock is already held by data */
