@@ -500,6 +500,7 @@ np2srv_check_schemas(sr_session_ctx_t *sr_sess)
     NP2_CHECK_FEATURE("url");
 #endif
     NP2_CHECK_FEATURE("xpath");
+    NP2_CHECK_FEATURE("confirmed-commit");
 
     /* ... ietf-netconf-acm, */
     mod_name = "ietf-netconf-acm";
