@@ -418,8 +418,7 @@ sub_ntf_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_no
     stream = lyd_get_value(node);
 
     /* replay start time */
-    lyd_find_path(rpc, "replay-start-time", 0, &node);
-    if (node) {
+    if (!lyd_find_path(rpc, "replay-start-time", 0, &node)) {
         ly_time_str2ts(lyd_get_value(node), &start);
     }
 
@@ -515,8 +514,7 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
     }
 
     /* datastore */
-    lyd_find_path(rpc, "ietf-yang-push:datastore", 0, &node);
-    if (node) {
+    if (!lyd_find_path(rpc, "ietf-yang-push:datastore", 0, &node)) {
         sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not yang-push but \"datastore\""
                 " is set.", sub->nc_sub_id);
         rc = SR_ERR_UNSUPPORTED;

@@ -1268,8 +1268,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     /*
      * periodic
      */
-    lyd_find_path(rpc, "ietf-yang-push:periodic", 0, &cont);
-    if (cont) {
+    if (!lyd_find_path(rpc, "ietf-yang-push:periodic", 0, &cont)) {
         if (!yp_data->periodic) {
             sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not \"periodic\".",
                     sub->nc_sub_id);
@@ -1319,8 +1318,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     /*
      * on-change
      */
-    lyd_find_path(rpc, "ietf-yang-push:on-change", 0, &cont);
-    if (cont) {
+    if (!lyd_find_path(rpc, "ietf-yang-push:on-change", 0, &cont)) {
         if (yp_data->periodic) {
             sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not \"on-change\".",
                     sub->nc_sub_id);

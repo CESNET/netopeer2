@@ -351,14 +351,13 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     }
 
     /* stop time */
-    lyd_find_path(input, "stop-time", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "stop-time", 0, &node)) {
         ly_time_str2ts(lyd_get_value(node), &stop);
     }
 
     /* encoding */
-    lyd_find_path(input, "encoding", 0, &node);
-    if (node && strcmp(((struct lyd_node_term *)node)->value.ident->name, "encode-xml")) {
+    if (!lyd_find_path(input, "encoding", 0, &node) &&
+            strcmp(((struct lyd_node_term *)node)->value.ident->name, "encode-xml")) {
         ERR("Unsupported encoding \"%s\".", lyd_get_value(node));
         rc = SR_ERR_INTERNAL;
         goto error;
@@ -533,8 +532,7 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     nc_sub_id = ((struct lyd_node_term *)node)->value.uint32;
 
     /* stop time */
-    lyd_find_path(input, "stop-time", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "stop-time", 0, &node)) {
         ly_time_str2ts(lyd_get_value(node), &stop);
     }
 

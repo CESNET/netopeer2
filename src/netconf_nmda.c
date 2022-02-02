@@ -162,8 +162,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     }
 
     /* config filter */
-    lyd_find_path(input, "config-filter", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "config-filter", 0, &node)) {
         if (!strcmp(lyd_get_value(node), "false")) {
             get_opts |= SR_OPER_NO_CONFIG;
         } else {
@@ -172,20 +171,17 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     }
 
     /* depth */
-    lyd_find_path(input, "max-depth", 0, &node);
-    if (node && strcmp(lyd_get_value(node), "unbounded")) {
+    if (!lyd_find_path(input, "max-depth", 0, &node) && strcmp(lyd_get_value(node), "unbounded")) {
         max_depth = ((struct lyd_node_term *)node)->value.uint16;
     }
 
     /* origin */
-    lyd_find_path(input, "with-origin", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "with-origin", 0, &node)) {
         get_opts |= SR_OPER_WITH_ORIGIN;
     }
 
     /* get with-defaults mode */
-    lyd_find_path(input, "with-defaults", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "with-defaults", 0, &node)) {
         if (!strcmp(lyd_get_value(node), "report-all")) {
             nc_wd = NC_WD_ALL;
         } else if (!strcmp(lyd_get_value(node), "report-all-tagged")) {

@@ -760,14 +760,12 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
     }
 
     /* persist */
-    lyd_find_path(input, "persist", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "persist", 0, &node)) {
         persist = lyd_get_value(node);
     }
 
     /* persist-id */
-    lyd_find_path(input, "persist-id", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "persist-id", 0, &node)) {
         ERR("Persist-id given in confirmed commit rpc.");
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
@@ -836,16 +834,15 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
 
     /* LOCK */
     pthread_mutex_lock(&commit_ctx.lock);
+
     /* check if confirmed-commit */
-    lyd_find_path(input, "confirmed", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "confirmed", 0, &node)) {
         rc = np2srv_confirmed_commit_cb(session, input);
         goto cleanup;
     }
 
     /* persist-id */
-    lyd_find_path(input, "persist-id", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "persist-id", 0, &node)) {
         persist_id = lyd_get_value(node);
     }
 
@@ -902,8 +899,7 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     }
 
     /* persist-id */
-    lyd_find_path(input, "persist-id", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "persist-id", 0, &node)) {
         persist_id = lyd_get_value(node);
     }
 

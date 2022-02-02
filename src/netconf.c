@@ -231,8 +231,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     }
 
     /* create filters */
-    lyd_find_path(input, "filter", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "filter", 0, &node)) {
         /* learn filter type */
         meta = lyd_find_meta(node->meta, NULL, "ietf-netconf:type");
         if (meta && !strcmp(lyd_get_meta_value(meta), "xpath")) {
@@ -345,14 +344,12 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     ly_set_free(nodeset, NULL);
 
     /* default-operation */
-    lyd_find_path(input, "default-operation", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "default-operation", 0, &node)) {
         defop = lyd_get_value(node);
     }
 
     /* test-option */
-    lyd_find_path(input, "test-option", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "test-option", 0, &node)) {
         testop = lyd_get_value(node);
         if (!strcmp(testop, "set")) {
             VRB("edit-config test-option \"set\" not supported, validation will be performed.");
@@ -361,8 +358,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     }
 
     /* error-option */
-    lyd_find_path(input, "error-option", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "error-option", 0, &node)) {
         if (strcmp(lyd_get_value(node), "rollback-on-error")) {
             VRB("edit-config error-option \"%s\" not supported, rollback-on-error will be performed.", lyd_get_value(node));
         }
@@ -568,9 +564,8 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         struct lyd_node *node;
 
         /* we need with-defaults flag in this case */
-        lyd_find_path(input, "ietf-netconf-with-defaults:with-defaults", 0, &node);
         lyp_wd_flag = 0;
-        if (node) {
+        if (!lyd_find_path(input, "ietf-netconf-with-defaults:with-defaults", 0, &node)) {
             if (!strcmp(lyd_get_value(node), "report-all")) {
                 lyp_wd_flag = LYD_PRINT_WD_ALL;
             } else if (!strcmp(lyd_get_value(node), "report-all-tagged")) {
@@ -1057,8 +1052,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     stream = lyd_get_value(node);
 
     /* filter */
-    lyd_find_path(input, "filter", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "filter", 0, &node)) {
         /* learn filter type */
         meta = lyd_find_meta(node->meta, NULL, "ietf-netconf:type");
         if (meta && !strcmp(lyd_get_meta_value(meta), "xpath")) {
@@ -1097,14 +1091,12 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     }
 
     /* start time */
-    lyd_find_path(input, "startTime", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "startTime", 0, &node)) {
         ly_time_str2ts(lyd_get_value(node), &start);
     }
 
     /* stop time */
-    lyd_find_path(input, "stopTime", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "stopTime", 0, &node)) {
         ly_time_str2ts(lyd_get_value(node), &stop);
     }
 
