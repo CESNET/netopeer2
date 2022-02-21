@@ -1998,8 +1998,8 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
 {
     int ret;
     char *args = strdupa(arg);
-    char *cmd = NULL, *ptr = NULL, *path, *path2, *dest;
-    char *trusted_dir, *netconf_dir, *c_rehash_cmd;
+    char *cmd = NULL, *ptr = NULL, *path, *path2, *dest = NULL;
+    char *trusted_dir = NULL, *netconf_dir = NULL, *c_rehash_cmd = NULL;
     DIR *dir = NULL;
     struct dirent *d;
 
@@ -2014,7 +2014,7 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
 
         if (!(trusted_dir = get_default_trustedCA_dir(NULL))) {
             ERROR("cert display", "Could not get the default trusted CA directory");
-            return EXIT_FAILURE;
+            goto error;
         }
 
         dir = opendir(trusted_dir);
@@ -2036,32 +2036,29 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
         if (none) {
             printf("No certificates found in the default trusted CA directory.\n");
         }
-        free(trusted_dir);
 
     } else if (!strcmp(cmd, "add")) {
         path = strtok_r(NULL, " ", &ptr);
         if (!path || (strlen(path) < 5)) {
             ERROR("cert add", "Missing or wrong path to the certificate");
-            return EXIT_FAILURE;
+            goto error;
         }
         if (eaccess(path, R_OK)) {
             ERROR("cert add", "Cannot access certificate \"%s\": %s", path, strerror(errno));
-            return EXIT_FAILURE;
+            goto error;
         }
 
         trusted_dir = get_default_trustedCA_dir(NULL);
         if (!trusted_dir) {
             ERROR("cert add", "Could not get the default trusted CA directory");
-            return EXIT_FAILURE;
+            goto error;
         }
 
         if ((asprintf(&dest, "%s/%s", trusted_dir, strrchr(path, '/') + 1) == -1) ||
                 (asprintf(&c_rehash_cmd, "c_rehash %s &> /dev/null", trusted_dir) == -1)) {
             ERROR("cert add", "Memory allocation failed");
-            free(trusted_dir);
-            return EXIT_FAILURE;
+            goto error;
         }
-        free(trusted_dir);
 
         if (strcmp(dest + strlen(dest) - 4, ".pem")) {
             ERROR("cert add", "CA certificates are expected to be in *.pem format");
@@ -2070,25 +2067,19 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
 
         if (cp(dest, path)) {
             ERROR("cert add", "Could not copy the certificate: %s", strerror(errno));
-            free(dest);
-            free(c_rehash_cmd);
-            return EXIT_FAILURE;
+            goto error;
         }
-        free(dest);
 
         if (((ret = system(c_rehash_cmd)) == -1) || WEXITSTATUS(ret)) {
             ERROR("cert add", "c_rehash execution failed");
-            free(c_rehash_cmd);
-            return EXIT_FAILURE;
+            goto error;
         }
-
-        free(c_rehash_cmd);
 
     } else if (!strcmp(cmd, "remove")) {
         path = strtok_r(NULL, " ", &ptr);
         if (!path) {
             ERROR("cert remove", "Missing the certificate name");
-            return EXIT_FAILURE;
+            goto error;
         }
 
         /* delete ".pem" if the user unnecessarily included it */
@@ -2099,33 +2090,25 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
         trusted_dir = get_default_trustedCA_dir(NULL);
         if (!trusted_dir) {
             ERROR("cert remove", "Could not get the default trusted CA directory");
-            return EXIT_FAILURE;
+            goto error;
         }
 
         if ((asprintf(&dest, "%s/%s.pem", trusted_dir, path) == -1) ||
                 (asprintf(&c_rehash_cmd, "c_rehash %s &> /dev/null", trusted_dir) == -1)) {
             ERROR("cert remove", "Memory allocation failed");
-            free(trusted_dir);
-            return EXIT_FAILURE;
+            goto error;
         }
-        free(trusted_dir);
 
         if (remove(dest)) {
             ERROR("cert remove", "Cannot remove certificate \"%s\": %s (use the name from \"cert display\" output)",
                     path, strerror(errno));
-            free(dest);
-            free(c_rehash_cmd);
-            return EXIT_FAILURE;
+            goto error;
         }
-        free(dest);
 
         if (((ret = system(c_rehash_cmd)) == -1) || WEXITSTATUS(ret)) {
             ERROR("cert remove", "c_rehash execution failed");
-            free(c_rehash_cmd);
-            return EXIT_FAILURE;
+            goto error;
         }
-
-        free(c_rehash_cmd);
 
     } else if (!strcmp(cmd, "displayown")) {
         int crt = 0, key = 0, pem = 0;
@@ -2133,15 +2116,13 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
         netconf_dir = get_netconf_dir();
         if (!netconf_dir) {
             ERROR("cert displayown", "Could not get the client home directory");
-            return EXIT_FAILURE;
+            goto error;
         }
 
         if (asprintf(&dest, "%s/client.pem", netconf_dir) == -1) {
             ERROR("cert displayown", "Memory allocation failed");
-            free(netconf_dir);
-            return EXIT_FAILURE;
+            goto error;
         }
-        free(netconf_dir);
         if (!eaccess(dest, R_OK)) {
             pem = 1;
         }
@@ -2181,42 +2162,39 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
             strcpy(dest + strlen(dest) - 4, ".pem");
             parse_cert("PEM", dest);
         }
-        free(dest);
 
     } else if (!strcmp(cmd, "replaceown")) {
         path = strtok_r(NULL, " ", &ptr);
         if (!path || (strlen(path) < 5)) {
             ERROR("cert replaceown", "Missing the certificate or invalid path.");
-            return EXIT_FAILURE;
+            goto error;
         }
         if (eaccess(path, R_OK)) {
             ERROR("cert replaceown", "Cannot access the certificate \"%s\": %s", path, strerror(errno));
-            return EXIT_FAILURE;
+            goto error;
         }
 
         path2 = strtok_r(NULL, " ", &ptr);
         if (path2) {
             if (strlen(path2) < 5) {
                 ERROR("cert replaceown", "Invalid private key path.");
-                return EXIT_FAILURE;
+                goto error;
             }
             if (eaccess(path2, R_OK)) {
                 ERROR("cert replaceown", "Cannot access the private key \"%s\": %s", path2, strerror(errno));
-                return EXIT_FAILURE;
+                goto error;
             }
         }
 
         netconf_dir = get_netconf_dir();
         if (!netconf_dir) {
             ERROR("cert replaceown", "Could not get the client home directory");
-            return EXIT_FAILURE;
+            goto error;
         }
         if (asprintf(&dest, "%s/client.XXX", netconf_dir) == -1) {
             ERROR("cert replaceown", "Memory allocation failed");
-            free(netconf_dir);
-            return EXIT_FAILURE;
+            goto error;
         }
-        free(netconf_dir);
 
         if (path2) {
             /* CRT & KEY */
@@ -2229,14 +2207,12 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
             strcpy(dest + strlen(dest) - 4, ".crt");
             if (cp(dest, path)) {
                 ERROR("cert replaceown", "Could not copy the certificate \"%s\": %s", path, strerror(errno));
-                free(dest);
-                return EXIT_FAILURE;
+                goto error;
             }
             strcpy(dest + strlen(dest) - 4, ".key");
             if (cp(dest, path2)) {
                 ERROR("cert replaceown", "Could not copy the private key \"%s\": %s", path, strerror(errno));
-                free(dest);
-                return EXIT_FAILURE;
+                goto error;
             }
         } else {
             /* PEM */
@@ -2253,19 +2229,27 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
             strcpy(dest + strlen(dest) - 4, ".pem");
             if (cp(dest, path)) {
                 ERROR("cert replaceown", "Could not copy the certificate \"%s\": %s", path, strerror(errno));
-                free(dest);
-                return EXIT_FAILURE;
+                goto error;
             }
         }
 
-        free(dest);
-
     } else {
         ERROR("cert", "Unknown argument %s", cmd);
-        return EXIT_FAILURE;
+        goto error;
     }
 
+    free(dest);
+    free(trusted_dir);
+    free(netconf_dir);
+    free(c_rehash_cmd);
     return EXIT_SUCCESS;
+
+error:
+    free(dest);
+    free(trusted_dir);
+    free(netconf_dir);
+    free(c_rehash_cmd);
+    return EXIT_FAILURE;
 }
 
 static int
@@ -2273,8 +2257,8 @@ cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
 {
     int ret;
     char *args = strdupa(arg);
-    char *cmd = NULL, *ptr = NULL, *path, *dest;
-    char *crl_dir, *c_rehash_cmd;
+    char *cmd = NULL, *ptr = NULL, *path, *dest = NULL;
+    char *crl_dir = NULL, *c_rehash_cmd = NULL;
     DIR *dir = NULL;
     struct dirent *d;
 
@@ -2289,7 +2273,7 @@ cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
 
         if (!(crl_dir = get_default_CRL_dir(NULL))) {
             ERROR("crl display", "Could not get the default CRL directory");
-            return EXIT_FAILURE;
+            goto error;
         }
 
         dir = opendir(crl_dir);
@@ -2311,32 +2295,29 @@ cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
         if (none) {
             printf("No CRLs found in the default CRL directory.\n");
         }
-        free(crl_dir);
 
     } else if (!strcmp(cmd, "add")) {
         path = strtok_r(NULL, " ", &ptr);
         if (!path || (strlen(path) < 5)) {
             ERROR("crl add", "Missing or wrong path to the certificate");
-            return EXIT_FAILURE;
+            goto error;
         }
         if (eaccess(path, R_OK)) {
             ERROR("crl add", "Cannot access certificate \"%s\": %s", path, strerror(errno));
-            return EXIT_FAILURE;
+            goto error;
         }
 
         crl_dir = get_default_CRL_dir(NULL);
         if (!crl_dir) {
             ERROR("crl add", "Could not get the default CRL directory");
-            return EXIT_FAILURE;
+            goto error;
         }
 
         if ((asprintf(&dest, "%s/%s", crl_dir, strrchr(path, '/') + 1) == -1) ||
                 (asprintf(&c_rehash_cmd, "c_rehash %s &> /dev/null", crl_dir) == -1)) {
             ERROR("crl add", "Memory allocation failed");
-            free(crl_dir);
-            return EXIT_FAILURE;
+            goto error;
         }
-        free(crl_dir);
 
         if (strcmp(dest + strlen(dest) - 4, ".pem")) {
             ERROR("crl add", "CRLs are expected to be in *.pem format");
@@ -2345,25 +2326,19 @@ cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
 
         if (cp(dest, path)) {
             ERROR("crl add", "Could not copy the CRL \"%s\": %s", path, strerror(errno));
-            free(dest);
-            free(c_rehash_cmd);
-            return EXIT_FAILURE;
+            goto error;
         }
-        free(dest);
 
         if (((ret = system(c_rehash_cmd)) == -1) || WEXITSTATUS(ret)) {
             ERROR("crl add", "c_rehash execution failed");
-            free(c_rehash_cmd);
-            return EXIT_FAILURE;
+            goto error;
         }
-
-        free(c_rehash_cmd);
 
     } else if (!strcmp(cmd, "remove")) {
         path = strtok_r(NULL, " ", &ptr);
         if (!path) {
             ERROR("crl remove", "Missing the certificate name");
-            return EXIT_FAILURE;
+            goto error;
         }
 
         // delete ".pem" if the user unnecessarily included it
@@ -2374,40 +2349,41 @@ cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
         crl_dir = get_default_CRL_dir(NULL);
         if (!crl_dir) {
             ERROR("crl remove", "Could not get the default CRL directory");
-            return EXIT_FAILURE;
+            goto error;
         }
 
         if ((asprintf(&dest, "%s/%s.pem", crl_dir, path) == -1) ||
                 (asprintf(&c_rehash_cmd, "c_rehash %s &> /dev/null", crl_dir) == -1)) {
             ERROR("crl remove", "Memory allocation failed");
-            free(crl_dir);
-            return EXIT_FAILURE;
+            goto error;
         }
-        free(crl_dir);
 
         if (remove(dest)) {
             ERROR("crl remove", "Cannot remove CRL \"%s\": %s (use the name from \"crl display\" output)",
                     path, strerror(errno));
-            free(dest);
-            free(c_rehash_cmd);
-            return EXIT_FAILURE;
+            goto error;
         }
-        free(dest);
 
         if (((ret = system(c_rehash_cmd)) == -1) || WEXITSTATUS(ret)) {
             ERROR("crl remove", "c_rehash execution failed");
-            free(c_rehash_cmd);
-            return EXIT_FAILURE;
+            goto error;
         }
-
-        free(c_rehash_cmd);
 
     } else {
         ERROR("crl", "Unknown argument %s", cmd);
-        return EXIT_FAILURE;
+        goto error;
     }
 
+    free(dest);
+    free(c_rehash_cmd);
+    free(crl_dir);
     return EXIT_SUCCESS;
+
+error:
+    free(dest);
+    free(c_rehash_cmd);
+    free(crl_dir);
+    return EXIT_FAILURE;
 }
 
 static int
@@ -2460,12 +2436,12 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
             break;
         case 'c':
             if (asprintf(&cert, "%s", optarg) == -1) {
-                return EXIT_FAILURE;
+                goto error_cleanup;
             }
             break;
         case 'k':
             if (asprintf(&key, "%s", optarg) == -1) {
-                return EXIT_FAILURE;
+                goto error_cleanup;
             }
             break;
         case 'r':
@@ -2478,7 +2454,7 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
             } else {
                 cmd_listen_help();
             }
-            return EXIT_FAILURE;
+            goto error_cleanup;
         }
     }
 

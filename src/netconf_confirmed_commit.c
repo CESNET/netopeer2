@@ -524,6 +524,7 @@ backup_module(sr_session_ctx_t *session, const struct lys_module *module)
 
 cleanup:
     sr_release_data(data);
+    free(ncc_path);
     free(path);
     free(xpath);
     return rc;
