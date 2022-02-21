@@ -55,6 +55,10 @@
 #include "netconf_subscribed_notifications.h"
 #include "yang_push.h"
 
+#ifdef NP2SRV_HAVE_SYSTEMD
+# include <systemd/sd-daemon.h>
+#endif
+
 /** @brief flag for main loop */
 ATOMIC_T loop_continue = 1;
 
@@ -1364,6 +1368,11 @@ main(int argc, char *argv[])
         goto cleanup;
     }
 
+#ifdef NP2SRV_HAVE_SYSTEMD
+    /* notify systemd */
+    sd_notify(0, "READY=1");
+#endif
+
     /* start additional worker threads */
     for (i = 1; i < NP2SRV_THREAD_COUNT; ++i) {
         idx = malloc(sizeof *idx);
@@ -1376,6 +1385,11 @@ main(int argc, char *argv[])
     idx = malloc(sizeof *idx);
     *idx = 0;
     worker_thread(idx);
+
+#ifdef NP2SRV_HAVE_SYSTEMD
+    /* notify systemd */
+    sd_notify(0, "STOPPING=1");
+#endif
 
     /* wait for other worker threads to finish */
     for (i = 1; i < NP2SRV_THREAD_COUNT; ++i) {

@@ -59,6 +59,7 @@ the `distro` directory.
 
 ### Optional
 
+* pkg-config & libsystemd (to support `netopeer2-server` systemd service)
 * cmocka >= 1.0.1 (for [tests](#Tests))
 * valgrind (for enhanced testing)
 * gcov (for code coverage)

@@ -278,6 +278,20 @@ if(ENABLE_URL)
     endif()
 endif()
 
+# libsystemd
+if(NOT PKG_CONFIG_FOUND AND NOT SYSTEMD_UNIT_DIR)
+    set(SYSTEMD_UNIT_DIR "/usr/lib/systemd/system")
+endif()
+find_package(LibSystemd)
+if(LIBSYSTEMD_FOUND)
+    set(NP2SRV_HAVE_SYSTEMD 1)
+    target_link_libraries(netopeer2-server ${LIBSYSTEMD_LIBRARIES})
+    include_directories(${LIBSYSTEMD_INCLUDE_DIRS})
+    message(STATUS "systemd system service unit path: ${SYSTEMD_UNIT_DIR}")
+else()
+    message(WARNING "Disabling netopeer2-server systemd support because libsystemd was not found.")
+endif()
+
 # pthread
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 find_package(Threads REQUIRED)
@@ -300,6 +314,7 @@ list(APPEND CMAKE_REQUIRED_LIBRARIES ${SYSREPO_LIBRARIES})
 
 # generate files
 configure_file("${PROJECT_SOURCE_DIR}/src/config.h.in" "${PROJECT_BINARY_DIR}/config.h" ESCAPE_QUOTES @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/service/netopeer2-server.service.in" "${PROJECT_BINARY_DIR}/netopeer2-server.service" @ONLY)
 include_directories(${PROJECT_BINARY_DIR})
 
 # set script dir
@@ -311,6 +326,9 @@ install(DIRECTORY "${PROJECT_SOURCE_DIR}/modules/" DESTINATION ${YANG_MODULE_DIR
 # install the binary, required modules, and default configuration
 install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES ${PROJECT_SOURCE_DIR}/doc/netopeer2-server.8 DESTINATION ${CMAKE_INSTALL_MANDIR}/man8)
+if(NP2SRV_HAVE_SYSTEMD)
+    install(FILES ${PROJECT_BINARY_DIR}/netopeer2-server.service DESTINATION ${SYSTEMD_UNIT_DIR})
+endif()
 if(INSTALL_MODULES)
     install(CODE "
         message(STATUS \"Installing missing sysrepo modules...\")
