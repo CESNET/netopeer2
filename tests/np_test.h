@@ -25,7 +25,7 @@
 #include <sysrepo.h>
 
 #define SETUP_FAIL_LOG \
-    printf("Setup fail in %s:%d.\n", __FILE__, __LINE__)
+    fprintf(stderr, "Setup fail in %s:%d.\n", __FILE__, __LINE__)
 
 #define FREE_TEST_VARS(state) \
     nc_rpc_free(state->rpc); \
