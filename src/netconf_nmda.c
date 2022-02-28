@@ -31,7 +31,6 @@
 #include "compat.h"
 #include "config.h"
 #include "log.h"
-#include "netconf_acm.h"
 
 /**
  * @brief Perform origin filtering.
@@ -109,7 +108,6 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     sr_datastore_t ds;
     NC_WD_MODE nc_wd;
     sr_get_oper_options_t get_opts = 0;
-    const char *username;
 
     if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
@@ -220,17 +218,11 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     }
     ly_set_free(nodeset, NULL);
 
-    /* perform correct NACM filtering */
-    sr_session_get_orig_data(session, 1, NULL, (const void **)&username);
-    ncac_check_data_read_filter(&data, username);
-
     /* add output */
     if (lyd_new_any(output, NULL, "data", data, 1, LYD_ANYDATA_DATATREE, 1, NULL)) {
         goto cleanup;
     }
     data = NULL;
-
-    /* success */
 
 cleanup:
     op_filter_erase(&filter);

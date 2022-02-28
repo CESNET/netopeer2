@@ -25,23 +25,6 @@
 #include "compat.h"
 
 void
-np_err_nacm_access_denied(sr_session_ctx_t *ev_sess, const char *module_name, const char *user, const char *path)
-{
-    char *msg;
-
-    /* generate message */
-    if (asprintf(&msg, "Access to the data model \"%s\" is denied because \"%s\" NACM authorization failed.",
-            module_name, user) == -1) {
-        return;
-    }
-
-    /* set error */
-    sr_session_set_netconf_error(ev_sess, "protocol", "access-denied", NULL, path, msg, 0);
-
-    free(msg);
-}
-
-void
 np_err_sr2nc_lock_denied(sr_session_ctx_t *ev_sess, const sr_error_info_t *err_info)
 {
     struct nc_session *nc_sess;

@@ -32,6 +32,7 @@
 #include <nc_server.h>
 #include <sysrepo.h>
 #include <sysrepo/error_format.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "common.h"
 #include "compat.h"
@@ -48,7 +49,6 @@
 #ifdef NC_ENABLED_TLS
 # include "netconf_server_tls.h"
 #endif
-#include "netconf_acm.h"
 #include "netconf_confirmed_commit.h"
 #include "netconf_monitoring.h"
 #include "netconf_nmda.h"
@@ -61,9 +61,6 @@
 
 /** @brief flag for main loop */
 ATOMIC_T loop_continue = 1;
-
-/* NETCONF SID of session to skip diff check for */
-ATOMIC_T skip_nacm_nc_sid;
 
 static void *worker_thread(void *arg);
 
@@ -331,35 +328,13 @@ static struct nc_server_reply *
 np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
 {
     struct np2_user_sess *user_sess;
-    const struct lyd_node *denied;
     struct lyd_node *node;
     const sr_error_info_t *err_info;
     struct nc_server_reply *reply = NULL;
     struct lyd_node *child = NULL;
     sr_data_t *output;
     NC_WD_MODE nc_wd;
-    struct lyd_node *e;
-    char *str;
     int rc;
-
-    /* check NACM */
-    if ((denied = ncac_check_operation(rpc, nc_session_get_username(ncs)))) {
-        e = nc_err(LYD_CTX(rpc), NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_APP);
-
-        /* set path */
-        str = lysc_path(denied->schema, LYSC_PATH_LOG, NULL, 0);
-        nc_err_set_path(e, str);
-        free(str);
-
-        /* set message */
-        if (asprintf(&str, "Executing the operation is denied because \"%s\" NACM authorization failed.",
-                nc_session_get_username(ncs)) > -1) {
-            nc_err_set_msg(e, str, "en");
-            free(str);
-        }
-
-        return nc_server_reply_err(e);
-    }
 
     /* use default lnc2 callbacks when available */
     if (!strcmp(LYD_NAME(rpc), "get-schema") && !strcmp(lyd_owner_module(rpc)->name, "ietf-netconf-monitoring")) {
@@ -423,44 +398,6 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
 
     sr_release_data(output);
     return reply;
-}
-
-/**
- * @brief Sysrepo callback for checking NACM of data diff.
- *
- * @param[in] session SR session.
- * @param[in] diff Diff to check.
- * @return SR error value.
- */
-static int
-np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
-{
-    const struct lyd_node *node;
-    char *path;
-    const char *user, *name;
-    uint32_t *nc_sid;
-
-    name = sr_session_get_orig_name(session);
-    if (!name || strcmp(name, "netopeer2")) {
-        EINT;
-        return SR_ERR_INTERNAL;
-    }
-    sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_sid);
-    if (ATOMIC_LOAD_RELAXED(skip_nacm_nc_sid) == *nc_sid) {
-        /* skip the NACM check */
-        return SR_ERR_OK;
-    }
-
-    sr_session_get_orig_data(session, 1, NULL, (const void **)&user);
-    if ((node = ncac_check_diff(diff, user))) {
-        /* access denied */
-        path = lysc_path(node->schema, LYSC_PATH_LOG, NULL, 0);
-        np_err_nacm_access_denied(session, node->schema->module->name, user, path);
-        free(path);
-        return SR_ERR_UNAUTHORIZED;
-    }
-
-    return SR_ERR_OK;
 }
 
 /**
@@ -568,12 +505,6 @@ server_init(void)
         goto error;
     }
 
-    /* set edit-config NACM diff check callback */
-    rc = sr_set_diff_check_callback(np2srv.sr_conn, np2srv_diff_check_cb);
-    if (rc != SR_ERR_OK) {
-        WRN("Unable to set diff check callback (%s), NACM will not be applied when editing data.", sr_strerror(rc));
-    }
-
     /* set the content-id callback */
     nc_server_set_content_id_clb(np2srv_content_id_cb, NULL, NULL);
 
@@ -591,9 +522,6 @@ server_init(void)
 
     /* init monitoring */
     ncm_init();
-
-    /* init NACM */
-    ncac_init();
 
     /* init libnetconf2 */
     if (nc_server_init()) {
@@ -696,7 +624,7 @@ server_destroy(void)
     ncm_destroy();
 
     /* NACM cleanup */
-    ncac_destroy();
+    sr_nacm_destroy();
 
     /* confirmed commit cleanup */
     ncc_commit_ctx_destroy();
@@ -946,28 +874,9 @@ server_data_subscribe(void)
     /*
      * ietf-netconf-acm
      */
-    mod_name = "ietf-netconf-acm";
-    xpath = "/ietf-netconf-acm:nacm";
-    SR_CONFIG_SUBSCR(mod_name, xpath, ncac_nacm_params_cb);
-
-    xpath = "/ietf-netconf-acm:nacm/groups/group";
-    SR_CONFIG_SUBSCR(mod_name, xpath, ncac_group_cb);
-
-    xpath = "/ietf-netconf-acm:nacm/rule-list";
-    SR_CONFIG_SUBSCR(mod_name, xpath, ncac_rule_list_cb);
-
-    xpath = "/ietf-netconf-acm:nacm/rule-list/rule";
-    SR_CONFIG_SUBSCR(mod_name, xpath, ncac_rule_cb);
-
-    /* state data */
-    xpath = "/ietf-netconf-acm:nacm/denied-operations";
-    SR_OPER_SUBSCR(mod_name, xpath, ncac_oper_cb);
-
-    xpath = "/ietf-netconf-acm:nacm/denied-data-writes";
-    SR_OPER_SUBSCR(mod_name, xpath, ncac_oper_cb);
-
-    xpath = "/ietf-netconf-acm:nacm/denied-notifications";
-    SR_OPER_SUBSCR(mod_name, xpath, ncac_oper_cb);
+    if (sr_nacm_init(np2srv.sr_sess, 0, &np2srv.sr_data_sub)) {
+        goto error;
+    }
 
     return 0;
 

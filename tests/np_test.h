@@ -253,10 +253,10 @@ int np_glob_teardown(void **state, const char *modules[], uint32_t mod_count);
 
 void parse_arg(int argc, char **argv);
 
-int get_username(char **name);
+const char *np_get_user(void);
+
+int np_is_nacm_recovery(void);
 
 int setup_nacm(void **state);
-
-int is_nacm_rec_uid();
 
 #endif /* _NP_TEST_H_ */

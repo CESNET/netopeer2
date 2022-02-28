@@ -21,6 +21,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <pwd.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -33,6 +34,7 @@
 #include <unistd.h>
 
 #include <nc_client.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "np_test_config.h"
 
@@ -365,32 +367,27 @@ np_glob_teardown(void **state, const char *modules[], uint32_t mod_count)
     return ret;
 }
 
-int
-get_username(char **name)
+const char *
+np_get_user(void)
 {
-    FILE *file;
+    struct passwd *pw;
 
-    *name = NULL;
-    size_t size = 0;
+    pw = getpwuid(geteuid());
 
-    /* Get user name */
-    file = popen("whoami", "r");
-    if (!file) {
-        return 1;
-    }
-    if (getline(name, &size, file) == -1) {
-        return 1;
-    }
-    (*name)[strlen(*name) - 1] = '\0'; /* Remove the newline */
-    pclose(file);
-    return 0;
+    return pw ? pw->pw_name : NULL;
+}
+
+int
+np_is_nacm_recovery(void)
+{
+    return !strcmp(sr_nacm_get_recovery_user(), np_get_user());
 }
 
 int
 setup_nacm(void **state)
 {
     struct np_test *st = *state;
-    char *user, *data;
+    char *data;
     const char *template =
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <enable-external-groups>false</enable-external-groups>\n"
@@ -403,15 +400,10 @@ setup_nacm(void **state)
             "  </groups>\n"
             "</nacm>\n";
 
-    if (get_username(&user)) {
-        return 1;
-    }
-
     /* Put user and message id into error template */
-    if (asprintf(&data, template, user) == -1) {
+    if (asprintf(&data, template, np_get_user()) == -1) {
         return 1;
     }
-    free(user);
 
     /* Parse and merge the config */
     if (lyd_parse_data_mem(st->ctx, data, LYD_XML, LYD_PARSE_STRICT | LYD_PARSE_ONLY, 0, &st->node)) {
@@ -430,20 +422,5 @@ setup_nacm(void **state)
 
     FREE_TEST_VARS(st);
 
-    return 0;
-}
-
-int
-is_nacm_rec_uid()
-{
-    uid_t uid;
-    char streuid[10];
-
-    /* Get UID */
-    uid = geteuid();
-    sprintf(streuid, "%d", (int) uid);
-    if (!strcmp(streuid, NACM_RECOVERY_UID)) {
-        return 1;
-    }
     return 0;
 }

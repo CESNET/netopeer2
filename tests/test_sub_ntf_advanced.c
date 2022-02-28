@@ -27,6 +27,7 @@
 #include <libyang/libyang.h>
 #include <nc_client.h>
 #include <sysrepo.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "np_test.h"
 #include "np_test_config.h"
@@ -800,9 +801,9 @@ test_killsub_fail_nacm(void **state)
 {
     struct np_test *st = *state;
 
-    /* Check for NACM_RECOVERY_UID */
-    if (is_nacm_rec_uid()) {
-        puts("Running as NACM_RECOVERY_UID. Tests will not run correctly as this user bypases NACM. Skipping.");
+    /* check for NACM_RECOVERY_USER */
+    if (np_is_nacm_recovery()) {
+        puts("Running as NACM_RECOVERY_USER. Tests will not run correctly as this user bypases NACM. Skipping.");
         return;
     }
 

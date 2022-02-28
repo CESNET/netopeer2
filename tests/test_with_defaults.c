@@ -25,6 +25,7 @@
 #include <cmocka.h>
 #include <libyang/libyang.h>
 #include <nc_client.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "np_test.h"
 #include "np_test_config.h"
@@ -381,8 +382,8 @@ main(int argc, char **argv)
         cmocka_unit_test_setup_teardown(test_explicit_all_set_default, setup_data_all_default, teardown_data),
     };
 
-    if (is_nacm_rec_uid()) {
-        puts("Running as NACM_RECOVERY_UID. Tests will not run correctly as this user bypases NACM. Skipping.");
+    if (np_is_nacm_recovery()) {
+        puts("Running as NACM_RECOVERY_USER. Tests will not run correctly as this user bypases NACM. Skipping.");
         return 0;
     }
 

@@ -32,12 +32,12 @@
 
 #include <libyang/libyang.h>
 #include <sysrepo.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "common.h"
 #include "compat.h"
 #include "err_netconf.h"
 #include "log.h"
-#include "netconf_acm.h"
 #include "netconf_confirmed_commit.h"
 #include "netconf_monitoring.h"
 
@@ -208,7 +208,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     struct np2_user_sess *user_sess = NULL;
     struct ly_set *nodeset = NULL;
     sr_datastore_t ds = 0;
-    const char *single_filter, *username;
+    const char *single_filter;
 
     if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
@@ -297,17 +297,11 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
         goto cleanup;
     }
 
-    /* perform correct NACM filtering */
-    sr_session_get_orig_data(session, 1, NULL, (const void **)&username);
-    ncac_check_data_read_filter(&data_get, username);
-
     /* add output */
     if (lyd_new_any(output, NULL, "data", data_get, 1, LYD_ANYDATA_DATATREE, 1, &node)) {
         goto cleanup;
     }
     data_get = NULL;
-
-    /* success */
 
 cleanup:
     op_filter_erase(&filter);
@@ -441,8 +435,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     sr_data_t *sr_data;
     int rc = SR_ERR_OK, run_to_start = 0, source_is_config = 0;
     struct np2_user_sess *user_sess = NULL;
-    const char *username;
-    uint32_t *nc_sid;
+    struct nc_session *nc_sess;
 
 #ifdef NP2SRV_URL_CAPAB
     const char *trg_url = NULL;
@@ -534,24 +527,19 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         goto cleanup;
     }
 
-    /* NACM checks */
     if (!source_is_config && !run_to_start) {
-        /* get source datastore data and filter them */
+        /* get source datastore data */
         sr_session_switch_ds(session, sds);
-        rc = sr_get_data(session, "/*", 0, np2srv.sr_timeout, 0, &sr_data);
-        if (rc != SR_ERR_OK) {
+        if ((rc = sr_get_data(session, "/*", 0, np2srv.sr_timeout, 0, &sr_data))) {
             goto cleanup;
         }
         config = sr_data->tree;
         sr_data->tree = NULL;
         sr_release_data(sr_data);
-
-        sr_session_get_orig_data(session, 1, NULL, (const void **)&username);
-        ncac_check_data_read_filter(&config, username);
     }
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
+    if ((rc = np_get_user_sess(session, &nc_sess, &user_sess))) {
         goto cleanup;
     }
 
@@ -588,22 +576,29 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
             /* config is spent */
             rc = sr_replace_config(user_sess->sess, NULL, config, np2srv.sr_timeout);
             config = NULL;
+            if (rc) {
+                sr_session_dup_error(user_sess->sess, session);
+                goto cleanup;
+            }
         } else {
             if (run_to_start) {
-                /* set SID to skip NACM check, only one copy-config can be executed at once */
-                sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_sid);
-                ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, *nc_sid);
+                /* skip NACM check */
+                sr_nacm_set_user(user_sess->sess, NULL);
             }
-            rc = sr_copy_config(user_sess->sess, NULL, sds, np2srv.sr_timeout);
-            ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, 0);
-        }
-        if (rc) {
-            sr_session_dup_error(user_sess->sess, session);
-            goto cleanup;
+
+            if ((rc = sr_copy_config(user_sess->sess, NULL, sds, np2srv.sr_timeout))) {
+                /* prevent the error info being overwritten */
+                sr_session_dup_error(user_sess->sess, session);
+            }
+
+            /* set NACM username back */
+            sr_nacm_set_user(user_sess->sess, nc_session_get_username(nc_sess));
+
+            if (rc) {
+                goto cleanup;
+            }
         }
     }
-
-    /* success */
 
 cleanup:
     lyd_free_siblings(config);
@@ -978,11 +973,6 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
     /* find the top-level node */
     while (notif->parent) {
         notif = lyd_parent(notif);
-    }
-
-    /* check NACM */
-    if (ncac_check_operation(notif, nc_session_get_username(cb_data->nc_sess))) {
-        goto cleanup;
     }
 
     /* create the notification object, all the passed arguments must exist until it is sent */

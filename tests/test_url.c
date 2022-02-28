@@ -25,6 +25,7 @@
 #include <cmocka.h>
 #include <libyang/libyang.h>
 #include <nc_client.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "np_test.h"
 #include "np_test_config.h"
@@ -213,7 +214,7 @@ test_copy_config_into_file(void **state)
 {
     struct np_test *st = *state;
     const char *path, *url, *template;
-    char *expected, *config, *user;
+    char *expected, *config;
     long size;
     FILE *file;
 
@@ -289,11 +290,9 @@ test_copy_config_into_file(void **state)
             "  </nacm>\n"
             "</config>\n";
 
-    assert_int_equal(0, get_username(&user));
-    assert_int_not_equal(-1, asprintf(&expected, template, user) == -1);
+    assert_int_not_equal(-1, asprintf(&expected, template, np_get_user()) == -1);
     assert_string_equal(config, expected);
     free(expected);
-    free(user);
 
     free(config);
     fclose(file);
@@ -357,7 +356,7 @@ test_edit_config(void **state)
 {
     struct np_test *st = *state;
     const char *url, *template;
-    char *expected, *user;
+    char *expected;
 
     url = "file://" NP_TEST_MODULE_DIR "/edit1.xml";
 
@@ -419,11 +418,9 @@ test_edit_config(void **state)
             "  </data>\n"
             "</get-config>\n";
 
-    assert_int_equal(0, get_username(&user));
-    assert_int_not_equal(-1, asprintf(&expected, template, user) == -1);
+    assert_int_not_equal(-1, asprintf(&expected, template, np_get_user()) == -1);
     assert_string_equal(st->str, expected);
     free(expected);
-    free(user);
 
     FREE_TEST_VARS(st);
 }
@@ -440,8 +437,8 @@ main(int argc, char **argv)
         cmocka_unit_test_teardown(test_edit_config, teardown_data),
     };
 
-    if (is_nacm_rec_uid()) {
-        puts("Running as NACM_RECOVERY_UID. Tests will not run correctly as this user bypases NACM. Skipping.");
+    if (np_is_nacm_recovery()) {
+        puts("Running as NACM_RECOVERY_USER. Tests will not run correctly as this user bypases NACM. Skipping.");
         return 0;
     }
 

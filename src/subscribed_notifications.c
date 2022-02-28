@@ -33,7 +33,6 @@
 #include "compat.h"
 #include "err_netconf.h"
 #include "log.h"
-#include "netconf_acm.h"
 #include "netconf_monitoring.h"
 #include "netconf_subscribed_notifications.h"
 
