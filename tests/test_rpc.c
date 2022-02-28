@@ -26,6 +26,7 @@
 #include <cmocka.h>
 #include <libyang/libyang.h>
 #include <nc_client.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "np_test.h"
 #include "np_test_config.h"
@@ -276,7 +277,6 @@ test_get(void **state)
     struct np_test *st = *state;
 
     /* Check if get RPC succeeds */
-    /* TODO: get crashes the server on a locked session */
     st->rpc = nc_rpc_get(NULL, NC_WD_ALL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
@@ -292,28 +292,27 @@ static void
 test_kill(void **state)
 {
     struct np_test *st = *state;
-    char *username, *error, *expected;
+    char *error, *expected;
     const char *template;
 
-    if (is_nacm_rec_uid()) {
+    if (np_is_nacm_recovery()) {
         puts("Skipping the test.");
         return;
     }
 
-    /* Try to close a session, should fail due to wrong permissions */
+    /* try to close a session, should fail due to wrong permissions */
     st->rpc = nc_rpc_kill(nc_session_get_id(st->nc_sess));
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
     ASSERT_RPC_ERROR(st);
 
-    /* Check the error message */
+    /* check the error message */
     lyd_print_mem(&error, st->envp, LYD_XML, 0);
-    get_username(&username);
     template =
             "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
             "message-id=\"%" PRIu64 "\">\n"
             "  <rpc-error>\n"
-            "    <error-type>application</error-type>\n"
+            "    <error-type>protocol</error-type>\n"
             "    <error-tag>access-denied</error-tag>\n"
             "    <error-severity>error</error-severity>\n"
             "    <error-path>/ietf-netconf:kill-session</error-path>\n"
@@ -321,14 +320,14 @@ test_kill(void **state)
             "because \"%s\" NACM authorization failed.</error-message>\n"
             "  </rpc-error>\n"
             "</rpc-reply>\n";
-    assert_int_not_equal(-1, asprintf(&expected, template, st->msgid, username));
+    assert_int_not_equal(-1, asprintf(&expected, template, st->msgid, np_get_user()));
     assert_string_equal(error, expected);
 
-    free(username);
     free(error);
     free(expected);
     FREE_TEST_VARS(st);
-    /* Functionality tested in  test_nacm.c */
+
+    /* functionality tested in test_nacm.c */
 }
 
 static void
@@ -336,13 +335,19 @@ test_commit(void **state)
 {
     struct np_test *st = *state;
 
-    /* Check if commit RPC succeeds */
+    /*if (sr_nacm_get_recovery_uid() == geteuid()) {
+        puts("Skipping the test.");
+        return;
+    }*/
+
+    /* check if commit RPC succeeds */
     st->rpc = nc_rpc_commit(0, 0, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
-    /* Functionality tested in test_candidate.c */
+
+    /* functionality tested in test_candidate.c */
 }
 
 static void
@@ -350,13 +355,14 @@ test_discard(void **state)
 {
     struct np_test *st = *state;
 
-    /* Check if discard RPC succeeds */
+    /* check if discard RPC succeeds */
     st->rpc = nc_rpc_discard();
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
-    /* Functionality tested in  test_candidate.c */
+
+    /* functionality tested in  test_candidate.c */
 }
 
 static void
@@ -366,7 +372,7 @@ test_getconfig(void **state)
     const char *expected;
     char *configuration;
 
-    if (is_nacm_rec_uid()) {
+    if (np_is_nacm_recovery()) {
         puts("Skipping the test.");
         return;
     }

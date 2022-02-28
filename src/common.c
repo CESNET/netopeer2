@@ -40,11 +40,11 @@
 #include <libyang/libyang.h>
 #include <libyang/plugins_types.h>
 #include <nc_server.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "common.h"
 #include "compat.h"
 #include "log.h"
-#include "netconf_acm.h"
 #include "netconf_monitoring.h"
 
 struct np2srv np2srv = {.unix_mode = -1, .unix_uid = -1, .unix_gid = -1};
@@ -296,6 +296,11 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
     sr_session_push_orig_data(sr_sess, sizeof nc_id, &nc_id);
     username = nc_session_get_username(new_session);
     sr_session_push_orig_data(sr_sess, strlen(username) + 1, username);
+
+    /* set NACM username for it to be applied */
+    if (sr_nacm_set_user(sr_sess, username)) {
+        goto error;
+    }
 
     c = 0;
     while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, new_session)) {

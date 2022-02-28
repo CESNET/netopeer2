@@ -69,7 +69,6 @@ struct np2srv {
 };
 
 extern struct np2srv np2srv;
-extern ATOMIC_T skip_nacm_nc_sid;
 
 /**
  * @brief Sleep in milliseconds.

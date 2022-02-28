@@ -19,8 +19,6 @@
 
 #include <sysrepo.h>
 
-void np_err_nacm_access_denied(sr_session_ctx_t *ev_sess, const char *module_name, const char *user, const char *path);
-
 void np_err_sr2nc_lock_denied(sr_session_ctx_t *ev_sess, const sr_error_info_t *err_info);
 
 void np_err_sr2nc_in_use(sr_session_ctx_t *ev_sess, const sr_error_info_t *err_info);

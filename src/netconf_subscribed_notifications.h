@@ -48,7 +48,6 @@ struct np2srv_sub_ntf_info {
 
         int terminating;        /* set flag means the WRITE lock for this subscription will not be granted */
         ATOMIC_T sent_count;    /* sent notifications counter */
-        ATOMIC_T denied_count;  /* counter of notifications denied by NACM */
 
         enum sub_ntf_type type;
         void *data;
@@ -118,13 +117,6 @@ void sub_ntf_cb_lock_pass(uint32_t sub_id);
  * @param[in] sub_id Sysrepo subscription ID that the lock was passed to.
  */
 void sub_ntf_cb_lock_clear(uint32_t sub_id);
-
-/**
- * @brief Increase denied notification count for a subscription.
- *
- * @param[in] nc_sub_id NETCONF sub ID of the subscription.
- */
-void sub_ntf_inc_denied(uint32_t nc_sub_id);
 
 /**
  * @brief Correctly terminate a ntf-sub subscription.

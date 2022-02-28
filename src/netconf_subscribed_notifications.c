@@ -34,7 +34,6 @@
 #include "compat.h"
 #include "err_netconf.h"
 #include "log.h"
-#include "netconf_acm.h"
 #include "netconf_monitoring.h"
 #include "subscribed_notifications.h"
 #include "yang_push.h"
@@ -171,15 +170,6 @@ sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, struct timespec t
         goto cleanup;
     }
 
-    /* check NACM of the notification itself */
-    if (ncac_check_operation(*ly_ntf, nc_session_get_username(ncs))) {
-        /* denied */
-        ATOMIC_INC_RELAXED(sub->denied_count);
-
-        /* success */
-        goto cleanup;
-    }
-
     /* create the notification object */
     ly_time_ts2str(&timestamp, &datetime);
     if (use_ntf) {
@@ -227,20 +217,6 @@ sub_ntf_cb_lock_clear(uint32_t sub_id)
     (void)sub_id;
 
     ATOMIC_STORE_RELAXED(info.sub_id_lock, 0);
-}
-
-void
-sub_ntf_inc_denied(uint32_t nc_sub_id)
-{
-    struct np2srv_sub_ntf *sub;
-
-    sub = sub_ntf_find(nc_sub_id, 0, 0, 0);
-    if (!sub) {
-        EINT;
-        return;
-    }
-
-    ATOMIC_INC_RELAXED(sub->denied_count);
 }
 
 /**
@@ -1014,9 +990,6 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
             excluded_count = yang_push_oper_receiver_excluded(sub);
             break;
         }
-
-        /* add denied */
-        excluded_count += ATOMIC_LOAD_RELAXED(sub->denied_count);
 
         sprintf(buf, "%" PRIu32, excluded_count);
         if (lyd_new_term(receiver, NULL, "excluded-event-records", buf, 0, NULL)) {
