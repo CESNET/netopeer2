@@ -232,6 +232,8 @@ sub_ntf_add(const struct np2srv_sub_ntf *sub, struct np2srv_sub_ntf **sub_p)
 {
     void *mem;
 
+    *sub_p = NULL;
+
     mem = realloc(info.subs, (info.count + 1) * sizeof *info.subs);
     if (!mem) {
         return -1;
