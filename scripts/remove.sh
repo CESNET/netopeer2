@@ -35,7 +35,7 @@ MODULES=(
 
 # functions
 UNINSTALL_MODULE() {
-    "$SYSREPOCTL" -a -u $1 -v2
+    "$SYSREPOCTL" -u $1 -v2
     local rc=$?
     if [ $rc -ne 0 ]; then
         exit $rc
@@ -43,7 +43,7 @@ UNINSTALL_MODULE() {
 }
 
 DISABLE_FEATURE() {
-    "$SYSREPOCTL" -a -c $1 -d $2 -v2
+    "$SYSREPOCTL" -c $1 -d $2 -v2
     local rc=$?
     if [ $rc -ne 0 ]; then
         exit $rc
