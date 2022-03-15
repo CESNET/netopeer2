@@ -18,6 +18,7 @@
 
 #include <setjmp.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -25,6 +26,7 @@
 #include <cmocka.h>
 #include <libyang/libyang.h>
 #include <nc_client.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "np_test.h"
 #include "np_test_config.h"
@@ -32,57 +34,39 @@
 static int
 local_setup(void **state)
 {
-    struct np_test *st = *state;
-    sr_conn_ctx_t *conn;
     char test_name[256];
-    const char *module1 = NP_TEST_MODULE_DIR "/edit1.yang";
-    int rv;
+    const char *modules[] = {NP_TEST_MODULE_DIR "/edit1.yang"};
+    int rc;
 
     /* get test name */
     np_glob_setup_test_name(test_name);
 
     /* setup environment necessary for installing module */
-    rv = np_glob_setup_env(test_name);
-    assert_int_equal(rv, 0);
+    rc = np_glob_setup_env(test_name);
+    assert_int_equal(rc, 0);
 
-    /* Connect to server and install test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module1, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
+    /* setup netopeer2 server */
+    rc = np_glob_setup_np2(state, test_name, modules, sizeof modules / sizeof *modules);
+    assert_int_equal(rc, 0);
 
-    /* Setup netopeer2 server */
-    if (!(rv = np_glob_setup_np2(state, test_name))) {
-        st = *state;
-        /* Open the connection to start a session for the tests */
-        assert_int_equal(sr_connect(SR_CONN_DEFAULT, &st->conn), SR_ERR_OK);
-        assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess), SR_ERR_OK);
-        assert_non_null(st->ctx = sr_get_context(st->conn));
-        rv |= setup_nacm(state);
-    }
-    return rv;
+    /* setup NACM */
+    rc = setup_nacm(state);
+    assert_int_equal(rc, 0);
+
+    return 0;
 }
 
 static int
 local_teardown(void **state)
 {
-    struct np_test *st = *state;
-    sr_conn_ctx_t *conn;
+    const char *modules[] = {"edit1"};
 
-    if (!st) {
-        return 0;
+    /* close netopeer2 server */
+    if (*state) {
+        return np_glob_teardown(state, modules, sizeof modules / sizeof *modules);
     }
 
-    /* Close the session and connection needed for tests */
-    assert_int_equal(sr_session_stop(st->sr_sess), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(st->conn), SR_ERR_OK);
-
-    /* Connect to server and remove test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "edit1"), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
-
-    /* Close netopeer2 server */
-    return np_glob_teardown(state);
+    return 0;
 }
 
 static int
@@ -138,7 +122,7 @@ test_lock_fail(void **state)
     template =
             "<rpc-reply "
             "xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
-            "message-id=\"%ld\">\n"
+            "message-id=\"%" PRIu64 "\">\n"
             "  <rpc-error>\n"
             "    <error-type>protocol</error-type>\n"
             "    <error-tag>lock-denied</error-tag>\n"
@@ -146,7 +130,7 @@ test_lock_fail(void **state)
             "    <error-message xml:lang=\"en\">Access to the requested lock is denied"
             " because the lock is currently held by another entity.</error-message>\n"
             "    <error-info>\n"
-            "      <session-id>%d</session-id>\n"
+            "      <session-id>%" PRIu32 "</session-id>\n"
             "    </error-info>\n"
             "  </rpc-error>\n"
             "</rpc-reply>\n";
@@ -269,7 +253,7 @@ test_unlock_fail(void **state)
     template =
             "<rpc-reply "
             "xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
-            "message-id=\"%ld\">\n"
+            "message-id=\"%" PRIu64 "\">\n"
             "  <rpc-error>\n"
             "    <error-type>protocol</error-type>\n"
             "    <error-tag>lock-denied</error-tag>\n"
@@ -277,7 +261,7 @@ test_unlock_fail(void **state)
             "    <error-message xml:lang=\"en\">Access to the requested lock is denied"
             " because the lock is currently held by another entity.</error-message>\n"
             "    <error-info>\n"
-            "      <session-id>%d</session-id>\n"
+            "      <session-id>%" PRIu32 "</session-id>\n"
             "    </error-info>\n"
             "  </rpc-error>\n"
             "</rpc-reply>\n";
@@ -293,7 +277,6 @@ test_get(void **state)
     struct np_test *st = *state;
 
     /* Check if get RPC succeeds */
-    /* TODO: get crashes the server on a locked session */
     st->rpc = nc_rpc_get(NULL, NC_WD_ALL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
@@ -309,28 +292,27 @@ static void
 test_kill(void **state)
 {
     struct np_test *st = *state;
-    char *username, *error, *expected;
+    char *error, *expected;
     const char *template;
 
-    if (is_nacm_rec_uid()) {
+    if (np_is_nacm_recovery()) {
         puts("Skipping the test.");
         return;
     }
 
-    /* Try to close a session, should fail due to wrong permissions */
+    /* try to close a session, should fail due to wrong permissions */
     st->rpc = nc_rpc_kill(nc_session_get_id(st->nc_sess));
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
     ASSERT_RPC_ERROR(st);
 
-    /* Check the error message */
+    /* check the error message */
     lyd_print_mem(&error, st->envp, LYD_XML, 0);
-    get_username(&username);
     template =
             "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
-            "message-id=\"%ld\">\n"
+            "message-id=\"%" PRIu64 "\">\n"
             "  <rpc-error>\n"
-            "    <error-type>application</error-type>\n"
+            "    <error-type>protocol</error-type>\n"
             "    <error-tag>access-denied</error-tag>\n"
             "    <error-severity>error</error-severity>\n"
             "    <error-path>/ietf-netconf:kill-session</error-path>\n"
@@ -338,14 +320,14 @@ test_kill(void **state)
             "because \"%s\" NACM authorization failed.</error-message>\n"
             "  </rpc-error>\n"
             "</rpc-reply>\n";
-    assert_int_not_equal(-1, asprintf(&expected, template, st->msgid, username));
+    assert_int_not_equal(-1, asprintf(&expected, template, st->msgid, np_get_user()));
     assert_string_equal(error, expected);
 
-    free(username);
     free(error);
     free(expected);
     FREE_TEST_VARS(st);
-    /* Functionality tested in  test_nacm.c */
+
+    /* functionality tested in test_nacm.c */
 }
 
 static void
@@ -353,13 +335,19 @@ test_commit(void **state)
 {
     struct np_test *st = *state;
 
-    /* Check if commit RPC succeeds */
+    /*if (sr_nacm_get_recovery_uid() == geteuid()) {
+        puts("Skipping the test.");
+        return;
+    }*/
+
+    /* check if commit RPC succeeds */
     st->rpc = nc_rpc_commit(0, 0, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
-    /* Functionality tested in test_candidate.c */
+
+    /* functionality tested in test_candidate.c */
 }
 
 static void
@@ -367,13 +355,14 @@ test_discard(void **state)
 {
     struct np_test *st = *state;
 
-    /* Check if discard RPC succeeds */
+    /* check if discard RPC succeeds */
     st->rpc = nc_rpc_discard();
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
-    /* Functionality tested in  test_candidate.c */
+
+    /* functionality tested in  test_candidate.c */
 }
 
 static void
@@ -382,6 +371,11 @@ test_getconfig(void **state)
     struct np_test *st = *state;
     const char *expected;
     char *configuration;
+
+    if (np_is_nacm_recovery()) {
+        puts("Skipping the test.");
+        return;
+    }
 
     /* Try getting configuration */
     st->rpc = nc_rpc_getconfig(NC_DATASTORE_RUNNING, NULL, NC_WD_ALL, NC_PARAMTYPE_CONST);

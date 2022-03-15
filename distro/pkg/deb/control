@@ -9,6 +9,7 @@ Build-Depends: cmake,
                libyang2-dev (>= 2),
                libnetconf2-dev (>= 2),
                libsysrepo-dev (>= 2),
+               libsystemd-dev,
                pkg-config
 Vcs-Browser: https://github.com/CESNET/netopeer2/tree/master
 Vcs-Git: https://github.com/CESNET/netopeer2.git

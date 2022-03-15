@@ -24,7 +24,7 @@ add_test(NAME headers
 
 # format
 if (${SOURCE_FORMAT_ENABLED})
-    add_test(NAME format WORKING_DIRECTORY ${CMAKE_BINARY_DIR} COMMAND make format-check)
+    add_test(NAME format WORKING_DIRECTORY ${CMAKE_BINARY_DIR} COMMAND cmake --build ${CMAKE_BINARY_DIR} --target format-check)
 endif()
 
 # include dirs
@@ -52,10 +52,14 @@ foreach(test_name IN LISTS tests)
     set_property(TARGET ${test_name} PROPERTY RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endforeach(test_name)
 
+set(TEST_KILL_SERVER_COMMAND ${CMAKE_CURRENT_BINARY_DIR}/scripts/kill_np_server.sh)
+set(TEST_CLEAR_STATE_COMMAND rm -rf /dev/shm/_tests_np_*)
 if(${CMAKE_VERSION} VERSION_GREATER "3.7")
-    # tests cleanup fixture, keep repos with server log files
-    add_test(NAME tests_done COMMAND make test_clean_keep_repos)
-    set_tests_properties(tests_done PROPERTIES FIXTURES_CLEANUP tests_cleanup)
+    # tests cleanup fixtures, keep repos with server log files
+    add_test(NAME tests_kill_server COMMAND ${TEST_KILL_SERVER_COMMAND})
+    add_test(NAME tests_clear_state COMMAND ${TEST_CLEAR_STATE_COMMAND})
+    set_tests_properties(tests_kill_server PROPERTIES FIXTURES_CLEANUP tests_cleanup)
+    set_tests_properties(tests_clear_state PROPERTIES FIXTURES_CLEANUP tests_cleanup DEPENDS tests_kill_server)
 endif()
 
 # add tests with their attributes
@@ -63,6 +67,7 @@ foreach(test_name IN LISTS tests)
     add_test(NAME ${test_name} COMMAND $<TARGET_FILE:${test_name}> WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
     set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT "MALLOC_CHECK_=3")
     set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT "TEST_NAME=${test_name}")
+    set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT "SYSREPOCTL_EXECUTABLE=${SYSREPOCTL_EXECUTABLE}")
     if(${CMAKE_VERSION} VERSION_GREATER "3.7")
         set_tests_properties(${test_name} PROPERTIES FIXTURES_REQUIRED tests_cleanup)
     endif()
@@ -74,6 +79,7 @@ if(ENABLE_VALGRIND_TESTS)
         add_test(NAME ${test_name}_valgrind COMMAND valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ${CMAKE_CURRENT_BINARY_DIR}/${test_name} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
         set(test_name "${test_name}_valgrind")
         set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT "TEST_NAME=${test_name}")
+        set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT "SYSREPOCTL_EXECUTABLE=${SYSREPOCTL_EXECUTABLE}")
         if(${CMAKE_VERSION} VERSION_GREATER "3.7")
             set_tests_properties(${test_name} PROPERTIES FIXTURES_REQUIRED tests_cleanup)
         endif()
@@ -81,11 +87,8 @@ if(ENABLE_VALGRIND_TESTS)
 endif()
 
 # phony target for clearing all sysrepo test data
-add_custom_target(test_clean_keep_repos
-    COMMAND ${CMAKE_CURRENT_BINARY_DIR}/scripts/kill_np_server.sh
-    COMMAND rm -rf /dev/shm/_tests_np_*
-)
 add_custom_target(test_clean
-    DEPENDS test_clean_keep_repos
+    COMMAND ${TEST_KILL_SERVER_COMMAND}
+    COMMAND ${TEST_CLEAR_STATE_COMMAND}
     COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/repositories
 )

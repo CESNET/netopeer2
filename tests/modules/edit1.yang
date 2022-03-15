@@ -2,7 +2,21 @@ module edit1 {
   namespace ed1;
   prefix ed1;
 
+  leaf stateLeaf {
+    type int32;
+    config false;
+  }
+
   leaf first {
     type string;
+  }
+
+  container cont {
+    leaf second {
+      type empty;
+    }
+    leaf third {
+      type uint32;
+    }
   }
 }

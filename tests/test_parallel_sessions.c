@@ -38,16 +38,27 @@ static int
 local_setup(void **state)
 {
     char test_name[256];
-    int rv;
+    int rc;
 
     /* get test name */
     np_glob_setup_test_name(test_name);
 
     /* setup environment necessary for installing module */
-    rv = np_glob_setup_env(test_name);
-    assert_int_equal(rv, 0);
+    rc = np_glob_setup_env(test_name);
+    assert_int_equal(rc, 0);
 
-    return np_glob_setup_np2(state, test_name);
+    return np_glob_setup_np2(state, test_name, NULL, 0);
+}
+
+static int
+local_teardown(void **state)
+{
+    if (!*state) {
+        return 0;
+    }
+
+    /* close netopeer2 server */
+    return np_glob_teardown(state, NULL, 0);
 }
 
 struct thread_arg {
@@ -58,8 +69,8 @@ struct thread_arg {
 static void
 recv_reply_error_print(struct np_test *st, const struct lyd_node *op, const struct lyd_node *envp)
 {
-    char *path, *line = NULL;
-    size_t line_len = 0;
+    char *path, *line = NULL, **lines = NULL;
+    size_t i, line_len = 0, line_count = 0;
     FILE *f;
 
     /* print op */
@@ -76,8 +87,7 @@ recv_reply_error_print(struct np_test *st, const struct lyd_node *op, const stru
     }
     printf("\n");
 
-    /* print netopeer2 log */
-    printf("np2 log:\n");
+    /* open netopeer2 log */
     assert_int_not_equal(-1, asprintf(&path, "%s/%s/%s", NP_SR_REPOS_DIR, st->test_name, NP_LOG_FILE));
     f = fopen(path, "r");
     free(path);
@@ -85,11 +95,26 @@ recv_reply_error_print(struct np_test *st, const struct lyd_node *op, const stru
         printf("Opening netopeer2 log file failed.\n");
         return;
     }
+
+    /* store all the lines */
     while (getline(&line, &line_len, f) != -1) {
-        fputs(line, stdout);
+        lines = realloc(lines, (line_count + 1) * sizeof *lines);
+        lines[line_count] = line;
+        line = NULL;
+        ++line_count;
     }
-    free(line);
     fclose(f);
+
+    /* print from the end in case the log is too long and would not get printed */
+    printf("np2 log backwards:\n");
+    assert_non_null(line_count);
+    i = line_count;
+    do {
+        --i;
+        puts(lines[i]);
+        free(lines[i]);
+    } while (i);
+    free(lines);
 }
 
 static void *
@@ -157,5 +182,5 @@ main(int argc, char **argv)
 
     nc_verbosity(NC_VERB_WARNING);
     parse_arg(argc, argv);
-    return cmocka_run_group_tests(tests, local_setup, np_glob_teardown);
+    return cmocka_run_group_tests(tests, local_setup, local_teardown);
 }

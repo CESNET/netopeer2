@@ -32,12 +32,12 @@
 
 #include <libyang/libyang.h>
 #include <sysrepo.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "common.h"
 #include "compat.h"
 #include "err_netconf.h"
 #include "log.h"
-#include "netconf_acm.h"
 #include "netconf_confirmed_commit.h"
 #include "netconf_monitoring.h"
 
@@ -208,7 +208,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     struct np2_user_sess *user_sess = NULL;
     struct ly_set *nodeset = NULL;
     sr_datastore_t ds = 0;
-    const char *single_filter, *username;
+    const char *single_filter;
 
     if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
@@ -231,8 +231,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     }
 
     /* create filters */
-    lyd_find_path(input, "filter", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "filter", 0, &node)) {
         /* learn filter type */
         meta = lyd_find_meta(node->meta, NULL, "ietf-netconf:type");
         if (meta && !strcmp(lyd_get_meta_value(meta), "xpath")) {
@@ -298,17 +297,11 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
         goto cleanup;
     }
 
-    /* perform correct NACM filtering */
-    sr_session_get_orig_data(session, 1, NULL, (const void **)&username);
-    ncac_check_data_read_filter(&data_get, username);
-
     /* add output */
     if (lyd_new_any(output, NULL, "data", data_get, 1, LYD_ANYDATA_DATATREE, 1, &node)) {
         goto cleanup;
     }
     data_get = NULL;
-
-    /* success */
 
 cleanup:
     op_filter_erase(&filter);
@@ -345,14 +338,12 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     ly_set_free(nodeset, NULL);
 
     /* default-operation */
-    lyd_find_path(input, "default-operation", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "default-operation", 0, &node)) {
         defop = lyd_get_value(node);
     }
 
     /* test-option */
-    lyd_find_path(input, "test-option", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "test-option", 0, &node)) {
         testop = lyd_get_value(node);
         if (!strcmp(testop, "set")) {
             VRB("edit-config test-option \"set\" not supported, validation will be performed.");
@@ -361,8 +352,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     }
 
     /* error-option */
-    lyd_find_path(input, "error-option", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "error-option", 0, &node)) {
         if (strcmp(lyd_get_value(node), "rollback-on-error")) {
             VRB("edit-config error-option \"%s\" not supported, rollback-on-error will be performed.", lyd_get_value(node));
         }
@@ -442,10 +432,10 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     sr_datastore_t ds = SR_DS_OPERATIONAL, sds = SR_DS_OPERATIONAL;
     struct ly_set *nodeset = NULL;
     struct lyd_node *config = NULL;
+    sr_data_t *sr_data;
     int rc = SR_ERR_OK, run_to_start = 0, source_is_config = 0;
     struct np2_user_sess *user_sess = NULL;
-    const char *username;
-    uint32_t *nc_sid;
+    struct nc_session *nc_sess;
 
 #ifdef NP2SRV_URL_CAPAB
     const char *trg_url = NULL;
@@ -537,21 +527,19 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         goto cleanup;
     }
 
-    /* NACM checks */
     if (!source_is_config && !run_to_start) {
-        /* get source datastore data and filter them */
+        /* get source datastore data */
         sr_session_switch_ds(session, sds);
-        rc = sr_get_data(session, "/*", 0, np2srv.sr_timeout, 0, &config);
-        if (rc != SR_ERR_OK) {
+        if ((rc = sr_get_data(session, "/*", 0, np2srv.sr_timeout, 0, &sr_data))) {
             goto cleanup;
         }
-
-        sr_session_get_orig_data(session, 1, NULL, (const void **)&username);
-        ncac_check_data_read_filter(&config, username);
+        config = sr_data->tree;
+        sr_data->tree = NULL;
+        sr_release_data(sr_data);
     }
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
+    if ((rc = np_get_user_sess(session, &nc_sess, &user_sess))) {
         goto cleanup;
     }
 
@@ -564,9 +552,8 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         struct lyd_node *node;
 
         /* we need with-defaults flag in this case */
-        lyd_find_path(input, "ietf-netconf-with-defaults:with-defaults", 0, &node);
         lyp_wd_flag = 0;
-        if (node) {
+        if (!lyd_find_path(input, "ietf-netconf-with-defaults:with-defaults", 0, &node)) {
             if (!strcmp(lyd_get_value(node), "report-all")) {
                 lyp_wd_flag = LYD_PRINT_WD_ALL;
             } else if (!strcmp(lyd_get_value(node), "report-all-tagged")) {
@@ -589,22 +576,29 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
             /* config is spent */
             rc = sr_replace_config(user_sess->sess, NULL, config, np2srv.sr_timeout);
             config = NULL;
+            if (rc) {
+                sr_session_dup_error(user_sess->sess, session);
+                goto cleanup;
+            }
         } else {
             if (run_to_start) {
-                /* set SID to skip NACM check, only one copy-config can be executed at once */
-                sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_sid);
-                ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, *nc_sid);
+                /* skip NACM check */
+                sr_nacm_set_user(user_sess->sess, NULL);
             }
-            rc = sr_copy_config(user_sess->sess, NULL, sds, np2srv.sr_timeout);
-            ATOMIC_STORE_RELAXED(skip_nacm_nc_sid, 0);
-        }
-        if (rc) {
-            sr_session_dup_error(user_sess->sess, session);
-            goto cleanup;
+
+            if ((rc = sr_copy_config(user_sess->sess, NULL, sds, np2srv.sr_timeout))) {
+                /* prevent the error info being overwritten */
+                sr_session_dup_error(user_sess->sess, session);
+            }
+
+            /* set NACM username back */
+            sr_nacm_set_user(user_sess->sess, nc_session_get_username(nc_sess));
+
+            if (rc) {
+                goto cleanup;
+            }
         }
     }
-
-    /* success */
 
 cleanup:
     lyd_free_siblings(config);
@@ -726,7 +720,7 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
 
     /* sysrepo API */
     if (!strcmp(input->schema->name, "lock")) {
-        rc = sr_lock(user_sess->sess, NULL);
+        rc = sr_lock(user_sess->sess, NULL, 0);
     } else if (!strcmp(input->schema->name, "unlock")) {
         rc = sr_unlock(user_sess->sess, NULL);
     }
@@ -937,9 +931,12 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
     struct nc_server_notif *nc_ntf = NULL;
     struct subscribe_ntf_data *cb_data = private_data;
     struct lyd_node *ly_ntf = NULL;
+    const struct ly_ctx *ly_ctx;
     NC_MSG_TYPE msg_type;
     char *datetime = NULL;
     struct timespec stop, cur_ts;
+
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
 
     /* create these notifications, sysrepo only emulates them */
     if (notif_type == SR_EV_NOTIF_REPLAY_COMPLETE) {
@@ -949,7 +946,7 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
             goto cleanup;
         }
 
-        lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/nc-notifications:replayComplete", NULL, 0, &ly_ntf);
+        lyd_new_path(NULL, ly_ctx, "/nc-notifications:replayComplete", NULL, 0, &ly_ntf);
         notif = ly_ntf;
     } else if (notif_type == SR_EV_NOTIF_TERMINATED) {
         sr_notif_sub_get_info(np2srv.sr_notif_sub, sub_id, NULL, NULL, NULL, &stop, NULL);
@@ -965,7 +962,7 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
             goto cleanup;
         }
 
-        lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/nc-notifications:notificationComplete", NULL, 0, &ly_ntf);
+        lyd_new_path(NULL, ly_ctx, "/nc-notifications:notificationComplete", NULL, 0, &ly_ntf);
         notif = ly_ntf;
     } else if ((notif_type == SR_EV_NOTIF_MODIFIED) || (notif_type == SR_EV_NOTIF_RESUMED) ||
             (notif_type == SR_EV_NOTIF_SUSPENDED)) {
@@ -976,11 +973,6 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
     /* find the top-level node */
     while (notif->parent) {
         notif = lyd_parent(notif);
-    }
-
-    /* check NACM */
-    if (ncac_check_operation(notif, nc_session_get_username(cb_data->nc_sess))) {
-        goto cleanup;
     }
 
     /* create the notification object, all the passed arguments must exist until it is sent */
@@ -1006,6 +998,7 @@ cleanup:
     nc_server_notif_free(nc_ntf);
     free(datetime);
     lyd_free_all(ly_ntf);
+    sr_release_context(np2srv.sr_conn);
 }
 
 int
@@ -1049,8 +1042,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     stream = lyd_get_value(node);
 
     /* filter */
-    lyd_find_path(input, "filter", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "filter", 0, &node)) {
         /* learn filter type */
         meta = lyd_find_meta(node->meta, NULL, "ietf-netconf:type");
         if (meta && !strcmp(lyd_get_meta_value(meta), "xpath")) {
@@ -1089,14 +1081,12 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     }
 
     /* start time */
-    lyd_find_path(input, "startTime", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "startTime", 0, &node)) {
         ly_time_str2ts(lyd_get_value(node), &start);
     }
 
     /* stop time */
-    lyd_find_path(input, "stopTime", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "stopTime", 0, &node)) {
         ly_time_str2ts(lyd_get_value(node), &stop);
     }
 
@@ -1152,8 +1142,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         for (idx = 0; idx < mod_set.count; ++idx) {
             ly_mod = mod_set.objs[idx];
             rc = sr_notif_subscribe_tree(user_sess->sess, ly_mod->name, xp, start.tv_sec ? &start : NULL,
-                    stop.tv_sec ? &stop : NULL, np2srv_rpc_subscribe_ntf_cb, cb_data, SR_SUBSCR_CTX_REUSE,
-                    &np2srv.sr_notif_sub);
+                    stop.tv_sec ? &stop : NULL, np2srv_rpc_subscribe_ntf_cb, cb_data, 0, &np2srv.sr_notif_sub);
             if (rc != SR_ERR_OK) {
                 sr_session_get_error(user_sess->sess, &err_info);
                 sr_session_set_error_message(session, err_info->err[0].message);
@@ -1164,7 +1153,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         /* subscribe to the specific module (stream) */
         cb_data->sr_sub_count = 1;
         rc = sr_notif_subscribe_tree(user_sess->sess, stream, xp, start.tv_sec ? &start : NULL, stop.tv_sec ? &stop : NULL,
-                np2srv_rpc_subscribe_ntf_cb, cb_data, SR_SUBSCR_CTX_REUSE, &np2srv.sr_notif_sub);
+                np2srv_rpc_subscribe_ntf_cb, cb_data, 0, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {
             sr_session_get_error(user_sess->sess, &err_info);
             sr_session_set_error_message(session, err_info->err[0].message);
@@ -1194,16 +1183,17 @@ np2srv_nc_ntf_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         const char *UNUSED(path), const char *UNUSED(request_xpath), uint32_t UNUSED(request_id),
         struct lyd_node **parent, void *UNUSED(private_data))
 {
-    struct lyd_node *root, *stream, *sr_data = NULL, *sr_mod, *rep_sup;
-    sr_conn_ctx_t *conn;
+    struct lyd_node *root, *stream;
     const struct ly_ctx *ly_ctx;
-    const struct lys_module *mod;
-    const char *mod_name;
+    const struct lys_module *ly_mod;
     char *buf;
-    int rc;
+    uint32_t idx = 0;
+    int enabled;
+    struct timespec earliest_notif;
 
-    conn = sr_session_get_connection(session);
-    ly_ctx = sr_get_context(conn);
+    /* context is locked by the callback anyway */
+    ly_ctx = sr_session_acquire_context(session);
+    sr_session_release_context(session);
 
     if (lyd_new_path(NULL, ly_ctx, "/nc-notifications:netconf/streams", NULL, 0, &root)) {
         goto error;
@@ -1222,42 +1212,30 @@ np2srv_nc_ntf_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         goto error;
     }
 
-    /* go through all the sysrepo modules */
-    rc = sr_get_module_info(conn, &sr_data);
-    if (rc != SR_ERR_OK) {
-        ERR("Failed to get sysrepo module info data (%s).", sr_strerror(rc));
-        goto error;
-    }
-    LY_LIST_FOR(lyd_child(sr_data), sr_mod) {
-        if (strcmp(sr_mod->schema->name, "module")) {
-            continue;
-        }
-
-        mod_name = lyd_get_value(lyd_child(sr_mod));
-
-        /* get the module */
-        mod = ly_ctx_get_module_implemented(ly_ctx, mod_name);
-        assert(mod);
-
-        if (!np_ly_mod_has_notif(mod)) {
-            /* no notifications in the module so do not consider it a stream */
+    /* go through all the modules */
+    while ((ly_mod = ly_ctx_get_module_iter(ly_ctx, &idx))) {
+        if (!ly_mod->implemented || !np_ly_mod_has_notif(ly_mod)) {
+            /* not implemented or no notifications in the module so do not consider it a stream */
             continue;
         }
 
         /* generate information about the stream/module */
-        if (lyd_new_list(lyd_child(root), NULL, "stream", 0, &stream, mod_name)) {
+        if (lyd_new_list(lyd_child(root), NULL, "stream", 0, &stream, ly_mod->name)) {
             goto error;
         }
         if (lyd_new_term(stream, NULL, "description", "Stream with all the notifications of a module.", 0, NULL)) {
             goto error;
         }
 
-        lyd_find_path(sr_mod, "replay-support", 0, &rep_sup);
-        if (lyd_new_term(stream, NULL, "replaySupport", rep_sup ? "true" : "false", 0, NULL)) {
+        /* learn whether replay is supported */
+        if (sr_get_module_replay_support(sr_session_get_connection(session), ly_mod->name, &earliest_notif, &enabled)) {
             goto error;
         }
-        if (rep_sup) {
-            ly_time_time2str(((struct lyd_node_term *)rep_sup)->value.uint64, NULL, &buf);
+        if (lyd_new_term(stream, NULL, "replaySupport", enabled ? "true" : "false", 0, NULL)) {
+            goto error;
+        }
+        if (enabled) {
+            ly_time_ts2str(&earliest_notif, &buf);
             if (lyd_new_term(stream, NULL, "replayLogCreationTime", buf, 0, NULL)) {
                 free(buf);
                 goto error;
@@ -1266,12 +1244,10 @@ np2srv_nc_ntf_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         }
     }
 
-    lyd_free_siblings(sr_data);
     *parent = root;
     return SR_ERR_OK;
 
 error:
     lyd_free_tree(root);
-    lyd_free_siblings(sr_data);
     return SR_ERR_INTERNAL;
 }

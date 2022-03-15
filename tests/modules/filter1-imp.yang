@@ -1,0 +1,14 @@
+module filter1-imp {
+  namespace "urn:f1i";
+  prefix f1i;
+
+  identity ident-base;
+
+  identity ident-val1 {
+    base ident-base;
+  }
+
+  identity ident-val2 {
+    base ident-base;
+  }
+}

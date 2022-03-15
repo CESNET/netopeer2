@@ -179,4 +179,4 @@ jobs:
       - name: Test
         shell: bash
         working-directory: ${{ github.workspace }}/build
-        run: ctest --output-on-failure
+        run: ctest --output-on-failure -j4

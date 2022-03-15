@@ -27,6 +27,7 @@
 #include <libyang/libyang.h>
 #include <nc_client.h>
 #include <sysrepo.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "np_test.h"
 #include "np_test_config.h"
@@ -35,40 +36,33 @@ static int
 local_setup(void **state)
 {
     struct np_test *st;
-    sr_conn_ctx_t *conn;
     char test_name[256];
-    const char *module1 = NP_TEST_MODULE_DIR "/notif1.yang";
-    const char *module2 = NP_TEST_MODULE_DIR "/notif2.yang";
-    int rv;
+    const char *modules[] = {NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang"};
+    int rc;
 
     /* get test name */
     np_glob_setup_test_name(test_name);
 
-    /* setup environment necessary for installing module */
-    rv = np_glob_setup_env(test_name);
-    assert_int_equal(rv, 0);
-
-    /* connect to server and install test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module1, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module2, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
+    /* setup environment */
+    rc = np_glob_setup_env(test_name);
+    assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    if (!(rv = np_glob_setup_np2(state, test_name))) {
-        /* state is allocated in np_glob_setup_np2 have to set here */
-        st = *state;
-        /* Open connection to start a sessions for the tests */
-        assert_int_equal(sr_connect(SR_CONN_DEFAULT, &st->conn), SR_ERR_OK);
-        assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess), SR_ERR_OK);
-        assert_int_equal(sr_session_start(st->conn, SR_DS_OPERATIONAL, &st->sr_sess2), SR_ERR_OK);
-        assert_non_null(st->ctx = sr_get_context(st->conn));
+    rc = np_glob_setup_np2(state, test_name, modules, sizeof modules / sizeof *modules);
+    assert_int_equal(rc, 0);
+    st = *state;
 
-        /* Enable replay support */
-        assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "notif1", 1));
-        rv |= setup_nacm(state);
-    }
-    return rv;
+    /* second session */
+    assert_int_equal(sr_session_start(st->conn, SR_DS_OPERATIONAL, &st->sr_sess2), SR_ERR_OK);
+
+    /* enable replay support */
+    assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "notif1", 1));
+
+    /* setup NACM */
+    rc = setup_nacm(state);
+    assert_int_equal(rc, 0);
+
+    return 0;
 }
 
 static int
@@ -104,31 +98,23 @@ static int
 local_teardown(void **state)
 {
     struct np_test *st = *state;
-    sr_conn_ctx_t *conn;
+    const char *modules[] = {"notif1", "notif2"};
 
     if (!st) {
         return 0;
     }
 
-    /* Disable replay support */
+    /* disable replay support */
     assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "notif1", 0));
 
-    /* Close the sessions and connection needed for tests */
-    assert_int_equal(sr_session_stop(st->sr_sess), SR_ERR_OK);
+    /* close the session */
     assert_int_equal(sr_session_stop(st->sr_sess2), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(st->conn), SR_ERR_OK);
-
-    /* connect to server and remove test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "notif1"), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "notif2"), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
 
     /* Remove the notifications */
     teardown_common(state);
 
     /* close netopeer2 server */
-    return np_glob_teardown(state);
+    return np_glob_teardown(state, modules, sizeof modules / sizeof *modules);
 }
 
 static void
@@ -150,7 +136,7 @@ test_filter_pass(void **state)
     NOTIF_PARSE(st, data);
 
     /* Send the notification */
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     RECV_NOTIF(st);
     assert_string_equal(data, st->str);
     FREE_TEST_VARS(st);
@@ -175,7 +161,7 @@ test_filter_no_pass(void **state)
     NOTIF_PARSE(st, data);
 
     /* Notification should not pass */
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     ASSERT_NO_NOTIF(st);
     FREE_TEST_VARS(st);
 }
@@ -198,7 +184,7 @@ test_modifysub_filter(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     RECV_NOTIF(st);
     assert_string_equal(data, st->str);
     FREE_TEST_VARS(st);
@@ -230,7 +216,7 @@ test_modifysub_filter(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     ASSERT_NO_NOTIF(st);
     FREE_TEST_VARS(st);
 }
@@ -281,7 +267,7 @@ test_modifysub_stop_time(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     ASSERT_NO_NOTIF(st);
     FREE_TEST_VARS(st);
 }
@@ -297,7 +283,7 @@ test_modifysub_fail_no_such_sub(void **state)
     /* Check if correct error-tag */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     /* Check if correct error-app-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next->next),
+    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
             "ietf-subscribed-notifications:no-such-subscription");
     FREE_TEST_VARS(st);
 }
@@ -334,7 +320,7 @@ test_deletesub(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     ASSERT_NO_NOTIF(st);
     FREE_TEST_VARS(st);
 }
@@ -350,7 +336,7 @@ test_deletesub_fail(void **state)
     /* Check if correct error-tag */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     /* Check if correct error-app-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next->next),
+    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
             "ietf-subscribed-notifications:no-such-subscription");
     FREE_TEST_VARS(st);
 }
@@ -373,7 +359,7 @@ test_deletesub_fail_diff_sess(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
     RECV_NOTIF(st);
     assert_string_equal(st->str, data);
@@ -395,7 +381,7 @@ test_deletesub_fail_diff_sess(void **state)
     /* Check if correct error-tag */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     /* Check if correct error-app-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next->next),
+    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
             "ietf-subscribed-notifications:no-such-subscription");
     FREE_TEST_VARS(st);
 
@@ -475,7 +461,7 @@ test_ds_subscriptions_sent_event(void **state)
             "</n1>\n";
     for (uint8_t i = 0; i < 3; i++) {
         NOTIF_PARSE(st, data);
-        assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+        assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
         RECV_NOTIF(st);
         FREE_TEST_VARS(st);
     }
@@ -523,7 +509,7 @@ test_ds_subscriptions_excluded_event(void **state)
             "  <first>Different</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     RECV_NOTIF(st);
     FREE_TEST_VARS(st);
     data =
@@ -531,7 +517,7 @@ test_ds_subscriptions_excluded_event(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     ASSERT_NO_NOTIF(st);
     FREE_TEST_VARS(st);
 
@@ -658,7 +644,7 @@ test_multiple_subscriptions_notif(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
 
     /* Receive three notifications */
@@ -711,7 +697,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
     RECV_NOTIF(st);
     assert_string_equal(st->str, data);
@@ -723,7 +709,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
 
     /* Establish second sub for a different stream */
@@ -745,7 +731,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
 
     /* Send notification to the second session */
@@ -759,7 +745,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
             "  </device>\n"
             "</devices>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
 
     /* Receive the notification from first sub */
@@ -815,9 +801,9 @@ test_killsub_fail_nacm(void **state)
 {
     struct np_test *st = *state;
 
-    /* Check for NACM_RECOVERY_UID */
-    if (is_nacm_rec_uid()) {
-        puts("Running as NACM_RECOVERY_UID. Tests will not run correctly as this user bypases NACM. Skipping.");
+    /* check for NACM_RECOVERY_USER */
+    if (np_is_nacm_recovery()) {
+        puts("Running as NACM_RECOVERY_USER. Tests will not run correctly as this user bypases NACM. Skipping.");
         return;
     }
 
@@ -863,7 +849,7 @@ test_killsub_fail_no_such_sub(void **state)
     /* Check if correct error-tag */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     /* Check if correct error-app-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next->next),
+    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
             "ietf-subscribed-notifications:no-such-subscription");
     FREE_TEST_VARS(st);
 }
@@ -886,7 +872,7 @@ test_killsub_same_sess(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
     RECV_NOTIF(st);
     assert_string_equal(st->str, data);
@@ -915,7 +901,7 @@ test_killsub_same_sess(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
     ASSERT_NO_NOTIF(st);
     FREE_TEST_VARS(st);
@@ -940,7 +926,7 @@ test_killsub_diff_sess(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
     RECV_NOTIF(st);
     assert_string_equal(st->str, data);
@@ -979,7 +965,7 @@ test_killsub_diff_sess(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
     ASSERT_NO_NOTIF(st);
     FREE_TEST_VARS(st);

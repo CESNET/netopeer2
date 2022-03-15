@@ -21,6 +21,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <pwd.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -33,6 +34,7 @@
 #include <unistd.h>
 
 #include <nc_client.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "np_test_config.h"
 
@@ -129,12 +131,13 @@ cleanup:
 }
 
 int
-np_glob_setup_np2(void **state, const char *test_name)
+np_glob_setup_np2(void **state, const char *test_name, const char *modules[], uint32_t mod_count)
 {
     struct np_test *st;
     pid_t pid;
     char str[256], serverdir[256], sockparam[128];
     int fd, pipefd[2], buf;
+    uint32_t i;
 
     if (!getcwd(str, 256)) {
         SETUP_FAIL_LOG;
@@ -217,7 +220,7 @@ np_glob_setup_np2(void **state, const char *test_name)
 
         /* exec server listening on a unix socket */
         sprintf(str, "-p%s/%s/%s", NP_TEST_DIR, test_name, NP_PID_FILE);
-        execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", str, sockparam,
+        execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", str, sockparam,
                 "-m 600", "-f", serverdir, (char *)NULL);
 
 child_error:
@@ -253,6 +256,28 @@ child_error:
     strncpy(st->socket_path, sockparam + 2, sizeof st->socket_path - 1);
     strncpy(st->test_name, test_name, sizeof st->test_name - 1);
 
+    /* create connection and install modules */
+    if (sr_connect(SR_CONN_DEFAULT, &st->conn)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    for (i = 0; i < mod_count; ++i) {
+        if (sr_install_module(st->conn, modules[i], NULL, NULL)) {
+            SETUP_FAIL_LOG;
+            return 1;
+        }
+    }
+
+    /* start session and acquire context */
+    if (sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (!(st->ctx = sr_acquire_context(st->conn))) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+
     /* create NETCONF sessions */
     st->nc_sess = nc_connect_unix(st->socket_path, NULL);
     if (!st->nc_sess) {
@@ -270,18 +295,36 @@ child_error:
 }
 
 int
-np_glob_teardown(void **state)
+np_glob_teardown(void **state, const char *modules[], uint32_t mod_count)
 {
     struct np_test *st = *state;
-    int ret = 0, wstatus;
+    int ret = 0, wstatus, rc;
+    uint32_t i;
 
     if (!st) {
         return 0;
     }
 
-    /* stop the NETCONF session */
+    /* stop NETCONF sessions */
     nc_session_free(st->nc_sess, NULL);
     nc_session_free(st->nc_sess2, NULL);
+
+    /* release context */
+    sr_release_context(st->conn);
+
+    /* uninstall modules */
+    for (i = 0; i < mod_count; ++i) {
+        if ((rc = sr_remove_module(st->conn, modules[i], 0))) {
+            printf("sr_remove_module() failed (%s)\n", sr_strerror(rc));
+            ret = 1;
+        }
+    }
+
+    /* disconnect */
+    if ((rc = sr_disconnect(st->conn))) {
+        printf("sr_disconnect() failed (%s)\n", sr_strerror(rc));
+        ret = 1;
+    }
 
     /* terminate the server */
     if (kill(st->server_pid, SIGTERM)) {
@@ -324,32 +367,27 @@ np_glob_teardown(void **state)
     return ret;
 }
 
-int
-get_username(char **name)
+const char *
+np_get_user(void)
 {
-    FILE *file;
+    struct passwd *pw;
 
-    *name = NULL;
-    size_t size = 0;
+    pw = getpwuid(geteuid());
 
-    /* Get user name */
-    file = popen("whoami", "r");
-    if (!file) {
-        return 1;
-    }
-    if (getline(name, &size, file) == -1) {
-        return 1;
-    }
-    (*name)[strlen(*name) - 1] = '\0'; /* Remove the newline */
-    pclose(file);
-    return 0;
+    return pw ? pw->pw_name : NULL;
+}
+
+int
+np_is_nacm_recovery(void)
+{
+    return !strcmp(sr_nacm_get_recovery_user(), np_get_user());
 }
 
 int
 setup_nacm(void **state)
 {
     struct np_test *st = *state;
-    char *user, *data;
+    char *data;
     const char *template =
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <enable-external-groups>false</enable-external-groups>\n"
@@ -362,15 +400,10 @@ setup_nacm(void **state)
             "  </groups>\n"
             "</nacm>\n";
 
-    if (get_username(&user)) {
-        return 1;
-    }
-
     /* Put user and message id into error template */
-    if (asprintf(&data, template, user) == -1) {
+    if (asprintf(&data, template, np_get_user()) == -1) {
         return 1;
     }
-    free(user);
 
     /* Parse and merge the config */
     if (lyd_parse_data_mem(st->ctx, data, LYD_XML, LYD_PARSE_STRICT | LYD_PARSE_ONLY, 0, &st->node)) {
@@ -389,20 +422,5 @@ setup_nacm(void **state)
 
     FREE_TEST_VARS(st);
 
-    return 0;
-}
-
-int
-is_nacm_rec_uid()
-{
-    uid_t uid;
-    char streuid[10];
-
-    /* Get UID */
-    uid = geteuid();
-    sprintf(streuid, "%d", (int) uid);
-    if (!strcmp(streuid, NACM_RECOVERY_UID)) {
-        return 1;
-    }
     return 0;
 }

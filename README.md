@@ -59,6 +59,7 @@ the `distro` directory.
 
 ### Optional
 
+* pkg-config & libsystemd (to support `netopeer2-server` systemd service)
 * cmocka >= 1.0.1 (for [tests](#Tests))
 * valgrind (for enhanced testing)
 * gcov (for code coverage)
@@ -105,28 +106,19 @@ a table with the exact data format.
 | 0 | `uint32_t` | NETCONF session ID |
 | 1 | `char *` | NETCONF username |
 
-It is also possible to communicate a specific NETCONF error back to the server. The error format must be `NETCONF`
-and the meaning of every piece of data corresponds to the [rpc-error](https://tools.ietf.org/html/rfc6241#section-4.3)
-elements. All the expected types are strings (`char *`). Arbitrary optional elements can be skipped by being set to
-an empty string.
-
-| Index | Mandatory | Name |
-|:----- |:---------:|:----:|
-| 0 | yes | `error-type` |
-| 1 | yes | `error-tag` |
-| 2 | yes | `error-message` |
-| 3 | no | `error-app-tag` |
-| 4 | no | `error-path` |
-| n | no | `error-info` element |
-| n + 1 | no | `error-info` value |
+It is also possible to communicate a specific `NETCONF` error back to the server, use *sysrepo* utility functions
+to create it.
 
 ### CLI
 
-A command-line NETCONF client `netopeer2-cli` is included and build/installed by default. This can be
+A simple command-line NETCONF client `netopeer2-cli` is included and build/installed by default. This can be
 adjusted by an option:
 ```
 BUILD_CLI:ON
 ```
+
+There is also a separate [netconf-cli](https://github.com/CESNET/netconf-cli) project that you may want to
+give a try if you need an advanced and more user-friendly command-line NETCONF client.
 
 ### Tests
 
@@ -166,11 +158,10 @@ $ make coverage
 
 ## NACM
 
-This NETCONF server implements full *ietf-netconf-acm* access control that **bypasses** *sysrepo*
-file system access control. NACM is enabled by default, so users other than `root` will not be
-allowed to *write* any data but should be granted *read* and *execute* permissions unless
-the access was modified by a NACM extension. When deploying this server, it is strongly advised
-to configure NACM properly.
+This NETCONF server uses *ietf-netconf-acm* access control of *sysrepo*. NACM is enabled by default,
+so except for the recovery user, no others will be allowed to *write* any data but should be granted
+*read* and *execute* permissions unless the access was modified by a NACM extension. When deploying
+this server, it is strongly advised to configure NACM properly.
 
 ## Server configuration
 

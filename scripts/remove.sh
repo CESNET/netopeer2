@@ -13,7 +13,6 @@ fi
 
 # array of modules to remove, exact same as setup.sh
 MODULES=(
-"ietf-netconf-acm@2018-02-14.yang"
 "ietf-netconf@2013-09-29.yang -e writable-running -e candidate -e rollback-on-error -e validate -e startup -e url -e xpath -e confirmed-commit"
 "ietf-netconf-monitoring@2010-10-04.yang"
 "ietf-netconf-nmda@2019-01-07.yang -e origin -e with-defaults"
@@ -36,7 +35,7 @@ MODULES=(
 
 # functions
 UNINSTALL_MODULE() {
-    "$SYSREPOCTL" -a -u $1 -v2
+    "$SYSREPOCTL" -u $1 -v2
     local rc=$?
     if [ $rc -ne 0 ]; then
         exit $rc
@@ -44,7 +43,7 @@ UNINSTALL_MODULE() {
 }
 
 DISABLE_FEATURE() {
-    "$SYSREPOCTL" -a -c $1 -d $2 -v2
+    "$SYSREPOCTL" -c $1 -d $2 -v2
     local rc=$?
     if [ $rc -ne 0 ]; then
         exit $rc

@@ -31,6 +31,8 @@
 #include <libyang/libyang.h>
 #include <nc_server.h>
 #include <sysrepo.h>
+#include <sysrepo/error_format.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "common.h"
 #include "compat.h"
@@ -47,18 +49,18 @@
 #ifdef NC_ENABLED_TLS
 # include "netconf_server_tls.h"
 #endif
-#include "netconf_acm.h"
 #include "netconf_confirmed_commit.h"
 #include "netconf_monitoring.h"
 #include "netconf_nmda.h"
 #include "netconf_subscribed_notifications.h"
 #include "yang_push.h"
 
+#ifdef NP2SRV_HAVE_SYSTEMD
+# include <systemd/sd-daemon.h>
+#endif
+
 /** @brief flag for main loop */
 ATOMIC_T loop_continue = 1;
-
-/* NETCONF SID of session to skip diff check for */
-ATOMIC_T skip_nacm_nc_sid;
 
 static void *worker_thread(void *arg);
 
@@ -103,6 +105,7 @@ np2srv_del_session_cb(struct nc_session *session)
     char *host = NULL;
     sr_val_t *event_data;
     struct np2_user_sess *user_sess;
+    const struct ly_ctx *ly_ctx;
     const struct lys_module *mod;
 
     if (nc_ps_del_session(np2srv.nc_ps, session)) {
@@ -119,7 +122,8 @@ np2srv_del_session_cb(struct nc_session *session)
     /* stop sysrepo session, if no callback is using it */
     np_release_user_sess(user_sess);
 
-    if ((mod = ly_ctx_get_module_implemented(sr_get_context(np2srv.sr_conn), "ietf-netconf-notifications"))) {
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
+    if ((mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-netconf-notifications"))) {
         /* generate ietf-netconf-notification's netconf-session-end event for sysrepo */
         if (nc_session_get_ti(session) != NC_TI_UNIX) {
             host = (char *)nc_session_get_host(session);
@@ -162,7 +166,7 @@ np2srv_del_session_cb(struct nc_session *session)
             event_data[i++].data.enum_val = "other";
             break;
         }
-        rc = sr_event_notif_send(np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-end", event_data, i,
+        rc = sr_notif_send(np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-end", event_data, i,
                 np2srv.sr_timeout, 1);
         if (rc != SR_ERR_OK) {
             WRN("Failed to send a notification (%s).", sr_strerror(rc));
@@ -171,6 +175,7 @@ np2srv_del_session_cb(struct nc_session *session)
         }
         free(event_data);
     }
+    sr_release_context(np2srv.sr_conn);
 
     /* stop monitoring and free NC session */
     ncm_session_del(session);
@@ -187,77 +192,79 @@ static struct lyd_node *
 np2srv_err_nc(sr_error_info_err_t *err)
 {
     struct lyd_node *e = NULL, *err_info = NULL;
-    const char *err_type, *err_tag, *err_msg, *str, *str2;
-    uint32_t err_idx;
+    const struct ly_ctx *ly_ctx;
+    const char *err_type, *err_tag, *err_app_tag, *err_path, *err_msg, **err_info_elem = NULL, **err_info_val = NULL;
+    uint32_t err_info_count = 0, i;
 
-    /* mandatory */
-    err_idx = 0;
-    if (sr_get_error_data(err, err_idx++, NULL, (const void **)&err_type)) {
-        WRN("Missing NETCONF error \"error-type\".");
-        goto error;
-    } else if (sr_get_error_data(err, err_idx++, NULL, (const void **)&err_tag)) {
-        WRN("Missing NETCONF error \"error-tag\".");
-        goto error;
-    } else if (sr_get_error_data(err, err_idx++, NULL, (const void **)&err_msg)) {
-        WRN("Missing NETCONF error \"error-message\".");
+    /* only dictionary used, no need to keep locked */
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
+    sr_release_context(np2srv.sr_conn);
+
+    /* read the error */
+    if (sr_err_get_netconf_error(err, &err_type, &err_tag, &err_app_tag, &err_path, &err_msg, &err_info_elem,
+            &err_info_val, &err_info_count)) {
         goto error;
     }
+
     /* rpc-error */
-    if (lyd_new_opaq2(NULL, sr_get_context(np2srv.sr_conn), "rpc-error", NULL, NULL, NC_NS_BASE, &e)) {
+    if (lyd_new_opaq2(NULL, ly_ctx, "rpc-error", NULL, NULL, NC_NS_BASE, &e)) {
         goto error;
     }
+
     /* error-type */
     if (lyd_new_opaq2(e, NULL, "error-type", err_type, NULL, NC_NS_BASE, NULL)) {
         goto error;
     }
+
     /* error-tag */
     if (lyd_new_opaq2(e, NULL, "error-tag", err_tag, NULL, NC_NS_BASE, NULL)) {
         goto error;
     }
+
     /* error-severity */
     if (lyd_new_opaq2(e, NULL, "error-severity", "error", NULL, NC_NS_BASE, NULL)) {
         goto error;
     }
+
+    if (err_app_tag) {
+        /* error-app-tag */
+        if (nc_err_set_app_tag(e, err_app_tag)) {
+            goto error;
+        }
+    }
+
+    if (err_path) {
+        /* error-path */
+        if (nc_err_set_path(e, err_path)) {
+            goto error;
+        }
+    }
+
     /* error-message */
     if (nc_err_set_msg(e, err_msg, "en")) {
         goto error;
     }
 
-    /* error-app-tag */
-    if (sr_get_error_data(err, err_idx++, NULL, (const void **)&str)) {
-        return e;
-    }
-    if (str[0]) {
-        if (nc_err_set_app_tag(e, str)) {
-            goto error;
-        }
-    }
-    /* error-path */
-    if (sr_get_error_data(err, err_idx++, NULL, (const void **)&str)) {
-        return e;
-    }
-    if (str[0]) {
-        if (nc_err_set_path(e, str)) {
-            goto error;
-        }
-    }
     /* error-info */
-    while (!sr_get_error_data(err, err_idx++, NULL, (const void **)&str) &&
-            !sr_get_error_data(err, err_idx++, NULL, (const void **)&str2)) {
+    for (i = 0; i < err_info_count; ++i) {
         if (!err_info) {
             if (lyd_new_opaq2(e, NULL, "error-info", NULL, NULL, NC_NS_BASE, &err_info)) {
                 goto error;
             }
         }
-        if (lyd_new_opaq2(err_info, NULL, str, str2, NULL, NC_NS_BASE, NULL)) {
+        if (lyd_new_opaq2(err_info, NULL, err_info_elem[i], err_info_val[i], NULL, NC_NS_BASE, NULL)) {
             goto error;
         }
     }
 
+    free(err_info_elem);
+    free(err_info_val);
     return e;
 
 error:
     lyd_free_tree(e);
+    free(err_info_elem);
+    free(err_info_val);
     return NULL;
 }
 
@@ -272,6 +279,7 @@ np2srv_err_reply_sr(const sr_error_info_t *err_info)
 {
     struct nc_server_reply *reply = NULL;
     struct lyd_node *e;
+    const struct ly_ctx *ly_ctx;
     size_t i;
 
     /* try to find a NETCONF error */
@@ -291,9 +299,10 @@ np2srv_err_reply_sr(const sr_error_info_t *err_info)
         return reply;
     }
 
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
     for (i = 0; i < err_info->err_count; ++i) {
         /* generic error */
-        e = nc_err(sr_get_context(np2srv.sr_conn), NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        e = nc_err(ly_ctx, NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
         nc_err_set_msg(e, err_info->err[i].message, "en");
 
         if (reply) {
@@ -303,6 +312,7 @@ np2srv_err_reply_sr(const sr_error_info_t *err_info)
         }
         e = NULL;
     }
+    sr_release_context(np2srv.sr_conn);
 
     return reply;
 }
@@ -318,33 +328,19 @@ static struct nc_server_reply *
 np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
 {
     struct np2_user_sess *user_sess;
-    const struct lyd_node *denied;
     struct lyd_node *node;
     const sr_error_info_t *err_info;
     struct nc_server_reply *reply = NULL;
-    struct lyd_node *output, *child = NULL;
+    struct lyd_node *child = NULL;
+    sr_data_t *output;
     NC_WD_MODE nc_wd;
-    struct lyd_node *e;
-    char *str;
     int rc;
 
-    /* check NACM */
-    if ((denied = ncac_check_operation(rpc, nc_session_get_username(ncs)))) {
-        e = nc_err(LYD_CTX(rpc), NC_ERR_ACCESS_DENIED, NC_ERR_TYPE_APP);
-
-        /* set path */
-        str = lysc_path(denied->schema, LYSC_PATH_LOG, NULL, 0);
-        nc_err_set_path(e, str);
-        free(str);
-
-        /* set message */
-        if (asprintf(&str, "Executing the operation is denied because \"%s\" NACM authorization failed.",
-                nc_session_get_username(ncs)) > -1) {
-            nc_err_set_msg(e, str, "en");
-            free(str);
-        }
-
-        return nc_server_reply_err(e);
+    /* use default lnc2 callbacks when available */
+    if (!strcmp(LYD_NAME(rpc), "get-schema") && !strcmp(lyd_owner_module(rpc)->name, "ietf-netconf-monitoring")) {
+        return nc_clb_default_get_schema(rpc, ncs);
+    } else if (!strcmp(LYD_NAME(rpc), "close-session") && !strcmp(lyd_owner_module(rpc)->name, "ietf-netconf")) {
+        return nc_clb_default_close_session(rpc, ncs);
     }
 
     /* get this user session with its originator data, no need to use ref-count */
@@ -362,7 +358,7 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
 
     /* build RPC Reply */
     if (output) {
-        LY_LIST_FOR(lyd_child(output), child) {
+        LY_LIST_FOR(lyd_child(output->tree), child) {
             if (!(child->flags & LYD_DEFAULT)) {
                 break;
             }
@@ -394,51 +390,14 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
             nc_server_get_capab_withdefaults(&nc_wd, NULL);
         }
 
-        reply = nc_server_reply_data(output, nc_wd, NC_PARAMTYPE_FREE);
+        reply = nc_server_reply_data(output->tree, nc_wd, NC_PARAMTYPE_FREE);
+        output->tree = NULL;
     } else {
-        lyd_free_siblings(output);
         reply = nc_server_reply_ok();
     }
 
+    sr_release_data(output);
     return reply;
-}
-
-/**
- * @brief Sysrepo callback for checking NACM of data diff.
- *
- * @param[in] session SR session.
- * @param[in] diff Diff to check.
- * @return SR error value.
- */
-static int
-np2srv_diff_check_cb(sr_session_ctx_t *session, const struct lyd_node *diff)
-{
-    const struct lyd_node *node;
-    char *path;
-    const char *user, *name;
-    uint32_t *nc_sid;
-
-    name = sr_session_get_orig_name(session);
-    if (!name || strcmp(name, "netopeer2")) {
-        EINT;
-        return SR_ERR_INTERNAL;
-    }
-    sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_sid);
-    if (ATOMIC_LOAD_RELAXED(skip_nacm_nc_sid) == *nc_sid) {
-        /* skip the NACM check */
-        return SR_ERR_OK;
-    }
-
-    sr_session_get_orig_data(session, 1, NULL, (const void **)&user);
-    if ((node = ncac_check_diff(diff, user))) {
-        /* access denied */
-        path = lysc_path(node->schema, LYSC_PATH_LOG, NULL, 0);
-        np_err_nacm_access_denied(session, node->schema->module->name, user, path);
-        free(path);
-        return SR_ERR_UNAUTHORIZED;
-    }
-
-    return SR_ERR_OK;
 }
 
 /**
@@ -468,7 +427,7 @@ np2srv_check_schemas(sr_session_ctx_t *sr_sess)
         return -1; \
     }
 
-    ly_ctx = sr_get_context(sr_session_get_connection(sr_sess));
+    ly_ctx = sr_session_acquire_context(sr_sess);
 
     /* check that internally used schemas are implemented and with required features: ietf-netconf, ... */
     mod_name = "ietf-netconf";
@@ -482,6 +441,7 @@ np2srv_check_schemas(sr_session_ctx_t *sr_sess)
     NP2_CHECK_FEATURE("url");
 #endif
     NP2_CHECK_FEATURE("xpath");
+    NP2_CHECK_FEATURE("confirmed-commit");
 
     /* ... ietf-netconf-acm, */
     mod_name = "ietf-netconf-acm";
@@ -512,6 +472,7 @@ np2srv_check_schemas(sr_session_ctx_t *sr_sess)
     NP2_CHECK_FEATURE("ssh-listen");
     NP2_CHECK_FEATURE("ssh-call-home");
 
+    sr_session_release_context(sr_sess);
     return 0;
 }
 
@@ -535,7 +496,6 @@ np2srv_content_id_cb(void *UNUSED(user_data))
 static int
 server_init(void)
 {
-    const struct ly_ctx *ly_ctx;
     int rc;
 
     /* connect to sysrepo */
@@ -544,14 +504,6 @@ server_init(void)
         ERR("Connecting to sysrepo failed (%s).", sr_strerror(rc));
         goto error;
     }
-
-    /* set edit-config NACM diff check callback */
-    rc = sr_set_diff_check_callback(np2srv.sr_conn, np2srv_diff_check_cb);
-    if (rc != SR_ERR_OK) {
-        WRN("Unable to set diff check callback (%s), NACM will not be applied when editing data.", sr_strerror(rc));
-    }
-
-    ly_ctx = sr_get_context(np2srv.sr_conn);
 
     /* set the content-id callback */
     nc_server_set_content_id_clb(np2srv_content_id_cb, NULL, NULL);
@@ -571,11 +523,8 @@ server_init(void)
     /* init monitoring */
     ncm_init();
 
-    /* init NACM */
-    ncac_init();
-
-    /* init libnetconf2 (it modifies only the dictionary) */
-    if (nc_server_init((struct ly_ctx *)ly_ctx)) {
+    /* init libnetconf2 */
+    if (nc_server_init()) {
         goto error;
     }
 
@@ -642,11 +591,6 @@ server_destroy(void)
 {
     struct nc_session *sess;
 
-    /* stop subscriptions */
-    sr_unsubscribe(np2srv.sr_rpc_sub);
-    sr_unsubscribe(np2srv.sr_data_sub);
-    sr_unsubscribe(np2srv.sr_notif_sub);
-
 #if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
     /* remove all CH clients so they do not reconnect */
     nc_server_ch_del_client(NULL);
@@ -658,9 +602,15 @@ server_destroy(void)
             sess = nc_ps_get_session(np2srv.nc_ps, 0);
             nc_session_set_term_reason(sess, NC_SESSION_TERM_OTHER);
             np2srv_del_session_cb(sess);
+            sr_release_context(np2srv.sr_conn);
         }
         nc_ps_free(np2srv.nc_ps);
     }
+
+    /* stop subscriptions */
+    sr_unsubscribe(np2srv.sr_rpc_sub);
+    sr_unsubscribe(np2srv.sr_data_sub);
+    sr_unsubscribe(np2srv.sr_notif_sub);
 
     /* libnetconf2 cleanup */
     nc_server_destroy();
@@ -674,7 +624,7 @@ server_destroy(void)
     ncm_destroy();
 
     /* NACM cleanup */
-    ncac_destroy();
+    sr_nacm_destroy();
 
     /* confirmed commit cleanup */
     ncc_commit_ctx_destroy();
@@ -682,7 +632,7 @@ server_destroy(void)
     /* ietf-subscribed-notifications cleanup */
     np2srv_sub_ntf_destroy();
 
-    /* removes the context and clears all the sessions */
+    /* disconnects and clears all the sessions */
     sr_disconnect(np2srv.sr_conn);
 }
 
@@ -709,7 +659,7 @@ server_rpc_subscribe(void)
     int rc;
 
 #define SR_RPC_SUBSCR(xpath, cb) \
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, cb, NULL, 0, SR_SUBSCR_CTX_REUSE, &np2srv.sr_rpc_sub); \
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, cb, NULL, 0, 0, &np2srv.sr_rpc_sub); \
     if (rc != SR_ERR_OK) { \
         ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc)); \
         goto error; \
@@ -770,7 +720,7 @@ server_data_subscribe(void)
     int rc;
 
 #define SR_OPER_SUBSCR(mod_name, xpath, cb) \
-    rc = sr_oper_get_items_subscribe(np2srv.sr_sess, mod_name, xpath, cb, NULL, SR_SUBSCR_CTX_REUSE, &np2srv.sr_data_sub); \
+    rc = sr_oper_get_subscribe(np2srv.sr_sess, mod_name, xpath, cb, NULL, 0, &np2srv.sr_data_sub); \
     if (rc != SR_ERR_OK) { \
         ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc)); \
         goto error; \
@@ -778,7 +728,7 @@ server_data_subscribe(void)
 
 #define SR_CONFIG_SUBSCR(mod_name, xpath, cb) \
     rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, cb, NULL, 0, \
-            SR_SUBSCR_CTX_REUSE | SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub); \
+            SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub); \
     if (rc != SR_ERR_OK) { \
         ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc)); \
         goto error; \
@@ -924,34 +874,48 @@ server_data_subscribe(void)
     /*
      * ietf-netconf-acm
      */
-    mod_name = "ietf-netconf-acm";
-    xpath = "/ietf-netconf-acm:nacm";
-    SR_CONFIG_SUBSCR(mod_name, xpath, ncac_nacm_params_cb);
-
-    xpath = "/ietf-netconf-acm:nacm/groups/group";
-    SR_CONFIG_SUBSCR(mod_name, xpath, ncac_group_cb);
-
-    xpath = "/ietf-netconf-acm:nacm/rule-list";
-    SR_CONFIG_SUBSCR(mod_name, xpath, ncac_rule_list_cb);
-
-    xpath = "/ietf-netconf-acm:nacm/rule-list/rule";
-    SR_CONFIG_SUBSCR(mod_name, xpath, ncac_rule_cb);
-
-    /* state data */
-    xpath = "/ietf-netconf-acm:nacm/denied-operations";
-    SR_OPER_SUBSCR(mod_name, xpath, ncac_oper_cb);
-
-    xpath = "/ietf-netconf-acm:nacm/denied-data-writes";
-    SR_OPER_SUBSCR(mod_name, xpath, ncac_oper_cb);
-
-    xpath = "/ietf-netconf-acm:nacm/denied-notifications";
-    SR_OPER_SUBSCR(mod_name, xpath, ncac_oper_cb);
+    if (sr_nacm_init(np2srv.sr_sess, 0, &np2srv.sr_data_sub)) {
+        goto error;
+    }
 
     return 0;
 
 error:
     ERR("Server data subscribe failed.");
     return -1;
+}
+
+/**
+ * @brief Accept new NETCONF session.
+ */
+static void
+server_accept_session(void)
+{
+    NC_MSG_TYPE msgtype;
+    const struct ly_ctx *ly_ctx;
+    struct nc_session *ncs = NULL;
+
+    if (!nc_server_endpt_count()) {
+        /* no listening endpoints */
+        return;
+    }
+
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
+    if (!ly_ctx) {
+        ERR("Failed to acquire SR connection context.");
+        return;
+    }
+
+    /* accept session */
+    msgtype = nc_accept(0, ly_ctx, &ncs);
+    if ((msgtype == NC_MSG_HELLO) && !np2srv_new_session_cb(NULL, ncs)) {
+        /* callback success, keep the session with the context lock */
+        return;
+    }
+
+    /* no new session or callback fail, free the session, release context */
+    nc_session_free(ncs, NULL);
+    sr_release_context(np2srv.sr_conn);
 }
 
 /**
@@ -973,15 +937,7 @@ worker_thread(void *arg)
 
     while (ATOMIC_LOAD_RELAXED(loop_continue)) {
         /* try to accept new NETCONF sessions */
-        if (nc_server_endpt_count()) {
-            msgtype = nc_accept(0, &ncs);
-            if (msgtype == NC_MSG_HELLO) {
-                if (np2srv_new_session_cb(NULL, ncs)) {
-                    nc_session_free(ncs, NULL);
-                    continue;
-                }
-            }
-        }
+        server_accept_session();
 
         /* listen for incoming requests on active NETCONF sessions */
         rc = nc_ps_poll(np2srv.nc_ps, NP2SRV_POLL_IO_TIMEOUT, &ncs);
@@ -1008,6 +964,7 @@ worker_thread(void *arg)
         if (rc & NC_PSPOLL_SESSION_TERM) {
             VRB("Session %d: thread %d event session terminated.", nc_session_get_id(ncs), idx);
             np2srv_del_session_cb(ncs);
+            sr_release_context(np2srv.sr_conn);
         }
 #ifdef NC_ENABLED_SSH
         else if (rc & NC_PSPOLL_SSH_CHANNEL) {
@@ -1019,6 +976,9 @@ worker_thread(void *arg)
                     nc_session_free(ncs, NULL);
                     continue;
                 }
+
+                /* for the new session */
+                sr_acquire_context(np2srv.sr_conn);
             } else if (msgtype == NC_MSG_BAD_HELLO) {
                 ncm_bad_hello(ncs);
             }
@@ -1317,6 +1277,11 @@ main(int argc, char *argv[])
         goto cleanup;
     }
 
+#ifdef NP2SRV_HAVE_SYSTEMD
+    /* notify systemd */
+    sd_notify(0, "READY=1");
+#endif
+
     /* start additional worker threads */
     for (i = 1; i < NP2SRV_THREAD_COUNT; ++i) {
         idx = malloc(sizeof *idx);
@@ -1329,6 +1294,11 @@ main(int argc, char *argv[])
     idx = malloc(sizeof *idx);
     *idx = 0;
     worker_thread(idx);
+
+#ifdef NP2SRV_HAVE_SYSTEMD
+    /* notify systemd */
+    sd_notify(0, "STOPPING=1");
+#endif
 
     /* wait for other worker threads to finish */
     for (i = 1; i < NP2SRV_THREAD_COUNT; ++i) {

@@ -38,12 +38,13 @@
 #endif
 
 #include <libyang/libyang.h>
+#include <libyang/plugins_types.h>
 #include <nc_server.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "common.h"
 #include "compat.h"
 #include "log.h"
-#include "netconf_acm.h"
 #include "netconf_monitoring.h"
 
 struct np2srv np2srv = {.unix_mode = -1, .unix_uid = -1, .unix_gid = -1};
@@ -231,16 +232,28 @@ np_ly_mod_has_data(const struct lys_module *mod, uint32_t config_mask)
     const struct lysc_node *root, *node;
 
     LY_LIST_FOR(mod->compiled->data, root) {
-        LYSC_TREE_DFS_BEGIN(mod->compiled->data, node) {
+        LYSC_TREE_DFS_BEGIN(root, node) {
             if (node->flags & config_mask) {
                 return 1;
             }
 
-            LYSC_TREE_DFS_END(mod->compiled->data, node);
+            LYSC_TREE_DFS_END(root, node);
         }
     }
 
     return 0;
+}
+
+const struct ly_ctx *
+np2srv_acquire_ctx_cb(void *cb_data)
+{
+    return sr_acquire_context(cb_data);
+}
+
+void
+np2srv_release_ctx_cb(void *cb_data)
+{
+    sr_release_context(cb_data);
 }
 
 int
@@ -250,6 +263,7 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
     sr_val_t *event_data;
     sr_session_ctx_t *sr_sess = NULL;
     struct np2_user_sess *user_sess = NULL;
+    const struct ly_ctx *ly_ctx;
     const struct lys_module *mod;
     char *host = NULL;
     uint32_t nc_id;
@@ -283,6 +297,11 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
     username = nc_session_get_username(new_session);
     sr_session_push_orig_data(sr_sess, strlen(username) + 1, username);
 
+    /* set NACM username for it to be applied */
+    if (sr_nacm_set_user(sr_sess, username)) {
+        goto error;
+    }
+
     c = 0;
     while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, new_session)) {
         /* presumably timeout, give it a shot 2 times */
@@ -296,7 +315,8 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
         goto error;
     }
 
-    if ((mod = ly_ctx_get_module_implemented(sr_get_context(np2srv.sr_conn), "ietf-netconf-notifications"))) {
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
+    if ((mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-netconf-notifications"))) {
         /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
         if (nc_session_get_ti(new_session) != NC_TI_UNIX) {
             host = (char *)nc_session_get_host(new_session);
@@ -313,8 +333,8 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
             event_data[2].type = SR_STRING_T;
             event_data[2].data.string_val = host;
         }
-        c = sr_event_notif_send(np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-start", event_data,
-                host ? 3 : 2, np2srv.sr_timeout, 1);
+        c = sr_notif_send(np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-start", event_data, host ? 3 : 2,
+                np2srv.sr_timeout, 1);
         if (c != SR_ERR_OK) {
             WRN("Failed to send a notification (%s).", sr_strerror(c));
         } else {
@@ -322,6 +342,7 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
         }
         free(event_data);
     }
+    sr_release_context(np2srv.sr_conn);
 
     return 0;
 
@@ -470,31 +491,31 @@ url_open(const char *url)
 struct lyd_node *
 op_parse_url(const char *url, uint32_t parse_options, int *rc, sr_session_ctx_t *sr_sess)
 {
-    struct lyd_node *config, *data;
+    struct lyd_node *config, *data = NULL;
     struct ly_ctx *ly_ctx;
     struct lyd_node_opaq *opaq;
     int fd;
 
-    ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
+    ly_ctx = (struct ly_ctx *)sr_acquire_context(np2srv.sr_conn);
 
     fd = url_open(url);
     if (fd == -1) {
         *rc = SR_ERR_INVAL_ARG;
         sr_session_set_error_message(sr_sess, "Could not open URL.");
-        return NULL;
+        goto cleanup;
     }
 
     /* load the whole config element */
     if (lyd_parse_data_fd(ly_ctx, fd, LYD_XML, parse_options, 0, &config)) {
         *rc = SR_ERR_LY;
         sr_session_set_error_message(sr_sess, ly_errmsg(ly_ctx));
-        return NULL;
+        goto cleanup;
     }
 
     if (!config || config->schema) {
         *rc = SR_ERR_UNSUPPORTED;
         sr_session_set_error_message(sr_sess, "Missing top-level \"config\" element in URL data.");
-        return NULL;
+        goto cleanup;
     }
 
     opaq = (struct lyd_node_opaq *)config;
@@ -502,12 +523,15 @@ op_parse_url(const char *url, uint32_t parse_options, int *rc, sr_session_ctx_t 
         *rc = SR_ERR_UNSUPPORTED;
         sr_session_set_error_message(sr_sess, "Invalid top-level element in URL data, expected \"config\" with "
                 "namespace \"urn:ietf:params:xml:ns:netconf:base:1.0\".");
-        return NULL;
+        goto cleanup;
     }
 
     data = opaq->child;
     lyd_unlink_siblings(data);
     lyd_free_tree(config);
+
+cleanup:
+    sr_release_context(np2srv.sr_conn);
     return data;
 }
 
@@ -520,14 +544,16 @@ op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, in
     char curl_buffer[CURL_ERROR_SIZE], *str_data;
     struct lyd_node *config;
     struct ly_ctx *ly_ctx;
+    int ret = 0;
 
-    ly_ctx = (struct ly_ctx *)sr_get_context(np2srv.sr_conn);
+    ly_ctx = (struct ly_ctx *)sr_acquire_context(np2srv.sr_conn);
 
     /* print the config as expected by the other end */
     if (lyd_new_opaq2(NULL, ly_ctx, "config", NULL, NULL, "urn:ietf:params:xml:ns:netconf:base:1.0", &config)) {
         *rc = SR_ERR_LY;
         sr_session_set_error_message(sr_sess, ly_errmsg(ly_ctx));
-        return -1;
+        ret = -1;
+        goto cleanup;
     }
     if (data) {
         lyd_insert_child(config, data);
@@ -560,13 +586,17 @@ op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, in
         ERR("Failed to upload data (curl: %s).", curl_buffer);
         *rc = SR_ERR_SYS;
         sr_session_set_error_message(sr_sess, curl_buffer);
-        return -1;
+        ret = -1;
+        goto curl_cleanup;
     }
 
-    /* cleanup */
+curl_cleanup:
     curl_easy_cleanup(curl);
     curl_global_cleanup();
-    return 0;
+
+cleanup:
+    sr_release_context(np2srv.sr_conn);
+    return ret;
 }
 
 #else
@@ -798,6 +828,53 @@ filter_xpath_print_node_module(const struct lyd_node *node)
 }
 
 /**
+ * @brief Get value of a node to use in XPath filter.
+ *
+ * @param[in] node Subtree filter node.
+ * @param[out] dynamic Whether the value eneds to be freed.
+ * @return String value to use;
+ * @return NULL on error.
+ */
+static char *
+filter_xpath_buf_get_value(const struct lyd_node *node, int *dynamic)
+{
+    struct lyd_node_opaq *opaq;
+    const char *ptr;
+    const struct lys_module *mod;
+    char *val_str;
+
+    *dynamic = 0;
+
+    if (node->schema) {
+        /* data node, canonical value should be fine */
+        return (char *)lyd_get_value(node);
+    }
+
+    opaq = (struct lyd_node_opaq *)node;
+
+    if (!(ptr = strchr(opaq->value, ':'))) {
+        /* no prefix, use it directly */
+        return (char *)opaq->value;
+    }
+
+    /* assume identity, try to get its module */
+    mod = lyplg_type_identity_module(LYD_CTX(node), NULL, opaq->value, ptr - opaq->value, opaq->format,
+            opaq->val_prefix_data);
+
+    if (!mod) {
+        /* unknown module, use as is */
+        return (char *)opaq->value;
+    }
+
+    /* print the module name instead of the prefix */
+    if (asprintf(&val_str, "%s:%s", mod->name, ptr + 1) == -1) {
+        return NULL;
+    }
+    *dynamic = 1;
+    return val_str;
+}
+
+/**
  * @brief Append subtree filter node to XPath filter string buffer.
  *
  * Handles content nodes with optional namespace and attributes.
@@ -812,8 +889,8 @@ static int
 filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int size)
 {
     const struct lys_module *mod = NULL;
-    int new_size;
-    char *buf_new, quot;
+    int new_size, dynamic = 0;
+    char *buf_new, *val_str, quot;
 
     assert(!node->schema || (node->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST)));
 
@@ -823,8 +900,7 @@ filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int siz
     new_size = size + 1 + (mod ? strlen(mod->name) + 1 : 0) + strlen(LYD_NAME(node));
     buf_new = realloc(*buf, new_size);
     if (!buf_new) {
-        EMEM;
-        return -1;
+        goto error;
     }
     *buf = buf_new;
     sprintf((*buf) + (size - 1), "[%s%s%s", (mod ? mod->name : ""), (mod ? ":" : ""), LYD_NAME(node));
@@ -832,25 +908,43 @@ filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int siz
 
     size = filter_xpath_buf_append_attrs(node->meta, buf, size);
     if (size < 1) {
-        return size;
+        goto error;
     }
 
-    new_size = size + 2 + strlen(lyd_get_value(node)) + 2;
+    /* get proper value */
+    val_str = filter_xpath_buf_get_value(node, &dynamic);
+    if (!val_str) {
+        goto error;
+    }
+
+    new_size = size + 2 + strlen(val_str) + 2;
     buf_new = realloc(*buf, new_size);
     if (!buf_new) {
-        EMEM;
-        return -1;
+        goto error;
     }
     *buf = buf_new;
 
-    if (strchr(lyd_get_value(node), '\'')) {
+    /* learn which quotes are safe to use */
+    if (strchr(val_str, '\'')) {
         quot = '\"';
     } else {
         quot = '\'';
     }
-    sprintf((*buf) + (size - 1), "=%c%s%c]", quot, lyd_get_value(node), quot);
 
+    /* append */
+    sprintf((*buf) + (size - 1), "=%c%s%c]", quot, val_str, quot);
+
+    if (dynamic) {
+        free(val_str);
+    }
     return new_size;
+
+error:
+    EMEM;
+    if (dynamic) {
+        free(val_str);
+    }
+    return -1;
 }
 
 /**
@@ -908,7 +1002,7 @@ static int
 filter_xpath_buf_add_r(const struct lyd_node *node, char **buf, int size, struct np2_filter *filter)
 {
     const struct lyd_node *child;
-    int s, only_content_match;
+    int s, only_content_match, selection;
 
     /* containment node or selection node */
     size = filter_xpath_buf_append_node(node, buf, size);
@@ -964,7 +1058,8 @@ filter_xpath_buf_add_r(const struct lyd_node *node, char **buf, int size, struct
                 return -1;
             }
 
-            if (op_filter_xpath_add_filter(*buf, 1, filter)) {
+            selection = (lyd_get_value(child) && !strws(lyd_get_value(child))) ? 0 : 1;
+            if (op_filter_xpath_add_filter(*buf, selection, filter)) {
                 return -1;
             }
         }
@@ -1059,15 +1154,8 @@ op_filter_filter2xpath(const struct np2_filter *filter, char **xpath)
 
     *xpath = NULL;
 
-    /* all selection filters first */
+    /* combine all filters into one */
     for (i = 0; i < filter->count; ++i) {
-        if (!filter->filters[i].selection && (filter->count > 1)) {
-            ERR("Several top-level content match filters are not supported as they are redundant.");
-            rc = SR_ERR_UNSUPPORTED;
-            goto error;
-        }
-
-        /* put all selection filters into parentheses */
         if (!*xpath) {
             if (np_append_str("(", xpath)) {
                 rc = SR_ERR_NO_MEMORY;
@@ -1112,13 +1200,14 @@ op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_oper_op
         const struct np2_filter *filter, sr_session_ctx_t *ev_sess, struct lyd_node **data)
 {
     const sr_error_info_t *err_info;
-    struct lyd_node *node;
+    sr_data_t *sr_data;
     uint32_t i;
     int rc;
+    LY_ERR lyrc;
 
     for (i = 0; i < filter->count; ++i) {
         /* get the selected data */
-        rc = sr_get_data(session, filter->filters[i].str, max_depth, np2srv.sr_timeout, get_opts, &node);
+        rc = sr_get_data(session, filter->filters[i].str, max_depth, np2srv.sr_timeout, get_opts, &sr_data);
         if (rc) {
             ERR("Getting data \"%s\" from sysrepo failed (%s).", filter->filters[i].str, sr_strerror(rc));
             sr_session_get_error(session, &err_info);
@@ -1126,9 +1215,16 @@ op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_oper_op
             return rc;
         }
 
+        if (!sr_data) {
+            /* no data */
+            continue;
+        }
+
         /* merge */
-        if (lyd_merge_siblings(data, node, LYD_MERGE_DESTRUCT)) {
-            lyd_free_siblings(node);
+        lyrc = lyd_merge_siblings(data, sr_data->tree, LYD_MERGE_DESTRUCT);
+        sr_data->tree = NULL;
+        sr_release_data(sr_data);
+        if (lyrc) {
             return SR_ERR_LY;
         }
     }
@@ -1157,7 +1253,7 @@ op_filter_data_filter(struct lyd_node **data, const struct np2_filter *filter, i
         has_filter = 1;
 
         /* apply content (or even selection) filter */
-        if (lyd_find_xpath(*data, filter->filters[i].str, &set)) {
+        if (lyd_find_xpath3(NULL, *data, filter->filters[i].str, NULL, &set)) {
             rc = SR_ERR_LY;
             goto cleanup;
         }

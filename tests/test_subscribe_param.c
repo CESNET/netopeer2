@@ -67,39 +67,29 @@ static int
 local_setup(void **state)
 {
     struct np_test *st;
-    sr_conn_ctx_t *conn;
     char test_name[256];
-    const char *module1 = NP_TEST_MODULE_DIR "/notif1.yang";
-    const char *module2 = NP_TEST_MODULE_DIR "/notif2.yang";
-    int rv;
+    const char *modules[] = {NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang"};
+    int rc;
 
     /* get test name */
     np_glob_setup_test_name(test_name);
 
-    /* Setup environment necessary for installing module */
-    rv = np_glob_setup_env(test_name);
-    assert_int_equal(rv, 0);
+    /* setup environment */
+    rc = np_glob_setup_env(test_name);
+    assert_int_equal(rc, 0);
 
-    /* connect to server and install test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module1, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module2, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
+    /* setup netopeer2 server */
+    rc = np_glob_setup_np2(state, test_name, modules, sizeof modules / sizeof *modules);
+    assert_int_equal(rc, 0);
+    st = *state;
 
-    /* Setup netopeer2 server */
-    if (!(rv = np_glob_setup_np2(state, test_name))) {
-        /* State is allocated in np_glob_setup_np2 have to set here */
-        st = *state;
-        /* Open connection to start a session for the tests */
-        assert_int_equal(sr_connect(SR_CONN_DEFAULT, &st->conn), SR_ERR_OK);
-        assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess), SR_ERR_OK);
-        assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess2), SR_ERR_OK);
-        assert_non_null(st->ctx = sr_get_context(st->conn));
+    /* second running session */
+    assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess2), SR_ERR_OK);
 
-        /* Enable replay support */
-        assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "notif1", 1));
-    }
-    return rv;
+    /* rnable replay support */
+    assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "notif1", 1));
+
+    return 0;
 }
 
 static int
@@ -129,31 +119,23 @@ static int
 local_teardown(void **state)
 {
     struct np_test *st = *state;
-    sr_conn_ctx_t *conn;
+    const char *modules[] = {"notif1", "notif2"};
 
     if (!st) {
         return 0;
     }
 
-    /* Disable replay support */
+    /* disable replay support */
     assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "notif1", 0));
 
-    /* Close the sessions and connection needed for tests */
-    assert_int_equal(sr_session_stop(st->sr_sess), SR_ERR_OK);
+    /* close the session */
     assert_int_equal(sr_session_stop(st->sr_sess2), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(st->conn), SR_ERR_OK);
 
-    /* Connect to server and remove test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "notif1"), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "notif2"), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
-
-    /* Remove the notfications */
+    /* remove the notfications */
     clear_notif(state);
 
     /* close netopeer2 server */
-    return np_glob_teardown(state);
+    return np_glob_teardown(state, modules, sizeof modules / sizeof *modules);
 }
 
 static void
@@ -215,7 +197,7 @@ test_start_time_invalid(void **state)
 
     /* startTime is in the future */
     assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
-    ts.tv_sec += 10;
+    ts.tv_sec += 30;
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &start_time));
 
     /* Reestablish NETCONF connection */
@@ -229,10 +211,9 @@ test_start_time_invalid(void **state)
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
     /* Check reply */
-    st->msgtype = NC_MSG_NOTIF;
-    while (st->msgtype == NC_MSG_NOTIF) {
+    do {
         st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op);
-    }
+    } while (st->msgtype == NC_MSG_NOTIF);
     assert_int_equal(NC_MSG_REPLY, st->msgtype);
     assert_null(st->op);
     assert_string_equal(LYD_NAME(lyd_child(st->envp)), "rpc-error");
@@ -312,7 +293,7 @@ test_basic_replay(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Subscribe to notfications */
     reestablish_sub(state, NULL, start_time, NULL);
@@ -353,7 +334,7 @@ test_replay_real_time(void **state)
             "</n1>\n";
     expected = data;
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Subscribe to notfications */
     reestablish_sub(state, NULL, timestr, NULL);
@@ -365,7 +346,7 @@ test_replay_real_time(void **state)
             "  <first>Second</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Receive the notification and test the contents */
     RECV_NOTIF(st);
@@ -413,7 +394,7 @@ test_stop_time(void **state)
     NOTIF_PARSE(st, data);
 
     /* Send the notification */
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
 
     /* To subscribe to replay of notifications until time was called, should not include any called after */
@@ -448,7 +429,7 @@ test_stop_time(void **state)
             "  <first>Another</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
 
     /* No other notification should arrive */
@@ -464,7 +445,7 @@ test_stop_time_sub_end(void **state)
     struct timespec ts;
     char *start_time, *stop_time;
 
-    /* Needed for stopTime */
+    /* needed for stopTime */
     assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &start_time));
 
@@ -472,49 +453,46 @@ test_stop_time_sub_end(void **state)
     assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
 
-    /* Subscribe to notfications */
+    /* subscribe to notfications */
     reestablish_sub(state, NULL, start_time, stop_time);
     free(start_time);
     free(stop_time);
 
-    /* Receive the notification and test the contents */
+    /* receive the notification and test the contents */
     RECV_NOTIF(st);
     data = "<replayComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
     assert_string_equal(data, st->str);
     FREE_TEST_VARS(st);
 
-    /* Receive the notification and test the contents */
+    /* receive the notification and test the contents */
     RECV_NOTIF(st);
     data = "<notificationComplete xmlns=\"urn:ietf:params:xml:ns:netmod:notification\"/>\n";
     assert_string_equal(data, st->str);
     FREE_TEST_VARS(st);
 
-    /* Subsription should have ended now due to stop time, try to create a new one */
+    /* wait a bit to increase chances that the subscription thread was scheduled and the subscription finished due to stop time */
+    usleep(10000);
+
+    /* create new subscription */
     st->rpc = nc_rpc_subscribe(NULL, NULL, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
-    /* Check reply */
-    st->msgtype = NC_MSG_NOTIF;
-    while (st->msgtype == NC_MSG_NOTIF) {
-        st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op);
-    }
-    assert_int_equal(NC_MSG_REPLY, st->msgtype);
-    assert_null(st->op);
-    assert_string_equal(LYD_NAME(lyd_child(st->envp)), "ok");
+    /* check reply */
+    ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
-    /* Try sending a notfication real time on new session */
-    /* Send the notification */
+    /* try sending a notfication real time on new session */
+    /* send the notification */
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Second</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
 
-    /* Receive the notification and test the contents */
+    /* receive the notification and test the contents */
     RECV_NOTIF(st);
     assert_string_equal(data, st->str);
     FREE_TEST_VARS(st);
@@ -570,7 +548,7 @@ test_stream_no_pass(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* It should no be recieved since it is in a a different stream than subscribed to */
     ASSERT_NO_NOTIF(st);
@@ -592,7 +570,7 @@ test_stream_pass(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Receive the notification and test the contents */
     RECV_NOTIF(st);
@@ -618,7 +596,7 @@ test_stream_no_pass_start_time(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
 
     /* Subscribe to notfications from a different stream */

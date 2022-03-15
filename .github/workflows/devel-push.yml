@@ -88,7 +88,7 @@ jobs:
           cd libyang
           mkdir build
           cd build
-          CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.dep-build-type }} -DENABLE_BUILD_TESTS=OFF ..
+          CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.dep-build-type }} -DENABLE_TESTS=OFF ..
           make -j2
           sudo make install
 
@@ -110,7 +110,7 @@ jobs:
           cd libnetconf2
           mkdir build
           cd build
-          CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.build-type }} -DENABLE_BUILD_TESTS=OFF ..
+          CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.build-type }} -DENABLE_TESTS=OFF ..
           make -j2
           sudo make install
 
@@ -137,7 +137,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: ${{ github.workspace }}/build
-        run: ctest --output-on-failure
+        run: ctest --output-on-failure -j4
 
       - name: Upload to Coverity.com
         shell: bash

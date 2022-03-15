@@ -311,7 +311,7 @@ changes_rollback(union sigval UNUSED(sev))
 {
     int rc;
     struct lyd_node *node = NULL;
-    const struct ly_ctx *ctx = NULL;
+    const struct ly_ctx *ly_ctx;
     struct lys_module *module = NULL;
     sr_session_ctx_t *session;
     char *path = NULL, *module_name = NULL, *meta = NULL, *srv_path = NULL;
@@ -320,7 +320,7 @@ changes_rollback(union sigval UNUSED(sev))
     struct dirent *dirent = NULL;
 
     VRB("Confirmed commit timeout reached. Restoring previous running.");
-    ctx = sr_get_context(np2srv.sr_conn);
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
 
     /* Start a session */
     if ((rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &session))) {
@@ -366,7 +366,7 @@ changes_rollback(union sigval UNUSED(sev))
             EMEM;
             goto cleanup;
         }
-        module = ly_ctx_get_module_implemented(ctx, module_name);
+        module = ly_ctx_get_module_implemented(ly_ctx, module_name);
         if (!module) {
             ERR("Module \"%s\" does not exist/not implemented.", module_name);
             rename_failed_file(module_name, path);
@@ -375,7 +375,7 @@ changes_rollback(union sigval UNUSED(sev))
 
         /* get, restore and delete the backup */
         VRB("Rolling back module \"%s\"", module->name);
-        if (get_running_backup(ctx, path, &node)) {
+        if (get_running_backup(ly_ctx, path, &node)) {
             rename_failed_file(module_name, path);
             continue;
         }
@@ -400,6 +400,7 @@ changes_rollback(union sigval UNUSED(sev))
     }
 
 cleanup:
+    sr_release_context(np2srv.sr_conn);
     closedir(dir);
     sr_session_stop(session);
     free(path);
@@ -490,7 +491,7 @@ backup_module(sr_session_ctx_t *session, const struct lys_module *module)
 {
     int rc = SR_ERR_OK;
     char *path = NULL, *xpath = NULL, *ncc_path = NULL;
-    struct lyd_node *node = NULL;
+    sr_data_t *data = NULL;
 
     if (asprintf(&ncc_path, "%s/%s", np2srv.server_dir, NCC_DIR) == -1) {
         EMEM;
@@ -505,7 +506,7 @@ backup_module(sr_session_ctx_t *session, const struct lys_module *module)
         goto cleanup;
     }
 
-    if ((rc = sr_get_data(session, xpath, 0, 0, 0, &node))) {
+    if ((rc = sr_get_data(session, xpath, 0, 0, 0, &data))) {
         ERR("Failed getting configuration of running for module \"%s\" (%s).", module->name, sr_strerror(rc));
         goto cleanup;
     }
@@ -515,15 +516,15 @@ backup_module(sr_session_ctx_t *session, const struct lys_module *module)
         rc = SR_ERR_NO_MEMORY;
         goto cleanup;
     }
-    if (lyd_print_path(path, node, LYD_JSON, LY_PRINT_SHRINK)) {
-        ERR("Failed backing up node of module \"%s\" into file \"%s\" (%s).",
-                module->name, path, ly_errmsg(LYD_CTX(node)));
+    if (lyd_print_path(path, data ? data->tree : NULL, LYD_JSON, LYD_PRINT_WITHSIBLINGS | LYD_PRINT_SHRINK)) {
+        ERR("Failed backing up node of module \"%s\" into file \"%s\".", module->name, path);
         rc = SR_ERR_LY;
         goto cleanup;
     }
 
 cleanup:
-    lyd_free_tree(node);
+    sr_release_data(data);
+    free(ncc_path);
     free(path);
     free(xpath);
     return rc;
@@ -649,24 +650,23 @@ static int
 set_running_backup(void)
 {
     int rc = SR_ERR_OK, read = 0, write = 0;
-    const struct ly_ctx *ctx;
-    struct sr_session_ctx_s *session;
+    const struct ly_ctx *ly_ctx;
+    sr_session_ctx_t *session;
     struct lys_module *module;
-    sr_conn_ctx_t *conn;
     uint32_t index = 0;
+
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
 
     if ((rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &session))) {
         ERR("Failed starting a sysrepo session (%s).", sr_strerror(rc));
         goto cleanup;
     }
 
-    /* Iterate over all implemented modules */
-    conn = sr_session_get_connection(session);
-    ctx = sr_get_context(conn);
+    /* iterate over all implemented modules */
     if ((rc = ncc_check_dir())) {
         goto cleanup;
     }
-    while ((module = ly_ctx_get_module_iter(ctx, &index))) {
+    while ((module = ly_ctx_get_module_iter(ly_ctx, &index))) {
         /* check if module should and can be backed up */
         if (!module->implemented) {
             continue;
@@ -676,7 +676,7 @@ set_running_backup(void)
         }
 
         /* Check if has both read and write permission for module in sysrepo */
-        if ((rc = sr_check_module_ds_access(conn, "edit1", SR_DS_RUNNING, &read, &write))) {
+        if ((rc = sr_check_module_ds_access(np2srv.sr_conn, module->name, SR_DS_RUNNING, &read, &write))) {
             ERR("Failed getting permissions of module \"%s\".", module->name);
             goto cleanup;
         }
@@ -692,6 +692,7 @@ set_running_backup(void)
     }
 
 cleanup:
+    sr_release_context(np2srv.sr_conn);
     sr_session_stop(session);
     return rc;
 }
@@ -760,14 +761,12 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
     }
 
     /* persist */
-    lyd_find_path(input, "persist", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "persist", 0, &node)) {
         persist = lyd_get_value(node);
     }
 
     /* persist-id */
-    lyd_find_path(input, "persist-id", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "persist-id", 0, &node)) {
         ERR("Persist-id given in confirmed commit rpc.");
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
@@ -836,16 +835,15 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
 
     /* LOCK */
     pthread_mutex_lock(&commit_ctx.lock);
+
     /* check if confirmed-commit */
-    lyd_find_path(input, "confirmed", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "confirmed", 0, &node)) {
         rc = np2srv_confirmed_commit_cb(session, input);
         goto cleanup;
     }
 
     /* persist-id */
-    lyd_find_path(input, "persist-id", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "persist-id", 0, &node)) {
         persist_id = lyd_get_value(node);
     }
 
@@ -902,15 +900,24 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     }
 
     /* persist-id */
-    lyd_find_path(input, "persist-id", 0, &node);
-    if (node) {
+    if (!lyd_find_path(input, "persist-id", 0, &node)) {
         persist_id = lyd_get_value(node);
     }
+
     /* LOCK */
     pthread_mutex_lock(&commit_ctx.lock);
+
+    /* check there is a confirmed commit to cancel */
+    if (!commit_ctx.timer) {
+        np_err_invalid_value(session, "No pending confirmed commit to cancel.", NULL);
+        rc = SR_ERR_INVAL_ARG;
+        goto cleanup;
+    }
+
+    /* check persist-id */
     persist = commit_ctx.persist;
     if ((persist && !persist_id) || (!persist && persist_id) || (persist && persist_id && strcmp(persist, persist_id))) {
-        np_err_invalid_value(session, "Confirming commit does not match pending confirmed commit.", persist_id);
+        np_err_invalid_value(session, "Cancel commit does not match pending confirmed commit.", persist_id);
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
     }

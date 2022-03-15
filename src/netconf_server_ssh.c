@@ -46,7 +46,7 @@ np2srv_hostkey_cb(const char *name, void *UNUSED(user_data), char **UNUSED(privk
 {
     sr_session_ctx_t *sr_sess;
     char *xpath;
-    struct lyd_node *data = NULL;
+    sr_data_t *data = NULL;
     int r, rc = -1;
 
     r = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
@@ -69,7 +69,7 @@ np2srv_hostkey_cb(const char *name, void *UNUSED(user_data), char **UNUSED(privk
     }
 
     /* parse private key values */
-    if (np2srv_sr_get_privkey(data, privkey_data, privkey_type)) {
+    if (np2srv_sr_get_privkey(data->tree, privkey_data, privkey_type)) {
         goto cleanup;
     }
 
@@ -77,7 +77,7 @@ np2srv_hostkey_cb(const char *name, void *UNUSED(user_data), char **UNUSED(privk
     rc = 0;
 
 cleanup:
-    lyd_free_siblings(data);
+    sr_release_data(data);
     sr_session_stop(sr_sess);
     return rc;
 }

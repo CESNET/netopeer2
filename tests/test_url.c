@@ -25,6 +25,7 @@
 #include <cmocka.h>
 #include <libyang/libyang.h>
 #include <nc_client.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "np_test.h"
 #include "np_test_config.h"
@@ -67,59 +68,41 @@ setup_nacm_rules(void **state)
 static int
 local_setup(void **state)
 {
-    struct np_test *st = *state;
-    sr_conn_ctx_t *conn;
     char test_name[256];
-    const char *module1 = NP_TEST_MODULE_DIR "/edit1.yang";
-    int rv;
+    const char *modules[] = {NP_TEST_MODULE_DIR "/edit1.yang"};
+    int rc;
 
     /* get test name */
     np_glob_setup_test_name(test_name);
 
-    /* setup environment necessary for installing module */
-    rv = np_glob_setup_env(test_name);
-    assert_int_equal(rv, 0);
-
-    /* connect to server and install test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module1, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
+    /* setup environment */
+    rc = np_glob_setup_env(test_name);
+    assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    if (!(rv = np_glob_setup_np2(state, test_name))) {
-        /* state is allocated in np_glob_setup_np2 have to set here */
-        st = *state;
-        /* Open connection to start a session for the tests */
-        assert_int_equal(sr_connect(SR_CONN_DEFAULT, &st->conn), SR_ERR_OK);
-        assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess), SR_ERR_OK);
-        assert_non_null(st->ctx = sr_get_context(st->conn));
-        rv |= setup_nacm(state);
-        rv |= setup_nacm_rules(state);
-    }
-    return rv;
+    rc = np_glob_setup_np2(state, test_name, modules, sizeof modules / sizeof *modules);
+    assert_int_equal(rc, 0);
+
+    /* setup NACM */
+    rc = setup_nacm(state);
+    assert_int_equal(rc, 0);
+    rc = setup_nacm_rules(state);
+    assert_int_equal(rc, 0);
+
+    return 0;
 }
 
 static int
 local_teardown(void **state)
 {
-    struct np_test *st = *state;
-    sr_conn_ctx_t *conn;
-
-    if (!st) {
-        return 0;
-    }
-
-    /* Close the session and connection needed for tests */
-    assert_int_equal(sr_session_stop(st->sr_sess), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(st->conn), SR_ERR_OK);
-
-    /* connect to server and remove test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "edit1"), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
+    const char *modules[] = {"edit1"};
 
     /* close netopeer2 server */
-    return np_glob_teardown(state);
+    if (*state) {
+        return np_glob_teardown(state, modules, sizeof modules / sizeof *modules);
+    }
+
+    return 0;
 }
 
 static void
@@ -231,7 +214,7 @@ test_copy_config_into_file(void **state)
 {
     struct np_test *st = *state;
     const char *path, *url, *template;
-    char *expected, *config, *user;
+    char *expected, *config;
     long size;
     FILE *file;
 
@@ -307,11 +290,9 @@ test_copy_config_into_file(void **state)
             "  </nacm>\n"
             "</config>\n";
 
-    assert_int_equal(0, get_username(&user));
-    assert_int_not_equal(-1, asprintf(&expected, template, user) == -1);
+    assert_int_not_equal(-1, asprintf(&expected, template, np_get_user()) == -1);
     assert_string_equal(config, expected);
     free(expected);
-    free(user);
 
     free(config);
     fclose(file);
@@ -375,7 +356,7 @@ test_edit_config(void **state)
 {
     struct np_test *st = *state;
     const char *url, *template;
-    char *expected, *user;
+    char *expected;
 
     url = "file://" NP_TEST_MODULE_DIR "/edit1.xml";
 
@@ -437,11 +418,9 @@ test_edit_config(void **state)
             "  </data>\n"
             "</get-config>\n";
 
-    assert_int_equal(0, get_username(&user));
-    assert_int_not_equal(-1, asprintf(&expected, template, user) == -1);
+    assert_int_not_equal(-1, asprintf(&expected, template, np_get_user()) == -1);
     assert_string_equal(st->str, expected);
     free(expected);
-    free(user);
 
     FREE_TEST_VARS(st);
 }
@@ -458,8 +437,8 @@ main(int argc, char **argv)
         cmocka_unit_test_teardown(test_edit_config, teardown_data),
     };
 
-    if (is_nacm_rec_uid()) {
-        puts("Running as NACM_RECOVERY_UID. Tests will not run correctly as this user bypases NACM. Skipping.");
+    if (np_is_nacm_recovery()) {
+        puts("Running as NACM_RECOVERY_USER. Tests will not run correctly as this user bypases NACM. Skipping.");
         return 0;
     }
 

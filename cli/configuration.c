@@ -178,9 +178,8 @@ get_default_trustedCA_dir(DIR **ret_dir)
     if (ret_dir) {
         if (!(*ret_dir = opendir(cert_dir))) {
             ERROR(__func__, "Unable to open the default trusted CA directory (%s).", strerror(errno));
-            free(cert_dir);
-            return NULL;
         }
+        free(cert_dir);
         return NULL;
     }
 
@@ -223,9 +222,8 @@ get_default_CRL_dir(DIR **ret_dir)
     if (ret_dir) {
         if (!(*ret_dir = opendir(crl_dir))) {
             ERROR(__func__, "Unable to open the default CRL directory (%s).", strerror(errno));
-            free(crl_dir);
-            return NULL;
         }
+        free(crl_dir);
         return NULL;
     }
 

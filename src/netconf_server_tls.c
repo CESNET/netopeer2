@@ -38,7 +38,7 @@ np2srv_cert_cb(const char *name, void *UNUSED(user_data), char **UNUSED(cert_pat
 {
     sr_session_ctx_t *sr_sess;
     char *xpath;
-    struct lyd_node *data = NULL;
+    sr_data_t *data = NULL;
     int r, rc = -1;
 
     r = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess);
@@ -47,7 +47,8 @@ np2srv_cert_cb(const char *name, void *UNUSED(user_data), char **UNUSED(cert_pat
     }
 
     /* get private key data from sysrepo */
-    if (asprintf(&xpath, "/ietf-keystore:keystore/asymmetric-keys/asymmetric-key[certificates/certificate/name='%s']", name) == -1) {
+    if (asprintf(&xpath, "/ietf-keystore:keystore/asymmetric-keys/asymmetric-key[certificates/certificate/name='%s']",
+            name) == -1) {
         EMEM;
         goto cleanup;
     }
@@ -61,7 +62,7 @@ np2srv_cert_cb(const char *name, void *UNUSED(user_data), char **UNUSED(cert_pat
     }
 
     /* parse private key values */
-    if (np2srv_sr_get_privkey(data, privkey_data, privkey_type)) {
+    if (np2srv_sr_get_privkey(data->tree, privkey_data, privkey_type)) {
         goto cleanup;
     }
 
@@ -71,7 +72,7 @@ np2srv_cert_cb(const char *name, void *UNUSED(user_data), char **UNUSED(cert_pat
         EMEM;
         goto cleanup;
     }
-    lyd_free_siblings(data);
+    sr_release_data(data);
     r = sr_get_subtree(sr_sess, xpath, 0, &data);
     free(xpath);
     if (r != SR_ERR_OK) {
@@ -82,7 +83,7 @@ np2srv_cert_cb(const char *name, void *UNUSED(user_data), char **UNUSED(cert_pat
     }
 
     /* set cert data */
-    *cert_data = strdup(lyd_get_value(data));
+    *cert_data = strdup(lyd_get_value(data->tree));
     if (!*cert_data) {
         EMEM;
         goto cleanup;
@@ -92,7 +93,7 @@ np2srv_cert_cb(const char *name, void *UNUSED(user_data), char **UNUSED(cert_pat
     rc = 0;
 
 cleanup:
-    lyd_free_siblings(data);
+    sr_release_data(data);
     sr_session_stop(sr_sess);
     return rc;
 }
@@ -103,7 +104,7 @@ np2srv_cert_list_cb(const char *name, void *UNUSED(user_data), char ***UNUSED(ce
 {
     sr_session_ctx_t *sr_sess;
     char *xpath;
-    struct lyd_node *data = NULL;
+    sr_data_t *data = NULL;
     struct ly_set *set = NULL;
     int r, rc = -1;
     uint32_t i, j;
@@ -128,7 +129,7 @@ np2srv_cert_list_cb(const char *name, void *UNUSED(user_data), char ***UNUSED(ce
     }
 
     /* find all certificates */
-    if (lyd_find_xpath(data, "certificate/cert", &set)) {
+    if (lyd_find_xpath(data->tree, "certificate/cert", &set)) {
         /* libyang error printed */
         goto cleanup;
     } else if (!set->count) {
@@ -161,7 +162,7 @@ np2srv_cert_list_cb(const char *name, void *UNUSED(user_data), char ***UNUSED(ce
     rc = 0;
 
 cleanup:
-    lyd_free_siblings(data);
+    sr_release_data(data);
     ly_set_free(set, NULL);
     sr_session_stop(sr_sess);
     return rc;

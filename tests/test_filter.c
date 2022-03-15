@@ -68,7 +68,6 @@ setup_data(void **state)
             "    </ospf>\n"
             "  </protocols>\n"
             "</top>\n";
-
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -93,7 +92,6 @@ setup_data(void **state)
             "    <price>13</price>\n"
             "  </item>\n"
             "</top>\n";
-
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -107,7 +105,6 @@ setup_data(void **state)
             "      </feature>\n"
             "  </component>\n"
             "</hardware>\n";
-
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -152,35 +149,40 @@ setup_data(void **state)
             "      </desktop>\n"
             "    </desktops>\n"
             "  </devices>\n"
+            "  <some-list>\n"
+            "    <k>a</k>\n"
+            "    <val xmlns:f1i=\"urn:f1i\">f1i:ident-val1</val>\n"
+            "  </some-list>\n"
+            "  <some-list>\n"
+            "    <k>b</k>\n"
+            "    <val xmlns:f1i=\"urn:f1i\">f1i:ident-val2</val>\n"
+            "  </some-list>\n"
             "</top>\n";
-
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
     data = "<first xmlns=\"ed1\">Test</first>\n";
-
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 }
 
 static int
-change_cb(sr_session_ctx_t *session, uint32_t sub_id,
-        const char *module_name, const char *xpath,
-        sr_event_t event, uint32_t request_id, void *private_data)
+change_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath, sr_event_t event,
+        uint32_t request_id, void *private_data)
 {
     (void) session; (void) sub_id; (void) module_name; (void) xpath;
     (void) event; (void) request_id; (void) private_data;
+
     return SR_ERR_OK;
 }
 
 static int
-change_serial_num(sr_session_ctx_t *session, uint32_t sub_id,
-        const char *module_name, const char *path,
-        const char *request_xpath, uint32_t request_id,
-        struct lyd_node **parent, void *private_data)
+change_serial_num(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *path,
+        const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
 {
     (void) session; (void) sub_id; (void) module_name; (void) path;
     (void) request_xpath; (void) request_id; (void) private_data;
+
     if (!lyd_new_path(*parent, NULL, "serial-num", "1234", 0, NULL)) {
         return SR_ERR_OK;
     } else {
@@ -192,78 +194,51 @@ static int
 local_setup(void **state)
 {
     struct np_test *st;
-    sr_conn_ctx_t *conn;
     char test_name[256];
-    const char *module1 = NP_TEST_MODULE_DIR "/example2.yang";
-    const char *module2 = NP_TEST_MODULE_DIR "/filter1.yang";
-    const char *module3 = NP_TEST_MODULE_DIR "/xpath.yang";
-    const char *module4 = NP_TEST_MODULE_DIR "/issue1.yang";
-    const char *module5 = NP_TEST_MODULE_DIR "/edit1.yang";
-    int rv;
+    const char *modules[] = {
+        NP_TEST_MODULE_DIR "/example2.yang", NP_TEST_MODULE_DIR "/filter1-imp.yang", NP_TEST_MODULE_DIR "/filter1.yang",
+        NP_TEST_MODULE_DIR "/xpath.yang", NP_TEST_MODULE_DIR "/issue1.yang", NP_TEST_MODULE_DIR "/edit1.yang"
+    };
+    int rc;
 
     /* get test name */
     np_glob_setup_test_name(test_name);
 
-    /* setup environment necessary for installing module */
-    rv = np_glob_setup_env(test_name);
-    assert_int_equal(rv, 0);
-
-    /* connect to server and install test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module1, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module2, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module3, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module4, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module5, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
+    /* setup environment */
+    rc = np_glob_setup_env(test_name);
+    assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    if (!(rv = np_glob_setup_np2(state, test_name))) {
-        /* state is allocated in np_glob_setup_np2 have to set here */
-        st = *state;
-        /* Open connection to start a session for the tests */
-        assert_int_equal(sr_connect(SR_CONN_DEFAULT, &st->conn), SR_ERR_OK);
-        assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess), SR_ERR_OK);
-        assert_non_null(st->ctx = sr_get_context(st->conn));
-        setup_data(state);
+    rc = np_glob_setup_np2(state, test_name, modules, sizeof modules / sizeof *modules);
+    assert_int_equal(rc, 0);
+    st = *state;
 
-        assert_int_equal(SR_ERR_OK, sr_oper_get_items_subscribe(st->sr_sess, "issue1",
-                "/issue1:hardware/component/serial-num", change_serial_num, NULL, SR_SUBSCR_DEFAULT, &st->sub));
+    /* setup data */
+    setup_data(state);
 
-        assert_int_equal(SR_ERR_OK, sr_module_change_subscribe(st->sr_sess, "issue1", NULL, change_cb, NULL, 0,
-                SR_SUBSCR_CTX_REUSE, &st->sub));
-    }
-    return rv;
+    /* setup subscriptions */
+    assert_int_equal(SR_ERR_OK, sr_oper_get_subscribe(st->sr_sess, "issue1",
+            "/issue1:hardware/component/serial-num", change_serial_num, NULL, 0, &st->sub));
+    assert_int_equal(SR_ERR_OK, sr_module_change_subscribe(st->sr_sess, "issue1", NULL, change_cb, NULL, 0, 0, &st->sub));
+
+    return 0;
 }
 
 static int
 local_teardown(void **state)
 {
     struct np_test *st = *state;
-    sr_conn_ctx_t *conn;
+    const char *modules[] = {"example2", "filter1-imp", "filter1", "xpath", "issue1", "edit1"};
 
     if (!st) {
         return 0;
     }
 
-    /* Unsubscribe */
+    /* unsubscribe */
     sr_unsubscribe(st->sub);
 
-    /* Close the session and connection needed for tests */
-    assert_int_equal(sr_session_stop(st->sr_sess), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(st->conn), SR_ERR_OK);
-
-    /* connect to server and remove test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "example2"), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "xpath"), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "filter1"), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "issue1"), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "edit1"), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
-
     /* close netopeer2 server */
-    return np_glob_teardown(state);
+    return np_glob_teardown(state, modules, sizeof modules / sizeof *modules);
 }
 
 static void
@@ -548,6 +523,14 @@ test_xpath_namespaces(void **state)
             "          </server>\n"
             "        </servers>\n"
             "      </devices>\n"
+            "      <some-list>\n"
+            "        <k>a</k>\n"
+            "        <val xmlns:f1i=\"urn:f1i\">f1i:ident-val1</val>\n"
+            "      </some-list>\n"
+            "      <some-list>\n"
+            "        <k>b</k>\n"
+            "        <val xmlns:f1i=\"urn:f1i\">f1i:ident-val2</val>\n"
+            "      </some-list>\n"
             "    </top>\n"
             "    <top xmlns=\"x1\">\n"
             "      <item>\n"
@@ -634,6 +617,31 @@ test_subtree_content_match(void **state)
             "          </area>\n"
             "        </ospf>\n"
             "      </protocols>\n"
+            "    </top>\n"
+            "  </data>\n"
+            "</get-config>\n";
+
+    assert_string_equal(st->str, expected);
+
+    FREE_TEST_VARS(st);
+
+    filter =
+            "<top xmlns=\"f1\" xmlns:f1i=\"urn:f1i\">\n"
+            "  <some-list>\n"
+            "    <val>f1i:ident-val1</val>\n"
+            "  </some-list>\n"
+            "</top>\n";
+
+    GET_CONFIG_FILTER(st, filter);
+
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <top xmlns=\"f1\">\n"
+            "      <some-list>\n"
+            "        <k>a</k>\n"
+            "        <val xmlns:f1i=\"urn:f1i\">f1i:ident-val1</val>\n"
+            "      </some-list>\n"
             "    </top>\n"
             "  </data>\n"
             "</get-config>\n";
@@ -861,6 +869,46 @@ test_get_operational_data(void **state)
     FREE_TEST_VARS(st);
 }
 
+static void
+test_getdata_operational_data(void **state)
+{
+    struct np_test *st = *state;
+    char *filter, *expected;
+
+    filter =
+            "<hardware xmlns=\"i1\">\n"
+            "  <component>\n"
+            "    <class>O-RAN-RADIO</class>\n"
+            "    <serial-num>1234</serial-num>\n"
+            "    <feature>\n"
+            "      <wireless>true</wireless>\n"
+            "    </feature>\n"
+            "  </component>\n"
+            "</hardware>\n";
+
+    GET_DATA_FILTER(st, "ietf-datastores:operational", filter, NULL, NULL, 0, 0, 0, 0, NC_WD_ALL);
+
+    expected =
+            "<get-data xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-nmda\">\n"
+            "  <data>\n"
+            "    <hardware xmlns=\"i1\">\n"
+            "      <component>\n"
+            "        <name>ComponentName</name>\n"
+            "        <class>O-RAN-RADIO</class>\n"
+            "        <serial-num>1234</serial-num>\n"
+            "        <feature>\n"
+            "          <wireless>true</wireless>\n"
+            "        </feature>\n"
+            "      </component>\n"
+            "    </hardware>\n"
+            "  </data>\n"
+            "</get-data>\n";
+
+    assert_string_equal(st->str, expected);
+
+    FREE_TEST_VARS(st);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -877,6 +925,7 @@ main(int argc, char **argv)
         cmocka_unit_test(test_get_containment_node),
         cmocka_unit_test(test_get_content_match_node),
         cmocka_unit_test(test_get_operational_data),
+        cmocka_unit_test(test_getdata_operational_data),
     };
 
     nc_verbosity(NC_VERB_WARNING);

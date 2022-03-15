@@ -27,6 +27,7 @@
 #include <cmocka.h>
 #include <libyang/libyang.h>
 #include <nc_client.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "np_test.h"
 #include "np_test_config.h"
@@ -34,67 +35,59 @@
 static int
 local_setup(void **state)
 {
-    struct np_test *st = *state;
-    sr_conn_ctx_t *conn;
+    struct np_test *st;
     char test_name[256];
-    const char *module1 = NP_TEST_MODULE_DIR "/edit1.yang";
-    int rv;
+    const char *modules[] = {NP_TEST_MODULE_DIR "/edit1.yang"};
+    int rc;
 
     /* get test name */
     np_glob_setup_test_name(test_name);
 
     /* setup environment necessary for installing module */
-    rv = np_glob_setup_env(test_name);
-    assert_int_equal(rv, 0);
-
-    /* connect to server and install test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module1, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
+    rc = np_glob_setup_env(test_name);
+    assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    if (!(rv = np_glob_setup_np2(state, test_name))) {
-        st = *state;
-        /* Open two connections to start a session for the tests
-         * One for Candidate and other for running
-         */
-        assert_int_equal(sr_connect(SR_CONN_DEFAULT, &st->conn), SR_ERR_OK);
-        assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess), SR_ERR_OK);
-        assert_non_null(st->ctx = sr_get_context(st->conn));
-        assert_int_equal(sr_session_start(st->conn, SR_DS_CANDIDATE, &st->sr_sess2), SR_ERR_OK);
-        /*
-         * The use of st->path is a little overriden until test_failed_file is called it stores test_name after that
-         * the path to the test server file directory
-         */
-        st->path = strdup(test_name);
-        if (!st->path) {
-            return 1;
-        }
-        rv |= setup_nacm(state);
+    rc = np_glob_setup_np2(state, test_name, modules, sizeof modules / sizeof *modules);
+    assert_int_equal(rc, 0);
+    st = *state;
+
+    /* start candidate session */
+    assert_int_equal(sr_session_start(st->conn, SR_DS_CANDIDATE, &st->sr_sess2), SR_ERR_OK);
+
+    /*
+     * The use of st->path is a little overriden until test_failed_file is called it stores test_name after that
+     * the path to the test server file directory
+     */
+    st->path = strdup(test_name);
+    if (!st->path) {
+        return 1;
     }
-    return rv;
+
+    /* setup NACM */
+    rc = setup_nacm(state);
+    assert_int_equal(rc, 0);
+
+    return 0;
 }
 
 static int
 local_teardown(void **state)
 {
     struct np_test *st = *state;
-    sr_conn_ctx_t *conn;
+    const char *modules[] = {"edit1"};
+
+    if (!st) {
+        return 0;
+    }
 
     free(st->path);
 
-    /* Close the sessions and connection needed for tests */
-    assert_int_equal(sr_session_stop(st->sr_sess), SR_ERR_OK);
+    /* close the candidate session */
     assert_int_equal(sr_session_stop(st->sr_sess2), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(st->conn), SR_ERR_OK);
-
-    /* connect to server and remove test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "edit1"), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
 
     /* close netopeer2 server */
-    return np_glob_teardown(state);
+    return np_glob_teardown(state, modules, sizeof modules / sizeof *modules);
 }
 
 static int
@@ -114,7 +107,8 @@ teardown_common(void **state)
 {
     struct np_test *st = *state;
     const char *data =
-            "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
+            "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>"
+            "<cont xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
 
     SR_EDIT_SESSION(st, st->sr_sess, data);
     FREE_TEST_VARS(st);
@@ -318,21 +312,35 @@ static void
 test_cancel(void **state)
 {
     struct np_test *st = *state;
-    const char *expected;
+    const char *expected, *data;
 
-    /* Prior to the test running should be empty */
+    /* prior to the test running should be empty */
     ASSERT_EMPTY_CONFIG(st);
 
-    /* Send a confirmed-commit rpc with 10m timeout */
+    /* send cancel-commit rpc, should fail as there is no commit */
+    st->rpc = nc_rpc_cancel(NULL, NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+
+    /* check if received an error reply */
+    ASSERT_RPC_ERROR(st);
+    FREE_TEST_VARS(st);
+
+    /* edit running */
+    data = "<first xmlns=\"ed1\">val</first><cont xmlns=\"ed1\"><second/><third>5</third></cont>";
+    SR_EDIT_SESSION(st, st->sr_sess, data);
+    FREE_TEST_VARS(st);
+
+    /* send a confirmed-commit rpc with 10m timeout */
     st->rpc = nc_rpc_commit(1, 0, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
 
-    /* Check if received an OK reply */
+    /* check if received an OK reply */
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
-    /* Running should now be same as candidate */
+    /* running should now be same as candidate */
     GET_CONFIG(st);
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -343,17 +351,29 @@ test_cancel(void **state)
     assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
 
-    /* Send cancel-commit rpc */
+    /* send cancel-commit rpc */
     st->rpc = nc_rpc_cancel(NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
 
-    /* Check if received an OK reply */
+    /* check if received an OK reply */
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
-    /* Running should now be empty */
-    ASSERT_EMPTY_CONFIG(st);
+    /* running should now be back how it was */
+    GET_CONFIG(st);
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <first xmlns=\"ed1\">val</first>\n"
+            "    <cont xmlns=\"ed1\">\n"
+            "      <second/>\n"
+            "      <third>5</third>\n"
+            "    </cont>\n"
+            "  </data>\n"
+            "</get-config>\n";
+    assert_string_equal(st->str, expected);
+    FREE_TEST_VARS(st);
 }
 
 static void
@@ -558,6 +578,11 @@ teardown_test_failed_file(void **state)
 int
 main(int argc, char **argv)
 {
+    if (np_is_nacm_recovery()) {
+        puts("Running as NACM_RECOVERY_USER. Tests will not run correctly as this user bypases NACM. Skipping.");
+        return 0;
+    }
+
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_basic),
         cmocka_unit_test_setup_teardown(test_sameas_commit, setup_common, teardown_common),

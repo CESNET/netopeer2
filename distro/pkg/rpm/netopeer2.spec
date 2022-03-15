@@ -12,6 +12,8 @@ BuildRequires:  cmake
 BuildRequires:  pkgconfig(libyang) >= 2
 BuildRequires:  pkgconfig(libnetconf2) >= 2
 BuildRequires:  pkgconfig(sysrepo) >= 2
+BuildRequires:  systemd-devel
+BuildRequires:  systemd
 
 # needed by scripts/setup.sh (run in post)
 Requires: sysrepo-tools
@@ -66,7 +68,7 @@ NP2_MODULE_GROUP=netconf
 %postun
 {% include 'scripts/remove.sh' %}
 
-groupdel netconf
+groupdel netconf &> /dev/null
 
 %files
 %license LICENSE
@@ -74,6 +76,7 @@ groupdel netconf
 %{_bindir}/netopeer2-server
 %{_datadir}/man/man1/netopeer2-cli.1.gz
 %{_datadir}/man/man8/netopeer2-server.8.gz
+%{_unitdir}/netopeer2-server.service
 %{_datadir}/yang/modules/netopeer2/*.yang
 %dir %{_datadir}/yang/modules/netopeer2/
 

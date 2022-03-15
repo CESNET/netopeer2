@@ -25,7 +25,7 @@
 #include <sysrepo.h>
 
 #define SETUP_FAIL_LOG \
-    printf("Setup fail in %s:%d.\n", __FILE__, __LINE__)
+    fprintf(stderr, "Setup fail in %s:%d.\n", __FILE__, __LINE__)
 
 #define FREE_TEST_VARS(state) \
     nc_rpc_free(state->rpc); \
@@ -46,8 +46,19 @@
         state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
     } while (state->msgtype == NC_MSG_NOTIF); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
-    assert_null(state->op); \
-    assert_string_equal(LYD_NAME(lyd_child(state->envp)), "ok");
+    if (strcmp(LYD_NAME(lyd_child(state->envp)), "ok")) { \
+        printf("Expected \"ok\" reply, received \"%s\" instead.\n", LYD_NAME(lyd_child(state->envp))); \
+        printf("op:\n"); \
+        if (state->op) { \
+            lyd_print_file(stdout, state->op, LYD_XML, 0); \
+        } \
+        printf("\nenvp:\n"); \
+        if (state->envp) { \
+            lyd_print_file(stdout, state->envp, LYD_XML, 0); \
+        } \
+        fail(); \
+    } \
+    assert_null(state->op);
 
 #define ASSERT_OK_REPLY_SESS2(state) \
     state->msgtype = nc_recv_reply(state->nc_sess2, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
@@ -58,8 +69,19 @@
 #define ASSERT_RPC_ERROR(state) \
     state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
-    assert_null(state->op); \
-    assert_string_equal(LYD_NAME(lyd_child(state->envp)), "rpc-error");
+    if (strcmp(LYD_NAME(lyd_child(state->envp)), "rpc-error")) { \
+        printf("Expected \"rpc-error\" reply, received \"%s\" instead.\n", LYD_NAME(lyd_child(state->envp))); \
+        printf("op:\n"); \
+        if (state->op) { \
+            lyd_print_file(stdout, state->op, LYD_XML, 0); \
+        } \
+        printf("\nenvp:\n"); \
+        if (state->envp) { \
+            lyd_print_file(stdout, state->envp, LYD_XML, 0); \
+        } \
+        fail(); \
+    } \
+    assert_null(state->op);
 
 #define ASSERT_RPC_ERROR_SESS2(state) \
     state->msgtype = nc_recv_reply(state->nc_sess2, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
@@ -94,6 +116,17 @@
     state->msgtype = nc_send_rpc(state->nc_sess, state->rpc, 1000, &state->msgid); \
     assert_int_equal(NC_MSG_RPC, state->msgtype); \
     state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
+    assert_int_equal(state->msgtype, NC_MSG_REPLY); \
+    assert_non_null(state->op); \
+    assert_non_null(state->envp); \
+    assert_string_equal(LYD_NAME(lyd_child(state->op)), "data"); \
+    assert_int_equal(LY_SUCCESS, lyd_print_mem(&state->str, state->op, LYD_XML, 0));
+
+#define GET_DATA_FILTER(state, ds, filter, config_filter, origin_filter, origin_filter_count, neg_origin_filter, max_depth, with_origin, wd_mode) \
+    state->rpc = nc_rpc_getdata(ds, filter, config_filter, origin_filter, origin_filter_count, neg_origin_filter, max_depth, with_origin, wd_mode, NC_PARAMTYPE_CONST); \
+    state->msgtype = nc_send_rpc(state->nc_sess, state->rpc, 1000, &state->msgid); \
+    assert_int_equal(NC_MSG_RPC, state->msgtype); \
+    state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 2000, &state->envp, &state->op); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
     assert_non_null(state->op); \
     assert_non_null(state->envp); \
@@ -214,16 +247,16 @@ void np_glob_setup_test_name(char *buf);
 
 int np_glob_setup_env(const char *test_name);
 
-int np_glob_setup_np2(void **state, const char *test_name);
+int np_glob_setup_np2(void **state, const char *test_name, const char *modules[], uint32_t mod_count);
 
-int np_glob_teardown(void **state);
+int np_glob_teardown(void **state, const char *modules[], uint32_t mod_count);
 
 void parse_arg(int argc, char **argv);
 
-int get_username(char **name);
+const char *np_get_user(void);
+
+int np_is_nacm_recovery(void);
 
 int setup_nacm(void **state);
-
-int is_nacm_rec_uid();
 
 #endif /* _NP_TEST_H_ */

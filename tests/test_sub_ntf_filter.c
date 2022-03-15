@@ -35,39 +35,29 @@ static int
 local_setup(void **state)
 {
     struct np_test *st;
-    sr_conn_ctx_t *conn;
     char test_name[256];
-    const char *module1 = NP_TEST_MODULE_DIR "/notif1.yang";
-    const char *module2 = NP_TEST_MODULE_DIR "/notif2.yang";
-    int rv;
+    const char *modules[] = {NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang"};
+    int rc;
 
     /* get test name */
     np_glob_setup_test_name(test_name);
 
-    /* setup environment necessary for installing module */
-    rv = np_glob_setup_env(test_name);
-    assert_int_equal(rv, 0);
-
-    /* connect to server and install test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module1, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module2, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
+    /* setup environment*/
+    rc = np_glob_setup_env(test_name);
+    assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    if (!(rv = np_glob_setup_np2(state, test_name))) {
-        /* state is allocated in np_glob_setup_np2 have to set here */
-        st = *state;
-        /* Open connection to start a session for the tests */
-        assert_int_equal(sr_connect(SR_CONN_DEFAULT, &st->conn), SR_ERR_OK);
-        assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess), SR_ERR_OK);
-        assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess2), SR_ERR_OK);
-        assert_non_null(st->ctx = sr_get_context(st->conn));
+    rc = np_glob_setup_np2(state, test_name, modules, sizeof modules / sizeof *modules);
+    assert_int_equal(rc, 0);
+    st = *state;
 
-        /* Enable replay support */
-        assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "notif1", 1));
-    }
-    return rv;
+    /* second session */
+    assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess2), SR_ERR_OK);
+
+    /* enable replay support */
+    assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "notif1", 1));
+
+    return 0;
 }
 
 static int
@@ -124,32 +114,23 @@ static int
 local_teardown(void **state)
 {
     struct np_test *st = *state;
-    sr_conn_ctx_t *conn;
+    const char *modules[] = {"notif1", "notif2"};
 
     if (!st) {
         return 0;
     }
 
-    /* Disable replay support */
+    /* disable replay support */
     assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "notif1", 0));
-    assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "notif2", 0));
 
-    /* Close the sessions and connection needed for tests */
-    assert_int_equal(sr_session_stop(st->sr_sess), SR_ERR_OK);
+    /* close the session */
     assert_int_equal(sr_session_stop(st->sr_sess2), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(st->conn), SR_ERR_OK);
 
-    /* connect to server and remove test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "notif1"), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "notif2"), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
-
-    /* Remove the notifications */
+    /* remove the notifications */
     teardown_common(state);
 
     /* close netopeer2 server */
-    return np_glob_teardown(state);
+    return np_glob_teardown(state, modules, sizeof modules / sizeof *modules);
 }
 
 static void
@@ -169,7 +150,7 @@ test_basic_xpath_pass(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Check for notification content */
     RECV_NOTIF(st);
@@ -184,7 +165,7 @@ test_basic_xpath_no_pass(void **state)
     const char *data;
 
     /* Establish subscription */
-    SEND_RPC_ESTABSUB(st, "/notif1:n1/first[.=Alt]", "notif1", NULL, NULL);
+    SEND_RPC_ESTABSUB(st, "/notif1:n1/first[.='Alt']", "notif1", NULL, NULL);
     ASSERT_OK_SUB_NTF(st);
     FREE_TEST_VARS(st);
 
@@ -194,7 +175,7 @@ test_basic_xpath_no_pass(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* No notification should pass the filter */
     ASSERT_NO_NOTIF(st);
@@ -219,7 +200,7 @@ test_basic_subtree_pass(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Check for notification content */
     RECV_NOTIF(st);
@@ -248,7 +229,7 @@ test_basic_subtree_no_pass(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* No notification should pass the filter */
     ASSERT_NO_NOTIF(st);
@@ -269,7 +250,7 @@ setup_filter(void **state)
             "  </stream-filter>\n"
             "  <stream-filter>\n"
             "    <name>xpath-no-pass</name>\n"
-            "    <stream-xpath-filter>/n1/first[.=Alt]</stream-xpath-filter>\n"
+            "    <stream-xpath-filter>/n1/first[.='Alt']</stream-xpath-filter>\n"
             "  </stream-filter>\n"
             "  <stream-filter>\n"
             "    <name>subtree-pass</name>\n"
@@ -302,7 +283,7 @@ test_ref_xpath_pass(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Check for notification content */
     RECV_NOTIF(st);
@@ -327,7 +308,7 @@ test_ref_xpath_no_pass(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* No notification should pass the filter */
     ASSERT_NO_NOTIF(st);
@@ -351,7 +332,7 @@ test_ref_subtree_pass(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Check for notification content */
     RECV_NOTIF(st);
@@ -376,7 +357,7 @@ test_ref_subtree_no_pass(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* No notification should pass the filter */
     ASSERT_NO_NOTIF(st);
@@ -401,7 +382,7 @@ test_filter_change(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Check for notification content */
     RECV_NOTIF(st);
@@ -450,7 +431,7 @@ test_filter_remove(void **state)
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
-    assert_int_equal(sr_event_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
+    assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Check for notification content */
     RECV_NOTIF(st);

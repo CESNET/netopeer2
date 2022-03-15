@@ -33,7 +33,6 @@
 #include "compat.h"
 #include "err_netconf.h"
 #include "log.h"
-#include "netconf_acm.h"
 #include "netconf_monitoring.h"
 #include "netconf_subscribed_notifications.h"
 
@@ -85,6 +84,7 @@ np2srv_rpc_establish_sub_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_
 {
     struct sub_ntf_cb_arg *arg = private_data;
     struct lyd_node *ly_ntf = NULL;
+    const struct ly_ctx *ly_ctx;
     struct np2srv_sub_ntf *sub;
     char buf[26];
 
@@ -95,9 +95,12 @@ np2srv_rpc_establish_sub_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_
             goto cleanup;
         }
 
+        /* context lock is held while the callback is executing */
+        ly_ctx = sr_acquire_context(np2srv.sr_conn);
+        sr_release_context(np2srv.sr_conn);
+
         sprintf(buf, "%" PRIu32, arg->nc_sub_id);
-        lyd_new_path(NULL, sr_get_context(np2srv.sr_conn), "/ietf-subscribed-notifications:replay-completed/id",
-                buf, 0, &ly_ntf);
+        lyd_new_path(NULL, ly_ctx, "/ietf-subscribed-notifications:replay-completed/id", buf, 0, &ly_ntf);
         notif = ly_ntf;
     } else if (notif_type == SR_EV_NOTIF_TERMINATED) {
         /* WRITE LOCK on sub */
@@ -157,12 +160,14 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
         const struct timespec *stop, struct sub_ntf_cb_arg *cb_arg, sr_session_ctx_t *ev_sess, uint32_t **sub_ids,
         uint32_t *sub_id_count)
 {
-    const struct ly_ctx *ly_ctx = sr_get_context(sr_session_get_connection(user_sess));
+    const struct ly_ctx *ly_ctx;
     const struct lys_module *ly_mod;
     int rc, suspended = 0;
     const sr_error_info_t *err_info;
     struct ly_set mod_set = {0};
     uint32_t idx;
+
+    ly_ctx = sr_session_acquire_context(user_sess);
 
     *sub_ids = NULL;
     *sub_id_count = 0;
@@ -201,7 +206,7 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
 
             /* subscribe to the module */
             rc = sr_notif_subscribe_tree(user_sess, ly_mod->name, xpath, start, stop, np2srv_rpc_establish_sub_ntf_cb,
-                    cb_arg, SR_SUBSCR_CTX_REUSE | SR_SUBSCR_THREAD_SUSPEND, &np2srv.sr_notif_sub);
+                    cb_arg, SR_SUBSCR_THREAD_SUSPEND, &np2srv.sr_notif_sub);
             if (rc != SR_ERR_OK) {
                 sr_session_get_error(user_sess, &err_info);
                 sr_session_set_error_message(ev_sess, err_info->err[0].message);
@@ -227,7 +232,7 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
 
         /* subscribe to the specific module (stream) */
         rc = sr_notif_subscribe_tree(user_sess, stream, xpath, start, stop, np2srv_rpc_establish_sub_ntf_cb,
-                cb_arg, SR_SUBSCR_CTX_REUSE | SR_SUBSCR_THREAD_SUSPEND, &np2srv.sr_notif_sub);
+                cb_arg, SR_SUBSCR_THREAD_SUSPEND, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {
             sr_session_get_error(user_sess, &err_info);
             sr_session_set_error_message(ev_sess, err_info->err[0].message);
@@ -246,15 +251,16 @@ error:
     for (idx = 0; idx < *sub_id_count; ++idx) {
         sr_unsubscribe_sub(np2srv.sr_notif_sub, (*sub_ids)[idx]);
     }
+    if (suspended) {
+        /* resume subscription thread */
+        sr_subscription_thread_resume(np2srv.sr_notif_sub);
+    }
     free(*sub_ids);
     *sub_ids = NULL;
     *sub_id_count = 0;
 
 cleanup:
-    if (suspended) {
-        /* resume subscription thread */
-        sr_subscription_thread_resume(np2srv.sr_notif_sub);
-    }
+    sr_session_release_context(user_sess);
     ly_set_erase(&mod_set, NULL);
     return rc;
 }
@@ -276,7 +282,8 @@ sub_ntf_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *rpc
         char **xpath, const char **stream_filter_name, struct lyd_node **stream_subtree_filter,
         const char **stream_xpath_filter)
 {
-    struct lyd_node *node = NULL, *subtree = NULL;
+    struct lyd_node *node = NULL;
+    sr_data_t *subtree = NULL;
     struct ly_set *nodeset;
     const sr_error_info_t *err_info;
     struct np2_filter filter = {0};
@@ -341,12 +348,12 @@ sub_ntf_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *rpc
             goto cleanup;
         }
 
-        if (!lyd_child(subtree)->next) {
+        if (!lyd_child(subtree->tree)->next) {
             ERR("Stream filter \"%s\" does not define any actual filter.", lyd_get_value(node));
             rc = SR_ERR_INVAL_ARG;
             goto cleanup;
         }
-        node = lyd_child(subtree)->next;
+        node = lyd_child(subtree->tree)->next;
     }
 
     if (!strcmp(node->schema->name, "stream-subtree-filter")) {
@@ -374,13 +381,13 @@ sub_ntf_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *rpc
     }
 
 cleanup:
-    lyd_free_tree(subtree);
+    sr_release_data(subtree);
     op_filter_erase(&filter);
     return rc;
 }
 
 int
-sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct np2srv_sub_ntf *sub)
+sub_ntf_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct np2srv_sub_ntf *sub)
 {
     struct lyd_node *node, *stream_subtree_filter = NULL;
     struct nc_session *ncs;
@@ -410,8 +417,7 @@ sub_ntf_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc,
     stream = lyd_get_value(node);
 
     /* replay start time */
-    lyd_find_path(rpc, "replay-start-time", 0, &node);
-    if (node) {
+    if (!lyd_find_path(rpc, "replay-start-time", 0, &node)) {
         ly_time_str2ts(lyd_get_value(node), &start);
     }
 
@@ -479,6 +485,15 @@ cleanup:
 }
 
 int
+sub_ntf_rpc_establish_sub_start_async(sr_session_ctx_t *UNUSED(ev_sess), struct np2srv_sub_ntf *UNUSED(sub))
+{
+    /* resume subscription thread */
+    sr_subscription_thread_resume(np2srv.sr_notif_sub);
+
+    return 0;
+}
+
+int
 sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct timespec stop,
         struct np2srv_sub_ntf *sub)
 {
@@ -498,8 +513,7 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
     }
 
     /* datastore */
-    lyd_find_path(rpc, "ietf-yang-push:datastore", 0, &node);
-    if (node) {
+    if (!lyd_find_path(rpc, "ietf-yang-push:datastore", 0, &node)) {
         sr_session_set_error_message(ev_sess, "Subscription with ID %" PRIu32 " is not yang-push but \"datastore\""
                 " is set.", sub->nc_sub_id);
         rc = SR_ERR_UNSUPPORTED;
@@ -524,7 +538,7 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
         for (i = 0; i < sub->sub_id_count; ++i) {
             /* "pass" the lock to the callback */
             sub_ntf_cb_lock_pass(sub->sub_ids[i]);
-            rc = sr_event_notif_sub_modify_xpath(np2srv.sr_notif_sub, sub->sub_ids[i], xp);
+            rc = sr_notif_sub_modify_xpath(np2srv.sr_notif_sub, sub->sub_ids[i], xp);
             sub_ntf_cb_lock_clear(sub->sub_ids[i]);
             if (rc != SR_ERR_OK) {
                 goto cleanup;
@@ -637,7 +651,7 @@ sub_ntf_config_filters(const struct lyd_node *filter, sr_change_oper_t op)
             /* modify the filter of the subscription(s) */
             for (i = 0; i < sub->sub_id_count; ++i) {
                 /* callback ignores this event */
-                r = sr_event_notif_sub_modify_xpath(np2srv.sr_notif_sub, sub->sub_ids[i], xp);
+                r = sr_notif_sub_modify_xpath(np2srv.sr_notif_sub, sub->sub_ids[i], xp);
                 if (r != SR_ERR_OK) {
                     rc = r;
                 }

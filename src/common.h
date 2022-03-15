@@ -69,7 +69,6 @@ struct np2srv {
 };
 
 extern struct np2srv np2srv;
-extern ATOMIC_T skip_nacm_nc_sid;
 
 /**
  * @brief Sleep in milliseconds.
@@ -163,6 +162,16 @@ int np_ly_mod_has_notif(const struct lys_module *mod);
  * @return 0 if there are no data.
  */
 int np_ly_mod_has_data(const struct lys_module *mod, uint32_t config_mask);
+
+/**
+ * @brief NP2 callback for acquiring context.
+ */
+const struct ly_ctx *np2srv_acquire_ctx_cb(void *cb_data);
+
+/**
+ * @brief NP2 callback for releasing context.
+ */
+void np2srv_release_ctx_cb(void *cb_data);
 
 /**
  * @brief NP2 callback for a new session creation.

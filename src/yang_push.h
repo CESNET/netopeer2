@@ -71,7 +71,7 @@ struct yang_push_data {
 
             /* internal data */
             pthread_mutex_t notif_lock;
-            struct lyd_node *ly_change_ntf;
+            sr_data_t *change_ntf;
             ATOMIC_T patch_id;
             ATOMIC_T edit_id;
             struct timespec last_notif;
@@ -87,7 +87,9 @@ struct yang_push_data {
 };
 
 /* for documentation, see subscribed_notifications.h */
-int yang_push_rpc_establish_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct np2srv_sub_ntf *sub);
+int yang_push_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct np2srv_sub_ntf *sub);
+
+int yang_push_rpc_establish_sub_start_async(sr_session_ctx_t *ev_sess, struct np2srv_sub_ntf *sub);
 
 int yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct timespec stop,
         struct np2srv_sub_ntf *sub);

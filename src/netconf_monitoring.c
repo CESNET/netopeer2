@@ -275,12 +275,14 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
     const struct lys_module *mod;
     sr_conn_ctx_t *conn;
     struct ly_ctx *ly_ctx;
-    const char **cpblts;
+    char **cpblts;
     char *time_str, buf[11];
     uint32_t i;
 
+    /* context is locked while the callback is executed */
     conn = sr_session_get_connection(session);
-    ly_ctx = (struct ly_ctx *)sr_get_context(conn);
+    ly_ctx = (struct ly_ctx *)sr_acquire_context(conn);
+    sr_release_context(conn);
 
     if (lyd_new_path(NULL, ly_ctx, "/ietf-netconf-monitoring:netconf-state", NULL, 0, &root)) {
         goto error;
@@ -296,7 +298,7 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
 
     for (i = 0; cpblts[i]; ++i) {
         lyd_new_term(cont, NULL, "capability", cpblts[i], 0, NULL);
-        lydict_remove(ly_ctx, cpblts[i]);
+        free(cpblts[i]);
     }
     free(cpblts);
 

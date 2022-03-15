@@ -35,38 +35,26 @@ static int
 local_setup(void **state)
 {
     struct np_test *st;
-    sr_conn_ctx_t *conn;
     char test_name[256];
-    const char *module1 = NP_TEST_MODULE_DIR "/edit1.yang";
-    const char *module2 = NP_TEST_MODULE_DIR "/edit2.yang";
-    int rv;
+    const char *modules[] = {NP_TEST_MODULE_DIR "/edit1.yang", NP_TEST_MODULE_DIR "/edit2.yang"};
+    int rc;
 
     /* get test name */
     np_glob_setup_test_name(test_name);
 
-    /* setup environment necessary for installing module */
-    rv = np_glob_setup_env(test_name);
-    assert_int_equal(rv, 0);
-
-    /* connect to server and install test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module1, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_install_module(conn, module2, NULL, NULL), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
+    /* setup environment */
+    rc = np_glob_setup_env(test_name);
+    assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    if (!(rv = np_glob_setup_np2(state, test_name))) {
-        /* state is allocated in np_glob_setup_np2 have to set here */
-        st = *state;
-        /* Open connection to start a session for the tests */
-        assert_int_equal(sr_connect(SR_CONN_DEFAULT, &st->conn), SR_ERR_OK);
-        assert_int_equal(sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess), SR_ERR_OK);
-        assert_non_null(st->ctx = sr_get_context(st->conn));
+    rc = np_glob_setup_np2(state, test_name, modules, sizeof modules / sizeof *modules);
+    assert_int_equal(rc, 0);
+    st = *state;
 
-        /* Enable replay support */
-        assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "edit1", 1));
-    }
-    return rv;
+    /* enable replay support */
+    assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "edit1", 1));
+
+    return 0;
 }
 
 static int
@@ -114,28 +102,17 @@ static int
 local_teardown(void **state)
 {
     struct np_test *st = *state;
-    sr_conn_ctx_t *conn;
+    const char *modules[] = {"edit1", "edit2"};
 
     if (!st) {
         return 0;
     }
 
-    /* Disable replay support */
+    /* disable replay support */
     assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "edit1", 0));
 
-    /* Close the sessions and connection needed for tests */
-    assert_int_equal(sr_session_stop(st->sr_sess), SR_ERR_OK);
-    assert_int_equal(sr_session_stop(st->sr_sess2), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(st->conn), SR_ERR_OK);
-
-    /* connect to server and remove test modules */
-    assert_int_equal(sr_connect(SR_CONN_DEFAULT, &conn), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "edit1"), SR_ERR_OK);
-    assert_int_equal(sr_remove_module(conn, "edit2"), SR_ERR_OK);
-    assert_int_equal(sr_disconnect(conn), SR_ERR_OK);
-
     /* close netopeer2 server */
-    return np_glob_teardown(state);
+    return np_glob_teardown(state, modules, sizeof modules / sizeof *modules);
 }
 
 static void
@@ -145,14 +122,14 @@ test_periodic_basic(void **state)
     const char *template, *data;
     char *ntf;
 
-    /* Establish periodic push */
+    /* establish periodic push */
     st->rpc = nc_rpc_establishpush_periodic("ietf-datastores:running", NULL, NULL, NULL, 10, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_SUB_NTF(st);
     FREE_TEST_VARS(st);
 
-    /* Receive a notification */
+    /* receive a notification */
     RECV_NOTIF(st);
     template =
             "<push-update xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
@@ -161,16 +138,23 @@ test_periodic_basic(void **state)
             "</push-update>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
     assert_string_equal(st->str, ntf);
-    free(ntf);
     FREE_TEST_VARS(st);
 
-    /* Put some data into the datastore */
+    /* put some data into the datastore */
     data = "<first xmlns=\"ed1\">TestFirst</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
-    /* Receive a notification with the new data */
+    /* receive a notification */
     RECV_NOTIF(st);
+    if (!strcmp(st->str, ntf)) {
+        /* rare result of a data race when a notification arrived still with the previous data */
+        FREE_TEST_VARS(st);
+
+        /* receive next notification, now it must have the new data (unless the edit took longer than is
+         * the subscription period, hope not) */
+        RECV_NOTIF(st);
+    }
     template =
             "<push-update xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
             "  <id>%d</id>\n"
@@ -178,11 +162,11 @@ test_periodic_basic(void **state)
             "    <first xmlns=\"ed1\">TestFirst</first>\n"
             "  </datastore-contents>\n"
             "</push-update>\n";
+    free(ntf);
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
     FREE_TEST_VARS(st);
 
-    /* Test yet again if arives with the same data */
+    /* test yet again if arives with the same data */
     RECV_NOTIF(st);
     assert_string_equal(st->str, ntf);
     FREE_TEST_VARS(st);
