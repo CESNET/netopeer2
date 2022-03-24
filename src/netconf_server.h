@@ -37,6 +37,9 @@ int np2srv_ch_client_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t sub
 int np2srv_ch_connection_type_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
         uint32_t request_id, sr_event_t event, void *private_data);
 
+int np2srv_ch_periodic_params_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
+        sr_event_t event, uint32_t request_id, void *private_data);
+
 int np2srv_ch_reconnect_strategy_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
         const char *xpath, uint32_t request_id, sr_event_t event, void *private_data);
 

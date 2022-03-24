@@ -813,6 +813,9 @@ server_data_subscribe(void)
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/connection-type";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_connection_type_cb);
 
+    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/connection-type/periodic";
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_periodic_params_cb);
+
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/reconnect-strategy";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_reconnect_strategy_cb);
 #endif

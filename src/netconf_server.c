@@ -234,66 +234,6 @@ np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     return failed ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
 }
 
-static int
-np2srv_ch_periodic_connection_params(const char *client_name, sr_session_ctx_t *session, const char *xpath)
-{
-    sr_change_iter_t *iter;
-    sr_change_oper_t op;
-    const struct lyd_node *node;
-    int rc;
-    time_t t;
-
-    rc = sr_get_changes_iter(session, xpath, &iter);
-    if (rc != SR_ERR_OK) {
-        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
-        return rc;
-    }
-
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
-        if (!strcmp(node->schema->name, "period")) {
-            if (op == SR_OP_DELETED) {
-                if (nc_server_ch_is_client(client_name)) {
-                    /* set default */
-                    rc = nc_server_ch_client_periodic_set_period(client_name, 60);
-                }
-            } else {
-                rc = nc_server_ch_client_periodic_set_period(client_name, ((struct lyd_node_term *)node)->value.uint16);
-            }
-        } else if (!strcmp(node->schema->name, "anchor-time")) {
-            if (op == SR_OP_DELETED) {
-                if (nc_server_ch_is_client(client_name)) {
-                    /* set default */
-                    rc = nc_server_ch_client_periodic_set_anchor_time(client_name, 0);
-                }
-            } else {
-                ly_time_str2time(lyd_get_value(node), &t, NULL);
-                rc = nc_server_ch_client_periodic_set_anchor_time(client_name, t);
-            }
-        } else if (!strcmp(node->schema->name, "idle-timeout")) {
-            if (op == SR_OP_DELETED) {
-                if (nc_server_ch_is_client(client_name)) {
-                    /* set default */
-                    rc = nc_server_ch_client_periodic_set_idle_timeout(client_name, 120);
-                }
-            } else {
-                rc = nc_server_ch_client_periodic_set_idle_timeout(client_name,
-                        ((struct lyd_node_term *)node)->value.uint16);
-            }
-        }
-        if (rc) {
-            sr_free_change_iter(iter);
-            return SR_ERR_INTERNAL;
-        }
-    }
-    sr_free_change_iter(iter);
-    if (rc != SR_ERR_NOT_FOUND) {
-        ERR("Getting next change failed (%s).", sr_strerror(rc));
-        return rc;
-    }
-
-    return SR_ERR_OK;
-}
-
 /* /ietf-netconf-server:netconf-server/call-home/netconf-client */
 int
 np2srv_ch_client_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name), const char *xpath,
@@ -457,18 +397,77 @@ np2srv_ch_connection_type_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id),
                 }
             }
         }
+    }
+    sr_free_change_iter(iter);
+    if (rc != SR_ERR_NOT_FOUND) {
+        ERR("Getting next change failed (%s).", sr_strerror(rc));
+        return rc;
+    }
 
-        /* periodic connection type params */
-        if (!strcmp(node->schema->name, "periodic")) {
-            if (asprintf(&xpath2, "%s/periodic/*", xpath) == -1) {
-                EMEM;
-                return SR_ERR_NO_MEMORY;
+    return SR_ERR_OK;
+}
+
+/* /ietf-netconf-server:netconf-server/call-home/netconf-client/connection-type/periodic */
+int
+np2srv_ch_periodic_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
+        const char *xpath, sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+{
+    sr_change_iter_t *iter;
+    sr_change_oper_t op;
+    const struct lyd_node *node;
+    const char *client_name;
+    char *xpath2;
+    int rc;
+    time_t t;
+
+    if (asprintf(&xpath2, "%s/*", xpath) == -1) {
+        EMEM;
+        return SR_ERR_NO_MEMORY;
+    }
+    rc = sr_get_changes_iter(session, xpath2, &iter);
+    free(xpath2);
+    if (rc != SR_ERR_OK) {
+        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
+        return rc;
+    }
+
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
+        /* find names */
+        client_name = lyd_get_value(node->parent->parent->parent->child);
+
+        if (!strcmp(node->schema->name, "period")) {
+            if (op == SR_OP_DELETED) {
+                if (nc_server_ch_is_client(client_name)) {
+                    /* set default */
+                    rc = nc_server_ch_client_periodic_set_period(client_name, 60);
+                }
+            } else {
+                rc = nc_server_ch_client_periodic_set_period(client_name, ((struct lyd_node_term *)node)->value.uint16);
             }
-            rc = np2srv_ch_periodic_connection_params(client_name, session, xpath2);
-            free(xpath2);
-            if (rc != SR_ERR_OK) {
-                return rc;
+        } else if (!strcmp(node->schema->name, "anchor-time")) {
+            if (op == SR_OP_DELETED) {
+                if (nc_server_ch_is_client(client_name)) {
+                    /* set default */
+                    rc = nc_server_ch_client_periodic_set_anchor_time(client_name, 0);
+                }
+            } else {
+                ly_time_str2time(lyd_get_value(node), &t, NULL);
+                rc = nc_server_ch_client_periodic_set_anchor_time(client_name, t);
             }
+        } else if (!strcmp(node->schema->name, "idle-timeout")) {
+            if (op == SR_OP_DELETED) {
+                if (nc_server_ch_is_client(client_name)) {
+                    /* set default */
+                    rc = nc_server_ch_client_periodic_set_idle_timeout(client_name, 120);
+                }
+            } else {
+                rc = nc_server_ch_client_periodic_set_idle_timeout(client_name,
+                        ((struct lyd_node_term *)node)->value.uint16);
+            }
+        }
+        if (rc) {
+            sr_free_change_iter(iter);
+            return SR_ERR_INTERNAL;
         }
     }
     sr_free_change_iter(iter);
