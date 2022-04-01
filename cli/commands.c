@@ -70,6 +70,7 @@ extern int done;
 LYD_FORMAT output_format = LYD_XML;
 uint32_t output_flag;
 char *config_editor;
+char *ext_data_path;
 struct nc_session *session;
 volatile int interleave;
 int timed;
@@ -460,6 +461,27 @@ cleanup:
     lyd_free_tree(envp);
     lyd_free_tree(op);
     return ret;
+}
+
+static LY_ERR
+cli_ext_data_clb(const struct lysc_ext_instance *ext, void *user_data, void **ext_data, ly_bool *ext_data_free)
+{
+    const char *path = user_data;
+    struct lyd_node *data;
+    LY_ERR r;
+
+    if (strcmp(ext->def->module->name, "ietf-yang-schema-mount") || strcmp(ext->def->name, "mount-point")) {
+        return LY_EINVAL;
+    }
+
+    /* parse the data file */
+    if ((r = lyd_parse_data_path(ext->def->module->ctx, path, 0, LYD_PARSE_STRICT, LYD_VALIDATE_PRESENT, &data))) {
+        return r;
+    }
+
+    *ext_data = data;
+    *ext_data_free = 1;
+    return LY_SUCCESS;
 }
 
 static char *
@@ -1256,6 +1278,12 @@ cmd_userrpc_help(void)
 }
 
 static void
+cmd_extdata_help(void)
+{
+    printf("ext-data [--help] [--path <file>]\n");
+}
+
+static void
 cmd_timed_help(void)
 {
     printf("timed [--help] [on | off]\n");
@@ -1740,6 +1768,10 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
             }
             return EXIT_FAILURE;
         }
+    }
+
+    if (ext_data_path) {
+        ly_ctx_set_ext_data_clb((struct ly_ctx *)nc_session_get_ctx(session), cli_ext_data_clb, ext_data_path);
     }
 
     return EXIT_SUCCESS;
@@ -2558,6 +2590,10 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         }
     }
 
+    if (ext_data_path) {
+        ly_ctx_set_ext_data_clb((struct ly_ctx *)nc_session_get_ctx(session), cli_ext_data_clb, ext_data_path);
+    }
+
     ret = EXIT_SUCCESS;
 
 error_cleanup:
@@ -2616,6 +2652,10 @@ cmd_connect_listen_unix(struct arglist *cmd, int is_connect)
     if (session == NULL) {
         ERROR(func_name, "Connecting to %s failed.", path);
         goto error_cleanup;
+    }
+
+    if (ext_data_path) {
+        ly_ctx_set_ext_data_clb((struct ly_ctx *)nc_session_get_ctx(session), cli_ext_data_clb, ext_data_path);
     }
 
     ret = EXIT_SUCCESS;
@@ -6610,6 +6650,35 @@ fail:
 }
 
 static int
+cmd_extdata(const char *arg, char **UNUSED(tmp_config_file))
+{
+    char *cmd, *args = strdupa(arg), *ptr = NULL;
+
+    cmd = strtok_r(args, " ", &ptr);
+    cmd = strtok_r(NULL, " ", &ptr);
+    if (cmd == NULL) {
+        printf("Current file: ");
+        printf("%s\n", ext_data_path);
+    } else if ((strcmp(cmd, "--help") == 0) || (strcmp(cmd, "-h") == 0)) {
+        cmd_extdata_help();
+    } else {
+        if (access(cmd, F_OK) == -1) {
+            ERROR(__func__, "Unable to access file \"%s\" (%s).", cmd, strerror(errno));
+            return EXIT_FAILURE;
+        }
+
+        free(ext_data_path);
+        ext_data_path = strdup(cmd);
+    }
+
+    if (session) {
+        ly_ctx_set_ext_data_clb((struct ly_ctx *)nc_session_get_ctx(session), cli_ext_data_clb, ext_data_path);
+    }
+
+    return EXIT_SUCCESS;
+}
+
+static int
 cmd_timed(const char *arg, char **UNUSED(tmp_config_file))
 {
     char *args = strdupa(arg);
@@ -6679,6 +6748,7 @@ COMMAND commands[] = {
         "ietf-subscribed-notifications <modify-subscription> operation with ietf-yang-push augments"},
     {"resync-sub", cmd_resyncsub, cmd_resyncsub_help, "ietf-yang-push <resync-subscription> operation"},
     {"user-rpc", cmd_userrpc, cmd_userrpc_help, "Send your own content in an RPC envelope"},
+    {"ext-data", cmd_extdata, cmd_extdata_help, "Set path to a data file with libyang ext data"},
     {"timed", cmd_timed, cmd_timed_help, "Time all the commands (that communicate with a server) from issuing an RPC"
         " to getting a reply"},
     /* synonyms for previous commands */
