@@ -61,6 +61,7 @@ struct np2srv {
     uid_t unix_uid;                 /**< UNIX socket UID */
     gid_t unix_gid;                 /**< UNIX socket GID */
     uint32_t sr_timeout;            /**< timeout in ms for all sysrepo functions */
+    const char *ext_data_path;      /**< path to the data file with data for LY ext data callback */
 
     const char *server_dir;         /**< path to server files (just confirmed commit for the moment) */
 
