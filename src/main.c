@@ -1203,6 +1203,7 @@ main(int argc, char *argv[])
             }
 
             /* set verbose for all, we change to debug later if requested */
+            np2_sr_verbose_level = SR_LL_INF;
             np2_verbose_level = NC_VERB_VERBOSE;
             np2_libssh_verbose_level = 1;
 
