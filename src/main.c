@@ -636,6 +636,7 @@ server_destroy(void)
     /* stop subscriptions */
     sr_unsubscribe(np2srv.sr_rpc_sub);
     sr_unsubscribe(np2srv.sr_data_sub);
+    sr_unsubscribe(np2srv.sr_nacm_stats_sub);
     sr_unsubscribe(np2srv.sr_notif_sub);
 
     /* libnetconf2 cleanup */
@@ -904,6 +905,9 @@ server_data_subscribe(void)
      * ietf-netconf-acm
      */
     if (sr_nacm_init(np2srv.sr_sess, 0, &np2srv.sr_data_sub)) {
+        goto error;
+    }
+    if (sr_nacm_glob_stats_subscribe(np2srv.sr_sess, 0, &np2srv.sr_nacm_stats_sub)) {
         goto error;
     }
 

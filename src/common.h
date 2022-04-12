@@ -54,6 +54,7 @@ struct np2srv {
     sr_session_ctx_t *sr_sess;      /**< sysrepo server session */
     sr_subscription_ctx_t *sr_rpc_sub;  /**< sysrepo RPC subscription context */
     sr_subscription_ctx_t *sr_data_sub; /**< sysrepo data subscription context */
+    sr_subscription_ctx_t *sr_nacm_stats_sub;   /**< sysrepo NACM global stats subscription context */
     sr_subscription_ctx_t *sr_notif_sub;    /**< sysrepo notification subscription context */
 
     const char *unix_path;          /**< path to the UNIX socket to listen on, if any */
