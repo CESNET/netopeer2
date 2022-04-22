@@ -56,6 +56,7 @@ the `distro` directory.
 * [libyang](https://github.com/CESNET/libyang)
 * [libnetconf2](https://github.com/CESNET/libnetconf2)
 * [sysrepo](https://github.com/sysrepo/sysrepo)
+* c_rehash (only for CLI and if TLS is supported, is an OpenSSL Perl script)
 
 ### Optional
 

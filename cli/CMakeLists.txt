@@ -36,15 +36,21 @@ if(LIBNETCONF2_ENABLED_SSH)
     include_directories(${LIBSSH_INCLUDE_DIRS})
 endif()
 
-# dependencies - libssl
+# dependencies - libssl, c_rehash for hashing CA dir
 if(LIBNETCONF2_ENABLED_TLS)
     if(NOT OPENSSL_FOUND)
         message(FATAL_ERROR "libnetconf2 supports TLS but OpenSSL was not found, CLI compilation failed!")
     endif()
     target_link_libraries(netopeer2-cli ${OPENSSL_LIBRARIES})
     include_directories(${OPENSSL_INCLUDE_DIR})
+
+    find_program(C_REHASH c_rehash)
+    if(NOT C_REHASH)
+        message(FATAL_ERROR "c_rehash Perl OpenSSL script not found!")
+    endif()
 endif()
 
+# compat checks
 check_function_exists(eaccess HAVE_EACCESS)
 check_function_exists(mkstemps HAVE_MKSTEMPS)
 if(HAVE_MKSTEMPS)
