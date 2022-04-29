@@ -99,7 +99,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         void *UNUSED(private_data))
 {
     struct lyd_node_term *leaf;
-    struct lyd_node *node, *select_data = NULL, *data = NULL;
+    struct lyd_node *node, *data = NULL;
     struct np2_filter filter = {0};
     int rc = SR_ERR_OK;
     struct np2_user_sess *user_sess = NULL;
@@ -200,13 +200,8 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     /* update sysrepo session datastore */
     sr_session_switch_ds(user_sess->sess, ds);
 
-    /*
-     * create the data tree for the data reply
-     */
-    if ((rc = op_filter_data_get(user_sess->sess, max_depth, get_opts, &filter, session, &select_data))) {
-        goto cleanup;
-    }
-    if ((rc = op_filter_data_filter(&select_data, &filter, 0, &data))) {
+    /* create the data tree for the data reply */
+    if ((rc = op_filter_data_get(user_sess->sess, max_depth, get_opts, &filter, session, &data))) {
         goto cleanup;
     }
 
@@ -226,7 +221,6 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
 
 cleanup:
     op_filter_erase(&filter);
-    lyd_free_siblings(select_data);
     lyd_free_siblings(data);
     np_release_user_sess(user_sess);
     return rc;

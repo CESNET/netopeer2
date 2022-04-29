@@ -168,35 +168,6 @@ cleanup:
     return rc;
 }
 
-/**
- * @brief get data for a get-config RPC.
- */
-static int
-np2srv_getconfig_rpc_data(sr_session_ctx_t *session, const struct np2_filter *filter, sr_datastore_t ds,
-        sr_session_ctx_t *ev_sess, struct lyd_node **data)
-{
-    struct lyd_node *select_data = NULL;
-    int rc = SR_ERR_OK;
-
-    /* update sysrepo session datastore */
-    sr_session_switch_ds(session, ds);
-
-    /*
-     * create the data tree for the data reply
-     */
-    if ((rc = op_filter_data_get(session, 0, 0, filter, ev_sess, &select_data))) {
-        goto cleanup;
-    }
-
-    if ((rc = op_filter_data_filter(&select_data, filter, 0, data))) {
-        goto cleanup;
-    }
-
-cleanup:
-    lyd_free_siblings(select_data);
-    return rc;
-}
-
 int
 np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *op_path, const struct lyd_node *input,
         sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *output, void *UNUSED(private_data))
@@ -289,7 +260,11 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
 
     /* get filtered data */
     if (!strcmp(op_path, "/ietf-netconf:get-config")) {
-        rc = np2srv_getconfig_rpc_data(user_sess->sess, &filter, ds, session, &data_get);
+        /* update sysrepo session datastore */
+        sr_session_switch_ds(user_sess->sess, ds);
+
+        /* create the data tree for the data reply */
+        rc = op_filter_data_get(user_sess->sess, 0, 0, &filter, session, &data_get);
     } else {
         rc = np2srv_get_rpc_data(user_sess->sess, &filter, session, &data_get);
     }
