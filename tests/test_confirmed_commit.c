@@ -1,11 +1,12 @@
 /**
  * @file test_confirmed_commit.c
  * @author Tadeas Vintrlik <xvintr04@stud.fit.vutbr.cz>
+ * @author Michal Vasko <mvasko@cesnet.cz>
  * @brief tests around the confirmed commit capability
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2022 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2022 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -129,10 +130,7 @@ test_basic(void **state)
     assert_int_equal(st->msgtype, NC_MSG_RPC);
 
     /* Check if received an OK reply */
-    st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 2000000, &st->envp, &st->op);
-    assert_int_equal(st->msgtype, NC_MSG_REPLY);
-    assert_null(st->op);
-    assert_string_equal(LYD_NAME(lyd_child(st->envp)), "ok");
+    ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 }
 
