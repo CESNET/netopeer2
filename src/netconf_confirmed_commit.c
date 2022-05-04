@@ -647,7 +647,7 @@ ncc_try_restore(void)
  * @return SR_ERR_OK When successful.
  */
 static int
-set_running_backup(void)
+ncc_running_backup(void)
 {
     int rc = SR_ERR_OK, read = 0, write = 0;
     const struct ly_ctx *ly_ctx;
@@ -749,6 +749,9 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
     if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
         goto cleanup;
     }
+    if ((rc = sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING))) {
+        goto cleanup;
+    }
 
     /* confirm-timeout */
     lyd_find_path(input, "confirm-timeout", 0, &node);
@@ -772,21 +775,28 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
         goto cleanup;
     }
 
-    /* create and store the backup */
-    if ((rc = sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING))) {
-        goto cleanup;
+    if (!commit_ctx.timer) {
+        /* create and store the backup */
+        if (ncc_running_backup()) {
+            goto cleanup;
+        }
+    } else {
+        /* there is already a pending confirmed commit, keep its backup, but the timeout will be reset */
+        timer_delete(commit_ctx.timer);
+        commit_ctx.timer = 0;
     }
-    if (set_running_backup()) {
-        goto cleanup;
-    }
+
+    /* (re)set the meta file timeout */
     create_meta_file(timeout);
 
-    /* Set persist and start timer thread for rollback */
+    /* set persist */
     if (persist) {
         if (ncc_set_persist(persist)) {
             goto cleanup;
         }
     }
+
+    /* (re)schedule the timer thread for rollback */
     if (ncc_commit_timeout_schedule(timeout)) {
         goto cleanup;
     }
