@@ -4,7 +4,8 @@ Release: {{ release }}%{?dist}
 Summary: Netopeer2 NETCONF tools suite
 Url: https://github.com/CESNET/netopeer2
 Source: netopeer2-%{version}.tar.gz
-Source2: netopeer2-server.service
+Source2: netopeer2-server.sysusers
+Source3: netopeer2-server.service
 License: BSD
 
 BuildRequires:  gcc
@@ -16,6 +17,7 @@ BuildRequires:  pkgconfig(sysrepo) >= 2
 BuildRequires:  libcurl-devel
 BuildRequires:  systemd-devel
 BuildRequires:  systemd
+BuildRequires:  systemd-rpm-macros
 
 %if 0%{?fedora}
 # c_rehash needed by CLI
@@ -68,10 +70,19 @@ a single established NETCONF session.
 
 %install
 %cmake_install
-install -D -p -m 0644 %{SOURCE2} %{buildroot}%{_unitdir}/netopeer2-server.service
+install -D -p -m 0644 %{SOURCE2} %{buildroot}%{_sysusersdir}/netopeer2-server.conf
+install -D -p -m 0644 %{SOURCE3} %{buildroot}%{_unitdir}/netopeer2-server.service
 
+
+%pre server
+%if 0%{?fedora}
+    %sysusers_create_compat %{SOURCE2}
+%else
+    groupmod -a -U root sysrepo
+%endif
 
 %post server
+set -e
 export NP2_MODULE_DIR=%{_datadir}/yang/modules/netopeer2
 export NP2_MODULE_PERMS=600
 export NP2_MODULE_OWNER=root
@@ -83,6 +94,7 @@ export NP2_MODULE_OWNER=root
 %systemd_post netopeer2-server.service
 
 %preun server
+set -e
 %{_datadir}/netopeer2/remove.sh
 
 
@@ -93,6 +105,7 @@ export NP2_MODULE_OWNER=root
 %{_bindir}/netopeer2-server
 %{_datadir}/man/man8/netopeer2-server.8.gz
 %{_unitdir}/netopeer2-server.service
+%{_sysusersdir}/netopeer2-server.conf
 %{_datadir}/yang/modules/netopeer2/*.yang
 %{_datadir}/netopeer2/*.sh
 %dir %{_datadir}/yang/modules/netopeer2/
