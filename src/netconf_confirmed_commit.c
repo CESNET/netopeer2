@@ -357,6 +357,7 @@ ncc_commit_confirmed(void)
 {
     timer_delete(commit_ctx.timer);
     commit_ctx.timer = 0;
+    ncc_set_persist(NULL);
     clean_backup_directory();
 }
 
@@ -805,6 +806,20 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
             goto cleanup;
         }
     } else {
+        if (commit_ctx.persist) {
+            if (!persist || strcmp(persist, commit_ctx.persist)) {
+                np_err_invalid_value(session, "Follow-up confirm commit does not match pending confirmed commit.", "persist");
+                rc = SR_ERR_INVAL_ARG;
+                goto cleanup;
+            }
+        } else {
+            if (commit_ctx.nc_id != nc_session_get_id(nc_sess)) {
+                np_err_invalid_value(session, "Follow-up confirm commit session does not match pending confirmed commit.", NULL);
+                rc = SR_ERR_INVAL_ARG;
+                goto cleanup;
+            }
+        }
+
         /* there is already a pending confirmed commit, keep its backup, but the timeout will be reset */
         timer_delete(commit_ctx.timer);
         commit_ctx.timer = 0;
@@ -814,10 +829,8 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
     create_meta_file(timeout);
 
     /* set persist and NC ID */
-    if (persist) {
-        if (ncc_set_persist(persist)) {
-            goto cleanup;
-        }
+    if (persist && ncc_set_persist(persist)) {
+        goto cleanup;
     }
     commit_ctx.nc_id = nc_session_get_id(nc_sess);
 
@@ -845,15 +858,14 @@ cleanup:
 
 int
 np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
-        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id),
-        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
+        void *UNUSED(private_data))
 {
     int rc = SR_ERR_OK;
     struct np2_user_sess *user_sess = NULL;
     struct lyd_node *node;
     const sr_error_info_t *err_info;
-    const char *persist_id = NULL;
-    const char *persist;
+    const char *persist_id = NULL, *persist;
 
     if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
@@ -884,14 +896,9 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
 
     persist = commit_ctx.persist;
     if ((persist && !persist_id) || (!persist && persist_id) || (persist && persist_id && strcmp(persist, persist_id))) {
-        np_err_invalid_value(session, "Confirming commit does not match pending confirmed commit.", persist_id);
+        np_err_invalid_value(session, "Confirming commit does not match pending confirmed commit.", "persist_id");
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
-    }
-
-    if (persist_id) {
-        /* confirming commit, set persist to NULL */
-        ncc_set_persist(NULL);
     }
 
     /* If there is a commit waiting to be confirmed, confirm it */
@@ -911,8 +918,6 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
         goto cleanup;
     }
 
-    /* success */
-
 cleanup:
     /* UNLOCK */
     pthread_mutex_unlock(&commit_ctx.lock);
@@ -922,8 +927,8 @@ cleanup:
 
 int
 np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
-        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id),
-        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
+        void *UNUSED(private_data))
 {
     int rc = SR_ERR_OK;
     struct lyd_node *node;
