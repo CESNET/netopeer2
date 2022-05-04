@@ -303,113 +303,6 @@ cleanup:
 }
 
 /**
- * @brief Restore running using the backup files.
- * Thread run after the timer in commit_ctx_s runs out.
- */
-static void
-changes_rollback(union sigval UNUSED(sev))
-{
-    int rc;
-    struct lyd_node *node = NULL;
-    const struct ly_ctx *ly_ctx;
-    struct lys_module *module = NULL;
-    sr_session_ctx_t *session;
-    char *path = NULL, *module_name = NULL, *meta = NULL, *srv_path = NULL;
-    uint32_t nc_id;
-    DIR *dir = NULL;
-    struct dirent *dirent = NULL;
-
-    VRB("Confirmed commit timeout reached. Restoring previous running.");
-    ly_ctx = sr_acquire_context(np2srv.sr_conn);
-
-    /* Start a session */
-    if ((rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &session))) {
-        ERR("Failed starting a sysrepo session (%s).", sr_strerror(rc));
-        goto cleanup;
-    }
-    /* set session attributes for diff_check_cb to skip NACM check */
-    sr_session_set_orig_name(session, "netopeer2");
-    /* nc_id */
-    nc_id = 0;
-    sr_session_push_orig_data(session, sizeof nc_id, &nc_id);
-    /* username */
-    sr_session_push_orig_data(session, 1, "");
-
-    if ((rc = ncc_check_dir())) {
-        goto cleanup;
-    }
-    /* Iterate over all files in backup directory */
-    if (asprintf(&srv_path, "%s/%s", np2srv.server_dir, NCC_DIR) == -1) {
-        EMEM;
-        goto cleanup;
-    }
-    dir = opendir(srv_path);
-    if (!dir) {
-        ERR("Failed opening netopeer2 server directory \"%s\".", srv_path);
-        goto cleanup;
-    }
-    while ((dirent = readdir(dir))) {
-        if (!strcmp(dirent->d_name, ".") || !strcmp(dirent->d_name, "..") || !strcmp(dirent->d_name, META_FILE)) {
-            continue;
-        }
-
-        /* try to find the module that corresponds with the file */
-        free(module_name);
-        module_name = get_module_name_from_filename(dirent->d_name);
-        if (!module_name) {
-            /* Skipping files that do not match the expected format */
-            continue;
-        }
-        free(path);
-        path = NULL;
-        if (asprintf(&path, "%s/%s/%s", np2srv.server_dir, NCC_DIR, dirent->d_name) == -1) {
-            EMEM;
-            goto cleanup;
-        }
-        module = ly_ctx_get_module_implemented(ly_ctx, module_name);
-        if (!module) {
-            ERR("Module \"%s\" does not exist/not implemented.", module_name);
-            rename_failed_file(module_name, path);
-            continue;
-        }
-
-        /* get, restore and delete the backup */
-        VRB("Rolling back module \"%s\"", module->name);
-        if (get_running_backup(ly_ctx, path, &node)) {
-            rename_failed_file(module_name, path);
-            continue;
-        }
-        if ((rc = sr_replace_config(session, module->name, node, np2srv.sr_timeout))) {
-            ERR("Failed restoring backup for module \"%s\".", module->name);
-            rename_failed_file(module_name, path);
-            continue;
-        }
-        if (unlink(path) == -1) {
-            ERR("Failed removing backup file \"%s\" (%s).", path, strerror(errno));
-            goto cleanup;
-        }
-    }
-
-    if (asprintf(&meta, "%s/%s/%s", np2srv.server_dir, NCC_DIR, META_FILE) < 0) {
-        EMEM;
-        goto cleanup;
-    }
-    if (unlink(meta) == -1) {
-        ERR("Failed removing confirmed commit meta file (%s).", strerror(errno));
-        goto cleanup;
-    }
-
-cleanup:
-    sr_release_context(np2srv.sr_conn);
-    closedir(dir);
-    sr_session_stop(session);
-    free(path);
-    free(srv_path);
-    free(meta);
-    free(module_name);
-}
-
-/**
  * @brief Remove all the backup files not marked as failed.
  */
 static void
@@ -467,13 +360,125 @@ ncc_commit_confirmed(void)
 }
 
 /**
- * @brief Cancel pending commit. Rollback running from backup.
+ * @brief Restore running using the backup files.
+ * Thread run after the timer in commit_ctx_s runs out.
+ *
+ * @param[in] sev Received signal. 0 when called by the timer (no commit lock).
  */
 static void
-ncc_commit_cancel(void)
+ncc_changes_rollback_cb(union sigval sev)
 {
-    changes_rollback((union sigval)0);
+    int rc;
+    struct lyd_node *node = NULL;
+    const struct ly_ctx *ly_ctx;
+    struct lys_module *module = NULL;
+    sr_session_ctx_t *session;
+    char *path = NULL, *module_name = NULL, *meta = NULL, *srv_path = NULL;
+    uint32_t nc_id;
+    DIR *dir = NULL;
+    struct dirent *dirent = NULL;
+
+    VRB("Confirmed commit timeout reached. Restoring previous \"running\" datastore.");
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
+
+    /* Start a session */
+    if ((rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &session))) {
+        ERR("Failed starting a sysrepo session (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+    /* set session attributes for diff_check_cb to skip NACM check */
+    sr_session_set_orig_name(session, "netopeer2");
+    /* nc_id */
+    nc_id = 0;
+    sr_session_push_orig_data(session, sizeof nc_id, &nc_id);
+    /* username */
+    sr_session_push_orig_data(session, 1, "");
+
+    if ((rc = ncc_check_dir())) {
+        goto cleanup;
+    }
+    /* Iterate over all files in backup directory */
+    if (asprintf(&srv_path, "%s/%s", np2srv.server_dir, NCC_DIR) == -1) {
+        EMEM;
+        goto cleanup;
+    }
+    dir = opendir(srv_path);
+    if (!dir) {
+        ERR("Failed opening netopeer2 server directory \"%s\".", srv_path);
+        goto cleanup;
+    }
+    while ((dirent = readdir(dir))) {
+        if (!strcmp(dirent->d_name, ".") || !strcmp(dirent->d_name, "..") || !strcmp(dirent->d_name, META_FILE)) {
+            continue;
+        }
+
+        /* try to find the module that corresponds with the file */
+        free(module_name);
+        module_name = get_module_name_from_filename(dirent->d_name);
+        if (!module_name) {
+            /* Skipping files that do not match the expected format */
+            continue;
+        }
+        free(path);
+        path = NULL;
+        if (asprintf(&path, "%s/%s/%s", np2srv.server_dir, NCC_DIR, dirent->d_name) == -1) {
+            EMEM;
+            goto cleanup;
+        }
+        module = ly_ctx_get_module_implemented(ly_ctx, module_name);
+        if (!module) {
+            ERR("Module \"%s\" does not exist/not implemented.", module_name);
+            rename_failed_file(module_name, path);
+            continue;
+        }
+
+        /* get, restore and delete the backup */
+        VRB("Rolling back module \"%s\"...", module->name);
+        if (get_running_backup(ly_ctx, path, &node)) {
+            rename_failed_file(module_name, path);
+            continue;
+        }
+        if ((rc = sr_replace_config(session, module->name, node, np2srv.sr_timeout))) {
+            ERR("Failed restoring backup for module \"%s\".", module->name);
+            rename_failed_file(module_name, path);
+            continue;
+        }
+        if (unlink(path) == -1) {
+            ERR("Failed removing backup file \"%s\" (%s).", path, strerror(errno));
+            goto cleanup;
+        }
+    }
+
+    if (asprintf(&meta, "%s/%s/%s", np2srv.server_dir, NCC_DIR, META_FILE) < 0) {
+        EMEM;
+        goto cleanup;
+    }
+    if (unlink(meta) == -1) {
+        ERR("Failed removing confirmed commit meta file (%s).", strerror(errno));
+        goto cleanup;
+    }
+
+    if (!sev.sival_int) {
+        /* LOCK */
+        pthread_mutex_lock(&commit_ctx.lock);
+    }
+
+    /* just timer clean up */
     ncc_commit_confirmed();
+
+    if (!sev.sival_int) {
+        /* UNLOCK */
+        pthread_mutex_unlock(&commit_ctx.lock);
+    }
+
+cleanup:
+    sr_release_context(np2srv.sr_conn);
+    closedir(dir);
+    sr_session_stop(session);
+    free(path);
+    free(srv_path);
+    free(meta);
+    free(module_name);
 }
 
 /**
@@ -545,9 +550,11 @@ ncc_commit_timeout_schedule(uint32_t timeout_s)
     struct itimerspec its = {0};
     timer_t timer_id;
 
+    assert(!commit_ctx.timer);
+
     /* create and arm the timer */
     sev.sigev_notify = SIGEV_THREAD;
-    sev.sigev_notify_function = changes_rollback;
+    sev.sigev_notify_function = ncc_changes_rollback_cb;
     its.it_value.tv_sec = timeout_s;
     if (timer_create(CLOCK_REALTIME, &sev, &timer_id) == -1) {
         ERR("Could not create a timer for confirmed commit rollback (%s).", strerror(errno));
@@ -847,7 +854,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
     pthread_mutex_lock(&commit_ctx.lock);
 
     /* check if confirmed-commit */
-    if (!lyd_find_path(input, "confirmed", 0, &node)) {
+    if (!lyd_find_path(input, "confirmed", 0, NULL)) {
         rc = np2srv_confirmed_commit_cb(session, input);
         goto cleanup;
     }
@@ -932,9 +939,8 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
         goto cleanup;
     }
 
-    ncc_commit_cancel();
-
-    /* success */
+    /* rollback */
+    ncc_changes_rollback_cb((union sigval)1);
 
 cleanup:
     /* UNLOCK */
