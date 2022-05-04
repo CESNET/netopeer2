@@ -459,6 +459,9 @@ test_rollback_disconnect(void **state)
     /* disconnect session, commit is rolled back */
     nc_session_free(ncs, NULL);
 
+    /* reply is sent before the server callback is called so give it a chance to perform the rollback */
+    usleep(100000);
+
     /* data should remain unchanged, empty */
     ASSERT_EMPTY_CONFIG(st);
 }
