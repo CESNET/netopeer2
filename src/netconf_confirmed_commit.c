@@ -51,9 +51,10 @@
  * Alternatively use the set_* and get_* functions
  */
 typedef struct commit_ctx_s {
-    char *persist;        /* What persist-id is expected */
-    timer_t timer;        /* POSIX timer used for rollback, zero if none */
-    pthread_mutex_t lock; /* Lock mutexing this structure and access to NCC_DIR */
+    char *persist;          /* persist-id of the commit */
+    uint32_t nc_id;         /* NETCONF session ID of the commit */
+    timer_t timer;          /* POSIX timer used for rollback, zero if none */
+    pthread_mutex_t lock;   /* Lock for access to this structure and to NCC_DIR */
 } commit_ctx_t;
 
 static commit_ctx_t commit_ctx = {.persist = NULL, .timer = 0, .lock = PTHREAD_MUTEX_INITIALIZER};
@@ -481,6 +482,21 @@ cleanup:
     free(module_name);
 }
 
+void
+ncc_del_session(uint32_t nc_id)
+{
+    /* LOCK */
+    pthread_mutex_lock(&commit_ctx.lock);
+
+    if (commit_ctx.timer && !commit_ctx.persist && (commit_ctx.nc_id == nc_id)) {
+        /* rollback */
+        ncc_changes_rollback_cb((union sigval)1);
+    }
+
+    /* UNLOCK */
+    pthread_mutex_unlock(&commit_ctx.lock);
+}
+
 /**
  * @brief Backup a module into a file
  *
@@ -746,6 +762,7 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
 {
     int rc = SR_ERR_OK;
     struct np2_user_sess *user_sess;
+    struct nc_session *nc_sess;
     const sr_error_info_t *err_info;
     const char *persist = NULL;
     struct lyd_node *node = NULL;
@@ -753,7 +770,7 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
     uint32_t timeout;
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
+    if ((rc = np_get_user_sess(session, &nc_sess, &user_sess))) {
         goto cleanup;
     }
     if ((rc = sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING))) {
@@ -796,12 +813,13 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
     /* (re)set the meta file timeout */
     create_meta_file(timeout);
 
-    /* set persist */
+    /* set persist and NC ID */
     if (persist) {
         if (ncc_set_persist(persist)) {
             goto cleanup;
         }
     }
+    commit_ctx.nc_id = nc_session_get_id(nc_sess);
 
     /* (re)schedule the timer thread for rollback */
     if (ncc_commit_timeout_schedule(timeout)) {

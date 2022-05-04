@@ -119,6 +119,9 @@ np2srv_del_session_cb(struct nc_session *session)
     user_sess = nc_session_get_data(session);
     sr_session_unsubscribe(user_sess->sess);
 
+    /* revert any pending confirmed commits */
+    ncc_del_session(nc_session_get_id(session));
+
     /* stop sysrepo session, if no callback is using it */
     np_release_user_sess(user_sess);
 

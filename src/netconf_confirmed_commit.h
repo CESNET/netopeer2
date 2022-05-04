@@ -31,6 +31,13 @@ void ncc_commit_ctx_destroy(void);
  */
 void ncc_try_restore(void);
 
+/**
+ * @brief Revert current confirmed commit, if any, if not persistent and this session started it.
+ *
+ * @param[in] nc_id NC ID of a terminated NC session.
+ */
+void ncc_del_session(uint32_t nc_id);
+
 int np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path,
         const struct lyd_node *input, sr_event_t event, uint32_t request_id,
         struct lyd_node *output, void *private_data);
