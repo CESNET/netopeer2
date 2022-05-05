@@ -78,7 +78,7 @@ install -D -p -m 0644 %{SOURCE3} %{buildroot}%{_unitdir}/netopeer2-server.servic
 %if 0%{?fedora}
     %sysusers_create_compat %{SOURCE2}
 %else
-    groupmod -a -U root sysrepo
+    usermod -a -G sysrepo root
 %endif
 
 %post server
