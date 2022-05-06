@@ -54,6 +54,7 @@ struct np2srv {
     sr_session_ctx_t *sr_sess;      /**< sysrepo server session */
     sr_subscription_ctx_t *sr_rpc_sub;  /**< sysrepo RPC subscription context */
     sr_subscription_ctx_t *sr_data_sub; /**< sysrepo data subscription context */
+    sr_subscription_ctx_t *sr_nacm_stats_sub;   /**< sysrepo NACM global stats subscription context */
     sr_subscription_ctx_t *sr_notif_sub;    /**< sysrepo notification subscription context */
 
     const char *unix_path;          /**< path to the UNIX socket to listen on, if any */
@@ -61,6 +62,7 @@ struct np2srv {
     uid_t unix_uid;                 /**< UNIX socket UID */
     gid_t unix_gid;                 /**< UNIX socket GID */
     uint32_t sr_timeout;            /**< timeout in ms for all sysrepo functions */
+    const char *ext_data_path;      /**< path to the data file with data for LY ext data callback */
 
     const char *server_dir;         /**< path to server files (just confirmed commit for the moment) */
 

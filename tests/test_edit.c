@@ -226,7 +226,7 @@ test_delete_empty(void **state)
 }
 
 static void
-test_merge_patrial(void **state)
+test_merge_partial(void **state)
 {
     struct np_test *st = *state;
     const char *expected, *data =
@@ -731,7 +731,7 @@ main(int argc, char **argv)
         cmocka_unit_test_setup(test_delete_edit1, setup_test_delete_edit1),
         cmocka_unit_test_setup(test_delete_edit2, setup_test_delete_edit2),
         cmocka_unit_test(test_delete_empty),
-        cmocka_unit_test_teardown(test_merge_patrial, teardown_common),
+        cmocka_unit_test_teardown(test_merge_partial, teardown_common),
         cmocka_unit_test_setup_teardown(test_merge_into_existing, setup_test_merge_into_existing, teardown_common),
         cmocka_unit_test_setup_teardown(test_merge_overwrite, setup_test_merge_overwrite, teardown_common),
         cmocka_unit_test_setup_teardown(test_replace, setup_test_replace, teardown_common),

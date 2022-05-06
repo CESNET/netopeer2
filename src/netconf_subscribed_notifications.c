@@ -251,15 +251,18 @@ void
 np2srv_sub_ntf_session_destroy(struct nc_session *ncs)
 {
     int r;
-    uint32_t i;
+    uint32_t i = 0;
 
     /* WRITE LOCK */
     INFO_WLOCK;
 
-    for (i = 0; i < info.count; ++i) {
+    while (i < info.count) {
         if (info.subs[i].nc_id == nc_session_get_id(ncs)) {
-            /* terminate the subscription */
+            /* terminate the subscription, the following ones are moved */
             sub_ntf_terminate_sub(&info.subs[i], ncs);
+        } else {
+            /* skip */
+            ++i;
         }
     }
 

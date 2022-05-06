@@ -43,11 +43,11 @@ endif()
 # Generic version of not only the library. Major version is reserved for really big changes of the project,
 # minor version changes with added functionality (new tool, functionality of the tool or library, ...) and
 # micro version is changed with a set of small changes or bugfixes anywhere in the project.
-set(NP2SRV_VERSION 2.1.16)
+set(NP2SRV_VERSION 2.1.23)
 
 # libyang required version
-set(LIBYANG_DEP_VERSION 2.0.128)
-set(LIBYANG_DEP_SOVERSION 2.14.0)
+set(LIBYANG_DEP_VERSION 2.0.178)
+set(LIBYANG_DEP_SOVERSION 2.20.2)
 set(LIBYANG_DEP_SOVERSION_MAJOR 2)
 
 # libnetconf2 required version
@@ -56,8 +56,8 @@ set(LIBNETCONF2_DEP_SOVERSION 3.1.0)
 set(LIBNETCONF2_DEP_SOVERSION_MAJOR 3)
 
 # sysrepo required version
-set(SYSREPO_DEP_VERSION 2.1.36)
-set(SYSREPO_DEP_SOVERSION 7.3.0)
+set(SYSREPO_DEP_VERSION 2.1.53)
+set(SYSREPO_DEP_SOVERSION 7.5.0)
 set(SYSREPO_DEP_SOVERSION_MAJOR 7)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -std=gnu99")
@@ -77,6 +77,7 @@ option(ENABLE_URL "Enable URL capability" ON)
 set(THREAD_COUNT 5 CACHE STRING "Number of threads accepting new sessions and handling requests")
 set(POLL_IO_TIMEOUT 10 CACHE STRING "Timeout in milliseconds of polling sessions for new data. It is also used for synchronization of low level IO such as sending a reply while a notification is being sent")
 set(YANG_MODULE_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/yang/modules/netopeer2" CACHE STRING "Directory where to copy the YANG modules to")
+set(SCRIPT_DIR "${CMAKE_INSTALL_PREFIX}/share/netopeer2" CACHE STRING "Directory where to copy the install scripts to")
 
 # script options
 option(INSTALL_MODULES "Install required modules into sysrepo" ON)
@@ -114,10 +115,10 @@ if(NOT NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN MATCHES "^[^%]*%s[^%]*$")
 endif()
 
 if(NOT SERVER_DIR)
-    if("${BUILD_TYPE_UPPER}" STREQUAL "RELEASE")
-        set(SERVER_DIR "/var/netopeer2")
-    else()
+    if("${BUILD_TYPE_UPPER}" STREQUAL "DEBUG")
         set(SERVER_DIR "$ENV{HOME}/.netopeer2-server")
+    else()
+        set(SERVER_DIR "/var/netopeer2")
     endif()
 endif()
 
@@ -331,11 +332,9 @@ configure_file("${PROJECT_SOURCE_DIR}/src/config.h.in" "${PROJECT_BINARY_DIR}/co
 configure_file("${PROJECT_SOURCE_DIR}/service/netopeer2-server.service.in" "${PROJECT_BINARY_DIR}/netopeer2-server.service" @ONLY)
 include_directories(${PROJECT_BINARY_DIR})
 
-# set script dir
-set(SCRIPT_DIR "${PROJECT_SOURCE_DIR}/scripts/")
-
-# install the module files
+# install the modules and scripts
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/modules/" DESTINATION ${YANG_MODULE_DIR})
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/scripts/" DESTINATION ${SCRIPT_DIR} USE_SOURCE_PERMISSIONS)
 
 # install the binary, required modules, and default configuration
 install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
@@ -409,6 +408,6 @@ add_custom_target(cleancache
 )
 
 # uninstall
-add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_MODULE_PATH}/uninstall.cmake"
-    COMMAND ${SCRIPT_DIR}/remove.sh
+add_custom_target(uninstall ${SCRIPT_DIR}/remove.sh
+    COMMAND "${CMAKE_COMMAND}" -P "${CMAKE_MODULE_PATH}/uninstall.cmake"
     COMMENT "Removing netopeer2 modules from sysrepo...")

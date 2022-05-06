@@ -51,9 +51,10 @@
  * Alternatively use the set_* and get_* functions
  */
 typedef struct commit_ctx_s {
-    char *persist;        /* What persist-id is expected */
-    timer_t timer;        /* POSIX timer used for rollback, zero if none */
-    pthread_mutex_t lock; /* Lock mutexing this structure and access to NCC_DIR */
+    char *persist;          /* persist-id of the commit */
+    uint32_t nc_id;         /* NETCONF session ID of the commit */
+    timer_t timer;          /* POSIX timer used for rollback, zero if none */
+    pthread_mutex_t lock;   /* Lock for access to this structure and to NCC_DIR */
 } commit_ctx_t;
 
 static commit_ctx_t commit_ctx = {.persist = NULL, .timer = 0, .lock = PTHREAD_MUTEX_INITIALIZER};
@@ -303,11 +304,71 @@ cleanup:
 }
 
 /**
- * @brief Restore running using the backup files.
- * Thread run after the timer in commit_ctx_s runs out.
+ * @brief Remove all the backup files not marked as failed.
  */
 static void
-changes_rollback(union sigval UNUSED(sev))
+clean_backup_directory(void)
+{
+    DIR *dir = NULL;
+    struct dirent *dirent;
+    char *path = NULL, *ncc_path = NULL;
+
+    if (asprintf(&ncc_path, "%s/%s", np2srv.server_dir, NCC_DIR) == -1) {
+        EMEM;
+        return;
+    }
+
+    dir = opendir(ncc_path);
+    if (!dir) {
+        ERR("Could not open netopeer2 server directory \"%s\" (%s).", ncc_path, strerror(errno));
+        goto cleanup;
+    }
+    while ((dirent = readdir(dir))) {
+        if (!strcmp(dirent->d_name, ".") || !strcmp(dirent->d_name, "..") ||
+                !strstr(".json", dirent->d_name) || strcmp(META_FILE, dirent->d_name)) {
+            /* If some unexpected file, just skip */
+            continue;
+        }
+
+        if (asprintf(&path, "%s/%s", ncc_path, dirent->d_name) == -1) {
+            EMEM;
+            goto cleanup;
+        }
+
+        if (unlink(path) == -1) {
+            ERR("Could not remove backup file \"%s\" (%s).", path, strerror(errno));
+            goto cleanup;
+        }
+        free(path);
+        path = NULL;
+    }
+
+cleanup:
+    closedir(dir);
+    free(path);
+    free(ncc_path);
+}
+
+/**
+ * @brief Confirm pending commit. Clear the timer. Clean the directory.
+ */
+static void
+ncc_commit_confirmed(void)
+{
+    timer_delete(commit_ctx.timer);
+    commit_ctx.timer = 0;
+    ncc_set_persist(NULL);
+    clean_backup_directory();
+}
+
+/**
+ * @brief Restore running using the backup files.
+ * Thread run after the timer in commit_ctx_s runs out.
+ *
+ * @param[in] sev Received signal. 0 when called by the timer (no commit lock).
+ */
+static void
+ncc_changes_rollback_cb(union sigval sev)
 {
     int rc;
     struct lyd_node *node = NULL;
@@ -319,7 +380,7 @@ changes_rollback(union sigval UNUSED(sev))
     DIR *dir = NULL;
     struct dirent *dirent = NULL;
 
-    VRB("Confirmed commit timeout reached. Restoring previous running.");
+    VRB("Confirmed commit timeout reached. Restoring previous \"running\" datastore.");
     ly_ctx = sr_acquire_context(np2srv.sr_conn);
 
     /* Start a session */
@@ -374,7 +435,7 @@ changes_rollback(union sigval UNUSED(sev))
         }
 
         /* get, restore and delete the backup */
-        VRB("Rolling back module \"%s\"", module->name);
+        VRB("Rolling back module \"%s\"...", module->name);
         if (get_running_backup(ly_ctx, path, &node)) {
             rename_failed_file(module_name, path);
             continue;
@@ -399,6 +460,19 @@ changes_rollback(union sigval UNUSED(sev))
         goto cleanup;
     }
 
+    if (!sev.sival_int) {
+        /* LOCK */
+        pthread_mutex_lock(&commit_ctx.lock);
+    }
+
+    /* just timer clean up */
+    ncc_commit_confirmed();
+
+    if (!sev.sival_int) {
+        /* UNLOCK */
+        pthread_mutex_unlock(&commit_ctx.lock);
+    }
+
 cleanup:
     sr_release_context(np2srv.sr_conn);
     closedir(dir);
@@ -409,71 +483,19 @@ cleanup:
     free(module_name);
 }
 
-/**
- * @brief Remove all the backup files not marked as failed.
- */
-static void
-clean_backup_directory(void)
+void
+ncc_del_session(uint32_t nc_id)
 {
-    DIR *dir = NULL;
-    struct dirent *dirent;
-    char *path = NULL, *ncc_path = NULL;
+    /* LOCK */
+    pthread_mutex_lock(&commit_ctx.lock);
 
-    if (asprintf(&ncc_path, "%s/%s", np2srv.server_dir, NCC_DIR) == -1) {
-        EMEM;
-        return;
+    if (commit_ctx.timer && !commit_ctx.persist && (commit_ctx.nc_id == nc_id)) {
+        /* rollback */
+        ncc_changes_rollback_cb((union sigval)1);
     }
 
-    dir = opendir(ncc_path);
-    if (!dir) {
-        ERR("Could not open netopeer2 server directory \"%s\" (%s).", ncc_path, strerror(errno));
-        goto cleanup;
-    }
-    while ((dirent = readdir(dir))) {
-        if (!strcmp(dirent->d_name, ".") || !strcmp(dirent->d_name, "..") ||
-                !strstr(".json", dirent->d_name) || strcmp(META_FILE, dirent->d_name)) {
-            /* If some unexpected file, just skip */
-            continue;
-        }
-
-        if (asprintf(&path, "%s/%s", ncc_path, dirent->d_name) == -1) {
-            EMEM;
-            goto cleanup;
-        }
-
-        if (unlink(path) == -1) {
-            ERR("Could not remove backup file \"%s\" (%s).", path, strerror(errno));
-            goto cleanup;
-        }
-        free(path);
-        path = NULL;
-    }
-
-cleanup:
-    closedir(dir);
-    free(path);
-    free(ncc_path);
-}
-
-/**
- * @brief Confirm pending commit. Clear the timer. Clean the directory.
- */
-static void
-ncc_commit_confirmed(void)
-{
-    timer_delete(commit_ctx.timer);
-    commit_ctx.timer = 0;
-    clean_backup_directory();
-}
-
-/**
- * @brief Cancel pending commit. Rollback running from backup.
- */
-static void
-ncc_commit_cancel(void)
-{
-    changes_rollback((union sigval)0);
-    ncc_commit_confirmed();
+    /* UNLOCK */
+    pthread_mutex_unlock(&commit_ctx.lock);
 }
 
 /**
@@ -545,9 +567,11 @@ ncc_commit_timeout_schedule(uint32_t timeout_s)
     struct itimerspec its = {0};
     timer_t timer_id;
 
+    assert(!commit_ctx.timer);
+
     /* create and arm the timer */
     sev.sigev_notify = SIGEV_THREAD;
-    sev.sigev_notify_function = changes_rollback;
+    sev.sigev_notify_function = ncc_changes_rollback_cb;
     its.it_value.tv_sec = timeout_s;
     if (timer_create(CLOCK_REALTIME, &sev, &timer_id) == -1) {
         ERR("Could not create a timer for confirmed commit rollback (%s).", strerror(errno));
@@ -647,7 +671,7 @@ ncc_try_restore(void)
  * @return SR_ERR_OK When successful.
  */
 static int
-set_running_backup(void)
+ncc_running_backup(void)
 {
     int rc = SR_ERR_OK, read = 0, write = 0;
     const struct ly_ctx *ly_ctx;
@@ -739,6 +763,7 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
 {
     int rc = SR_ERR_OK;
     struct np2_user_sess *user_sess;
+    struct nc_session *nc_sess;
     const sr_error_info_t *err_info;
     const char *persist = NULL;
     struct lyd_node *node = NULL;
@@ -746,7 +771,10 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
     uint32_t timeout;
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
+    if ((rc = np_get_user_sess(session, &nc_sess, &user_sess))) {
+        goto cleanup;
+    }
+    if ((rc = sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING))) {
         goto cleanup;
     }
 
@@ -772,21 +800,41 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
         goto cleanup;
     }
 
-    /* create and store the backup */
-    if ((rc = sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING))) {
-        goto cleanup;
-    }
-    if (set_running_backup()) {
-        goto cleanup;
-    }
-    create_meta_file(timeout);
-
-    /* Set persist and start timer thread for rollback */
-    if (persist) {
-        if (ncc_set_persist(persist)) {
+    if (!commit_ctx.timer) {
+        /* create and store the backup */
+        if (ncc_running_backup()) {
             goto cleanup;
         }
+    } else {
+        if (commit_ctx.persist) {
+            if (!persist || strcmp(persist, commit_ctx.persist)) {
+                np_err_invalid_value(session, "Follow-up confirm commit does not match pending confirmed commit.", "persist");
+                rc = SR_ERR_INVAL_ARG;
+                goto cleanup;
+            }
+        } else {
+            if (commit_ctx.nc_id != nc_session_get_id(nc_sess)) {
+                np_err_invalid_value(session, "Follow-up confirm commit session does not match pending confirmed commit.", NULL);
+                rc = SR_ERR_INVAL_ARG;
+                goto cleanup;
+            }
+        }
+
+        /* there is already a pending confirmed commit, keep its backup, but the timeout will be reset */
+        timer_delete(commit_ctx.timer);
+        commit_ctx.timer = 0;
     }
+
+    /* (re)set the meta file timeout */
+    create_meta_file(timeout);
+
+    /* set persist and NC ID */
+    if (persist && ncc_set_persist(persist)) {
+        goto cleanup;
+    }
+    commit_ctx.nc_id = nc_session_get_id(nc_sess);
+
+    /* (re)schedule the timer thread for rollback */
     if (ncc_commit_timeout_schedule(timeout)) {
         goto cleanup;
     }
@@ -810,15 +858,14 @@ cleanup:
 
 int
 np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
-        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id),
-        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
+        void *UNUSED(private_data))
 {
     int rc = SR_ERR_OK;
     struct np2_user_sess *user_sess = NULL;
     struct lyd_node *node;
     const sr_error_info_t *err_info;
-    const char *persist_id = NULL;
-    const char *persist;
+    const char *persist_id = NULL, *persist;
 
     if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
@@ -837,7 +884,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
     pthread_mutex_lock(&commit_ctx.lock);
 
     /* check if confirmed-commit */
-    if (!lyd_find_path(input, "confirmed", 0, &node)) {
+    if (!lyd_find_path(input, "confirmed", 0, NULL)) {
         rc = np2srv_confirmed_commit_cb(session, input);
         goto cleanup;
     }
@@ -849,14 +896,9 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
 
     persist = commit_ctx.persist;
     if ((persist && !persist_id) || (!persist && persist_id) || (persist && persist_id && strcmp(persist, persist_id))) {
-        np_err_invalid_value(session, "Confirming commit does not match pending confirmed commit.", persist_id);
+        np_err_invalid_value(session, "Confirming commit does not match pending confirmed commit.", "persist_id");
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
-    }
-
-    if (persist_id) {
-        /* confirming commit, set persist to NULL */
-        ncc_set_persist(NULL);
     }
 
     /* If there is a commit waiting to be confirmed, confirm it */
@@ -876,8 +918,6 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
         goto cleanup;
     }
 
-    /* success */
-
 cleanup:
     /* UNLOCK */
     pthread_mutex_unlock(&commit_ctx.lock);
@@ -887,8 +927,8 @@ cleanup:
 
 int
 np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
-        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id),
-        struct lyd_node *UNUSED(output), void *UNUSED(private_data))
+        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
+        void *UNUSED(private_data))
 {
     int rc = SR_ERR_OK;
     struct lyd_node *node;
@@ -922,9 +962,8 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
         goto cleanup;
     }
 
-    ncc_commit_cancel();
-
-    /* success */
+    /* rollback */
+    ncc_changes_rollback_cb((union sigval)1);
 
 cleanup:
     /* UNLOCK */

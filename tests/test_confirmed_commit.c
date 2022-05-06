@@ -1,11 +1,12 @@
 /**
  * @file test_confirmed_commit.c
  * @author Tadeas Vintrlik <xvintr04@stud.fit.vutbr.cz>
+ * @author Michal Vasko <mvasko@cesnet.cz>
  * @brief tests around the confirmed commit capability
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2022 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2022 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -129,10 +130,7 @@ test_basic(void **state)
     assert_int_equal(st->msgtype, NC_MSG_RPC);
 
     /* Check if received an OK reply */
-    st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 2000000, &st->envp, &st->op);
-    assert_int_equal(st->msgtype, NC_MSG_REPLY);
-    assert_null(st->op);
-    assert_string_equal(LYD_NAME(lyd_child(st->envp)), "ok");
+    ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 }
 
@@ -309,6 +307,52 @@ test_timeout_confirm_modify(void **state)
 }
 
 static void
+test_timeout_followup(void **state)
+{
+    struct np_test *st = *state;
+    const char *data, *expected;
+
+    /* prior to the test running should be empty */
+    ASSERT_EMPTY_CONFIG(st);
+
+    /* send a confirmed-commit rpc with 60s timeout */
+    st->rpc = nc_rpc_commit(1, 60, NULL, NULL, NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* modify candidate */
+    data = "<first xmlns=\"ed1\">Test2</first>";
+    SR_EDIT_SESSION(st, st->sr_sess2, data);
+    FREE_TEST_VARS(st);
+
+    /* send another confirmed-commit rpc with 1s timeout */
+    st->rpc = nc_rpc_commit(1, 1, NULL, NULL, NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* running should now be same as candidate */
+    GET_CONFIG(st);
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <first xmlns=\"ed1\">Test2</first>\n"
+            "  </data>\n"
+            "</get-config>\n";
+    assert_string_equal(st->str, expected);
+    FREE_TEST_VARS(st);
+
+    /* wait for the rollback */
+    sleep(2);
+
+    /* data should remain unchanged, empty */
+    ASSERT_EMPTY_CONFIG(st);
+}
+
+static void
 test_cancel(void **state)
 {
     struct np_test *st = *state;
@@ -374,6 +418,52 @@ test_cancel(void **state)
             "</get-config>\n";
     assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
+}
+
+static void
+test_rollback_disconnect(void **state)
+{
+    struct np_test *st = *state;
+    struct nc_session *ncs;
+    const char *expected;
+
+    /* prior to the test running should be empty */
+    ASSERT_EMPTY_CONFIG(st);
+
+    /* create a new session */
+    ncs = nc_connect_unix(st->socket_path, NULL);
+    assert_non_null(ncs);
+
+    /* send a confirmed-commit rpc with 60s timeout */
+    st->rpc = nc_rpc_commit(1, 60, NULL, NULL, NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(ncs, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+
+    /* expect OK */
+    st->msgtype = nc_recv_reply(ncs, st->rpc, st->msgid, 3000, &st->envp, &st->op);
+    assert_int_equal(st->msgtype, NC_MSG_REPLY);
+    assert_string_equal(LYD_NAME(lyd_child(st->envp)), "ok");
+    FREE_TEST_VARS(st);
+
+    /* running should now be same as candidate */
+    GET_CONFIG(st);
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <first xmlns=\"ed1\">Test</first>\n"
+            "  </data>\n"
+            "</get-config>\n";
+    assert_string_equal(st->str, expected);
+    FREE_TEST_VARS(st);
+
+    /* disconnect session, commit is rolled back */
+    nc_session_free(ncs, NULL);
+
+    /* reply is sent before the server callback is called so give it a chance to perform the rollback */
+    usleep(100000);
+
+    /* data should remain unchanged, empty */
+    ASSERT_EMPTY_CONFIG(st);
 }
 
 static void
@@ -460,6 +550,34 @@ test_cancel_persist(void **state)
 
     /* Running should now be empty */
     ASSERT_EMPTY_CONFIG(st);
+}
+
+static void
+test_wrong_session(void **state)
+{
+    struct np_test *st = *state;
+
+    /* send a confirmed-commit rpc with 60s timeout */
+    st->rpc = nc_rpc_commit(1, 60, NULL, NULL, NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* send another confirmed-commit rpc on a different NC session, invalid */
+    st->rpc = nc_rpc_commit(1, 1, NULL, NULL, NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_RPC_ERROR_SESS2(st);
+    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
+    FREE_TEST_VARS(st);
+
+    /* send cancel-commit rpc */
+    st->rpc = nc_rpc_cancel(NULL, NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
 }
 
 static void
@@ -589,9 +707,12 @@ main(int argc, char **argv)
         cmocka_unit_test_setup_teardown(test_timeout_runout, setup_common, teardown_common),
         cmocka_unit_test_setup_teardown(test_timeout_confirm, setup_common, teardown_common),
         cmocka_unit_test_setup_teardown(test_timeout_confirm_modify, setup_common, teardown_common),
+        cmocka_unit_test_setup_teardown(test_timeout_followup, setup_common, teardown_common),
         cmocka_unit_test_setup_teardown(test_cancel, setup_common, teardown_common),
+        cmocka_unit_test_setup_teardown(test_rollback_disconnect, setup_common, teardown_common),
         cmocka_unit_test_setup_teardown(test_confirm_persist, setup_common, teardown_common),
         cmocka_unit_test_setup_teardown(test_cancel_persist, setup_common, teardown_common),
+        cmocka_unit_test_setup_teardown(test_wrong_session, setup_common, teardown_common),
         cmocka_unit_test_setup_teardown(test_wrong_persist_id, setup_common, teardown_common),
         cmocka_unit_test_setup_teardown(test_failed_file, setup_test_failed_file, teardown_test_failed_file),
     };

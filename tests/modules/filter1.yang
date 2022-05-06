@@ -35,6 +35,11 @@ module filter1 {
           leaf port {
             type inet:port-number;
           }
+          container attributes {
+            leaf attr1 {
+              type string;
+            }
+          }
         }
       }
     }

@@ -116,6 +116,9 @@ setup_data(void **state)
             "        <name>First</name>\n"
             "        <address>192.168.0.4</address>\n"
             "        <port>80</port>\n"
+            "        <attributes>\n"
+            "          <attr1>value</attr1>\n"
+            "        </attributes>\n"
             "      </server>\n"
             "      <server>\n"
             "        <name>Second</name>\n"
@@ -500,6 +503,9 @@ test_xpath_namespaces(void **state)
             "            <name>First</name>\n"
             "            <address>192.168.0.4</address>\n"
             "            <port>80</port>\n"
+            "            <attributes>\n"
+            "              <attr1>value</attr1>\n"
+            "            </attributes>\n"
             "          </server>\n"
             "          <server>\n"
             "            <name>Second</name>\n"
@@ -696,6 +702,9 @@ test_subtree_selection_node(void **state)
             "            <name>First</name>\n"
             "            <address>192.168.0.4</address>\n"
             "            <port>80</port>\n"
+            "            <attributes>\n"
+            "              <attr1>value</attr1>\n"
+            "            </attributes>\n"
             "          </server>\n"
             "          <server>\n"
             "            <name>Second</name>\n"
@@ -716,6 +725,51 @@ test_subtree_selection_node(void **state)
             "            <name>Sixth</name>\n"
             "            <address>192.168.0.102</address>\n"
             "            <port>22</port>\n"
+            "          </server>\n"
+            "        </servers>\n"
+            "      </devices>\n"
+            "    </top>\n"
+            "  </data>\n"
+            "</get-config>\n";
+
+    assert_string_equal(st->str, expected);
+
+    FREE_TEST_VARS(st);
+}
+
+static void
+test_subtree_nested_selection_node(void **state)
+{
+    struct np_test *st = *state;
+    char *filter, *expected;
+
+    filter =
+            "<top xmlns=\"f1\">\n"
+            "  <devices>\n"
+            "    <servers>\n"
+            "      <server>\n"
+            "        <name>First</name>\n"
+            "        <attributes>\n"
+            "          <attr1/>\n"
+            "        </attributes>\n"
+            "      </server>\n"
+            "    </servers>\n"
+            "  </devices>\n"
+            "</top>\n";
+
+    GET_CONFIG_FILTER(st, filter);
+
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <top xmlns=\"f1\">\n"
+            "      <devices>\n"
+            "        <servers>\n"
+            "          <server>\n"
+            "            <name>First</name>\n"
+            "            <attributes>\n"
+            "              <attr1>value</attr1>\n"
+            "            </attributes>\n"
             "          </server>\n"
             "        </servers>\n"
             "      </devices>\n"
@@ -921,6 +975,7 @@ main(int argc, char **argv)
         cmocka_unit_test(test_subtree_content_match),
         cmocka_unit_test(test_subtree_content_match_top_level_leaf),
         cmocka_unit_test(test_subtree_selection_node),
+        cmocka_unit_test(test_subtree_nested_selection_node),
         cmocka_unit_test(test_get_selection_node),
         cmocka_unit_test(test_get_containment_node),
         cmocka_unit_test(test_get_content_match_node),

@@ -60,13 +60,7 @@ INSTALL_MODULE() {
 }
 
 UPDATE_MODULE() {
-    CMD="'$SYSREPOCTL' -U $MODDIR/$1 -s '$MODDIR' -p '$PERMS' -v2"
-    if [ ! -z ${OWNER} ]; then
-        CMD="$CMD -o '$OWNER'"
-    fi
-    if [ ! -z ${GROUP} ]; then
-        CMD="$CMD -g '$GROUP'"
-    fi
+    CMD="'$SYSREPOCTL' -U $MODDIR/$1 -s '$MODDIR' -v2"
     eval $CMD
     local rc=$?
     if [ $rc -ne 0 ]; then

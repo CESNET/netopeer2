@@ -119,6 +119,9 @@ np2srv_del_session_cb(struct nc_session *session)
     user_sess = nc_session_get_data(session);
     sr_session_unsubscribe(user_sess->sess);
 
+    /* revert any pending confirmed commits */
+    ncc_del_session(nc_session_get_id(session));
+
     /* stop sysrepo session, if no callback is using it */
     np_release_user_sess(user_sess);
 
@@ -487,6 +490,27 @@ np2srv_content_id_cb(void *UNUSED(user_data))
     return strdup(buf);
 }
 
+static LY_ERR
+np2srv_ext_data_clb(const struct lysc_ext_instance *ext, void *user_data, void **ext_data, ly_bool *ext_data_free)
+{
+    const char *path = user_data;
+    struct lyd_node *data;
+    LY_ERR r;
+
+    if (strcmp(ext->def->module->name, "ietf-yang-schema-mount") || strcmp(ext->def->name, "mount-point")) {
+        return LY_EINVAL;
+    }
+
+    /* parse the data file */
+    if ((r = lyd_parse_data_path(ext->def->module->ctx, path, 0, LYD_PARSE_STRICT, LYD_VALIDATE_PRESENT, &data))) {
+        return r;
+    }
+
+    *ext_data = data;
+    *ext_data_free = 1;
+    return LY_SUCCESS;
+}
+
 /**
  * @brief Initialize the server,
  *
@@ -507,6 +531,11 @@ server_init(void)
 
     /* set the content-id callback */
     nc_server_set_content_id_clb(np2srv_content_id_cb, NULL, NULL);
+
+    /* set the ext data callback */
+    if (np2srv.ext_data_path) {
+        sr_set_ext_data_cb(np2srv.sr_conn, np2srv_ext_data_clb, (void *)np2srv.ext_data_path);
+    }
 
     /* server session */
     rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &np2srv.sr_sess);
@@ -610,6 +639,7 @@ server_destroy(void)
     /* stop subscriptions */
     sr_unsubscribe(np2srv.sr_rpc_sub);
     sr_unsubscribe(np2srv.sr_data_sub);
+    sr_unsubscribe(np2srv.sr_nacm_stats_sub);
     sr_unsubscribe(np2srv.sr_notif_sub);
 
     /* libnetconf2 cleanup */
@@ -813,6 +843,9 @@ server_data_subscribe(void)
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/connection-type";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_connection_type_cb);
 
+    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/connection-type/periodic";
+    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_periodic_params_cb);
+
     xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/reconnect-strategy";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_reconnect_strategy_cb);
 #endif
@@ -875,6 +908,9 @@ server_data_subscribe(void)
      * ietf-netconf-acm
      */
     if (sr_nacm_init(np2srv.sr_sess, 0, &np2srv.sr_data_sub)) {
+        goto error;
+    }
+    if (sr_nacm_glob_stats_subscribe(np2srv.sr_sess, 0, &np2srv.sr_nacm_stats_sub)) {
         goto error;
     }
 
@@ -1003,7 +1039,8 @@ print_version(void)
 static void
 print_usage(char *progname)
 {
-    fprintf(stdout, "Usage: %s [-dhV] [-p PATH] [-U[PATH]] [-m MODE] [-u UID] [-g GID] [-t TIMEOUT] [-v LEVEL] [-c CATEGORY]\n", progname);
+    fprintf(stdout, "Usage: %s [-dhV] [-p PATH] [-U[PATH]] [-m MODE] [-u UID] [-g GID] [-t TIMEOUT] [-x PATH]\n", progname);
+    fprintf(stdout, "          [-v LEVEL] [-c CATEGORY]\n");
     fprintf(stdout, " -d         Debug mode (do not daemonize and print verbose messages to stderr instead of syslog).\n");
     fprintf(stdout, " -h         Display help.\n");
     fprintf(stdout, " -V         Show program version.\n");
@@ -1015,6 +1052,8 @@ print_usage(char *progname)
     fprintf(stdout, " -g GID     Set GID/group for the listening UNIX socket.\n");
     fprintf(stdout, " -t TIMEOUT Timeout in seconds of all sysrepo functions (applying edit-config, reading data, ...),\n");
     fprintf(stdout, "            if 0 (default), the default sysrepo timeouts are used.\n");
+    fprintf(stdout, " -x PATH    Path to a data file with data for libyang ext data callback. They are required for\n");
+    fprintf(stdout, "            supporting some extensions such as schema-mount.\n");
     fprintf(stdout, " -v LEVEL   Verbose output level:\n");
     fprintf(stdout, "                0 - errors\n");
     fprintf(stdout, "                1 - errors and warnings\n");
@@ -1071,7 +1110,7 @@ main(int argc, char *argv[])
     np2srv.server_dir = SERVER_DIR;
 
     /* process command line options */
-    while ((c = getopt(argc, argv, "dhVp:f:U::m:u:g:t:v:c:")) != -1) {
+    while ((c = getopt(argc, argv, "dhVp:f:U::m:u:g:t:x:v:c:")) != -1) {
         switch (c) {
         case 'd':
             daemonize = 0;
@@ -1160,6 +1199,9 @@ main(int argc, char *argv[])
             /* make ms from s */
             np2srv.sr_timeout *= 1000;
             break;
+        case 'x':
+            np2srv.ext_data_path = optarg;
+            break;
         case 'c':
 #ifndef NDEBUG
             if (verb) {
@@ -1168,6 +1210,7 @@ main(int argc, char *argv[])
             }
 
             /* set verbose for all, we change to debug later if requested */
+            np2_sr_verbose_level = SR_LL_INF;
             np2_verbose_level = NC_VERB_VERBOSE;
             np2_libssh_verbose_level = 1;
 
