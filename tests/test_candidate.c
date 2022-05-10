@@ -294,7 +294,7 @@ test_validate_invalid(void **state)
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 2000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
-    ASSERT_OK_REPLY(st);
+    ASSERT_RPC_ERROR(st);
 
     FREE_TEST_VARS(st);
 }
