@@ -489,7 +489,7 @@ url_open(const char *url)
 }
 
 struct lyd_node *
-op_parse_url(const char *url, uint32_t parse_options, int *rc, sr_session_ctx_t *sr_sess)
+op_parse_url(const char *url, int validate, int *rc, sr_session_ctx_t *sr_sess)
 {
     struct lyd_node *config, *data = NULL;
     struct ly_ctx *ly_ctx;
@@ -506,7 +506,7 @@ op_parse_url(const char *url, uint32_t parse_options, int *rc, sr_session_ctx_t 
     }
 
     /* load the whole config element */
-    if (lyd_parse_data_fd(ly_ctx, fd, LYD_XML, parse_options, 0, &config)) {
+    if (lyd_parse_data_fd(ly_ctx, fd, LYD_XML, LYD_PARSE_OPAQ | LYD_PARSE_ONLY | LYD_PARSE_NO_STATE, 0, &config)) {
         *rc = SR_ERR_LY;
         sr_session_set_error_message(sr_sess, ly_errmsg(ly_ctx));
         goto cleanup;
@@ -529,6 +529,15 @@ op_parse_url(const char *url, uint32_t parse_options, int *rc, sr_session_ctx_t 
     data = opaq->child;
     lyd_unlink_siblings(data);
     lyd_free_tree(config);
+
+    if (validate) {
+        /* separate validation if requested */
+        if (lyd_validate_all(&data, NULL, LYD_VALIDATE_NO_STATE, NULL)) {
+            *rc = SR_ERR_LY;
+            sr_session_set_error_message(sr_sess, ly_errmsg(ly_ctx));
+            goto cleanup;
+        }
+    }
 
 cleanup:
     sr_release_context(np2srv.sr_conn);
@@ -632,6 +641,10 @@ op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr
         break;
     case LYD_ANYDATA_DATATREE:
         lyrc = lyd_dup_siblings(config->value.tree, NULL, LYD_DUP_RECURSIVE, &root);
+        if (!lyrc && !(parse_options & (LYD_PARSE_ONLY | LYD_PARSE_OPAQ))) {
+            /* separate validation if requested */
+            lyrc = lyd_validate_all(&root, NULL, LYD_VALIDATE_NO_STATE, NULL);
+        }
         break;
     case LYD_ANYDATA_LYB:
         lyrc = lyd_parse_data_mem(ly_ctx, config->value.mem, LYD_LYB, parse_options, 0, &root);

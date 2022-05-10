@@ -274,7 +274,7 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     } else {
         assert(!strcmp(node->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        config = op_parse_url(lyd_get_value(node), LYD_PARSE_OPAQ | LYD_PARSE_ONLY, &rc, session);
+        config = op_parse_url(lyd_get_value(node), 0, &rc, session);
         if (rc) {
             goto cleanup;
         }

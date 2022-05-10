@@ -345,8 +345,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     } else {
         assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_ONLY | LYD_PARSE_OPAQ | LYD_PARSE_NO_STATE,
-                &rc, session);
+        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), 0, &rc, session);
         if (rc) {
             ly_set_free(nodeset, NULL);
             goto cleanup;
@@ -474,8 +473,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
             goto cleanup;
         }
 
-        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_ONLY | LYD_PARSE_OPAQ | LYD_PARSE_NO_STATE,
-                &rc, session);
+        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), 0, &rc, session);
         if (rc) {
             ly_set_free(nodeset, NULL);
             goto cleanup;
@@ -630,7 +628,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
 #ifdef NP2SRV_URL_CAPAB
     if (trg_url) {
         /* import URL to check its validity */
-        config = op_parse_url(trg_url, LYD_PARSE_ONLY | LYD_PARSE_OPAQ | LYD_PARSE_NO_STATE, &rc, session);
+        config = op_parse_url(trg_url, 0, &rc, session);
         if (rc) {
             goto cleanup;
         }
@@ -828,7 +826,6 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     } else if (!strcmp(nodeset->dnodes[0]->schema->name, "candidate")) {
         ds = SR_DS_CANDIDATE;
     } else if (!strcmp(nodeset->dnodes[0]->schema->name, "config")) {
-        /* config is also validated now */
         config = op_parse_config((struct lyd_node_any *)nodeset->dnodes[0], LYD_PARSE_STRICT | LYD_PARSE_NO_STATE,
                 &rc, session);
         if (rc) {
@@ -838,8 +835,7 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     } else {
         assert(!strcmp(nodeset->dnodes[0]->schema->name, "url"));
 #ifdef NP2SRV_URL_CAPAB
-        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), LYD_PARSE_ONLY | LYD_PARSE_OPAQ | LYD_PARSE_NO_STATE,
-                &rc, session);
+        config = op_parse_url(lyd_get_value(nodeset->dnodes[0]), 1, &rc, session);
         if (rc) {
             ly_set_free(nodeset, NULL);
             goto cleanup;
@@ -869,9 +865,7 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
             sr_session_set_error_message(session, err_info->err[0].message);
             goto cleanup;
         }
-    }
-
-    /* success */
+    } /* else already validated */
 
 cleanup:
     lyd_free_siblings(config);

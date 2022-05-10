@@ -199,12 +199,12 @@ int np2srv_url_setcap(void);
  * @brief Parse YANG data found at an URL (encapsulated in `config` element).
  *
  * @param[in] url URL to access.
- * @param[in] parse_options Options for parsing the data.
+ * @param[in] validate Whether to validate nested data.
  * @param[out] rc SR error value.
  * @param[in,out] sr_sess SR session to set error on.
  * @return Parsed data.
  */
-struct lyd_node *op_parse_url(const char *url, uint32_t parse_options, int *rc, sr_session_ctx_t *sr_sess);
+struct lyd_node *op_parse_url(const char *url, int validate, int *rc, sr_session_ctx_t *sr_sess);
 
 /**
  * @brief Upload YANG data to an URL (encapsulated in `config` element).
