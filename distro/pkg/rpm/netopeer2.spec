@@ -3,21 +3,23 @@ Version: {{ version }}
 Release: {{ release }}%{?dist}
 Summary: Netopeer2 NETCONF tools suite
 Url: https://github.com/CESNET/netopeer2
-Source: netopeer2-%{version}.tar.gz
+Source: %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 Source2: netopeer2-server.sysusers
 Source3: netopeer2-server.service
 License: BSD
 
-BuildRequires:  gcc
-BuildRequires:  make
-BuildRequires:  cmake
-BuildRequires:  pkgconfig(libyang) >= 2
-BuildRequires:  pkgconfig(libnetconf2) >= 2
-BuildRequires:  pkgconfig(sysrepo) >= 2
-BuildRequires:  libcurl-devel
-BuildRequires:  systemd-devel
-BuildRequires:  systemd
-BuildRequires:  systemd-rpm-macros
+BuildRequires: gcc
+BuildRequires: cmake
+BuildRequires: pkgconfig(libyang) >= 2.0.194
+BuildRequires: pkgconfig(libnetconf2) >= 2.1.11
+BuildRequires: pkgconfig(sysrepo) >= 2.1.64
+BuildRequires: sysrepo-tools
+BuildRequires: libcurl-devel
+BuildRequires: libssh-devel
+BuildRequires: openssl-devel
+BuildRequires: systemd-devel
+BuildRequires: systemd
+BuildRequires: systemd-rpm-macros
 
 %if 0%{?fedora}
 # c_rehash needed by CLI
@@ -28,7 +30,7 @@ Requires: netopeer2-server
 Requires: netopeer2-cli
 
 %package server
-Summary:  netopeer2 NETCONF server
+Summary: netopeer2 NETCONF server
 
 # needed by script setup.sh (run in post)
 Requires: sysrepo-tools
@@ -37,7 +39,7 @@ Requires: sysrepo-tools
 Requires: openssl
 
 %package cli
-Summary:  netopeer2 NETCONF CLI client
+Summary: netopeer2 NETCONF CLI client
 
 %if 0%{?fedora}
 Requires: openssl-perl
@@ -65,14 +67,18 @@ a single established NETCONF session.
 %autosetup -p1
 
 %build
-%cmake -DCMAKE_BUILD_TYPE=RELWITHDEBINFO -DINSTALL_MODULES=OFF -DGENERATE_HOSTKEY=OFF -DMERGE_LISTEN_CONFIG=OFF -DSERVER_DIR=%{_libdir}/netopeer2-server
+%cmake -DCMAKE_BUILD_TYPE=RELWITHDEBINFO \
+       -DINSTALL_MODULES=OFF \
+       -DGENERATE_HOSTKEY=OFF \
+       -DMERGE_LISTEN_CONFIG=OFF \
+       -DSERVER_DIR=%{_libdir}/netopeer2-server
 %cmake_build
 
 %install
 %cmake_install
 install -D -p -m 0644 %{SOURCE2} %{buildroot}%{_sysusersdir}/netopeer2-server.conf
 install -D -p -m 0644 %{SOURCE3} %{buildroot}%{_unitdir}/netopeer2-server.service
-
+mkdir -p -m=700 %{buildroot}%{_libdir}/netopeer2-server
 
 %pre server
 %if 0%{?fedora}
@@ -99,6 +105,7 @@ set -e
 
 
 %files
+# just a virtual package requiring -cli and -server
 
 %files server
 %license LICENSE
@@ -110,6 +117,7 @@ set -e
 %{_datadir}/netopeer2/*.sh
 %dir %{_datadir}/yang/modules/netopeer2/
 %dir %{_datadir}/netopeer2/
+%dir %{_libdir}/netopeer2-server/
 
 %files cli
 %license LICENSE
