@@ -128,6 +128,8 @@ np_get_nc_sess_by_id(uint32_t sr_id, uint32_t nc_id, struct nc_session **nc_sess
 
     assert((sr_id && !nc_id) || (!sr_id && nc_id));
 
+    *nc_sess = NULL;
+
     for (i = 0; (ncs = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
         if (sr_id) {
             user_sess = nc_session_get_data(ncs);
