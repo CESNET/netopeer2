@@ -1003,7 +1003,8 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     /* RFC 5277 section 6.5 */
     if (nc_session_get_notif_status(ncs)) {
         sr_session_set_error_message(session, "Session already subscribed.");
-        return SR_ERR_EXISTS;
+        rc = SR_ERR_EXISTS;
+        goto cleanup;
     }
 
     /* learn stream */
