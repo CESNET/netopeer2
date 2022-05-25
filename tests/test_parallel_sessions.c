@@ -66,88 +66,26 @@ struct thread_arg {
     pthread_barrier_t barrier;
 };
 
-static void
-recv_reply_error_print(struct np_test *st, const struct lyd_node *op, const struct lyd_node *envp)
-{
-    char *path, *line = NULL, **lines = NULL;
-    size_t i, line_len = 0, line_count = 0;
-    FILE *f;
-
-    /* print op */
-    printf("op:\n");
-    if (op) {
-        lyd_print_file(stdout, op, LYD_XML, 0);
-    }
-    printf("\n");
-
-    /* print envelope */
-    printf("envp:\n");
-    if (envp) {
-        lyd_print_file(stdout, envp, LYD_XML, 0);
-    }
-    printf("\n");
-
-    /* open netopeer2 log */
-    assert_int_not_equal(-1, asprintf(&path, "%s/%s/%s", NP_SR_REPOS_DIR, st->test_name, NP_LOG_FILE));
-    f = fopen(path, "r");
-    free(path);
-    if (!f) {
-        printf("Opening netopeer2 log file failed.\n");
-        return;
-    }
-
-    /* store all the lines */
-    while (getline(&line, &line_len, f) != -1) {
-        lines = realloc(lines, (line_count + 1) * sizeof *lines);
-        lines[line_count] = line;
-        line = NULL;
-        ++line_count;
-    }
-    fclose(f);
-
-    /* print from the end in case the log is too long and would not get printed */
-    printf("np2 log backwards:\n");
-    assert_non_null(line_count);
-    i = line_count;
-    do {
-        --i;
-        puts(lines[i]);
-        free(lines[i]);
-    } while (i);
-    free(lines);
-}
-
+/* TEST */
 static void *
-send_get_rpc(void *arg)
+send_get_thread(void *arg)
 {
     struct thread_arg *targ = arg;
-    struct nc_rpc *rpc;
+    struct np_test state = {0}, *st = &state;
     struct nc_session *nc_sess;
-    struct lyd_node *envp, *op;
     NC_MSG_TYPE msgtype;
-    uint64_t msgid;
 
     /* create a NETCONF session */
     nc_sess = nc_connect_unix(targ->st->socket_path, NULL);
     assert_non_null(nc_sess);
     pthread_barrier_wait(&targ->barrier);
 
-    /* Send get rpc */
-    rpc = nc_rpc_get(NULL, NC_WD_ALL, NC_PARAMTYPE_CONST);
-    msgtype = nc_send_rpc(nc_sess, rpc, 1000, &msgid);
+    /* send get rpc */
+    st->rpc = nc_rpc_get(NULL, NC_WD_ALL, NC_PARAMTYPE_CONST);
+    msgtype = nc_send_rpc(nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(msgtype, NC_MSG_RPC);
-
-    /* recieve reply, should succeed */
-    msgtype = nc_recv_reply(nc_sess, rpc, msgid, THREAD_COUNT * 2000, &envp, &op);
-    assert_int_equal(msgtype, NC_MSG_REPLY);
-    if (!op || !envp) {
-        recv_reply_error_print(targ->st, op, envp);
-        fail();
-    }
-
-    nc_rpc_free(rpc);
-    lyd_free_tree(op);
-    lyd_free_tree(envp);
+    ASSERT_DATA_REPLY_PARAM(nc_sess, THREAD_COUNT * 2000, st);
+    FREE_TEST_VARS(st);
 
     /* stop the NETCONF session */
     nc_session_free(nc_sess, NULL);
@@ -156,19 +94,20 @@ send_get_rpc(void *arg)
 }
 
 static void
-test_first(void **state)
+test_get(void **state)
 {
     struct np_test *st = *state;
     pthread_t t[THREAD_COUNT];
     struct thread_arg targ;
+    uint32_t i;
 
     targ.st = st;
     pthread_barrier_init(&targ.barrier, NULL, THREAD_COUNT);
 
-    for (uint32_t i = 0; i < THREAD_COUNT; i++) {
-        pthread_create(&t[i], NULL, send_get_rpc, &targ);
+    for (i = 0; i < THREAD_COUNT; i++) {
+        pthread_create(&t[i], NULL, send_get_thread, &targ);
     }
-    for (uint32_t i = 0; i < THREAD_COUNT; i++) {
+    for (i = 0; i < THREAD_COUNT; i++) {
         pthread_join(t[i], NULL);
     }
 }
@@ -177,7 +116,7 @@ int
 main(int argc, char **argv)
 {
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_first),
+        cmocka_unit_test(test_get),
     };
 
     nc_verbosity(NC_VERB_WARNING);

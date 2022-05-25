@@ -41,9 +41,9 @@
     } \
     state->str = NULL;
 
-#define ASSERT_OK_REPLY(state) \
+#define ASSERT_OK_REPLY_PARAM(nc_sess, timeout_ms, state) \
     do { \
-        state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
+        state->msgtype = nc_recv_reply(nc_sess, state->rpc, state->msgid, timeout_ms, &state->envp, &state->op); \
     } while (state->msgtype == NC_MSG_NOTIF); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
     if (strcmp(LYD_NAME(lyd_child(state->envp)), "ok")) { \
@@ -59,6 +59,28 @@
         fail(); \
     } \
     assert_null(state->op);
+
+#define ASSERT_DATA_REPLY_PARAM(nc_sess, timeout_ms, state) \
+    do { \
+        state->msgtype = nc_recv_reply(nc_sess, state->rpc, state->msgid, timeout_ms, &state->envp, &state->op); \
+    } while (state->msgtype == NC_MSG_NOTIF); \
+    assert_int_equal(state->msgtype, NC_MSG_REPLY); \
+    if (lyd_child(state->envp) || !state->op) { \
+        printf("Expected \"data\" reply, received \"%s\" instead.\n", lyd_child(state->envp) ? LYD_NAME(lyd_child(state->envp)) : "unknown"); \
+        printf("op:\n"); \
+        if (state->op) { \
+            lyd_print_file(stdout, state->op, LYD_XML, 0); \
+        } \
+        printf("\nenvp:\n"); \
+        if (state->envp) { \
+            lyd_print_file(stdout, state->envp, LYD_XML, 0); \
+        } \
+        fail(); \
+    } \
+    assert_int_equal(LY_SUCCESS, lyd_print_mem(&state->str, state->op, LYD_XML, 0));
+
+#define ASSERT_OK_REPLY(state) \
+    ASSERT_OK_REPLY_PARAM(state->nc_sess, 3000, state)
 
 #define ASSERT_OK_REPLY_SESS2(state) \
     state->msgtype = nc_recv_reply(state->nc_sess2, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
@@ -168,13 +190,16 @@
                                   LY_SUCCESS); \
     ly_in_free(state->in, 0);
 
-#define RECV_NOTIF(state) \
+#define RECV_NOTIF_PARAM(nc_sess, timeout_ms, state) \
     do { \
-        state->msgtype = nc_recv_notif(state->nc_sess, 3000, &state->envp, &state->op); \
+        state->msgtype = nc_recv_notif(nc_sess, timeout_ms, &state->envp, &state->op); \
     } while (state->msgtype == NC_MSG_REPLY); \
     assert_int_equal(NC_MSG_NOTIF, state->msgtype); \
     while (state->op->parent) state->op = lyd_parent(state->op); \
     assert_int_equal(lyd_print_mem(&state->str, state->op, LYD_XML, 0), LY_SUCCESS);
+
+#define RECV_NOTIF(state) \
+    RECV_NOTIF_PARAM(state->nc_sess, 3000, state)
 
 #define ASSERT_NO_NOTIF(state) \
     state->msgtype = nc_recv_notif(state->nc_sess, 10, &state->envp, &state->op); \
