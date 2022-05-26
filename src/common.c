@@ -1119,6 +1119,8 @@ op_filter_create_xpath(const char *xpath, struct np2_filter *filter)
 {
     int rc = SR_ERR_OK;
 
+    memset(filter, 0, sizeof *filter);
+
     /* create a single filter */
     filter->filters = malloc(sizeof *filter->filters);
     if (!filter->filters) {
