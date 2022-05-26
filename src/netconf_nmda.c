@@ -107,7 +107,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     struct ly_set *nodeset;
     sr_datastore_t ds;
     NC_WD_MODE nc_wd;
-    sr_get_oper_options_t get_opts = 0;
+    sr_get_options_t get_opts = 0;
 
     if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
@@ -138,25 +138,14 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     node = nodeset->count ? nodeset->dnodes[0] : NULL;
     ly_set_free(nodeset, NULL);
     if (node && !strcmp(node->schema->name, "subtree-filter")) {
-        if (op_filter_subtree2xpath(((struct lyd_node_any *)node)->value.tree, &filter)) {
+        if (op_filter_create_subtree(((struct lyd_node_any *)node)->value.tree, &filter)) {
             rc = SR_ERR_INTERNAL;
             goto cleanup;
         }
     } else {
-        filter.filters = malloc(sizeof *filter.filters);
-        if (!filter.filters) {
-            EMEM;
-            rc = SR_ERR_NO_MEMORY;
+        if ((rc = op_filter_create_xpath(node ? lyd_get_value(node) : "/*", &filter))) {
             goto cleanup;
         }
-        filter.count = 1;
-        filter.filters[0].str = node ? strdup(lyd_get_value(node)) : strdup("/*");
-        if (!filter.filters[0].str) {
-            EMEM;
-            rc = SR_ERR_NO_MEMORY;
-            goto cleanup;
-        }
-        filter.filters[0].selection = 1;
     }
 
     /* config filter */

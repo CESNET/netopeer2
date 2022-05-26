@@ -241,14 +241,23 @@ struct np2_filter {
 };
 
 /**
- * @brief Transform subtree filter into NP2 filter structure.
+ * @brief Create NP2 filter structure from a subtree filter.
  *
  * @param[in] node Subtree filter.
  * @param[out] filter Generated NP2 filter.
  * @return 0 on success;
  * @return -1 on error.
  */
-int op_filter_subtree2xpath(const struct lyd_node *node, struct np2_filter *filter);
+int op_filter_create_subtree(const struct lyd_node *node, struct np2_filter *filter);
+
+/**
+ * @brief Create NP2 filter structure from an XPath filter.
+ *
+ * @param[in] xpath XPath filter.
+ * @param[out] filter Generated NP2 filter.
+ * @return SR error value.
+ */
+int op_filter_create_xpath(const char *xpath, struct np2_filter *filter);
 
 /**
  * @brief Erase all members of an NP2 filter structure.
@@ -277,7 +286,7 @@ int op_filter_filter2xpath(const struct np2_filter *filter, char **xpath);
  * @param[out] data Retrieved data.
  * @return SR error value.
  */
-int op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_oper_options_t get_opts,
+int op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_options_t get_opts,
         const struct np2_filter *filter, sr_session_ctx_t *ev_sess, struct lyd_node **data);
 
 /**

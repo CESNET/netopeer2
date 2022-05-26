@@ -1084,7 +1084,7 @@ filter_xpath_buf_add_r(const struct lyd_node *node, char **buf, int size, struct
 }
 
 int
-op_filter_subtree2xpath(const struct lyd_node *node, struct np2_filter *filter)
+op_filter_create_subtree(const struct lyd_node *node, struct np2_filter *filter)
 {
     const struct lyd_node *iter;
     char *buf = NULL;
@@ -1112,6 +1112,35 @@ error:
     free(buf);
     op_filter_erase(filter);
     return -1;
+}
+
+int
+op_filter_create_xpath(const char *xpath, struct np2_filter *filter)
+{
+    int rc = SR_ERR_OK;
+
+    /* create a single filter */
+    filter->filters = malloc(sizeof *filter->filters);
+    if (!filter->filters) {
+        EMEM;
+        rc = SR_ERR_NO_MEMORY;
+        goto cleanup;
+    }
+
+    filter->count = 1;
+    filter->filters[0].str = strdup(xpath);
+    filter->filters[0].selection = 1;
+    if (!filter->filters[0].str) {
+        EMEM;
+        rc = SR_ERR_NO_MEMORY;
+        goto cleanup;
+    }
+
+cleanup:
+    if (rc) {
+        op_filter_erase(filter);
+    }
+    return rc;
 }
 
 void
@@ -1211,7 +1240,7 @@ error:
 }
 
 int
-op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_oper_options_t get_opts,
+op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_options_t get_opts,
         const struct np2_filter *filter, sr_session_ctx_t *ev_sess, struct lyd_node **data)
 {
     const sr_error_info_t *err_info;

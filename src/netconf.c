@@ -4,8 +4,8 @@
  * @brief ietf-netconf callbacks
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2022 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2022 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -41,130 +41,43 @@
 #include "netconf_confirmed_commit.h"
 #include "netconf_monitoring.h"
 
-static int
-np2srv_get_first_ns(const char *expr, const char **start, int *len)
-{
-    int i;
-
-    if (expr[0] != '/') {
-        return -1;
-    }
-    if (expr[1] == '/') {
-        expr += 2;
-    } else {
-        ++expr;
-    }
-
-    if (!isalpha(expr[0]) && (expr[0] != '_')) {
-        return -1;
-    }
-    for (i = 1; expr[i] && (isalnum(expr[i]) || (expr[i] == '_') || (expr[i] == '-') || (expr[i] == '.')); ++i) {}
-    if (expr[i] != ':') {
-        return -1;
-    }
-
-    *start = expr;
-    *len = i;
-    return 0;
-}
-
-/**
- * @brief Get generic filters in the form of "/module:*" from exact xpath filters.
- */
-static int
-np2srv_get_rpc_module_filters(const struct np2_filter *filter, struct np2_filter *mod_filter)
-{
-    int len, selection;
-    uint32_t i, j;
-    const char *start;
-    char *str;
-
-    for (i = 0; i < filter->count; ++i) {
-        if (np2srv_get_first_ns(filter->filters[i].str, &start, &len)) {
-            /* not the simple format, use it as it is */
-            str = strdup(filter->filters[i].str);
-            selection = filter->filters[i].selection;
-        } else {
-            /* get all the data of a module */
-            if (asprintf(&str, "/%.*s:*", len, start) == -1) {
-                str = NULL;
-            }
-            selection = 1;
-        }
-
-        if (!str) {
-            EMEM;
-            return SR_ERR_NO_MEMORY;
-        }
-
-        /* check for a duplicity */
-        for (j = 0; j < mod_filter->count; ++j) {
-            if (!strcmp(str, mod_filter->filters[j].str)) {
-                break;
-            }
-        }
-        if (j < mod_filter->count) {
-            free(str);
-            continue;
-        }
-
-        /* add a new module filter */
-        mod_filter->filters = realloc(mod_filter->filters, (mod_filter->count + 1) * sizeof *mod_filter->filters);
-        mod_filter->filters[mod_filter->count].str = str;
-        mod_filter->filters[mod_filter->count].selection = selection;
-        ++mod_filter->count;
-    }
-
-    return SR_ERR_OK;
-}
-
 /**
  * @brief Get data for a get RPC.
+ *
+ * @param[in] session User SR session.
+ * @param[in] filter NP2 filter to use.
+ * @param[in,out] ev_sess Event SR session to use for errors.
+ * @param[out] data Retrieved data.
+ * @return SR error value.
  */
 static int
 np2srv_get_rpc_data(sr_session_ctx_t *session, const struct np2_filter *filter, sr_session_ctx_t *ev_sess,
         struct lyd_node **data)
 {
-    struct lyd_node *all_data = NULL;
-    sr_datastore_t ds;
-    sr_get_oper_options_t get_opts = 0;
-    struct np2_filter mod_filter = {0};
     int rc = SR_ERR_OK;
-    struct ly_set *set = NULL;
+    struct lyd_node *base_data = NULL;
 
-    /* get generic filters to allow retrieving all possibly needed data first, which are then filtered again
-     * (once we have merged config and state data) */
-    rc = np2srv_get_rpc_module_filters(filter, &mod_filter);
-    if (rc) {
+    *data = NULL;
+
+    /* get base data from running */
+    sr_session_switch_ds(session, SR_DS_RUNNING);
+    if ((rc = op_filter_data_get(session, 0, SR_GET_NO_FILTER, filter, ev_sess, &base_data))) {
         goto cleanup;
     }
 
-    /* get data from running first */
-    ds = SR_DS_RUNNING;
-
-get_sr_data:
-    sr_session_switch_ds(session, ds);
-
-    if ((rc = op_filter_data_get(session, 0, get_opts, &mod_filter, ev_sess, &all_data))) {
+    /* then append base operational data */
+    sr_session_switch_ds(session, SR_DS_OPERATIONAL);
+    if ((rc = op_filter_data_get(session, 0, SR_OPER_NO_CONFIG | SR_GET_NO_FILTER, filter, ev_sess, &base_data))) {
         goto cleanup;
-    }
-
-    if (ds == SR_DS_RUNNING) {
-        /* we have running data, now append state data */
-        ds = SR_DS_OPERATIONAL;
-        get_opts = SR_OPER_NO_CONFIG;
-        goto get_sr_data;
     }
 
     /* now filter only the requested data from the created running data + state data */
-    if ((rc = op_filter_data_filter(&all_data, filter, 1, data))) {
+    if ((rc = op_filter_data_filter(&base_data, filter, 1, data))) {
         goto cleanup;
     }
 
 cleanup:
-    ly_set_free(set, NULL);
-    lyd_free_siblings(all_data);
-    op_filter_erase(&mod_filter);
+    lyd_free_siblings(base_data);
     return rc;
 }
 
@@ -219,7 +132,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
         if (!meta) {
             /* subtree */
             if (((struct lyd_node_any *)node)->value_type == LYD_ANYDATA_DATATREE) {
-                if (op_filter_subtree2xpath(((struct lyd_node_any *)node)->value.tree, &filter)) {
+                if (op_filter_create_subtree(((struct lyd_node_any *)node)->value.tree, &filter)) {
                     rc = SR_ERR_INTERNAL;
                     goto cleanup;
                 }
@@ -235,18 +148,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
 
     if (single_filter) {
         /* create a single filter */
-        filter.filters = malloc(sizeof *filter.filters);
-        if (!filter.filters) {
-            EMEM;
-            rc = SR_ERR_NO_MEMORY;
-            goto cleanup;
-        }
-        filter.count = 1;
-        filter.filters[0].str = strdup(single_filter);
-        filter.filters[0].selection = 1;
-        if (!filter.filters[0].str) {
-            EMEM;
-            rc = SR_ERR_NO_MEMORY;
+        if ((rc = op_filter_create_xpath(single_filter, &filter))) {
             goto cleanup;
         }
     }
@@ -1029,7 +931,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         if (!meta) {
             /* subtree */
             if (((struct lyd_node_any *)node)->value_type == LYD_ANYDATA_DATATREE) {
-                if (op_filter_subtree2xpath(((struct lyd_node_any *)node)->value.tree, &filter)) {
+                if (op_filter_create_subtree(((struct lyd_node_any *)node)->value.tree, &filter)) {
                     rc = SR_ERR_INTERNAL;
                     goto cleanup;
                 }
