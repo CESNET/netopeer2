@@ -109,7 +109,7 @@ set -e
 
 %files server
 %license LICENSE
-%{_bindir}/netopeer2-server
+%{_sbindir}/netopeer2-server
 %{_datadir}/man/man8/netopeer2-server.8.gz
 %{_unitdir}/netopeer2-server.service
 %{_sysusersdir}/netopeer2-server.conf

@@ -337,7 +337,7 @@ install(DIRECTORY "${PROJECT_SOURCE_DIR}/modules/" DESTINATION ${YANG_MODULE_DIR
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/scripts/" DESTINATION ${SCRIPT_DIR} USE_SOURCE_PERMISSIONS)
 
 # install the binary, required modules, and default configuration
-install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_SBINDIR})
 install(FILES ${PROJECT_SOURCE_DIR}/doc/netopeer2-server.8 DESTINATION ${CMAKE_INSTALL_MANDIR}/man8)
 if(NP2SRV_HAVE_SYSTEMD)
     install(FILES ${PROJECT_BINARY_DIR}/netopeer2-server.service DESTINATION ${SYSTEMD_UNIT_DIR})
