@@ -130,7 +130,7 @@ test_lock_fail(void **state)
             "    <error-message xml:lang=\"en\">Access to the requested lock is denied"
             " because the lock is currently held by another entity.</error-message>\n"
             "    <error-info>\n"
-            "      <session-id>%" PRIu32 "</session-id>\n"
+            "      <session-id xmlns=\"urn:ietf:params:xml:ns:yang:1\">%" PRIu32 "</session-id>\n"
             "    </error-info>\n"
             "  </rpc-error>\n"
             "</rpc-reply>\n";
@@ -261,7 +261,7 @@ test_unlock_fail(void **state)
             "    <error-message xml:lang=\"en\">Access to the requested lock is denied"
             " because the lock is currently held by another entity.</error-message>\n"
             "    <error-info>\n"
-            "      <session-id>%" PRIu32 "</session-id>\n"
+            "      <session-id xmlns=\"urn:ietf:params:xml:ns:yang:1\">%" PRIu32 "</session-id>\n"
             "    </error-info>\n"
             "  </rpc-error>\n"
             "</rpc-reply>\n";

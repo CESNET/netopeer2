@@ -117,7 +117,7 @@ static void
 test_invalid_start_time(void **state)
 {
     struct np_test *st = *state;
-    char *start_time, *expected;
+    char *start_time;
     struct timespec ts;
 
     assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
@@ -126,18 +126,18 @@ test_invalid_start_time(void **state)
 
     SEND_RPC_ESTABSUB(st, NULL, "notif1", start_time, NULL);
     free(start_time);
+
     ASSERT_RPC_ERROR(st);
-
-    /* Should fail since start-time has to be in the past */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "bad-element");
-    expected =
-            "    <error-info>\n"
-            "      <bad-element>replay-start-time</bad-element>\n"
-            "    </error-info>\n";
-
-    /* Check if correct error-info is given */
-    lyd_print_mem(&st->str, st->envp, LYD_XML, 0);
-    assert_non_null(strstr(st->str, expected));
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>bad-element</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">Specified \"replay-start-time\" is in future.</error-message>\n"
+            "  <error-info>\n"
+            "    <bad-element xmlns=\"urn:ietf:params:xml:ns:yang:1\">replay-start-time</bad-element>\n"
+            "  </error-info>\n"
+            "</rpc-error>\n");
     FREE_TEST_VARS(st);
 }
 
@@ -145,7 +145,7 @@ static void
 test_invalid_stop_time(void **state)
 {
     struct np_test *st = *state;
-    char *stop_time, *expected;
+    char *stop_time;
     struct timespec ts;
 
     assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
@@ -155,16 +155,18 @@ test_invalid_stop_time(void **state)
     /* Should fail since there is no start-time and it is in the past */
     SEND_RPC_ESTABSUB(st, NULL, "notif1", NULL, stop_time);
     free(stop_time);
-    ASSERT_RPC_ERROR(st);
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "bad-element");
-    expected =
-            "    <error-info>\n"
-            "      <bad-element>stop-time</bad-element>\n"
-            "    </error-info>\n";
 
-    /* Check if correct error-info is given */
-    lyd_print_mem(&st->str, st->envp, LYD_XML, 0);
-    assert_non_null(strstr(st->str, expected));
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>bad-element</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">Specified \"stop-time\" is in the past.</error-message>\n"
+            "  <error-info>\n"
+            "    <bad-element xmlns=\"urn:ietf:params:xml:ns:yang:1\">stop-time</bad-element>\n"
+            "  </error-info>\n"
+            "</rpc-error>\n");
     FREE_TEST_VARS(st);
 }
 
@@ -172,7 +174,7 @@ static void
 test_invalid_start_stop_time(void **state)
 {
     struct np_test *st = *state;
-    char *start_time, *stop_time, *expected;
+    char *start_time, *stop_time;
     struct timespec ts;
 
     assert_int_not_equal(-1, clock_gettime(CLOCK_REALTIME, &ts));
@@ -183,18 +185,18 @@ test_invalid_start_stop_time(void **state)
     SEND_RPC_ESTABSUB(st, NULL, "notif1", start_time, stop_time);
     free(start_time);
     free(stop_time);
+
     ASSERT_RPC_ERROR(st);
-
-    /* Should fail since start-time exists and stop-time is not later than start-time */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "bad-element");
-    expected =
-            "    <error-info>\n"
-            "      <bad-element>stop-time</bad-element>\n"
-            "    </error-info>\n";
-
-    /* Check if correct error-info is given */
-    lyd_print_mem(&st->str, st->envp, LYD_XML, 0);
-    assert_non_null(strstr(st->str, expected));
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>bad-element</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">Specified \"stop-time\" is earlier than \"replay-start-time\".</error-message>\n"
+            "  <error-info>\n"
+            "    <bad-element xmlns=\"urn:ietf:params:xml:ns:yang:1\">stop-time</bad-element>\n"
+            "  </error-info>\n"
+            "</rpc-error>\n");
     FREE_TEST_VARS(st);
 }
 

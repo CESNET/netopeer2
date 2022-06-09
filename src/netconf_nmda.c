@@ -30,6 +30,7 @@
 #include "common.h"
 #include "compat.h"
 #include "config.h"
+#include "err_netconf.h"
 #include "log.h"
 
 /**
@@ -283,18 +284,15 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     sr_session_switch_ds(user_sess->sess, ds);
 
     /* sysrepo API */
-    rc = sr_edit_batch(user_sess->sess, config, defop);
-    if (rc != SR_ERR_OK) {
+    if ((rc = sr_edit_batch(user_sess->sess, config, defop))) {
         goto cleanup;
     }
 
-    rc = sr_apply_changes(user_sess->sess, np2srv.sr_timeout);
-    if (rc != SR_ERR_OK) {
-        sr_session_dup_error(user_sess->sess, session);
+    if ((rc = sr_apply_changes(user_sess->sess, np2srv.sr_timeout))) {
+        /* specific edit-config error */
+        np_err_sr2nc_edit(session, user_sess->sess);
         goto cleanup;
     }
-
-    /* success */
 
 cleanup:
     lyd_free_siblings(config);

@@ -1,0 +1,17 @@
+module errors {
+    namespace "urn:errors";
+    prefix e;
+
+    container cont {
+        list l {
+            key "k";
+            unique "u";
+            leaf k {
+                type string;
+            }
+            leaf u {
+                type string;
+            }
+        }
+    }
+}

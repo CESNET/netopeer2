@@ -278,17 +278,18 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     }
 
     if (!strcmp(testop, "test-then-set")) {
-        rc = sr_apply_changes(user_sess->sess, np2srv.sr_timeout);
+        if ((rc = sr_apply_changes(user_sess->sess, np2srv.sr_timeout))) {
+            /* specific edit-config error */
+            np_err_sr2nc_edit(session, user_sess->sess);
+            goto cleanup;
+        }
     } else {
         assert(!strcmp(testop, "test-only"));
-        rc = sr_validate(user_sess->sess, NULL, 0);
+        if ((rc = sr_validate(user_sess->sess, NULL, 0))) {
+            sr_session_dup_error(user_sess->sess, session);
+            goto cleanup;
+        }
     }
-    if (rc) {
-        sr_session_dup_error(user_sess->sess, session);
-        goto cleanup;
-    }
-
-    /* success */
 
 cleanup:
     if (user_sess) {

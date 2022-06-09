@@ -17,6 +17,7 @@
 
 #include "err_netconf.h"
 
+#include <assert.h>
 #include <stdio.h>
 
 #include <sysrepo/error_format.h>
@@ -117,4 +118,35 @@ np_err_ntf_sub_no_such_sub(sr_session_ctx_t *ev_sess, const char *message)
     /* set error */
     sr_session_set_netconf_error(ev_sess, "application", "invalid-value",
             "ietf-subscribed-notifications:no-such-subscription", NULL, message, 0);
+}
+
+void
+np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
+{
+    const sr_error_info_t *err_info;
+    const sr_error_info_err_t *err;
+    const char *ptr;
+    char *path = NULL;
+
+    /* get the error */
+    sr_session_get_error((sr_session_ctx_t *)err_sess, &err_info);
+    assert(err_info);
+    err = &err_info->err[0];
+
+    if (!strncmp(err->message, "Unique data leaf(s)", 19)) {
+        /* get data path */
+        ptr = strstr(err->message, "data location ");
+        assert(ptr);
+        ptr += 14;
+        path = strndup(ptr, strlen(ptr) - 2);
+
+        /* data-not-unique */
+        sr_session_set_netconf_error(ev_sess, "protocol", "operation-failed", "data-not-unique",
+                NULL, "Unique constraint violated.", 1, "non-unique", path);
+    } else {
+        /* other error */
+        sr_session_dup_error(ev_sess, (sr_session_ctx_t *)err_sess);
+    }
+
+    free(path);
 }

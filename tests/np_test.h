@@ -103,7 +103,8 @@
         } \
         fail(); \
     } \
-    assert_null(state->op);
+    assert_null(state->op); \
+    assert_int_equal(LY_SUCCESS, lyd_print_mem(&state->str, lyd_child(state->envp), LYD_XML, 0));
 
 #define ASSERT_RPC_ERROR_SESS2(state) \
     state->msgtype = nc_recv_reply(state->nc_sess2, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
