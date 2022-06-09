@@ -716,6 +716,19 @@ test_autodel_case(void **state)
     FREE_TEST_VARS(st);
 }
 
+static void
+test_unknown(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* send unknown data, should fail */
+    data = "<first xmlns=\"invalid\"/>\n";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    FREE_TEST_VARS(st);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -743,6 +756,7 @@ main(int argc, char **argv)
         cmocka_unit_test_setup_teardown(test_ex1, setup_test_ex1, teardown_common),
         cmocka_unit_test_setup_teardown(test_ex2, setup_test_ex2, teardown_common),
         cmocka_unit_test_teardown(test_autodel_case, teardown_common),
+        cmocka_unit_test(test_unknown),
     };
 
     nc_verbosity(NC_VERB_WARNING);
