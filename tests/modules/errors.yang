@@ -13,5 +13,21 @@ module errors {
                 type string;
             }
         }
+
+        list l2 {
+            max-elements 2;
+            key "k";
+            leaf k {
+                type string;
+            }
+        }
+    }
+
+    container cont2 {
+        presence "presence";
+        leaf-list l3 {
+            type string;
+            min-elements 2;
+        }
     }
 }

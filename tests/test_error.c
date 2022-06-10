@@ -97,11 +97,63 @@ test_unique(void **state)
     FREE_TEST_VARS(st);
 }
 
+static void
+test_max_elem(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* create a list instance */
+    data = "<cont xmlns=\"urn:errors\"><l2><k>key1</k></l2></cont>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* create 2 more list instances violating the max-elements constraint */
+    data = "<cont xmlns=\"urn:errors\"><l2><k>key2</k></l2><l2><k>key3</k></l2></cont>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>operation-failed</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-app-tag>too-many-elements</error-app-tag>\n"
+            "  <error-path>/errors:cont/l2[k='key3']</error-path>\n"
+            "  <error-message xml:lang=\"en\">Too many elements.</error-message>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+}
+
+static void
+test_min_elem(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* create a single leaf-list instance violating the min-elements constraint */
+    data = "<cont2 xmlns=\"urn:errors\"><l3>value</l3></cont2>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>operation-failed</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-app-tag>too-few-elements</error-app-tag>\n"
+            "  <error-path>/errors:cont2/l3</error-path>\n"
+            "  <error-message xml:lang=\"en\">Too few elements.</error-message>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+}
+
 int
 main(int argc, char **argv)
 {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_unique),
+        cmocka_unit_test(test_max_elem),
+        cmocka_unit_test(test_min_elem),
     };
 
     nc_verbosity(NC_VERB_WARNING);

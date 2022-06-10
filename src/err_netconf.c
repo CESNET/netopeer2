@@ -133,19 +133,37 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
     assert(err_info);
     err = &err_info->err[0];
 
-    if (!strncmp(err->message, "Unique data leaf(s)", 19)) {
-        /* get data path */
-        ptr = strstr(err->message, "data location ");
-        assert(ptr);
+    /* get path */
+    if ((ptr = strstr(err->message, "data location "))) {
         ptr += 14;
+    }
+    if (!ptr) {
+        if ((ptr = strstr(err->message, "Schema location "))) {
+            ptr += 16;
+        }
+    }
+    if (ptr) {
         path = strndup(ptr, strlen(ptr) - 2);
+    }
 
+    if (!strncmp(err->message, "Unique data leaf(s)", 19)) {
         /* data-not-unique */
-        sr_session_set_netconf_error(ev_sess, "protocol", "operation-failed", "data-not-unique",
-                NULL, "Unique constraint violated.", 1, "non-unique", path);
+        assert(path);
+        sr_session_set_netconf_error(ev_sess, "protocol", "operation-failed", "data-not-unique", NULL,
+                "Unique constraint violated.", 1, "non-unique", path);
+    } else if (!strncmp(err->message, "Too many", 8)) {
+        /* too-many-elements */
+        assert(path);
+        sr_session_set_netconf_error(ev_sess, "protocol", "operation-failed", "too-many-elements", path,
+                "Too many elements.", 0);
+    } else if (!strncmp(err->message, "Too few", 7)) {
+        /* too-few-elements */
+        assert(path);
+        sr_session_set_netconf_error(ev_sess, "protocol", "operation-failed", "too-few-elements", path,
+                "Too few elements.", 0);
     } else {
         /* other error */
-        sr_session_dup_error(ev_sess, (sr_session_ctx_t *)err_sess);
+        sr_session_dup_error((sr_session_ctx_t *)err_sess, ev_sess);
     }
 
     free(path);
