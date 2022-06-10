@@ -206,6 +206,31 @@ test_require_instance(void **state)
     FREE_TEST_VARS(st);
 }
 
+static void
+test_mandatory_choice(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* create a container without its mandatory choice */
+    data = "<cont3 xmlns=\"urn:errors\"/>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>data-missing</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-app-tag>mandatory-choice</error-app-tag>\n"
+            "  <error-path>/errors:cont3</error-path>\n"
+            "  <error-message xml:lang=\"en\">Missing mandatory choice.</error-message>\n"
+            "  <error-info>\n"
+            "    <missing-choice xmlns=\"urn:ietf:params:xml:ns:yang:1\">/errors:cont3/ch</missing-choice>\n"
+            "  </error-info>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -215,6 +240,7 @@ main(int argc, char **argv)
         cmocka_unit_test(test_min_elem),
         cmocka_unit_test(test_must),
         cmocka_unit_test(test_require_instance),
+        cmocka_unit_test(test_mandatory_choice),
     };
 
     nc_verbosity(NC_VERB_WARNING);

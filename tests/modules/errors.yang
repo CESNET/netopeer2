@@ -49,4 +49,17 @@ module errors {
     leaf l6 {
         type instance-identifier;
     }
+
+    container cont3 {
+        presence "presence";
+        choice ch {
+            mandatory true;
+            leaf l7 {
+                type string;
+            }
+            leaf l8 {
+                type string;
+            }
+        }
+    }
 }

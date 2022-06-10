@@ -194,6 +194,15 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
         /* instance-required */
         assert(path);
         sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", "instance-required", path, str, 0);
+    } else if (!strncmp(err->message, "Mandatory choice", 16)) {
+        /* get choice parent */
+        ptr = strrchr(path, '/');
+        str = strndup(path, (ptr == path) ? 1 : ptr - path);
+
+        /* missing-choice */
+        assert(path);
+        sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", "mandatory-choice", str,
+                "Missing mandatory choice.", 1, "missing-choice", path);
     } else {
         /* other error */
         sr_session_dup_error((sr_session_ctx_t *)err_sess, ev_sess);
