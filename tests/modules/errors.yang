@@ -62,4 +62,17 @@ module errors {
             }
         }
     }
+
+    list l9 {
+        ordered-by user;
+        key "k";
+        leaf k {
+            type string;
+        }
+    }
+
+    leaf-list l10 {
+        ordered-by user;
+        type string;
+    }
 }

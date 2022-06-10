@@ -156,11 +156,14 @@
     assert_string_equal(LYD_NAME(lyd_child(state->op)), "data"); \
     assert_int_equal(LY_SUCCESS, lyd_print_mem(&state->str, state->op, LYD_XML, 0));
 
-#define SEND_EDIT_RPC_DS(state, ds, config) \
-    state->rpc = nc_rpc_edit(ds, NC_RPC_EDIT_DFLTOP_MERGE, NC_RPC_EDIT_TESTOPT_SET, NC_RPC_EDIT_ERROPT_ROLLBACK, \
+#define SEND_EDIT_RPC_PARAM(state, ds, dfltop, config) \
+    state->rpc = nc_rpc_edit(ds, dfltop, NC_RPC_EDIT_TESTOPT_SET, NC_RPC_EDIT_ERROPT_ROLLBACK, \
             config, NC_PARAMTYPE_CONST); \
     state->msgtype = nc_send_rpc(state->nc_sess, state->rpc, 1000, &state->msgid); \
     assert_int_equal(NC_MSG_RPC, state->msgtype);
+
+#define SEND_EDIT_RPC_DS(state, ds, config) \
+    SEND_EDIT_RPC_PARAM(state, ds, NC_RPC_EDIT_DFLTOP_MERGE, config);
 
 #define SEND_EDIT_RPC(state, config) \
     SEND_EDIT_RPC_DS(state, NC_DATASTORE_RUNNING, config);

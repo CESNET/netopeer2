@@ -203,6 +203,26 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
         assert(path);
         sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", "mandatory-choice", str,
                 "Missing mandatory choice.", 1, "missing-choice", path);
+    } else if (strstr(err->message, "instance to insert next to not found.")) {
+        /* get the node name */
+        assert(err->message[5] == '\"');
+        ptr = strchr(err->message + 6, '\"');
+
+        /* create error message */
+        asprintf(&str, "Missing insert anchor \"%.*s\" instance.", (int)(ptr - (err->message + 6)),
+                err->message + 6);
+
+        /* missing-instance */
+        sr_session_set_netconf_error(ev_sess, "protocol", "bad-attribute", "missing-instance", NULL, str, 0);
+    } else if (strstr(err->message, "to be created already exists.")) {
+        /* data-exists */
+        sr_session_set_netconf_error(ev_sess, "protocol", "data-exists", NULL, NULL, err->message, 0);
+    } else if (strstr(err->message, "to be deleted does not exist.")) {
+        /* data-missing */
+        sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", NULL, NULL, err->message, 0);
+    } else if (strstr(err->message, "does not exist.")) {
+        /* data-missing */
+        sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", NULL, NULL, err->message, 0);
     } else {
         /* other error */
         sr_session_dup_error((sr_session_ctx_t *)err_sess, ev_sess);

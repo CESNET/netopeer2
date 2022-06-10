@@ -67,6 +67,7 @@ local_teardown(void **state)
     return 0;
 }
 
+/* RFC 7950 sec.15.1 */
 static void
 test_unique(void **state)
 {
@@ -97,6 +98,7 @@ test_unique(void **state)
     FREE_TEST_VARS(st);
 }
 
+/* RFC 7950 sec.15.2 */
 static void
 test_max_elem(void **state)
 {
@@ -125,6 +127,7 @@ test_max_elem(void **state)
     FREE_TEST_VARS(st);
 }
 
+/* RFC 7950 sec.15.3 */
 static void
 test_min_elem(void **state)
 {
@@ -147,6 +150,7 @@ test_min_elem(void **state)
     FREE_TEST_VARS(st);
 }
 
+/* RFC 7950 sec.15.4 */
 static void
 test_must(void **state)
 {
@@ -169,6 +173,7 @@ test_must(void **state)
     FREE_TEST_VARS(st);
 }
 
+/* RFC 7950 sec.15.5 */
 static void
 test_require_instance(void **state)
 {
@@ -206,6 +211,7 @@ test_require_instance(void **state)
     FREE_TEST_VARS(st);
 }
 
+/* RFC 7950 sec.15.6 */
 static void
 test_mandatory_choice(void **state)
 {
@@ -231,6 +237,115 @@ test_mandatory_choice(void **state)
     FREE_TEST_VARS(st);
 }
 
+/* RFC 7950 sec.15.7 */
+static void
+test_invalid_insert(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* use non-existing list instance as insert anchor */
+    data = "<l9 xmlns=\"urn:errors\" xmlns:yang=\"urn:ietf:params:xml:ns:yang:1\" "
+            "yang:insert=\"after\" yang:key=\"[k='first']\"><k>key</k></l9>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>bad-attribute</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-app-tag>missing-instance</error-app-tag>\n"
+            "  <error-message xml:lang=\"en\">Missing insert anchor \"l9\" instance.</error-message>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+
+    /* use non-existing leaf-list instance as insert anchor */
+    data = "<l10 xmlns=\"urn:errors\" xmlns:yang=\"urn:ietf:params:xml:ns:yang:1\" "
+            "yang:insert=\"before\" yang:value=\"first\"/>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>bad-attribute</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-app-tag>missing-instance</error-app-tag>\n"
+            "  <error-message xml:lang=\"en\">Missing insert anchor \"l10\" instance.</error-message>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+}
+
+/* RFC 7950 sec.7.2 Attributes:operation:create */
+static void
+test_create_exists(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* create a list instance */
+    data = "<cont xmlns=\"urn:errors\"><l><k>key_created</k></l></cont>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* try to create another list instance */
+    data = "<cont xmlns=\"urn:errors\" xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+            "<l nc:operation=\"create\"><k>key_created</k></l></cont>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>data-exists</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">Node \"l\" to be created already exists.</error-message>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+}
+
+/* RFC 7950 sec.7.2 Attributes:operation:delete */
+static void
+test_delete_missing(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* try to delete a non-existing list instance */
+    data = "<cont xmlns=\"urn:errors\" xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
+            "<l nc:operation=\"delete\"><k>key_deleted</k></l></cont>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>data-missing</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">Node \"l\" to be deleted does not exist.</error-message>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+}
+
+/* RFC 7950 sec.7.2 Parameters:default-operation:none */
+static void
+test_none_missing(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* use none operation for a non-existing node */
+    data = "<cont xmlns=\"urn:errors\"><l><k>key_none</k></l></cont>";
+    SEND_EDIT_RPC_PARAM(st, NC_DATASTORE_RUNNING, NC_RPC_EDIT_DFLTOP_NONE, data);
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>data-missing</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">Node \"l\" does not exist.</error-message>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -241,6 +356,10 @@ main(int argc, char **argv)
         cmocka_unit_test(test_must),
         cmocka_unit_test(test_require_instance),
         cmocka_unit_test(test_mandatory_choice),
+        cmocka_unit_test(test_invalid_insert),
+        cmocka_unit_test(test_create_exists),
+        cmocka_unit_test(test_delete_missing),
+        cmocka_unit_test(test_none_missing),
     };
 
     nc_verbosity(NC_VERB_WARNING);
