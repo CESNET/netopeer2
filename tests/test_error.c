@@ -147,6 +147,65 @@ test_min_elem(void **state)
     FREE_TEST_VARS(st);
 }
 
+static void
+test_must(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* create a leaf violating the must constraint */
+    data = "<l4 xmlns=\"urn:errors\">val</l4>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>operation-failed</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-app-tag>must-violation</error-app-tag>\n"
+            "  <error-path>/errors:l4</error-path>\n"
+            "  <error-message xml:lang=\"en\">Must condition \"/cont/l/k = 'key'\" not satisfied.</error-message>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+}
+
+static void
+test_require_instance(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* create a leafref without its target */
+    data = "<l5 xmlns=\"urn:errors\">val</l5>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>data-missing</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-app-tag>instance-required</error-app-tag>\n"
+            "  <error-path>/errors:l5</error-path>\n"
+            "  <error-message xml:lang=\"en\">Required leafref target with value \"val\" missing.</error-message>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+
+    /* create a non-existing instance-identifier */
+    data = "<l6 xmlns=\"urn:errors\" xmlns:e=\"urn:errors\">/e:target</l6>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>data-missing</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-app-tag>instance-required</error-app-tag>\n"
+            "  <error-path>/errors:l6</error-path>\n"
+            "  <error-message xml:lang=\"en\">Required instance-identifier \"/errors:target\" missing.</error-message>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -154,6 +213,8 @@ main(int argc, char **argv)
         cmocka_unit_test(test_unique),
         cmocka_unit_test(test_max_elem),
         cmocka_unit_test(test_min_elem),
+        cmocka_unit_test(test_must),
+        cmocka_unit_test(test_require_instance),
     };
 
     nc_verbosity(NC_VERB_WARNING);

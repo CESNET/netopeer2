@@ -126,7 +126,7 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
     const sr_error_info_t *err_info;
     const sr_error_info_err_t *err;
     const char *ptr;
-    char *path = NULL;
+    char *path = NULL, *str = NULL;
 
     /* get the error */
     sr_session_get_error((sr_session_ctx_t *)err_sess, &err_info);
@@ -161,10 +161,44 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
         assert(path);
         sr_session_set_netconf_error(ev_sess, "protocol", "operation-failed", "too-few-elements", path,
                 "Too few elements.", 0);
+    } else if (!strncmp(err->message, "Must condition", 14)) {
+        /* get the must condition error message */
+        ptr = strrchr(err->message, '(');
+        --ptr;
+        str = strndup(err->message, ptr - err->message);
+
+        /* must-violation */
+        assert(path);
+        sr_session_set_netconf_error(ev_sess, "protocol", "operation-failed", "must-violation", path, str, 0);
+    } else if (!strncmp(err->message, "Invalid leafref value", 21) && strstr(err->message, "no existing target instance")) {
+        /* get the value */
+        assert(err->message[22] == '\"');
+        ptr = strchr(err->message + 23, '\"');
+
+        /* create error message */
+        asprintf(&str, "Required leafref target with value \"%.*s\" missing.", (int)(ptr - (err->message + 23)),
+                err->message + 23);
+
+        /* instance-required */
+        assert(path);
+        sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", "instance-required", path, str, 0);
+    } else if (!strncmp(err->message, "Invalid instance-identifier", 26) && strstr(err->message, "required instance not found")) {
+        /* get the value */
+        assert(err->message[28] == '\"');
+        ptr = strchr(err->message + 29, '\"');
+
+        /* create error message */
+        asprintf(&str, "Required instance-identifier \"%.*s\" missing.", (int)(ptr - (err->message + 29)),
+                err->message + 29);
+
+        /* instance-required */
+        assert(path);
+        sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", "instance-required", path, str, 0);
     } else {
         /* other error */
         sr_session_dup_error((sr_session_ctx_t *)err_sess, ev_sess);
     }
 
     free(path);
+    free(str);
 }

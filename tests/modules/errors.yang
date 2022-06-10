@@ -30,4 +30,23 @@ module errors {
             min-elements 2;
         }
     }
+
+    leaf l4 {
+        must "/cont/l/k = 'key'";
+        type string;
+    }
+
+    leaf target {
+        type string;
+    }
+
+    leaf l5 {
+        type leafref {
+            path "../target";
+        }
+    }
+
+    leaf l6 {
+        type instance-identifier;
+    }
 }
