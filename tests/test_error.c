@@ -275,7 +275,7 @@ test_invalid_insert(void **state)
     FREE_TEST_VARS(st);
 }
 
-/* RFC 7950 sec.7.2 Attributes:operation:create */
+/* RFC 6241 sec.7.2 Attributes:operation:create */
 static void
 test_create_exists(void **state)
 {
@@ -303,7 +303,7 @@ test_create_exists(void **state)
     FREE_TEST_VARS(st);
 }
 
-/* RFC 7950 sec.7.2 Attributes:operation:delete */
+/* RFC 6241 sec.7.2 Attributes:operation:delete */
 static void
 test_delete_missing(void **state)
 {
@@ -325,7 +325,7 @@ test_delete_missing(void **state)
     FREE_TEST_VARS(st);
 }
 
-/* RFC 7950 sec.7.2 Parameters:default-operation:none */
+/* RFC 6241 sec.7.2 Parameters:default-operation:none */
 static void
 test_none_missing(void **state)
 {
