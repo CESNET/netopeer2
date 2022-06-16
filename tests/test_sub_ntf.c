@@ -135,7 +135,7 @@ test_invalid_start_time(void **state)
             "  <error-severity>error</error-severity>\n"
             "  <error-message xml:lang=\"en\">Specified \"replay-start-time\" is in future.</error-message>\n"
             "  <error-info>\n"
-            "    <bad-element xmlns=\"urn:ietf:params:xml:ns:yang:1\">replay-start-time</bad-element>\n"
+            "    <bad-element>replay-start-time</bad-element>\n"
             "  </error-info>\n"
             "</rpc-error>\n");
     FREE_TEST_VARS(st);
@@ -164,7 +164,7 @@ test_invalid_stop_time(void **state)
             "  <error-severity>error</error-severity>\n"
             "  <error-message xml:lang=\"en\">Specified \"stop-time\" is in the past.</error-message>\n"
             "  <error-info>\n"
-            "    <bad-element xmlns=\"urn:ietf:params:xml:ns:yang:1\">stop-time</bad-element>\n"
+            "    <bad-element>stop-time</bad-element>\n"
             "  </error-info>\n"
             "</rpc-error>\n");
     FREE_TEST_VARS(st);
@@ -194,7 +194,7 @@ test_invalid_start_stop_time(void **state)
             "  <error-severity>error</error-severity>\n"
             "  <error-message xml:lang=\"en\">Specified \"stop-time\" is earlier than \"replay-start-time\".</error-message>\n"
             "  <error-info>\n"
-            "    <bad-element xmlns=\"urn:ietf:params:xml:ns:yang:1\">stop-time</bad-element>\n"
+            "    <bad-element>stop-time</bad-element>\n"
             "  </error-info>\n"
             "</rpc-error>\n");
     FREE_TEST_VARS(st);

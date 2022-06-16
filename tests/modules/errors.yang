@@ -75,4 +75,16 @@ module errors {
         ordered-by user;
         type string;
     }
+
+    leaf str {
+        type string {
+            pattern 'a*';
+        }
+    }
+
+    leaf num {
+        type uint32 {
+            range "10..100";
+        }
+    }
 }

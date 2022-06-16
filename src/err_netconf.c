@@ -125,8 +125,8 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
 {
     const sr_error_info_t *err_info;
     const sr_error_info_err_t *err;
-    const char *ptr;
-    char *path = NULL, *str = NULL;
+    const char *ptr, *ptr2;
+    char *path = NULL, *str = NULL, *str2 = NULL;
 
     /* get the error */
     sr_session_get_error((sr_session_ctx_t *)err_sess, &err_info);
@@ -134,16 +134,16 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
     err = &err_info->err[0];
 
     /* get path */
-    if ((ptr = strstr(err->message, "data location "))) {
-        ptr += 14;
+    if ((ptr = strstr(err->message, "data location \""))) {
+        ptr += 15;
     }
     if (!ptr) {
-        if ((ptr = strstr(err->message, "Schema location "))) {
-            ptr += 16;
+        if ((ptr = strstr(err->message, "Schema location \""))) {
+            ptr += 17;
         }
     }
     if (ptr) {
-        path = strndup(ptr, strlen(ptr) - 2);
+        path = strndup(ptr, strchr(ptr, '\"') - ptr);
     }
 
     if (!strncmp(err->message, "Unique data leaf(s)", 19)) {
@@ -223,6 +223,37 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
     } else if (strstr(err->message, "does not exist.")) {
         /* data-missing */
         sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", NULL, NULL, err->message, 0);
+    } else if (!strncmp(err->message, "Invalid type", 12) || !strncmp(err->message, "Unsatisfied range", 17) ||
+            !strncmp(err->message, "Unsatisfied pattern", 19)) {
+        /* create error message */
+        str = strndup(err->message, (strchr(err->message, '.') + 1) - err->message);
+
+        /* bad-element */
+        assert(path);
+        sr_session_set_netconf_error(ev_sess, "application", "bad-element", NULL, NULL, str, 1, "bad-element", path);
+    } else if (!strncmp(err->message, "Node \"", 6) && strstr(err->message, " not found")) {
+        /* get the node name */
+        assert(err->message[5] == '\"');
+        ptr = strchr(err->message + 6, '\"');
+        str = strndup(err->message + 6, ptr - (err->message + 6));
+
+        /* unknown-element */
+        sr_session_set_netconf_error(ev_sess, "application", "unknown-element", NULL, NULL, err->message, 1,
+                "bad-element", str);
+    } else if (!strncmp(err->message, "No (implemented) module with namespace", 38)) {
+        /* get the namespace */
+        ptr = strchr(err->message, '\"') + 1;
+        ptr2 = strchr(ptr, '\"');
+        str = strndup(ptr, ptr2 - ptr);
+
+        /* get the node name */
+        ptr = strchr(ptr2 + 1, '\"') + 1;
+        ptr2 = strchr(ptr, '\"');
+        str2 = strndup(ptr, ptr2 - ptr);
+
+        /* unknown-namespace */
+        sr_session_set_netconf_error(ev_sess, "application", "unknown-namespace", NULL, NULL,
+                "An unexpected namespace is present.", 2, "bad-element", str2, "bad-namespace", str);
     } else {
         /* other error */
         sr_session_dup_error((sr_session_ctx_t *)err_sess, ev_sess);
@@ -230,4 +261,5 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
 
     free(path);
     free(str);
+    free(str2);
 }

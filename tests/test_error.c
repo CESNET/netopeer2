@@ -346,6 +346,111 @@ test_none_missing(void **state)
     FREE_TEST_VARS(st);
 }
 
+/* RFC 6241 Appendix A bad-element */
+static void
+test_bad_element(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* wrong type */
+    data = "<num xmlns=\"urn:errors\">string</num>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>application</error-type>\n"
+            "  <error-tag>bad-element</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">Invalid type uint32 value \"string\".</error-message>\n"
+            "  <error-info>\n"
+            "    <bad-element>/errors:num</bad-element>\n"
+            "  </error-info>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+
+    /* out of range */
+    data = "<num xmlns=\"urn:errors\">5</num>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>application</error-type>\n"
+            "  <error-tag>bad-element</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">Unsatisfied range - value \"5\" is out of the allowed range.</error-message>\n"
+            "  <error-info>\n"
+            "    <bad-element>/errors:num</bad-element>\n"
+            "  </error-info>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+
+    /* unsatisfied pattern */
+    data = "<str xmlns=\"urn:errors\">bb</str>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>application</error-type>\n"
+            "  <error-tag>bad-element</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">Unsatisfied pattern - \"bb\" does not conform to \"a*\".</error-message>\n"
+            "  <error-info>\n"
+            "    <bad-element>/errors:str</bad-element>\n"
+            "  </error-info>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+}
+
+/* RFC 6241 Appendix A unknown-element */
+static void
+test_unknown_element(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* unknown element */
+    data = "<numero xmlns=\"urn:errors\">string</numero>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>application</error-type>\n"
+            "  <error-tag>unknown-element</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">Node \"numero\" not found in the \"errors\" module.</error-message>\n"
+            "  <error-info>\n"
+            "    <bad-element>numero</bad-element>\n"
+            "  </error-info>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+}
+
+/* RFC 6241 Appendix A unknown-namespace */
+static void
+test_unknown_namespace(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* unknown namespace */
+    data = "<numero xmlns=\"urn:errs\">string</numero>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_RPC_ERROR(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>application</error-type>\n"
+            "  <error-tag>unknown-namespace</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">An unexpected namespace is present.</error-message>\n"
+            "  <error-info>\n"
+            "    <bad-element>numero</bad-element>\n"
+            "    <bad-namespace>urn:errs</bad-namespace>\n"
+            "  </error-info>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -360,6 +465,9 @@ main(int argc, char **argv)
         cmocka_unit_test(test_create_exists),
         cmocka_unit_test(test_delete_missing),
         cmocka_unit_test(test_none_missing),
+        cmocka_unit_test(test_bad_element),
+        cmocka_unit_test(test_unknown_element),
+        cmocka_unit_test(test_unknown_namespace),
     };
 
     nc_verbosity(NC_VERB_WARNING);

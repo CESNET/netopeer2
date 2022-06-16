@@ -172,7 +172,7 @@ test_stop_time_invalid(void **state)
             "  <error-severity>error</error-severity>\n"
             "  <error-message xml:lang=\"en\">Specified \"stopTime\" is earlier than \"startTime\".</error-message>\n"
             "  <error-info>\n"
-            "    <bad-element xmlns=\"urn:ietf:params:xml:ns:yang:1\">stopTime</bad-element>\n"
+            "    <bad-element>stopTime</bad-element>\n"
             "  </error-info>\n"
             "</rpc-error>\n");
     FREE_TEST_VARS(st);
@@ -211,7 +211,7 @@ test_start_time_invalid(void **state)
             "  <error-severity>error</error-severity>\n"
             "  <error-message xml:lang=\"en\">Specified \"startTime\" is in future.</error-message>\n"
             "  <error-info>\n"
-            "    <bad-element xmlns=\"urn:ietf:params:xml:ns:yang:1\">startTime</bad-element>\n"
+            "    <bad-element>startTime</bad-element>\n"
             "  </error-info>\n"
             "</rpc-error>\n");
     FREE_TEST_VARS(st);
@@ -248,7 +248,7 @@ test_stop_time_no_start_time(void **state)
             "  <error-severity>error</error-severity>\n"
             "  <error-message xml:lang=\"en\">An expected element is missing.</error-message>\n"
             "  <error-info>\n"
-            "    <bad-element xmlns=\"urn:ietf:params:xml:ns:yang:1\">startTime</bad-element>\n"
+            "    <bad-element>startTime</bad-element>\n"
             "  </error-info>\n"
             "</rpc-error>\n");
     FREE_TEST_VARS(st);

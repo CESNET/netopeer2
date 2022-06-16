@@ -196,7 +196,7 @@ np2srv_err_nc(sr_error_info_err_t *err)
 {
     struct lyd_node *e = NULL, *err_info = NULL;
     const struct ly_ctx *ly_ctx;
-    const char *err_type, *err_tag, *err_app_tag, *err_path, *err_msg, **err_info_elem = NULL, **err_info_val = NULL;
+    const char *err_type, *err_tag, *err_app_tag, *err_path, *err_msg, **err_info_elem = NULL, **err_info_val = NULL, *ns;
     uint32_t err_info_count = 0, i;
 
     /* only dictionary used, no need to keep locked */
@@ -255,7 +255,18 @@ np2srv_err_nc(sr_error_info_err_t *err)
                 goto error;
             }
         }
-        if (lyd_new_opaq2(err_info, NULL, err_info_elem[i], err_info_val[i], NULL, "urn:ietf:params:xml:ns:yang:1", NULL)) {
+        if (!strcmp(err_info_elem[i], "bad-attribute") || !strcmp(err_info_elem[i], "bad-element") ||
+                !strcmp(err_info_elem[i], "bad-namespace") || !strcmp(err_info_elem[i], "session-id")) {
+            /* NETCONF error-info */
+            ns = NC_NS_BASE;
+        } else if (!strcmp(err_info_elem[i], "non-unique") || !strcmp(err_info_elem[i], "missing-choice")) {
+            /* YANG error-info */
+            ns = "urn:ietf:params:xml:ns:yang:1";
+        } else {
+            /* custom */
+            ns = NULL;
+        }
+        if (lyd_new_opaq2(err_info, NULL, err_info_elem[i], err_info_val[i], NULL, ns, NULL)) {
             goto error;
         }
     }
