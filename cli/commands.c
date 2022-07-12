@@ -6658,7 +6658,7 @@ cmd_extdata(const char *arg, char **UNUSED(tmp_config_file))
     cmd = strtok_r(NULL, " ", &ptr);
     if (cmd == NULL) {
         printf("Current file: ");
-        printf("%s\n", ext_data_path);
+        printf("%s\n", ext_data_path ? ext_data_path : "<none>");
     } else if ((strcmp(cmd, "--help") == 0) || (strcmp(cmd, "-h") == 0)) {
         cmd_extdata_help();
     } else {
