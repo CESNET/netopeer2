@@ -31,6 +31,8 @@ void np_err_bad_element(sr_session_ctx_t *ev_sess, const char *elem_name, const 
 
 void np_err_invalid_value(sr_session_ctx_t *ev_sess, const char *description, const char *bad_elem_name);
 
+void np_err_operation_failed(sr_session_ctx_t *ev_sess, const char *description);
+
 void np_err_ntf_sub_no_such_sub(sr_session_ctx_t *ev_sess, const char *message);
 
 void np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess);

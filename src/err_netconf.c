@@ -113,6 +113,13 @@ np_err_invalid_value(sr_session_ctx_t *ev_sess, const char *description, const c
 }
 
 void
+np_err_operation_failed(sr_session_ctx_t *ev_sess, const char *description)
+{
+    /* set error */
+    sr_session_set_netconf_error(ev_sess, "application", "operation-failed", NULL, NULL, description, 0);
+}
+
+void
 np_err_ntf_sub_no_such_sub(sr_session_ctx_t *ev_sess, const char *message)
 {
     /* set error */

@@ -863,6 +863,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
 {
     int rc = SR_ERR_OK;
     struct np2_user_sess *user_sess = NULL;
+    struct nc_session *nc_sess;
     struct lyd_node *node;
     const sr_error_info_t *err_info;
     const char *persist_id = NULL, *persist;
@@ -873,7 +874,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
     }
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
+    if ((rc = np_get_user_sess(session, &nc_sess, &user_sess))) {
         goto cleanup;
     }
 
@@ -901,8 +902,13 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
         goto cleanup;
     }
 
-    /* If there is a commit waiting to be confirmed, confirm it */
+    /* ff there is a commit waiting to be confirmed, confirm it */
     if (commit_ctx.timer) {
+        if (!persist_id && (commit_ctx.nc_id != nc_session_get_id(nc_sess))) {
+            np_err_operation_failed(session, "Pending commit issued on a different NETCONF session.");
+            rc = SR_ERR_OPERATION_FAILED;
+            goto cleanup;
+        }
         ncc_commit_confirmed();
     }
 
@@ -931,12 +937,18 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
         void *UNUSED(private_data))
 {
     int rc = SR_ERR_OK;
+    struct nc_session *nc_sess;
     struct lyd_node *node;
     const char *persist_id = NULL, *persist = NULL;
 
     if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case */
         return SR_ERR_OK;
+    }
+
+    /* get the NC session */
+    if ((rc = np_get_user_sess(session, &nc_sess, NULL))) {
+        goto cleanup;
     }
 
     /* persist-id */
@@ -959,6 +971,13 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     if ((persist && !persist_id) || (!persist && persist_id) || (persist && persist_id && strcmp(persist, persist_id))) {
         np_err_invalid_value(session, "Cancel commit does not match pending confirmed commit.", persist_id);
         rc = SR_ERR_INVAL_ARG;
+        goto cleanup;
+    }
+
+    /* check NC session */
+    if (!persist_id && (commit_ctx.nc_id != nc_session_get_id(nc_sess))) {
+        np_err_operation_failed(session, "Pending commit issued on a different NETCONF session.");
+        rc = SR_ERR_OPERATION_FAILED;
         goto cleanup;
     }
 
