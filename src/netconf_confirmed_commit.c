@@ -783,8 +783,8 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
     assert(node);
     timeout = strtoul(lyd_get_value(node), &endptr, 10);
     if (*endptr) {
-        rc = SR_ERR_INVAL_ARG;
         ERR("Invalid timeout \"%s\" given", lyd_get_value(node));
+        rc = SR_ERR_INVAL_ARG;
         goto cleanup;
     }
 
@@ -814,8 +814,9 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
             }
         } else {
             if (commit_ctx.nc_id != nc_session_get_id(nc_sess)) {
-                np_err_invalid_value(session, "Follow-up confirm commit session does not match pending confirmed commit.", NULL);
-                rc = SR_ERR_INVAL_ARG;
+                np_err_operation_failed(session,
+                        "Follow-up confirm commit session does not match the pending confirmed commit session.");
+                rc = SR_ERR_OPERATION_FAILED;
                 goto cleanup;
             }
         }
@@ -897,7 +898,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
 
     persist = commit_ctx.persist;
     if ((persist && !persist_id) || (!persist && persist_id) || (persist && persist_id && strcmp(persist, persist_id))) {
-        np_err_invalid_value(session, "Confirming commit does not match pending confirmed commit.", "persist_id");
+        np_err_invalid_value(session, "Commit does not match pending confirmed commit.", "persist_id");
         rc = SR_ERR_INVAL_ARG;
         goto cleanup;
     }
@@ -905,7 +906,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
     /* ff there is a commit waiting to be confirmed, confirm it */
     if (commit_ctx.timer) {
         if (!persist_id && (commit_ctx.nc_id != nc_session_get_id(nc_sess))) {
-            np_err_operation_failed(session, "Pending commit issued on a different NETCONF session.");
+            np_err_operation_failed(session, "Commit session does not match the pending confirmed commit session.");
             rc = SR_ERR_OPERATION_FAILED;
             goto cleanup;
         }
@@ -976,7 +977,7 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
 
     /* check NC session */
     if (!persist_id && (commit_ctx.nc_id != nc_session_get_id(nc_sess))) {
-        np_err_operation_failed(session, "Pending commit issued on a different NETCONF session.");
+        np_err_operation_failed(session, "Cancel commit session does not match the pending confirmed commit session.");
         rc = SR_ERR_OPERATION_FAILED;
         goto cleanup;
     }

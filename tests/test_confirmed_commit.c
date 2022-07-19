@@ -569,7 +569,7 @@ test_wrong_session(void **state)
     st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_RPC_ERROR_SESS2(st);
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
+    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "operation-failed");
     FREE_TEST_VARS(st);
 
     /* send confirming commit rpc on a different NC session, invalid */
