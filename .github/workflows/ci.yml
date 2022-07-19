@@ -10,7 +10,7 @@ on:
       - devel
 
 env:
-  DEFAULT_PACKAGES: libcmocka-dev zlib1g-dev libssh-dev libssl-dev
+  DEFAULT_PACKAGES: libcmocka-dev zlib1g-dev libssh-dev libssl-dev libpam0g-dev
 
 jobs:
   git-branch:
