@@ -842,7 +842,6 @@ np2srv_config_sub_ntf_filters_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_
     }
 
 cleanup:
-    ATOMIC_STORE_RELAXED(info.sub_id_lock, 0);
     /* UNLOCK */
     INFO_UNLOCK;
 
