@@ -207,6 +207,8 @@ cleanup:
 void
 sub_ntf_cb_lock_pass(uint32_t sub_id)
 {
+    assert(!ATOMIC_LOAD_RELAXED(info.sub_id_lock));
+
     ATOMIC_STORE_RELAXED(info.sub_id_lock, sub_id);
 }
 
@@ -573,6 +575,11 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
     char buf[11];
     uint32_t idx, sub_id_count, sub_id, nc_sub_id;
     enum sub_ntf_type sub_type = sub->type;
+
+    if (sub->terminating) {
+        /* already terminating for some other reason */
+        return SR_ERR_OK;
+    }
 
     /* unsubscribe all sysrepo subscriptions */
     switch (sub_type) {
