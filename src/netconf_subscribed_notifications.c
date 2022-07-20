@@ -571,7 +571,7 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
     struct lyd_node *ly_ntf;
     const struct ly_ctx *ly_ctx;
     char buf[11];
-    uint32_t idx, sub_id_count, sub_id;
+    uint32_t idx, sub_id_count, sub_id, nc_sub_id;
     enum sub_ntf_type sub_type = sub->type;
 
     /* unsubscribe all sysrepo subscriptions */
@@ -617,6 +617,9 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
     /* handle corner cases when the asynchronous tasks have already started and are waiting for the lock */
     sub->terminating = 1;
 
+    /* remember the unique nc_sub_id */
+    nc_sub_id = sub->nc_sub_id;
+
     /* UNLOCK */
     INFO_UNLOCK;
 
@@ -625,6 +628,16 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
 
     /* WRITE LOCK */
     INFO_WLOCK;
+
+    /* find the same subscription again */
+    sub = NULL;
+    for (idx = 0; idx < info.count; ++idx) {
+        if (info.subs[idx].nc_sub_id == nc_sub_id) {
+            sub = &info.subs[idx];
+            break;
+        }
+    }
+    assert(sub);
 
     if (nc_session_get_status(ncs) == NC_STATUS_RUNNING) {
         ly_ctx = sr_acquire_context(np2srv.sr_conn);
@@ -646,8 +659,6 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
     nc_session_dec_notif_status(ncs);
 
     /* free the sub */
-    idx = (((char *)sub) - ((char *)info.subs)) / sizeof *sub;
-
     free(sub->sub_ids);
     switch (sub->type) {
     case SUB_TYPE_SUB_NTF:
