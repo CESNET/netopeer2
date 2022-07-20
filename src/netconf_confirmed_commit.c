@@ -771,7 +771,7 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
     uint32_t timeout;
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, &nc_sess, &user_sess))) {
+    if ((rc = np_get_user_sess(session, __func__, &nc_sess, &user_sess))) {
         goto cleanup;
     }
     if ((rc = sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING))) {
@@ -875,7 +875,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
     }
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, &nc_sess, &user_sess))) {
+    if ((rc = np_get_user_sess(session, __func__, &nc_sess, &user_sess))) {
         goto cleanup;
     }
 
@@ -948,7 +948,7 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     }
 
     /* get the NC session */
-    if ((rc = np_get_user_sess(session, &nc_sess, NULL))) {
+    if ((rc = np_get_user_sess(session, __func__, &nc_sess, NULL))) {
         goto cleanup;
     }
 

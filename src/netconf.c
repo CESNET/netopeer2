@@ -156,7 +156,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     /* we do not care here about with-defaults mode, it does not change anything */
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
+    if ((rc = np_get_user_sess(session, __func__, NULL, &user_sess))) {
         goto cleanup;
     }
 
@@ -262,7 +262,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     ly_set_free(nodeset, NULL);
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
+    if ((rc = np_get_user_sess(session, __func__, NULL, &user_sess))) {
         goto cleanup;
     }
 
@@ -415,7 +415,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     }
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, &nc_sess, &user_sess))) {
+    if ((rc = np_get_user_sess(session, __func__, &nc_sess, &user_sess))) {
         goto cleanup;
     }
 
@@ -520,7 +520,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     ly_set_free(nodeset, NULL);
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
+    if ((rc = np_get_user_sess(session, __func__, NULL, &user_sess))) {
         goto cleanup;
     }
 
@@ -587,7 +587,7 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     ly_set_free(nodeset, NULL);
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
+    if ((rc = np_get_user_sess(session, __func__, NULL, &user_sess))) {
         goto cleanup;
     }
 
@@ -681,7 +681,7 @@ np2srv_rpc_discard_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     }
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
+    if ((rc = np_get_user_sess(session, __func__, NULL, &user_sess))) {
         goto cleanup;
     }
 
@@ -754,7 +754,7 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
 
     if (!config) {
         /* get the user session */
-        if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
+        if ((rc = np_get_user_sess(session, __func__, NULL, &user_sess))) {
             goto cleanup;
         }
 
@@ -899,7 +899,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     }
 
     /* get the NETCONF session and user session */
-    if ((rc = np_get_user_sess(session, &ncs, &user_sess))) {
+    if ((rc = np_get_user_sess(session, __func__, &ncs, &user_sess))) {
         goto cleanup;
     }
 

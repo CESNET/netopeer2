@@ -120,7 +120,7 @@ np_modtimespec(const struct timespec *ts, uint32_t msec)
 }
 
 int
-np_get_nc_sess_by_id(uint32_t sr_id, uint32_t nc_id, struct nc_session **nc_sess)
+np_get_nc_sess_by_id(uint32_t sr_id, uint32_t nc_id, const char *func, struct nc_session **nc_sess)
 {
     uint32_t i;
     struct nc_session *ncs = NULL;
@@ -145,7 +145,7 @@ np_get_nc_sess_by_id(uint32_t sr_id, uint32_t nc_id, struct nc_session **nc_sess
 
     if (!ncs) {
         if (nc_id) {
-            ERR("Failed to find NETCONF session with NC ID %u.", nc_id);
+            ERR("%s: Failed to find NETCONF session with NC ID %u.", func, nc_id);
         }
         return SR_ERR_INTERNAL;
     }
@@ -155,7 +155,7 @@ np_get_nc_sess_by_id(uint32_t sr_id, uint32_t nc_id, struct nc_session **nc_sess
 }
 
 int
-np_get_user_sess(sr_session_ctx_t *ev_sess, struct nc_session **nc_sess, struct np2_user_sess **user_sess)
+np_get_user_sess(sr_session_ctx_t *ev_sess, const char *func, struct nc_session **nc_sess, struct np2_user_sess **user_sess)
 {
     struct np2_user_sess *us;
     const char *orig_name;
@@ -165,13 +165,13 @@ np_get_user_sess(sr_session_ctx_t *ev_sess, struct nc_session **nc_sess, struct 
 
     orig_name = sr_session_get_orig_name(ev_sess);
     if (!orig_name || strcmp(orig_name, "netopeer2")) {
-        ERR("Unknown originator name \"%s\" in event session.", orig_name);
+        ERR("%s: Unknown originator name \"%s\" in event session.", func, orig_name);
         return SR_ERR_INTERNAL;
     }
 
     sr_session_get_orig_data(ev_sess, 0, &size, (const void **)&nc_id);
 
-    rc = np_get_nc_sess_by_id(0, *nc_id, &ncs);
+    rc = np_get_nc_sess_by_id(0, *nc_id, func, &ncs);
     if (rc) {
         return rc;
     }

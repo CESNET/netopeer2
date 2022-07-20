@@ -120,10 +120,11 @@ struct timespec np_modtimespec(const struct timespec *ts, uint32_t msec);
  *
  * @param[in] sr_id Search by sysrepo SID, set only if @p nc_id is 0.
  * @param[in] nc_id Search by NETCONF SID, set only if @p sr_id is 0.
+ * @param[in] func Caller function, for logging.
  * @param[out] nc_sess Found NETCONF session.
  * @return SR error value, logs only if @p nc_id is set.
  */
-int np_get_nc_sess_by_id(uint32_t sr_id, uint32_t nc_id, struct nc_session **nc_sess);
+int np_get_nc_sess_by_id(uint32_t sr_id, uint32_t nc_id, const char *func, struct nc_session **nc_sess);
 
 /**
  * @brief Get NC session and/or SR user session based on SR event session.
@@ -131,11 +132,13 @@ int np_get_nc_sess_by_id(uint32_t sr_id, uint32_t nc_id, struct nc_session **nc_
  * Increases refcount of the session, needs ::np_release_user_sess() call to decrease.
  *
  * @param[in] ev_sess Sysrepo event session.
+ * @param[in] func Caller function, for logging.
  * @param[out] nc_sess Optional found NC session.
  * @param[out] user_sess Sysrepo user session.
  * @return SR error value.
  */
-int np_get_user_sess(sr_session_ctx_t *ev_sess, struct nc_session **nc_sess, struct np2_user_sess **user_sess);
+int np_get_user_sess(sr_session_ctx_t *ev_sess, const char *func, struct nc_session **nc_sess,
+        struct np2_user_sess **user_sess);
 
 /**
  * @brief Release SR user session, free if no longer referenced.

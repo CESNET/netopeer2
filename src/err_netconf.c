@@ -41,7 +41,7 @@ np_err_sr2nc_lock_denied(sr_session_ctx_t *ev_sess, const sr_error_info_t *err_i
     if (!ptr) {
         return;
     }
-    np_get_nc_sess_by_id(atoi(ptr + strlen(str)), 0, &nc_sess);
+    np_get_nc_sess_by_id(atoi(ptr + strlen(str)), 0, __func__, &nc_sess);
 
     sprintf(buf, "%" PRIu32, nc_sess ? nc_session_get_id(nc_sess) : 0);
 
@@ -65,7 +65,7 @@ np_err_sr2nc_in_use(sr_session_ctx_t *ev_sess, const sr_error_info_t *err_info)
     if (!ptr) {
         return;
     }
-    np_get_nc_sess_by_id(atoi(ptr + strlen(str)), 0, &nc_sess);
+    np_get_nc_sess_by_id(atoi(ptr + strlen(str)), 0, __func__, &nc_sess);
 
     sprintf(buf, "%" PRIu32, nc_sess ? nc_session_get_id(nc_sess) : 0);
 

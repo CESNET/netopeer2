@@ -256,7 +256,7 @@ ncm_data_add_ds_lock(sr_conn_ctx_t *conn, const char *ds_str, sr_datastore_t ds,
         lyd_new_inner(list, NULL, "locks", 0, &cont);
         lyd_new_inner(cont, NULL, "global-lock", 0, &cont2);
 
-        np_get_nc_sess_by_id(sid, 0, &ncs);
+        np_get_nc_sess_by_id(sid, 0, __func__, &ncs);
         sprintf(ncid_str, "%" PRIu32, ncs ? nc_session_get_id(ncs) : 0);
         lyd_new_term(cont2, NULL, "locked-by-session", ncid_str, 0, NULL);
 

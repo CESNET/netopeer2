@@ -183,7 +183,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     }
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
+    if ((rc = np_get_user_sess(session, __func__, NULL, &user_sess))) {
         goto cleanup;
     }
 
@@ -276,7 +276,7 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     }
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, NULL, &user_sess))) {
+    if ((rc = np_get_user_sess(session, __func__, NULL, &user_sess))) {
         goto cleanup;
     }
 
