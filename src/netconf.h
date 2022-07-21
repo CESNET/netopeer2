@@ -20,6 +20,16 @@
 #include <libyang/libyang.h>
 #include <sysrepo.h>
 
+#include "compat.h"
+
+struct subscribe_ntf_arg {
+    struct nc_session *nc_sess;
+    uint32_t sr_sub_count;
+    ATOMIC_T sr_ntf_replay_complete_count;
+    ATOMIC_T sr_ntf_stop_count;
+    int owned;
+};
+
 int np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,
         sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
 

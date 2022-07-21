@@ -786,12 +786,6 @@ np2srv_lysc_has_notif_clb(struct lysc_node *node, void *UNUSED(data), ly_bool *U
     return LY_SUCCESS;
 }
 
-struct subscribe_ntf_data {
-    struct nc_session *nc_sess;
-    uint32_t sr_sub_count;
-    ATOMIC_T sr_ntf_replay_complete_count;
-    ATOMIC_T sr_ntf_stop_count;
-};
 
 /**
  * @brief New notification callback used for notifications received on subscription made by \<create-subscription\> RPC.
@@ -801,7 +795,7 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
         const struct lyd_node *notif, struct timespec *timestamp, void *private_data)
 {
     struct nc_server_notif *nc_ntf = NULL;
-    struct subscribe_ntf_data *cb_data = private_data;
+    struct subscribe_ntf_arg *cb_data = private_data;
     struct lyd_node *ly_ntf = NULL;
     const struct ly_ctx *ly_ctx;
     NC_MSG_TYPE msg_type;
@@ -891,7 +885,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     const sr_error_info_t *err_info;
     uint32_t idx;
     struct ly_set mod_set = {0};
-    struct subscribe_ntf_data *cb_data = NULL;
+    struct subscribe_ntf_arg *cb_data = NULL;
 
     if (NP_IGNORE_RPC(session, event)) {
         /* ignore in this case (not supported) */
