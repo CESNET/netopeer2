@@ -786,6 +786,30 @@ np2srv_lysc_has_notif_clb(struct lysc_node *node, void *UNUSED(data), ly_bool *U
     return LY_SUCCESS;
 }
 
+/**
+ * @brief Make sure data are freed on thread exit.
+ *
+ * @param[in] cb_data Callback data to be freed.
+ */
+static void
+np2srv_sub_free_on_thread_exit(struct subscribe_ntf_arg *cb_data)
+{
+    static pthread_key_t key;
+
+    if (cb_data->owned) {
+        /* nothing to do */
+        return;
+    }
+
+    /* initialize the key to be freed */
+    pthread_key_create(&key, free);
+
+    /* store the data */
+    pthread_setspecific(key, cb_data);
+
+    /* data now owned */
+    cb_data->owned = 1;
+}
 
 /**
  * @brief New notification callback used for notifications received on subscription made by \<create-subscription\> RPC.
@@ -801,6 +825,9 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
     NC_MSG_TYPE msg_type;
     char *datetime = NULL;
     struct timespec stop, cur_ts;
+
+    /* make sure cb_data are freed on thread exit */
+    np2srv_sub_free_on_thread_exit(cb_data);
 
     ly_ctx = sr_acquire_context(np2srv.sr_conn);
 
@@ -857,7 +884,6 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
     if (notif_type == SR_EV_NOTIF_TERMINATED) {
         /* subscription finished */
         nc_session_dec_notif_status(cb_data->nc_sess);
-        free(cb_data);
     }
 
 cleanup:
