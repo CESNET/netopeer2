@@ -4,8 +4,8 @@
  * @brief netopeer2-server common routines
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2022 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2022 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -119,29 +119,40 @@ np_modtimespec(const struct timespec *ts, uint32_t msec)
     return ret;
 }
 
+static int
+np_ps_match_cb(struct nc_session *session, void *cb_data)
+{
+    struct np_ps_match_data *match_data = cb_data;
+    struct np2_user_sess *user_sess;
+
+    if (match_data->sr_id) {
+        user_sess = nc_session_get_data(session);
+        if (sr_session_get_id(user_sess->sess) == match_data->sr_id) {
+            return 1;
+        }
+    } else {
+        if (nc_session_get_id(session) == match_data->nc_id) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 int
 np_get_nc_sess_by_id(uint32_t sr_id, uint32_t nc_id, const char *func, struct nc_session **nc_sess)
 {
-    uint32_t i;
+    struct np_ps_match_data match_data;
     struct nc_session *ncs = NULL;
-    struct np2_user_sess *user_sess;
 
     assert((sr_id && !nc_id) || (!sr_id && nc_id));
 
     *nc_sess = NULL;
 
-    for (i = 0; (ncs = nc_ps_get_session(np2srv.nc_ps, i)); ++i) {
-        if (sr_id) {
-            user_sess = nc_session_get_data(ncs);
-            if (sr_session_get_id(user_sess->sess) == sr_id) {
-                break;
-            }
-        } else {
-            if (nc_session_get_id(ncs) == nc_id) {
-                break;
-            }
-        }
-    }
+    /* find the session */
+    match_data.sr_id = sr_id;
+    match_data.nc_id = nc_id;
+    ncs = nc_ps_find_session(np2srv.nc_ps, np_ps_match_cb, &match_data);
 
     if (!ncs) {
         if (nc_id) {
