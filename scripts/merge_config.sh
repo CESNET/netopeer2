@@ -44,7 +44,6 @@ CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\
                         <supported-authentication-methods>
                             <publickey/>
                             <passsword/>
-                            <other>interactive</other>
                         </supported-authentication-methods>
                         <users/>
                     </client-authentication>
