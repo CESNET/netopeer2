@@ -183,8 +183,10 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
         ptr = strchr(err->message + 23, '\"');
 
         /* create error message */
-        asprintf(&str, "Required leafref target with value \"%.*s\" missing.", (int)(ptr - (err->message + 23)),
-                err->message + 23);
+        if (asprintf(&str, "Required leafref target with value \"%.*s\" missing.", (int)(ptr - (err->message + 23)),
+                err->message + 23) == -1) {
+            goto mem_error;
+        }
 
         /* instance-required */
         assert(path);
@@ -195,8 +197,10 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
         ptr = strchr(err->message + 29, '\"');
 
         /* create error message */
-        asprintf(&str, "Required instance-identifier \"%.*s\" missing.", (int)(ptr - (err->message + 29)),
-                err->message + 29);
+        if (asprintf(&str, "Required instance-identifier \"%.*s\" missing.", (int)(ptr - (err->message + 29)),
+                err->message + 29) == -1) {
+            goto mem_error;
+        }
 
         /* instance-required */
         assert(path);
@@ -216,8 +220,10 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
         ptr = strchr(err->message + 6, '\"');
 
         /* create error message */
-        asprintf(&str, "Missing insert anchor \"%.*s\" instance.", (int)(ptr - (err->message + 6)),
-                err->message + 6);
+        if (asprintf(&str, "Missing insert anchor \"%.*s\" instance.", (int)(ptr - (err->message + 6)),
+                err->message + 6) == -1) {
+            goto mem_error;
+        }
 
         /* missing-instance */
         sr_session_set_netconf_error(ev_sess, "protocol", "bad-attribute", "missing-instance", NULL, str, 0);
@@ -265,6 +271,14 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
         /* other error */
         sr_session_dup_error((sr_session_ctx_t *)err_sess, ev_sess);
     }
+
+    free(path);
+    free(str);
+    free(str2);
+    return;
+
+mem_error:
+    sr_session_set_error_message(ev_sess, "Memory allocation failed.");
 
     free(path);
     free(str);
