@@ -29,6 +29,7 @@ extern char some_msg[];
 
 typedef struct {
     char *name; /* User printable name of the function. */
+
     int (*func)(const char *, char **); /* Function to call to do the command. */
     void (*help_func)(void); /* Display command help. */
     char *helpstring; /* Documentation for this function. */

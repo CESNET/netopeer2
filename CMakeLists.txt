@@ -193,7 +193,7 @@ if(ENABLE_COVERAGE)
 endif()
 
 if ("${BUILD_TYPE_UPPER}" STREQUAL "DEBUG")
-    source_format_enable()
+    source_format_enable(0.75)
 endif()
 
 #

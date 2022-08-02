@@ -54,6 +54,7 @@ struct yang_push_data {
     struct lyd_node *datastore_subtree_filter;
     char *datastore_xpath_filter;
     int periodic;
+
     union {
         struct {
             /* parameters */

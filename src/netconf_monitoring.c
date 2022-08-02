@@ -67,11 +67,10 @@ ncm_is_monitored(struct nc_session *session)
     switch (nc_session_get_ti(session)) {
 #ifdef NC_ENABLED_SSH
     case NC_TI_LIBSSH:
+        return 1;
 #endif
 #ifdef NC_ENABLED_TLS
     case NC_TI_OPENSSL:
-#endif
-#if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
         return 1;
 #endif
     default:

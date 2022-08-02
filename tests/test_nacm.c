@@ -1118,6 +1118,7 @@ main(int argc, char **argv)
                     setup_test_rule_wildcard_groups,
                     teardown_common),
         };
+
         return cmocka_run_group_tests(tests, local_setup, local_teardown);
     } else {
         /* sysrepo super run with write tests */
@@ -1179,6 +1180,7 @@ main(int argc, char **argv)
             cmocka_unit_test_teardown(test_kill_session,
                     teardown_common),
         };
+
         return cmocka_run_group_tests(tests, local_setup, local_teardown);
     }
 }
