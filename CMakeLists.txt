@@ -311,20 +311,22 @@ include_directories(${SYSREPO_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${SYSREPO_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${SYSREPO_LIBRARIES})
 
-# find sysrepoctl to be used for installation and tests
-if (NOT SYSREPOCTL_EXECUTABLE)
-    find_program(SYSREPOCTL_EXECUTABLE sysrepoctl)
-endif()
-if (NOT SYSREPOCTL_EXECUTABLE)
-    message(FATAL_ERROR "Unable to find sysrepoctl, set SYSREPOCTL_EXECUTABLE manually.")
-endif()
+if(INSTALL_MODULES OR GENERATE_HOSTKEY OR MERGE_LISTEN_CONFIG)
+    # find sysrepoctl to be used for installation and tests
+    if (NOT SYSREPOCTL_EXECUTABLE)
+        find_program(SYSREPOCTL_EXECUTABLE sysrepoctl)
+    endif()
+    if (NOT SYSREPOCTL_EXECUTABLE)
+        message(FATAL_ERROR "Unable to find sysrepoctl, set SYSREPOCTL_EXECUTABLE manually.")
+    endif()
 
-# find sysrepocfg to be used for installation and tests
-if (NOT SYSREPOCFG_EXECUTABLE)
-    find_program(SYSREPOCFG_EXECUTABLE sysrepocfg)
-endif()
-if (NOT SYSREPOCFG_EXECUTABLE)
-    message(FATAL_ERROR "Unable to find sysrepocfg, set SYSREPOCFG_EXECUTABLE manually.")
+    # find sysrepocfg to be used for installation and tests
+    if (NOT SYSREPOCFG_EXECUTABLE)
+        find_program(SYSREPOCFG_EXECUTABLE sysrepocfg)
+    endif()
+    if (NOT SYSREPOCFG_EXECUTABLE)
+        message(FATAL_ERROR "Unable to find sysrepocfg, set SYSREPOCFG_EXECUTABLE manually.")
+    endif()
 endif()
 
 # generate files
