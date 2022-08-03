@@ -614,7 +614,7 @@ server_init(void)
         }
     }
 
-    /* Restore a previous confirmed commit if restore file exists */
+    /* restore a previous confirmed commit if restore file exists */
     ncc_try_restore();
 
     return 0;

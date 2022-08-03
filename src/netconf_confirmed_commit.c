@@ -556,9 +556,8 @@ cleanup:
  * @brief Schedule a rollback of confirmed commit. Create the timer and set all the options.
  *
  * @param[in] timeout_s Time (in seconnds) after which the timer will start the rollback.
- *
- * @return SR_ERR_SYS When creating the timer fails.
- * @return SR_ERR_OK When succeeded.
+ * @return SR_ERR_SYS on timer creation failure.
+ * @return SR_ERR_OK on succeeded.
  */
 static int
 ncc_commit_timeout_schedule(uint32_t timeout_s)
@@ -642,21 +641,21 @@ ncc_try_restore(void)
     time_t timestamp = 0, end_time = 0, current = 0;
     uint32_t timeout = 0, new_timeout = 0;
 
-    /* In theory it should be under a mutex, but since it is called in init it is not needed */
+    /* it should be under a mutex, but since it is called in init it is not needed */
 
     if (read_meta_file(&timestamp, &timeout)) {
         return;
     }
     if (!timestamp) {
-        /* No meta file existed */
+        /* no meta file existed */
         return;
     }
 
-    /* Check when the confirmed commit was supposed to timeout */
+    /* check when the confirmed commit was supposed to timeout */
     end_time = timestamp + timeout;
     current = time(NULL);
     if (end_time > current) {
-        /* In the future -> compute the remaining time */
+        /* in the future -> compute the remaining time */
         new_timeout = end_time - current;
     }
     /* else it was in the past -> should be zero */
