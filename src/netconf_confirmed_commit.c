@@ -568,6 +568,8 @@ ncc_commit_timeout_schedule(uint32_t timeout_s)
 
     assert(!commit_ctx.timer);
 
+    VRB("Scheduling confirmed commit rollback in %" PRIu32 "s.", timeout_s);
+
     if (!timeout_s) {
         /* just perform the rollback with locking */
         ncc_changes_rollback_cb((union sigval)1);
