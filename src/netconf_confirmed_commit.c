@@ -568,19 +568,24 @@ ncc_commit_timeout_schedule(uint32_t timeout_s)
 
     assert(!commit_ctx.timer);
 
-    /* create and arm the timer */
-    sev.sigev_notify = SIGEV_THREAD;
-    sev.sigev_notify_function = ncc_changes_rollback_cb;
-    its.it_value.tv_sec = timeout_s;
-    if (timer_create(CLOCK_REALTIME, &sev, &timer_id) == -1) {
-        ERR("Could not create a timer for confirmed commit rollback (%s).", strerror(errno));
-        return SR_ERR_SYS;
+    if (!timeout_s) {
+        /* just perform the rollback with locking */
+        ncc_changes_rollback_cb((union sigval)1);
+    } else {
+        /* create and arm the timer */
+        sev.sigev_notify = SIGEV_THREAD;
+        sev.sigev_notify_function = ncc_changes_rollback_cb;
+        its.it_value.tv_sec = timeout_s;
+        if (timer_create(CLOCK_REALTIME, &sev, &timer_id) == -1) {
+            ERR("Could not create a timer for confirmed commit rollback (%s).", strerror(errno));
+            return SR_ERR_SYS;
+        }
+        if (timer_settime(timer_id, 0, &its, NULL) == -1) {
+            ERR("Could not set time in timer for confirmed commit rollback (%s).", strerror(errno));
+            return SR_ERR_SYS;
+        }
+        commit_ctx.timer = timer_id;
     }
-    if (timer_settime(timer_id, 0, &its, NULL) == -1) {
-        ERR("Could not set time in timer for confirmed commit rollback (%s).", strerror(errno));
-        return SR_ERR_SYS;
-    }
-    commit_ctx.timer = timer_id;
 
     return SR_ERR_OK;
 }
