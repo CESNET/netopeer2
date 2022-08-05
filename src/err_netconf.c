@@ -177,7 +177,7 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
         /* must-violation */
         assert(path);
         sr_session_set_netconf_error(ev_sess, "protocol", "operation-failed", "must-violation", path, str, 0);
-    } else if (!strncmp(err->message, "Invalid leafref value", 21) && strstr(err->message, "no existing target instance")) {
+    } else if (!strncmp(err->message, "Invalid leafref value", 21) && strstr(err->message, "no target instance")) {
         /* get the value */
         assert(err->message[22] == '\"');
         ptr = strchr(err->message + 23, '\"');

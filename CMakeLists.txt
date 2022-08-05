@@ -46,8 +46,8 @@ endif()
 set(NP2SRV_VERSION 2.1.37)
 
 # libyang required version
-set(LIBYANG_DEP_VERSION 2.0.220)
-set(LIBYANG_DEP_SOVERSION 2.21.8)
+set(LIBYANG_DEP_VERSION 2.0.233)
+set(LIBYANG_DEP_SOVERSION 2.22.6)
 set(LIBYANG_DEP_SOVERSION_MAJOR 2)
 
 # libnetconf2 required version
