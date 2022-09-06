@@ -2837,7 +2837,8 @@ static int
 cmd_connect_listen(const char *arg, int is_connect)
 {
     const char *func_name = (is_connect ? "cmd_connect" : "cmd_listen");
-    int c, ret;
+    int c, ret = EXIT_SUCCESS;
+    NC_TRANSPORT_IMPL ti = 0;
     const char *optstring;
     struct arglist cmd;
     struct option long_options[] = {
@@ -2891,43 +2892,64 @@ cmd_connect_listen(const char *arg, int is_connect)
     optstring = "hi:o:p:c:k:r:uS:";
 #endif
 
-    while ((ret == -1) && ((c = getopt_long(cmd.count, cmd.list, optstring, long_options, &option_index)) != -1)) {
+    while (!ti && ((c = getopt_long(cmd.count, cmd.list, optstring, long_options, &option_index)) != -1)) {
         switch (c) {
         case 'h':
-            if (is_connect) {
-                cmd_connect_help();
-            } else {
-                cmd_listen_help();
-            }
-            clear_arglist(&cmd);
-            ret = EXIT_SUCCESS;
+            ti = NC_TI_FD;
             break;
 #ifdef NC_ENABLED_SSH
         case 's':
-            ret = cmd_connect_listen_ssh(&cmd, is_connect);
+            ti = NC_TI_LIBSSH;
             break;
 #endif
 #ifdef NC_ENABLED_TLS
         case 't':
-            ret = cmd_connect_listen_tls(&cmd, is_connect);
+            ti = NC_TI_OPENSSL;
             break;
 #endif
         case 'u':
-            ret = cmd_connect_listen_unix(&cmd, is_connect);
+            ti = NC_TI_UNIX;
             break;
         default:
             break;
         }
     }
 
-    if (ret == -1) {
+    if (!ti) {
+        /* default transport */
 #ifdef NC_ENABLED_SSH
-        ret = cmd_connect_listen_ssh(&cmd, is_connect);
+        ti = NC_TI_LIBSSH;
 #elif defined (NC_ENABLED_TLS)
-        ret = cmd_connect_listen_tls(&cmd, is_connect);
+        ti = NC_TI_OPENSSL;
 #endif
     }
 
+    switch (ti) {
+    case NC_TI_FD:
+        if (is_connect) {
+            cmd_connect_help();
+        } else {
+            cmd_listen_help();
+        }
+        break;
+    case NC_TI_UNIX:
+        ret = cmd_connect_listen_unix(&cmd, is_connect);
+        break;
+#ifdef NC_ENABLED_SSH
+    case NC_TI_LIBSSH:
+        ret = cmd_connect_listen_ssh(&cmd, is_connect);
+        break;
+#endif
+#ifdef NC_ENABLED_TLS
+    case NC_TI_OPENSSL:
+        ret = cmd_connect_listen_tls(&cmd, is_connect);
+        break;
+#endif
+    default:
+        ERROR(func_name, "Unknown transport.");
+        ret = EXIT_FAILURE;
+        break;
+    }
     if (!ret) {
         interleave = 1;
     }
