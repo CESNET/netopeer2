@@ -126,7 +126,7 @@ np2srv_del_session_cb(struct nc_session *session)
     /* stop sysrepo session, if no callback is using it */
     np_release_user_sess(user_sess);
 
-    ly_ctx = sr_acquire_context(np2srv.sr_conn);
+    ly_ctx = nc_session_get_ctx(session);
     if ((mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-netconf-notifications"))) {
         /* generate ietf-netconf-notification's netconf-session-end event for sysrepo */
         if (nc_session_get_ti(session) != NC_TI_UNIX) {
@@ -179,7 +179,6 @@ np2srv_del_session_cb(struct nc_session *session)
         }
         free(event_data);
     }
-    sr_release_context(np2srv.sr_conn);
 
     /* stop monitoring and free NC session */
     ncm_session_del(session);

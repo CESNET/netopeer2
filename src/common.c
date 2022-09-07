@@ -328,7 +328,7 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
         goto error;
     }
 
-    ly_ctx = sr_acquire_context(np2srv.sr_conn);
+    ly_ctx = nc_session_get_ctx(new_session);
     if ((mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-netconf-notifications"))) {
         /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
         if (nc_session_get_ti(new_session) != NC_TI_UNIX) {
@@ -355,7 +355,6 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
         }
         free(event_data);
     }
-    sr_release_context(np2srv.sr_conn);
 
     return 0;
 
