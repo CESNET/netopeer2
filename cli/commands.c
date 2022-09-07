@@ -691,11 +691,12 @@ cmd_listen_help(void)
 #if defined (NC_ENABLED_SSH) && defined (NC_ENABLED_TLS)
     printf("listen [--help] [--timeout <sec>] [--host <hostname>] [--port <num>]\n");
     printf("   SSH [--ssh] [--login <username>]\n");
-    printf("   TLS  --tls  [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
+    printf("   TLS  --tls  [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>] [--peername <server-hostname>]\n");
 #elif defined (NC_ENABLED_SSH)
     printf("listen [--help] [--ssh] [--timeout <sec>] [--host <hostname>] [--port <num>] [--login <username>]\n");
 #elif defined (NC_ENABLED_TLS)
-    printf("listen [--help] [--tls] [--timeout <sec>] [--host <hostname>] [--port <num>] [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
+    printf("listen [--help] [--tls] [--timeout <sec>] [--host <hostname>] [--port <num>]"
+            " [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>] [--peername <server-hostname>]\n");
 #endif
 }
 
@@ -2421,13 +2422,12 @@ error:
 static int
 cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
 {
-    const char *func_name = (is_connect ? "cmd_connect" : "cmd_listen");
+    const char *func_name, *optstring, *host = NULL, *trusted_store = NULL, *peername = NULL;
     static unsigned short listening = 0;
-    char *host = NULL;
     DIR *dir = NULL;
     struct dirent *d;
     int c, n, timeout = 0, ret = EXIT_FAILURE;
-    char *cert = NULL, *key = NULL, *trusted_dir = NULL, *crl_dir = NULL, *trusted_store = NULL;
+    char *cert = NULL, *key = NULL, *trusted_dir = NULL, *crl_dir = NULL;
     unsigned short port = 0;
     int option_index = 0;
     struct option long_options[] = {
@@ -2437,28 +2437,33 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         {"cert", 1, 0, 'c'},
         {"key", 1, 0, 'k'},
         {"trusted", 1, 0, 'r'},
+        {"peername", 1, 0, 'e'},
         {"timeout", 1, 0, 'i'},
         {0, 0, 0, 0}
     };
 
     if (is_connect) {
-        /* remove timeout option for use as connect command */
-        memset(&long_options[6], 0, sizeof long_options[6]);
+        func_name = "cmd_connect";
+
+        /* remove peername and timeout option for use in connect */
+        memset(&long_options[6], 0, sizeof *long_options);
+        memset(&long_options[7], 0, sizeof *long_options);
+        optstring = "to:p:c:k:r:";
+    } else {
+        func_name = "cmd_listen";
+        optstring = "to:p:c:k:r:e:i:";
     }
 
     /* set back to start to be able to use getopt() repeatedly */
     optind = 0;
 
-    while ((c = getopt_long(cmd->count, cmd->list, (is_connect ? "to:p:c:k:r:" : "ti:o:p:c:k:r:"), long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd->count, cmd->list, optstring, long_options, &option_index)) != -1) {
         switch (c) {
         case 't':
             /* we know already */
             break;
         case 'o':
             host = optarg;
-            break;
-        case 'i':
-            timeout = atoi(optarg);
             break;
         case 'p':
             port = (unsigned short)atoi(optarg);
@@ -2478,6 +2483,12 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
             break;
         case 'r':
             trusted_store = optarg;
+            break;
+        case 'e':
+            peername = optarg;
+            break;
+        case 'i':
+            timeout = atoi(optarg);
             break;
         default:
             ERROR(func_name, "Unknown option -%c.", c);
@@ -2576,7 +2587,7 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
         }
 
         /* create the session */
-        nc_client_tls_ch_add_bind_listen(host, port);
+        nc_client_tls_ch_add_bind_hostname_listen(host, port, peername);
         ERROR(func_name, "Waiting %ds for a TLS Call Home connection on port %u...", timeout, port);
         ret = nc_accept_callhome(timeout * 1000, NULL, &session);
         nc_client_tls_ch_del_bind(host, port);
@@ -2858,6 +2869,7 @@ cmd_connect_listen(const char *arg, int is_connect)
         {"cert", 1, 0, 'c'},
         {"key", 1, 0, 'k'},
         {"trusted", 1, 0, 'r'},
+        {"peername", 1, 0, 'e'},
 #endif
         {"unix", 0, 0, 'u'},
         {"socket", 1, 0, 'S'},
@@ -2883,13 +2895,13 @@ cmd_connect_listen(const char *arg, int is_connect)
     ret = -1;
 
 #if defined (NC_ENABLED_SSH) && defined (NC_ENABLED_TLS)
-    optstring = "hsti:o:p:l:c:k:r:uS:";
+    optstring = "hsti:o:p:l:c:k:r:e:uS:";
 #elif defined (NC_ENABLED_SSH)
     optstring = "hsi:o:p:l:uS:";
 #elif defined (NC_ENABLED_TLS)
-    optstring = "hti:o:p:c:k:r:uS:";
+    optstring = "hti:o:p:c:k:r:e:uS:";
 #else
-    optstring = "hi:o:p:c:k:r:uS:";
+    optstring = "hi:o:p:c:k:r:e:uS:";
 #endif
 
     while (!ti && ((c = getopt_long(cmd.count, cmd.list, optstring, long_options, &option_index)) != -1)) {
