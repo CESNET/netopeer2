@@ -33,13 +33,15 @@ MODULES=(
 "ietf-yang-push@2019-09-09.yang -e on-change"
 )
 
+CMD_UNINSTALL=
+
 # functions
-UNINSTALL_MODULE() {
-    "$SYSREPOCTL" -u $1 -v2
-    local rc=$?
-    if [ $rc -ne 0 ]; then
-        exit $rc
+UNINSTALL_MODULE_CMD() {
+    if [ -z "${CMD_UNINSTALL}" ]; then
+        CMD_UNINSTALL="'$SYSREPOCTL' -v2"
     fi
+
+    CMD_UNINSTALL="${CMD_UNINSTALL} -u $1"
 }
 
 DISABLE_FEATURE() {
@@ -87,11 +89,20 @@ for (( i = 0; i < $MODULES_LEN; i++ )); do
             # internal module, we can only disable features
             DISABLE_MODULE_FEATURES $name "$SCTL_MODULE" "$module"
         else
-            # uninstall module
-            UNINSTALL_MODULE "$name"
+            # prpare command to uninstall module
+            UNINSTALL_MODULE_CMD "$name"
         fi
         continue
     fi
 done
+
+# uninstall all the modules
+if [ ! -z "${CMD_UNINSTALL}" ]; then
+    eval $CMD_UNINSTALL
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        exit $rc
+    fi
+fi
 
 # {% endraw %}

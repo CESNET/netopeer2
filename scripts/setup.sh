@@ -43,19 +43,20 @@ MODULES=(
 "ietf-yang-push@2019-09-09.yang -e on-change"
 )
 
+CMD_INSTALL=
+
 # functions
-INSTALL_MODULE() {
-    CMD="'$SYSREPOCTL' -i $MODDIR/$1 -s '$MODDIR' -p '$PERMS' -v2"
-    if [ ! -z ${OWNER} ]; then
-        CMD="$CMD -o '$OWNER'"
+INSTALL_MODULE_CMD() {
+    if [ -z "${CMD_INSTALL}" ]; then
+        CMD_INSTALL="'$SYSREPOCTL' -s '$MODDIR' -v2"
     fi
-    if [ ! -z ${GROUP} ]; then
-        CMD="$CMD -g '$GROUP'"
+
+    CMD_INSTALL="$CMD_INSTALL -i $MODDIR/$1 -p '$PERMS'"
+    if [ ! -z "${OWNER}" ]; then
+        CMD_INSTALL="$CMD_INSTALL -o '$OWNER'"
     fi
-    eval $CMD
-    local rc=$?
-    if [ $rc -ne 0 ]; then
-        exit $rc
+    if [ ! -z "${GROUP}" ]; then
+        CMD_INSTALL="$CMD_INSTALL -g '$GROUP'"
     fi
 }
 
@@ -70,10 +71,10 @@ UPDATE_MODULE() {
 
 CHANGE_PERMS() {
     CMD="'$SYSREPOCTL' -c $1 -p '$PERMS' -v2"
-    if [ ! -z ${OWNER} ]; then
+    if [ ! -z "${OWNER}" ]; then
         CMD="$CMD -o '$OWNER'"
     fi
-    if [ ! -z ${GROUP} ]; then
+    if [ ! -z "${GROUP}" ]; then
         CMD="$CMD -g '$GROUP'"
     fi
     eval $CMD
@@ -99,8 +100,8 @@ for i in "${MODULES[@]}"; do
 
     SCTL_MODULE=`echo "$SCTL_MODULES" | grep "^$name \+|[^|]*| I"`
     if [ -z "$SCTL_MODULE" ]; then
-        # install module with all its features
-        INSTALL_MODULE "$i"
+        # prepare command to install module with all its features
+        INSTALL_MODULE_CMD "$i"
         continue
     fi
 
@@ -141,3 +142,12 @@ for i in "${MODULES[@]}"; do
         features=`echo "$features" | sed 's/[^[:space:]]* \(.*\)/\1/'`
     done
 done
+
+# install all the new modules
+if [ ! -z "${CMD_INSTALL}" ]; then
+    eval $CMD_INSTALL
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        exit $rc
+    fi
+fi
