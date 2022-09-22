@@ -177,7 +177,7 @@ test_on_change_modify_fail(void **state)
 
     /* Modify the stop_time, should fail since wrong rpc is used */
     SEND_RPC_MODSUB(st, st->ntf_id, "<first xmlns=\"ed1\"/>", stop_time);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     FREE_TEST_VARS(st);
     free(stop_time);
 }

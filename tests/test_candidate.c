@@ -294,7 +294,7 @@ test_validate_invalid(void **state)
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 2000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
 
     FREE_TEST_VARS(st);
 }
@@ -423,7 +423,7 @@ test_lock_modified_candidate(void **state)
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
 
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
 
     FREE_TEST_VARS(st);
 }

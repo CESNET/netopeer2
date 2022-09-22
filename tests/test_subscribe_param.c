@@ -164,7 +164,7 @@ test_stop_time_invalid(void **state)
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
     /* Check reply */
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"
@@ -203,7 +203,7 @@ test_start_time_invalid(void **state)
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
     /* Check reply */
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"
@@ -240,7 +240,7 @@ test_stop_time_no_start_time(void **state)
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
     /* Check reply */
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"

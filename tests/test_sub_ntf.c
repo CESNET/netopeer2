@@ -127,7 +127,7 @@ test_invalid_start_time(void **state)
     SEND_RPC_ESTABSUB(st, NULL, "notif1", start_time, NULL);
     free(start_time);
 
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"
@@ -156,7 +156,7 @@ test_invalid_stop_time(void **state)
     SEND_RPC_ESTABSUB(st, NULL, "notif1", NULL, stop_time);
     free(stop_time);
 
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"
@@ -186,7 +186,7 @@ test_invalid_start_stop_time(void **state)
     free(start_time);
     free(stop_time);
 
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"

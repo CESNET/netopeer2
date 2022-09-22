@@ -367,7 +367,7 @@ test_cancel(void **state)
     assert_int_equal(st->msgtype, NC_MSG_RPC);
 
     /* check if received an error reply */
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     FREE_TEST_VARS(st);
 
     /* edit running */
@@ -568,7 +568,7 @@ test_wrong_session(void **state)
     st->rpc = nc_rpc_commit(1, 1, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
-    ASSERT_RPC_ERROR_SESS2(st);
+    ASSERT_ERROR_REPLY_SESS2(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "operation-failed");
     FREE_TEST_VARS(st);
 
@@ -576,7 +576,7 @@ test_wrong_session(void **state)
     st->rpc = nc_rpc_commit(0, 0, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
-    ASSERT_RPC_ERROR_SESS2(st);
+    ASSERT_ERROR_REPLY_SESS2(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "operation-failed");
     FREE_TEST_VARS(st);
 
@@ -584,7 +584,7 @@ test_wrong_session(void **state)
     st->rpc = nc_rpc_cancel(NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
-    ASSERT_RPC_ERROR_SESS2(st);
+    ASSERT_ERROR_REPLY_SESS2(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "operation-failed");
     FREE_TEST_VARS(st);
 
@@ -608,7 +608,7 @@ test_wrong_persist_id(void **state)
     assert_int_equal(st->msgtype, NC_MSG_RPC);
 
     /* Check if received an error */
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     FREE_TEST_VARS(st);
 }

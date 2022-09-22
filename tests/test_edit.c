@@ -145,7 +145,7 @@ test_merge_edit2_fail(void **state)
             "  <num>ClearlyNotANumericValue</num>\n"
             "</top>\n";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     FREE_TEST_VARS(st);
 }
 
@@ -221,7 +221,7 @@ test_delete_empty(void **state)
     /* Try deleting a non-existent config, should fail */
     data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"/>\n";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     FREE_TEST_VARS(st);
 }
 
@@ -464,7 +464,7 @@ test_create_fail(void **state)
             "</first>\n";
 
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     FREE_TEST_VARS(st);
 }
 
@@ -725,7 +725,7 @@ test_unknown(void **state)
     /* send unknown data, should fail */
     data = "<first xmlns=\"invalid\"/>\n";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     FREE_TEST_VARS(st);
 }
 

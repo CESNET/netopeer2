@@ -83,7 +83,7 @@ test_unique(void **state)
     /* create another list instance violating the unique constraint */
     data = "<cont xmlns=\"urn:errors\"><l><k>key2</k><u>uniq</u></l></cont>";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"
@@ -114,7 +114,7 @@ test_max_elem(void **state)
     /* create 2 more list instances violating the max-elements constraint */
     data = "<cont xmlns=\"urn:errors\"><l2><k>key2</k></l2><l2><k>key3</k></l2></cont>";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"
@@ -137,7 +137,7 @@ test_min_elem(void **state)
     /* create a single leaf-list instance violating the min-elements constraint */
     data = "<cont2 xmlns=\"urn:errors\"><l3>value</l3></cont2>";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"
@@ -160,7 +160,7 @@ test_must(void **state)
     /* create a leaf violating the must constraint */
     data = "<l4 xmlns=\"urn:errors\">val</l4>";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"
@@ -183,7 +183,7 @@ test_require_instance(void **state)
     /* create a leafref without its target */
     data = "<l5 xmlns=\"urn:errors\">val</l5>";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"
@@ -198,7 +198,7 @@ test_require_instance(void **state)
     /* create a non-existing instance-identifier */
     data = "<l6 xmlns=\"urn:errors\" xmlns:e=\"urn:errors\">/e:target</l6>";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"
@@ -221,7 +221,7 @@ test_mandatory_choice(void **state)
     /* create a container without its mandatory choice */
     data = "<cont3 xmlns=\"urn:errors\"/>";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"
@@ -248,7 +248,7 @@ test_invalid_insert(void **state)
     data = "<l9 xmlns=\"urn:errors\" xmlns:yang=\"urn:ietf:params:xml:ns:yang:1\" "
             "yang:insert=\"after\" yang:key=\"[k='first']\"><k>key</k></l9>";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"
@@ -263,7 +263,7 @@ test_invalid_insert(void **state)
     data = "<l10 xmlns=\"urn:errors\" xmlns:yang=\"urn:ietf:params:xml:ns:yang:1\" "
             "yang:insert=\"before\" yang:value=\"first\"/>";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"
@@ -292,7 +292,7 @@ test_create_exists(void **state)
     data = "<cont xmlns=\"urn:errors\" xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
             "<l nc:operation=\"create\"><k>key_created</k></l></cont>";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"
@@ -314,7 +314,7 @@ test_delete_missing(void **state)
     data = "<cont xmlns=\"urn:errors\" xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">"
             "<l nc:operation=\"delete\"><k>key_deleted</k></l></cont>";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"
@@ -335,7 +335,7 @@ test_none_missing(void **state)
     /* use none operation for a non-existing node */
     data = "<cont xmlns=\"urn:errors\"><l><k>key_none</k></l></cont>";
     SEND_EDIT_RPC_PARAM(st, NC_DATASTORE_RUNNING, NC_RPC_EDIT_DFLTOP_NONE, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>protocol</error-type>\n"
@@ -356,7 +356,7 @@ test_bad_element(void **state)
     /* wrong type */
     data = "<num xmlns=\"urn:errors\">string</num>";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>application</error-type>\n"
@@ -372,7 +372,7 @@ test_bad_element(void **state)
     /* out of range */
     data = "<num xmlns=\"urn:errors\">5</num>";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>application</error-type>\n"
@@ -388,7 +388,7 @@ test_bad_element(void **state)
     /* unsatisfied pattern */
     data = "<str xmlns=\"urn:errors\">bb</str>";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>application</error-type>\n"
@@ -412,7 +412,7 @@ test_unknown_element(void **state)
     /* unknown element */
     data = "<numero xmlns=\"urn:errors\">string</numero>";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>application</error-type>\n"
@@ -436,7 +436,7 @@ test_unknown_namespace(void **state)
     /* unknown namespace */
     data = "<numero xmlns=\"urn:errs\">string</numero>";
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(st->str,
             "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <error-type>application</error-type>\n"

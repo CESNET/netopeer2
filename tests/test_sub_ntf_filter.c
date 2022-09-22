@@ -461,7 +461,7 @@ test_filter_non_existent(void **state)
 
     /* Establish subscription */
     SEND_RPC_ESTABSUB(st, "non-existant", "notif1", NULL, NULL);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     FREE_TEST_VARS(st);
 }
 

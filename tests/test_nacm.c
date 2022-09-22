@@ -498,7 +498,7 @@ test_edit_config(void **state)
     const char *data = "<first xmlns=\"ed1\">TestFirst</first>\n";
 
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     /* Check if correct error-tag */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "access-denied");
     FREE_TEST_VARS(st);
@@ -574,7 +574,7 @@ test_edit_config_update(void **state)
 
     /* Creating is not permited */
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     /* Check if correct error-tag */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "access-denied");
     FREE_TEST_VARS(st);
@@ -680,7 +680,7 @@ test_edit_config_subtree(void **state)
 
     /* Adding another area should fail */
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     /* Check if correct error-tag */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "access-denied");
     FREE_TEST_VARS(st);
@@ -747,7 +747,7 @@ test_edit_config_when(void **state)
 
     /* Removing the num should fail */
     SEND_EDIT_RPC(st, data);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     /* Check if correct error-tag */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "access-denied");
     FREE_TEST_VARS(st);
@@ -848,7 +848,7 @@ test_copy_config_ds2ds_fail_read(void **state)
     st->rpc = nc_rpc_copy(NC_DATASTORE_RUNNING, NULL, NC_DATASTORE_CANDIDATE, NULL, NC_WD_ALL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     /* Check if correct error-tag */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "access-denied");
     FREE_TEST_VARS(st);
@@ -870,7 +870,7 @@ test_delete_config(void **state)
     st->rpc = nc_rpc_delete(NC_DATASTORE_STARTUP, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "access-denied");
     FREE_TEST_VARS(st);
 
@@ -954,7 +954,7 @@ test_commit(void **state)
     st->rpc = nc_rpc_commit(0, 0, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "access-denied");
     FREE_TEST_VARS(st);
 
@@ -1048,7 +1048,7 @@ test_kill_session(void **state)
     st->rpc = nc_rpc_kill(nc_session_get_id(st->nc_sess2));
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     /* Check if correct error-tag */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "access-denied");
     FREE_TEST_VARS(st);

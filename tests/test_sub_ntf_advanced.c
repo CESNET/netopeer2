@@ -279,7 +279,7 @@ test_modifysub_fail_no_such_sub(void **state)
 
     /* Try modifying a non-existent subscription */
     SEND_RPC_MODSUB(st, 1, "<n1 xmlns=\"n1\"/>", NULL);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     /* Check if correct error-tag */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     /* Check if correct error-app-tag */
@@ -332,7 +332,7 @@ test_deletesub_fail(void **state)
 
     /* Try deleting a non-existent subscription */
     SEND_RPC_DELSUB(st, 1);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     /* Check if correct error-tag */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     /* Check if correct error-app-tag */
@@ -809,7 +809,7 @@ test_killsub_fail_nacm(void **state)
 
     /* Should fail on NACM */
     SEND_RPC_KILLSUB(st, 1);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "access-denied");
     FREE_TEST_VARS(st);
 }
@@ -845,7 +845,7 @@ test_killsub_fail_no_such_sub(void **state)
 
     SEND_RPC_KILLSUB(st, 1);
     /* Should fail on no such sub */
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
     /* Check if correct error-tag */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     /* Check if correct error-app-tag */

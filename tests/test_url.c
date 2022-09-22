@@ -187,7 +187,7 @@ test_copy_config_same(void **state)
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
     /* Recieve reply */
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
 
     /* Check if correct error-tag */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");

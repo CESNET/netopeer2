@@ -115,7 +115,7 @@ test_lock_fail(void **state)
     st->rpc = nc_rpc_lock(NC_DATASTORE_RUNNING);
     st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
-    ASSERT_RPC_ERROR_SESS2(st);
+    ASSERT_ERROR_REPLY_SESS2(st);
 
     /* Check error message */
     assert_int_equal(LY_SUCCESS, lyd_print_mem(&st->str, st->envp, LYD_XML, 0));
@@ -248,7 +248,7 @@ test_unlock_fail(void **state)
     assert_int_equal(st->msgtype, NC_MSG_RPC);
 
     /* Check error message */
-    ASSERT_RPC_ERROR_SESS2(st);
+    ASSERT_ERROR_REPLY_SESS2(st);
     assert_int_equal(LY_SUCCESS, lyd_print_mem(&st->str, st->envp, LYD_XML, 0));
     template =
             "<rpc-reply "
@@ -304,7 +304,7 @@ test_kill(void **state)
     st->rpc = nc_rpc_kill(nc_session_get_id(st->nc_sess));
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
-    ASSERT_RPC_ERROR(st);
+    ASSERT_ERROR_REPLY(st);
 
     /* check the error message */
     lyd_print_mem(&error, st->envp, LYD_XML, 0);
