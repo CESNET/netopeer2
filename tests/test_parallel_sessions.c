@@ -47,7 +47,7 @@ local_setup(void **state)
     rc = np_glob_setup_env(test_name);
     assert_int_equal(rc, 0);
 
-    return np_glob_setup_np2(state, test_name, NULL, 0);
+    return np_glob_setup_np2(state, test_name, NULL);
 }
 
 static int
@@ -58,7 +58,7 @@ local_teardown(void **state)
     }
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, NULL, 0);
+    return np_glob_teardown(state, NULL);
 }
 
 struct thread_arg {

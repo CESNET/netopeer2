@@ -38,7 +38,7 @@ local_setup(void **state)
     const char *modules[] = {
         NP_TEST_MODULE_DIR "/edit1.yang", NP_TEST_MODULE_DIR "/edit2.yang",
         NP_TEST_MODULE_DIR "/edit3.yang", NP_TEST_MODULE_DIR "/edit4.yang", NP_TEST_MODULE_DIR "/example1.yang",
-        NP_TEST_MODULE_DIR "/example2.yang"
+        NP_TEST_MODULE_DIR "/example2.yang", NULL
     };
     int rc;
 
@@ -50,7 +50,7 @@ local_setup(void **state)
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules, sizeof modules / sizeof *modules);
+    rc = np_glob_setup_np2(state, test_name, modules);
     assert_int_equal(rc, 0);
 
     /* setup NACM */
@@ -63,14 +63,14 @@ local_setup(void **state)
 static int
 local_teardown(void **state)
 {
-    const char *modules[] = {"edit1", "edit2", "edit3", "edit4", "example1", "example2"};
+    const char *modules[] = {"edit1", "edit2", "edit3", "edit4", "example1", "example2", NULL};
 
     if (!*state) {
         return 0;
     }
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, modules, sizeof modules / sizeof *modules);
+    return np_glob_teardown(state, modules);
 }
 
 static int

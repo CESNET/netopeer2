@@ -36,7 +36,7 @@ local_setup(void **state)
 {
     struct np_test *st;
     char test_name[256];
-    const char *modules[] = {NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang"};
+    const char *modules[] = {NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang", NULL};
     int rc;
 
     /* get test name */
@@ -47,7 +47,7 @@ local_setup(void **state)
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules, sizeof modules / sizeof *modules);
+    rc = np_glob_setup_np2(state, test_name, modules);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -114,7 +114,7 @@ static int
 local_teardown(void **state)
 {
     struct np_test *st = *state;
-    const char *modules[] = {"notif1", "notif2"};
+    const char *modules[] = {"notif1", "notif2", NULL};
 
     if (!st) {
         return 0;
@@ -130,7 +130,7 @@ local_teardown(void **state)
     teardown_common(state);
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, modules, sizeof modules / sizeof *modules);
+    return np_glob_teardown(state, modules);
 }
 
 static void
