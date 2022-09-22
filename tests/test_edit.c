@@ -212,6 +212,111 @@ test_delete_edit2(void **state)
     ASSERT_EMPTY_CONFIG(st);
 }
 
+static int
+setup_test_delete_edit3(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* send RPC editing module example1 */
+    data =
+            "<top xmlns=\"ex1\">\n"
+            "  <interface>\n"
+            "    <mtu>1024</mtu>\n"
+            "    <address>\n"
+            "      <name>10.0.0.1</name>\n"
+            "    </address>\n"
+            "  </interface>\n"
+            "</top>\n";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+    return 0;
+}
+
+static void
+test_delete_edit3(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* send rpc deleting config in module edit2 with non-existing nodes */
+    data =
+            "<top xmlns=\"ex1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <interface xc:operation=\"delete\">\n"
+            "    <name>my-name</name>\n"
+            "  </interface>\n"
+            "</top>\n";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_ERROR_REPLY(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>data-missing</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">Node \"name\" to be deleted does not exist.</error-message>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+
+    data =
+            "<top xmlns=\"ex1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <interface xc:operation=\"delete\">\n"
+            "    <mtu>2048</mtu>\n"
+            "    <address>\n"
+            "      <prefix-length>16</prefix-length>\n"
+            "    </address>\n"
+            "  </interface>\n"
+            "</top>\n";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_ERROR_REPLY(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>data-missing</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">Node \"prefix-length\" to be deleted does not exist.</error-message>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+
+    data =
+            "<top xmlns=\"ex1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <interface xc:operation=\"delete\">\n"
+            "    <mtu>2048</mtu>\n"
+            "    <address>\n"
+            "      <prefix-length xc:operation=\"merge\">16</prefix-length>\n"
+            "    </address>\n"
+            "  </interface>\n"
+            "</top>\n";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_ERROR_REPLY(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>application</error-type>\n"
+            "  <error-tag>operation-failed</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">Invalid operation \"merge\" for node \"prefix-length\" with parent operation \"delete\".</error-message>\n"
+            "</rpc-error>\n"
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>application</error-type>\n"
+            "  <error-tag>operation-failed</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">User callback failed.</error-message>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+
+    /* send valid rpc deleting config in module edit2 */
+    data =
+            "<top xmlns=\"ex1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <interface xc:operation=\"delete\">\n"
+            "    <mtu>2048</mtu>\n"
+            "    <address/>\n"
+            "  </interface>\n"
+            "</top>\n";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+}
+
 static void
 test_delete_empty(void **state)
 {
@@ -743,6 +848,7 @@ main(int argc, char **argv)
         cmocka_unit_test_teardown(test_merge_edit2_fail, teardown_common),
         cmocka_unit_test_setup(test_delete_edit1, setup_test_delete_edit1),
         cmocka_unit_test_setup(test_delete_edit2, setup_test_delete_edit2),
+        cmocka_unit_test_setup_teardown(test_delete_edit3, setup_test_delete_edit3, teardown_common),
         cmocka_unit_test(test_delete_empty),
         cmocka_unit_test_teardown(test_merge_partial, teardown_common),
         cmocka_unit_test_setup_teardown(test_merge_into_existing, setup_test_merge_into_existing, teardown_common),
