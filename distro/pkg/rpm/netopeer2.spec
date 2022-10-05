@@ -102,7 +102,6 @@ set -e
 %{_sbindir}/netopeer2-server
 %{_datadir}/man/man8/netopeer2-server.8.gz
 %{_unitdir}/netopeer2-server.service
-%{_sysusersdir}/netopeer2-server.conf
 %{_datadir}/yang/modules/netopeer2/*.yang
 %{_datadir}/netopeer2/*.sh
 %dir %{_datadir}/yang/modules/netopeer2/
