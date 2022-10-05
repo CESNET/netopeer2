@@ -4,8 +4,7 @@ Release: {{ release }}%{?dist}
 Summary: Netopeer2 NETCONF tools suite
 Url: https://github.com/CESNET/netopeer2
 Source: %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
-Source2: netopeer2-server.sysusers
-Source3: netopeer2-server.service
+Source2: netopeer2-server.service
 License: BSD
 
 BuildRequires: gcc
@@ -19,7 +18,6 @@ BuildRequires: libssh-devel
 BuildRequires: openssl-devel
 BuildRequires: systemd-devel
 BuildRequires: systemd
-BuildRequires: systemd-rpm-macros
 
 %if 0%{?fedora}
 # c_rehash needed by CLI
@@ -76,16 +74,8 @@ a single established NETCONF session.
 
 %install
 %cmake_install
-install -D -p -m 0644 %{SOURCE2} %{buildroot}%{_sysusersdir}/netopeer2-server.conf
-install -D -p -m 0644 %{SOURCE3} %{buildroot}%{_unitdir}/netopeer2-server.service
+install -D -p -m 0644 %{SOURCE2} %{buildroot}%{_unitdir}/netopeer2-server.service
 mkdir -p -m=700 %{buildroot}%{_libdir}/netopeer2-server
-
-%pre server
-%if 0%{?fedora}
-    %sysusers_create_compat %{SOURCE2}
-%else
-    usermod -a -G sysrepo root
-%endif
 
 %post server
 set -e

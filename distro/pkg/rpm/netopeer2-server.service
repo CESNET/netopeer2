@@ -8,6 +8,7 @@ ExecStart=/usr/bin/netopeer2-server -d -v2
 Restart=always
 SystemCallArchitectures=native
 KillMode=control-group
+SupplementaryGroups=sysrepo
 
 [Install]
 WantedBy=multi-user.target

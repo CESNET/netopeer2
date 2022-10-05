@@ -8,6 +8,7 @@ ExecStart=@CMAKE_INSTALL_PREFIX@/@CMAKE_INSTALL_SBINDIR@/netopeer2-server -d -v2
 Restart=always
 SystemCallArchitectures=native
 KillMode=control-group
+SupplementaryGroups=@SR_GROUP@
 
 [Install]
 WantedBy=multi-user.target

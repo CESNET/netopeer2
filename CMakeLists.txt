@@ -152,9 +152,9 @@ set(FORMAT_SRC
 # checks
 #
 
-# lnc2 support for np2srv thread count
 find_package(PkgConfig)
 if(PKG_CONFIG_FOUND)
+    # lnc2 support for np2srv thread count
     execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} "--variable=LNC2_MAX_THREAD_COUNT" "libnetconf2" OUTPUT_VARIABLE LNC2_THREAD_COUNT)
     if(LNC2_THREAD_COUNT)
         string(STRIP ${LNC2_THREAD_COUNT} LNC2_THREAD_COUNT)
@@ -166,6 +166,9 @@ if(PKG_CONFIG_FOUND)
     else()
         message(STATUS "Unable to learn libnetconf2 thread support, check skipped")
     endif()
+
+    # sysrepo group
+    execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} "--variable=SR_GROUP" "sysrepo" OUTPUT_VARIABLE SR_GROUP OUTPUT_STRIP_TRAILING_WHITESPACE)
 else()
     message(STATUS "pkg-config not found, so it was not possible to check if libnetconf2 supports ${THREAD_COUNT} threads")
 endif()
