@@ -4,7 +4,7 @@ Description=netopeer2 NETCONF server
 
 [Service]
 Type=notify
-ExecStart=/usr/bin/netopeer2-server -d -v2
+ExecStart=/usr/sbin/netopeer2-server -d -v2
 Restart=always
 SystemCallArchitectures=native
 KillMode=control-group
