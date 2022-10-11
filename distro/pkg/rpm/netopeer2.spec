@@ -5,7 +5,7 @@ Summary: Netopeer2 NETCONF tools suite
 Url: https://github.com/CESNET/netopeer2
 Source: %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 Source2: netopeer2-server.service
-License: BSD
+License: BSD-3-Clause
 
 BuildRequires: gcc
 BuildRequires: cmake
@@ -24,17 +24,21 @@ BuildRequires: systemd
 BuildRequires: openssl-perl
 %endif
 
-Requires: netopeer2-server
-Requires: netopeer2-cli
+Requires: %{name}-server%{?_isa} = %{version}-%{release}
+Requires: %{name}-cli%{?_isa} = %{version}-%{release}
+
 
 %package server
 Summary: netopeer2 NETCONF server
 
-# needed by script setup.sh (run in post)
-Requires: sysrepo-tools
-
+Requires: libyang >= 2.0.231
 # needed by script merge_hostkey.sh (run in post)
 Requires: openssl
+# needed by script setup.sh (run in post)
+Requires: sysrepo-tools
+# for provided systemd units
+Requires: systemd
+
 
 %package cli
 Summary: netopeer2 NETCONF CLI client
@@ -42,6 +46,7 @@ Summary: netopeer2 NETCONF CLI client
 %if 0%{?fedora}
 Requires: openssl-perl
 %endif
+
 
 %description
 Virtual package for both netopeer2-server and netopeer2-cli NETCONF tools.
@@ -60,6 +65,7 @@ the group "netconf", which is created if it does not exist.
 %description cli
 netopeer2-cli is a complex NETCONF command-line client with support for
 a single established NETCONF session.
+
 
 %prep
 %autosetup -p1
