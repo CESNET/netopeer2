@@ -295,6 +295,10 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     }
 
 cleanup:
+    if (user_sess) {
+        /* discard any changes that possibly failed to be applied */
+        sr_discard_changes(user_sess->sess);
+    }
     lyd_free_siblings(config);
     np_release_user_sess(user_sess);
     return rc;
