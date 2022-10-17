@@ -35,10 +35,6 @@
 # define NP_CLOCK_ID CLOCK_REALTIME
 #endif
 
-/* macro for ignoring an RPC callback call */
-#define NP_IGNORE_RPC(session, event) (!sr_session_get_orig_name(session) || \
-        strcmp(sr_session_get_orig_name(session), "netopeer2") || (event == SR_EV_ABORT))
-
 /* macro to check if SR callback was originated by netopeer2 */
 #define NP_IS_ORIG_NP(session) (sr_session_get_orig_name(session) && !strcmp(sr_session_get_orig_name(session), "netopeer2"))
 
@@ -76,6 +72,16 @@ struct np2srv {
 };
 
 extern struct np2srv np2srv;
+
+/**
+ * @brief Check whether to ignore an RPC callback event.
+ *
+ * @param[in] ev_sess Event session to generate an error for.
+ * @param[in] event RPC callback event.
+ * @param[out] rc Return code to return.
+ * @return Whether the RPC should be processed or not.
+ */
+int np_ignore_rpc(sr_session_ctx_t *ev_sess, sr_event_t event, int *rc);
 
 /**
  * @brief Sleep in milliseconds.

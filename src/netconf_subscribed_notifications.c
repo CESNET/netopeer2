@@ -319,13 +319,13 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     struct np2srv_sub_ntf sub = {0}, *sub_p;
     char id_str[11];
     struct timespec stop = {0};
-    int r, rc, ntf_status = 0;
+    int r, rc = SR_ERR_OK, ntf_status = 0;
     uint32_t nc_sub_id, *nc_id;
     enum sub_ntf_type type;
 
-    if (NP_IGNORE_RPC(session, event)) {
-        /* ignore in this case (not supported) */
-        return SR_ERR_OK;
+    if (np_ignore_rpc(session, event, &rc)) {
+        /* ignore in this case */
+        return rc;
     }
 
     /* find this NETCONF session */
@@ -505,9 +505,9 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     int r, rc = SR_ERR_OK;
     uint32_t nc_sub_id, *nc_id;
 
-    if (NP_IGNORE_RPC(session, event)) {
-        /* ignore in this case (not supported) */
-        return SR_ERR_OK;
+    if (np_ignore_rpc(session, event, &rc)) {
+        /* ignore in this case */
+        return rc;
     }
 
     /* id */
@@ -699,9 +699,9 @@ np2srv_rpc_delete_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     int r, rc = SR_ERR_OK;
     uint32_t nc_sub_id, *nc_id;
 
-    if (NP_IGNORE_RPC(session, event)) {
-        /* ignore in this case (not supported) */
-        return SR_ERR_OK;
+    if (np_ignore_rpc(session, event, &rc)) {
+        /* ignore in this case */
+        return rc;
     }
 
     /* id */
@@ -750,9 +750,9 @@ np2srv_rpc_kill_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     int r, rc = SR_ERR_OK;
     uint32_t nc_sub_id;
 
-    if (NP_IGNORE_RPC(session, event)) {
-        /* ignore in this case (not supported) */
-        return SR_ERR_OK;
+    if (np_ignore_rpc(session, event, &rc)) {
+        /* ignore in this case */
+        return rc;
     }
 
     /* id */

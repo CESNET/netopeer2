@@ -110,9 +110,9 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     NC_WD_MODE nc_wd;
     sr_get_options_t get_opts = 0;
 
-    if (NP_IGNORE_RPC(session, event)) {
+    if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
-        return SR_ERR_OK;
+        return rc;
     }
 
     /* get default value for with-defaults */
@@ -229,9 +229,9 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     const char *defop;
     int rc = SR_ERR_OK;
 
-    if (NP_IGNORE_RPC(session, event)) {
+    if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
-        return SR_ERR_OK;
+        return rc;
     }
 
     /* get know which datastore is being affected */

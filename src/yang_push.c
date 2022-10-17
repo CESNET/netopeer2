@@ -1757,9 +1757,9 @@ np2srv_rpc_resync_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     int rc = SR_ERR_OK;
     uint32_t nc_sub_id;
 
-    if (NP_IGNORE_RPC(session, event)) {
-        /* ignore in this case (not supported) */
-        return SR_ERR_OK;
+    if (np_ignore_rpc(session, event, &rc)) {
+        /* ignore in this case */
+        return rc;
     }
 
     /* id */

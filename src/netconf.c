@@ -94,9 +94,9 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     sr_datastore_t ds = 0;
     const char *single_filter;
 
-    if (NP_IGNORE_RPC(session, event)) {
+    if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
-        return SR_ERR_OK;
+        return rc;
     }
 
     /* get know which datastore is being affected for get-config */
@@ -199,9 +199,9 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     const char *defop = "merge", *testop = "test-then-set";
     int rc = SR_ERR_OK;
 
-    if (NP_IGNORE_RPC(session, event)) {
+    if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
-        return SR_ERR_OK;
+        return rc;
     }
 
     /* get know which datastore is being affected */
@@ -320,9 +320,9 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     uint8_t url = 0;
 #endif
 
-    if (NP_IGNORE_RPC(session, event)) {
+    if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
-        return SR_ERR_OK;
+        return rc;
     }
 
     /* get know which datastores are affected */
@@ -497,9 +497,9 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
     const char *trg_url = NULL;
 #endif
 
-    if (NP_IGNORE_RPC(session, event)) {
+    if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
-        return SR_ERR_OK;
+        return rc;
     }
 
     /* get know which datastore is affected */
@@ -569,9 +569,9 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     const sr_error_info_t *err_info;
     int rc = SR_ERR_OK;
 
-    if (NP_IGNORE_RPC(session, event)) {
+    if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
-        return SR_ERR_OK;
+        return rc;
     }
 
     /* get know which datastore is being affected */
@@ -629,9 +629,9 @@ np2srv_rpc_kill_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
     uint32_t kill_sid, *nc_sid, i;
     int rc = SR_ERR_OK;
 
-    if (NP_IGNORE_RPC(session, event)) {
+    if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
-        return SR_ERR_OK;
+        return rc;
     }
 
     lyd_find_path(input, "session-id", 0, &node);
@@ -675,9 +675,9 @@ np2srv_rpc_discard_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     struct np2_user_sess *user_sess = NULL;
     const sr_error_info_t *err_info;
 
-    if (NP_IGNORE_RPC(session, event)) {
+    if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
-        return SR_ERR_OK;
+        return rc;
     }
 
     /* get the user session */
@@ -715,9 +715,9 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     int rc = SR_ERR_OK;
     const sr_error_info_t *err_info;
 
-    if (NP_IGNORE_RPC(session, event)) {
+    if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
-        return SR_ERR_OK;
+        return rc;
     }
 
     /* get know which datastore is affected */
@@ -913,9 +913,9 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     struct ly_set mod_set = {0};
     struct subscribe_ntf_arg *cb_data = NULL;
 
-    if (NP_IGNORE_RPC(session, event)) {
-        /* ignore in this case (not supported) */
-        return SR_ERR_OK;
+    if (np_ignore_rpc(session, event, &rc)) {
+        /* ignore in this case */
+        return rc;
     }
 
     /* get the NETCONF session and user session */

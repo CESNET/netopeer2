@@ -50,6 +50,25 @@
 struct np2srv np2srv = {.unix_mode = -1, .unix_uid = -1, .unix_gid = -1};
 
 int
+np_ignore_rpc(sr_session_ctx_t *ev_sess, sr_event_t event, int *rc)
+{
+    if (event == SR_EV_ABORT) {
+        /* silent ignore */
+        *rc = SR_ERR_OK;
+        return 1;
+    }
+
+    if (!NP_IS_ORIG_NP(ev_sess)) {
+        /* forbidden */
+        sr_session_set_error_message(ev_sess, "Non-NETCONF originating RPC will not be executed.");
+        *rc = SR_ERR_UNSUPPORTED;
+        return 1;
+    }
+
+    return 0;
+}
+
+int
 np_sleep(uint32_t ms)
 {
     struct timespec ts;

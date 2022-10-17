@@ -875,9 +875,9 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
     const sr_error_info_t *err_info;
     const char *persist_id = NULL, *persist;
 
-    if (NP_IGNORE_RPC(session, event)) {
+    if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
-        return SR_ERR_OK;
+        return rc;
     }
 
     /* get the user session */
@@ -948,9 +948,9 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     struct lyd_node *node;
     const char *persist_id = NULL, *persist = NULL;
 
-    if (NP_IGNORE_RPC(session, event)) {
+    if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
-        return SR_ERR_OK;
+        return rc;
     }
 
     /* get the NC session */
