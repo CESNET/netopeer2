@@ -203,9 +203,19 @@ addargs(struct arglist *args, char *format, ...)
 }
 
 static void
-cli_ntf_clb(struct nc_session *session, const struct lyd_node *envp, const struct lyd_node *op)
+cli_ntf_free_data(void *user_data)
 {
-    FILE *output = nc_session_get_data(session);
+    FILE *output = user_data;
+
+    if (output != stdout) {
+        fclose(output);
+    }
+}
+
+static void
+cli_ntf_clb(struct nc_session *UNUSED(session), const struct lyd_node *envp, const struct lyd_node *op, void *user_data)
+{
+    FILE *output = user_data;
     int was_rawmode = 0;
 
     if (output == stdout) {
@@ -4767,17 +4777,15 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
     }
 
     /* create notification thread so that notifications can immediately be received */
-    if (!nc_session_ntf_thread_running(session)) {
-        if (!output) {
-            output = stdout;
-        }
-        nc_session_set_data(session, output);
-        ret = nc_recv_notif_dispatch(session, cli_ntf_clb);
-        if (ret) {
-            ERROR(__func__, "Failed to create notification thread.");
-            goto fail;
-        }
+    if (!output) {
+        output = stdout;
     }
+    ret = nc_recv_notif_dispatch_data(session, cli_ntf_clb, output, cli_ntf_free_data);
+    if (ret) {
+        ERROR(__func__, "Failed to create notification thread.");
+        goto fail;
+    }
+    output = NULL;
 
     ret = cli_send_recv(rpc, stdout, 0, timeout);
     if (ret) {
@@ -5519,17 +5527,15 @@ cmd_establishsub(const char *arg, char **tmp_config_file)
     }
 
     /* create notification thread so that notifications can immediately be received */
-    if (!nc_session_ntf_thread_running(session)) {
-        if (!output) {
-            output = stdout;
-        }
-        nc_session_set_data(session, output);
-        ret = nc_recv_notif_dispatch(session, cli_ntf_clb);
-        if (ret) {
-            ERROR(__func__, "Failed to create notification thread.");
-            goto fail;
-        }
+    if (!output) {
+        output = stdout;
     }
+    ret = nc_recv_notif_dispatch_data(session, cli_ntf_clb, output, cli_ntf_free_data);
+    if (ret) {
+        ERROR(__func__, "Failed to create notification thread.");
+        goto fail;
+    }
+    output = NULL;
 
     ret = cli_send_recv(rpc, stdout, 0, timeout);
     if (ret) {
