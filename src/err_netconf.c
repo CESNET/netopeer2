@@ -141,7 +141,7 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
     err = &err_info->err[0];
 
     /* get path */
-    if ((ptr = strstr(err->message, "data location \""))) {
+    if ((ptr = strstr(err->message, "Data location \""))) {
         ptr += 15;
     }
     if (!ptr) {
