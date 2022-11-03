@@ -783,6 +783,168 @@ test_subtree_nested_selection_node(void **state)
 }
 
 static void
+test_subtree_no_namespace(void **state)
+{
+    struct np_test *st = *state;
+    char *filter, *expected;
+
+    filter = "<top/>\n";
+
+    GET_CONFIG_FILTER(st, filter);
+
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <top xmlns=\"ex2\">\n"
+            "      <protocols>\n"
+            "        <ospf>\n"
+            "          <area>\n"
+            "            <name>0.0.0.0</name>\n"
+            "            <interfaces>\n"
+            "              <interface>\n"
+            "                <name>192.0.2.1</name>\n"
+            "              </interface>\n"
+            "              <interface>\n"
+            "                <name>192.0.2.4</name>\n"
+            "              </interface>\n"
+            "            </interfaces>\n"
+            "          </area>\n"
+            "          <area>\n"
+            "            <name>192.168.0.0</name>\n"
+            "            <interfaces>\n"
+            "              <interface>\n"
+            "                <name>192.168.0.1</name>\n"
+            "              </interface>\n"
+            "              <interface>\n"
+            "                <name>192.168.0.12</name>\n"
+            "              </interface>\n"
+            "              <interface>\n"
+            "                <name>192.168.0.25</name>\n"
+            "              </interface>\n"
+            "            </interfaces>\n"
+            "          </area>\n"
+            "        </ospf>\n"
+            "      </protocols>\n"
+            "    </top>\n"
+            "    <top xmlns=\"f1\">\n"
+            "      <devices>\n"
+            "        <desktops>\n"
+            "          <desktop>\n"
+            "            <name>Seventh</name>\n"
+            "            <address>192.168.0.130</address>\n"
+            "          </desktop>\n"
+            "          <desktop>\n"
+            "            <name>Sixth</name>\n"
+            "            <address>192.168.0.142</address>\n"
+            "          </desktop>\n"
+            "        </desktops>\n"
+            "        <servers>\n"
+            "          <server>\n"
+            "            <name>First</name>\n"
+            "            <address>192.168.0.4</address>\n"
+            "            <port>80</port>\n"
+            "            <attributes>\n"
+            "              <attr1>value</attr1>\n"
+            "            </attributes>\n"
+            "          </server>\n"
+            "          <server>\n"
+            "            <name>Second</name>\n"
+            "            <address>192.168.0.12</address>\n"
+            "            <port>80</port>\n"
+            "          </server>\n"
+            "          <server>\n"
+            "            <name>Fourth</name>\n"
+            "            <address>192.168.0.50</address>\n"
+            "            <port>22</port>\n"
+            "          </server>\n"
+            "          <server>\n"
+            "            <name>Fifth</name>\n"
+            "            <address>192.168.0.50</address>\n"
+            "            <port>443</port>\n"
+            "          </server>\n"
+            "          <server>\n"
+            "            <name>Sixth</name>\n"
+            "            <address>192.168.0.102</address>\n"
+            "            <port>22</port>\n"
+            "          </server>\n"
+            "        </servers>\n"
+            "      </devices>\n"
+            "      <some-list>\n"
+            "        <k>a</k>\n"
+            "        <val xmlns:f1i=\"urn:f1i\">f1i:ident-val1</val>\n"
+            "      </some-list>\n"
+            "      <some-list>\n"
+            "        <k>b</k>\n"
+            "        <val xmlns:f1i=\"urn:f1i\">f1i:ident-val2</val>\n"
+            "      </some-list>\n"
+            "    </top>\n"
+            "    <top xmlns=\"x1\">\n"
+            "      <item>\n"
+            "        <price>2</price>\n"
+            "      </item>\n"
+            "      <item>\n"
+            "        <price>3</price>\n"
+            "      </item>\n"
+            "      <item>\n"
+            "        <price>4</price>\n"
+            "      </item>\n"
+            "      <item>\n"
+            "        <price>6</price>\n"
+            "      </item>\n"
+            "      <item>\n"
+            "        <price>8</price>\n"
+            "      </item>\n"
+            "      <item>\n"
+            "        <price>13</price>\n"
+            "      </item>\n"
+            "    </top>\n"
+            "  </data>\n"
+            "</get-config>\n";
+
+    assert_string_equal(st->str, expected);
+
+    FREE_TEST_VARS(st);
+
+    filter =
+            "<top>\n"
+            "  <devices>\n"
+            "    <servers>\n"
+            "      <server>\n"
+            "        <name>First</name>\n"
+            "        <attributes>\n"
+            "          <attr1/>\n"
+            "        </attributes>\n"
+            "      </server>\n"
+            "    </servers>\n"
+            "  </devices>\n"
+            "</top>\n";
+
+    GET_CONFIG_FILTER(st, filter);
+
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <top xmlns=\"f1\">\n"
+            "      <devices>\n"
+            "        <servers>\n"
+            "          <server>\n"
+            "            <name>First</name>\n"
+            "            <attributes>\n"
+            "              <attr1>value</attr1>\n"
+            "            </attributes>\n"
+            "          </server>\n"
+            "        </servers>\n"
+            "      </devices>\n"
+            "    </top>\n"
+            "  </data>\n"
+            "</get-config>\n";
+
+    assert_string_equal(st->str, expected);
+
+    FREE_TEST_VARS(st);
+}
+
+static void
 test_get_selection_node(void **state)
 {
     struct np_test *st = *state;
@@ -976,6 +1138,7 @@ main(int argc, char **argv)
         cmocka_unit_test(test_subtree_content_match_top_level_leaf),
         cmocka_unit_test(test_subtree_selection_node),
         cmocka_unit_test(test_subtree_nested_selection_node),
+        cmocka_unit_test(test_subtree_no_namespace),
         cmocka_unit_test(test_get_selection_node),
         cmocka_unit_test(test_get_containment_node),
         cmocka_unit_test(test_get_content_match_node),

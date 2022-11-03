@@ -743,22 +743,25 @@ op_filter_xpath_add_filter(const char *new_filter, int selection, struct np2_fil
 /**
  * @brief Append subtree filter metadata to XPath filter string buffer.
  *
- * Handles metadata.
- *
- * @param[in] meta Subtree filter node metadata.
+ * @param[in] node Subtree filter node with the metadata/attributes.
  * @param[in,out] buf Current XPath filter buffer.
  * @param[in] size Current @p buf size.
  * @return New @p buf size;
  * @return -1 on error.
  */
 static int
-filter_xpath_buf_append_attrs(const struct lyd_meta *meta, char **buf, int size)
+filter_xpath_buf_append_attrs(const struct lyd_node *node, char **buf, int size)
 {
     const struct lyd_meta *next;
     int new_size;
     char *buf_new;
 
-    LY_LIST_FOR(meta, next) {
+    if (!node->schema) {
+        /* TODO unsupported */
+        return size;
+    }
+
+    LY_LIST_FOR(node->meta, next) {
         new_size = size + 2 + strlen(next->annotation->module->name) + 1 + strlen(next->name) + 2 +
                 strlen(lyd_get_meta_value(next)) + 2;
         buf_new = realloc(*buf, new_size);
@@ -775,30 +778,35 @@ filter_xpath_buf_append_attrs(const struct lyd_meta *meta, char **buf, int size)
 }
 
 /**
- * @brief Process a subtree top-level content node with namespace and optional attributes.
+ * @brief Process a subtree top-level content node and optional attributes.
  *
  * @param[in] node Subtree filter node.
+ * @param[in] top_mod Optional top-level module to use.
  * @param[in,out] filter NP2 filter structure to add to.
  * @return 0 on success.
  * @return -1 on error.
  */
 static int
-filter_xpath_buf_add_top_content(const struct lyd_node *node, struct np2_filter *filter)
+filter_xpath_buf_add_top_content(const struct lyd_node *node, const struct lys_module *top_mod, struct np2_filter *filter)
 {
     int size;
     char *buf;
 
-    assert(!lyd_parent(node) && node->schema);
+    assert(!lyd_parent(node));
 
-    size = 1 + strlen(node->schema->module->name) + 1 + strlen(LYD_NAME(node)) + 9 + strlen(lyd_get_value(node)) + 3;
+    if (!top_mod) {
+        top_mod = node->schema->module;
+    }
+
+    size = 1 + strlen(top_mod->name) + 1 + strlen(LYD_NAME(node)) + 9 + strlen(lyd_get_value(node)) + 3;
     buf = malloc(size);
     if (!buf) {
         EMEM;
         return -1;
     }
-    sprintf(buf, "/%s:%s[text()='%s']", node->schema->module->name, LYD_NAME(node), lyd_get_value(node));
+    sprintf(buf, "/%s:%s[text()='%s']", top_mod->name, LYD_NAME(node), lyd_get_value(node));
 
-    size = filter_xpath_buf_append_attrs(node->meta, &buf, size);
+    size = filter_xpath_buf_append_attrs(node, &buf, size);
     if (size < 1) {
         free(buf);
         return -1;
@@ -817,11 +825,12 @@ filter_xpath_buf_add_top_content(const struct lyd_node *node, struct np2_filter 
  * @brief Get the module to print for a node if needed based on JSON instid module inheritence.
  *
  * @param[in] node Node that is printed.
+ * @param[in] top_mod Optional top-level module to use.
  * @return Module to print;
  * @return NULL if no module needs to be printed.
  */
 static const struct lys_module *
-filter_xpath_print_node_module(const struct lyd_node *node)
+filter_xpath_print_node_module(const struct lyd_node *node, const struct lys_module *top_mod)
 {
     const struct lys_module *mod;
     const struct lyd_node *parent;
@@ -831,6 +840,10 @@ filter_xpath_print_node_module(const struct lyd_node *node)
 
     if (!parent) {
         /* print the module */
+        if (top_mod) {
+            /* explicit top-level module */
+            return top_mod;
+        }
     } else if (node->schema && parent->schema) {
         /* 2 data nodes */
         if (node->schema->module == parent->schema->module) {
@@ -939,7 +952,7 @@ filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int siz
     assert(!node->schema || (node->schema->nodetype & (LYS_LEAF | LYS_LEAFLIST)));
 
     /* do we print the module name? */
-    mod = filter_xpath_print_node_module(node);
+    mod = filter_xpath_print_node_module(node, NULL);
 
     new_size = size + 1 + (mod ? strlen(mod->name) + 1 : 0) + strlen(LYD_NAME(node));
     buf_new = realloc(*buf, new_size);
@@ -950,7 +963,7 @@ filter_xpath_buf_append_content(const struct lyd_node *node, char **buf, int siz
     sprintf((*buf) + (size - 1), "[%s%s%s", (mod ? mod->name : ""), (mod ? ":" : ""), LYD_NAME(node));
     size = new_size;
 
-    size = filter_xpath_buf_append_attrs(node->meta, buf, size);
+    size = filter_xpath_buf_append_attrs(node, buf, size);
     if (size < 1) {
         goto error;
     }
@@ -997,20 +1010,21 @@ error:
  * Handles containment/selection nodes with namespace and optional attributes.
  *
  * @param[in] node Subtree filter node.
+ * @param[in] top_mod Optional top-level module to use.
  * @param[in,out] buf Current XPath filter buffer.
  * @param[in] size Current @p buf size.
  * @return New @p buf size;
  * @return -1 on error.
  */
 static int
-filter_xpath_buf_append_node(const struct lyd_node *node, char **buf, int size)
+filter_xpath_buf_append_node(const struct lyd_node *node, const struct lys_module *top_mod, char **buf, int size)
 {
     const struct lys_module *mod = NULL;
     int new_size;
     char *buf_new;
 
     /* do we print the module name? */
-    mod = filter_xpath_print_node_module(node);
+    mod = filter_xpath_print_node_module(node, top_mod);
 
     new_size = size + 1 + (mod ? strlen(mod->name) + 1 : 0) + strlen(LYD_NAME(node));
     buf_new = realloc(*buf, new_size);
@@ -1022,11 +1036,7 @@ filter_xpath_buf_append_node(const struct lyd_node *node, char **buf, int size)
     sprintf((*buf) + (size - 1), "/%s%s%s", (mod ? mod->name : ""), (mod ? ":" : ""), LYD_NAME(node));
     size = new_size;
 
-    if (node->schema) {
-        size = filter_xpath_buf_append_attrs(node->meta, buf, size);
-    } else {
-        /* TODO print opaq attributes */
-    }
+    size = filter_xpath_buf_append_attrs(node, buf, size);
 
     return size;
 }
@@ -1036,6 +1046,7 @@ filter_xpath_buf_append_node(const struct lyd_node *node, char **buf, int size)
  * to an NP2 filter structure, recursively.
  *
  * @param[in] node Subtree filter node.
+ * @param[in] top_mod Optional top-level module to use.
  * @param[in,out] buf Current XPath filter buffer.
  * @param[in] size Current @p buf size.
  * @param[in,out] filter NP2 filter structure to add to.
@@ -1043,13 +1054,14 @@ filter_xpath_buf_append_node(const struct lyd_node *node, char **buf, int size)
  * @return -1 on error.
  */
 static int
-filter_xpath_buf_add_r(const struct lyd_node *node, char **buf, int size, struct np2_filter *filter)
+filter_xpath_buf_add_r(const struct lyd_node *node, const struct lys_module *top_mod, char **buf, int size,
+        struct np2_filter *filter)
 {
     const struct lyd_node *child;
     int s, only_content_match, selection;
 
     /* containment node or selection node */
-    size = filter_xpath_buf_append_node(node, buf, size);
+    size = filter_xpath_buf_append_node(node, top_mod, buf, size);
     if (size < 1) {
         return -1;
     }
@@ -1092,10 +1104,10 @@ filter_xpath_buf_add_r(const struct lyd_node *node, char **buf, int size, struct
     LY_LIST_FOR(lyd_child(node), child) {
         if (lyd_child(child)) {
             /* child containment node */
-            filter_xpath_buf_add_r(child, buf, size, filter);
+            filter_xpath_buf_add_r(child, NULL, buf, size, filter);
         } else {
             /* child selection node or content node (both should be included in the output) */
-            s = filter_xpath_buf_append_node(child, buf, size);
+            s = filter_xpath_buf_append_node(child, NULL, buf, size);
             if (!s) {
                 continue;
             } else if (s < 0) {
@@ -1112,25 +1124,29 @@ filter_xpath_buf_add_r(const struct lyd_node *node, char **buf, int size, struct
     return 0;
 }
 
-int
-op_filter_create_subtree(const struct lyd_node *node, struct np2_filter *filter)
+/**
+ * @brief Process a top-level subtree filter node.
+ *
+ * @param[in] node Subtree filter node.
+ * @param[in] top_mod Optional top-level module to use.
+ * @param[in,out] filter NP2 filter structure to add to.
+ * @return 0 on success;
+ * @return -1 on error.
+ */
+static int
+filter_xpath_create_top(const struct lyd_node *node, const struct lys_module *top_mod, struct np2_filter *filter)
 {
-    const struct lyd_node *iter;
     char *buf = NULL;
 
-    LY_LIST_FOR(node, iter) {
-        if (iter->schema && lyd_get_value(iter) && !strws(lyd_get_value(iter))) {
-            /* special case of top-level content match node */
-            if (filter_xpath_buf_add_top_content(iter, filter)) {
-                goto error;
-            }
-        } else if (iter->schema || !((struct lyd_node_opaq *)iter)->value || strws(((struct lyd_node_opaq *)iter)->value)) {
-            /* containment or selection node */
-            if (filter_xpath_buf_add_r(iter, &buf, 1, filter)) {
-                goto error;
-            }
-        } else {
-            WRN("Skipping unsupported top-level filter node \"%s\".", LYD_NAME(iter));
+    if (lyd_get_value(node) && !strws(lyd_get_value(node))) {
+        /* special case of top-level content match node */
+        if (filter_xpath_buf_add_top_content(node, top_mod, filter)) {
+            goto error;
+        }
+    } else {
+        /* containment or selection node */
+        if (filter_xpath_buf_add_r(node, top_mod, &buf, 1, filter)) {
+            goto error;
         }
     }
 
@@ -1139,6 +1155,47 @@ op_filter_create_subtree(const struct lyd_node *node, struct np2_filter *filter)
 
 error:
     free(buf);
+    return -1;
+}
+
+int
+op_filter_create_subtree(const struct lyd_node *node, struct np2_filter *filter)
+{
+    const struct lyd_node *iter;
+    const struct lys_module *mod;
+    const struct lysc_node *snode;
+    uint32_t idx;
+
+    LY_LIST_FOR(node, iter) {
+        if (!iter->schema && !((struct lyd_node_opaq *)iter)->name.prefix) {
+            /* no top-level namespace, generate all possible XPaths */
+            idx = 0;
+            while ((mod = ly_ctx_get_module_iter(LYD_CTX(iter), &idx))) {
+                if (!mod->implemented) {
+                    continue;
+                }
+
+                snode = NULL;
+                while ((snode = lys_getnext(snode, NULL, mod->compiled, 0))) {
+                    if (snode->name == ((struct lyd_node_opaq *)iter)->name.name) {
+                        /* match */
+                        if (filter_xpath_create_top(iter, mod, filter)) {
+                            goto error;
+                        }
+                    }
+                }
+            }
+        } else {
+            /* iter has a valid schema/namespace */
+            if (filter_xpath_create_top(iter, NULL, filter)) {
+                goto error;
+            }
+        }
+    }
+
+    return 0;
+
+error:
     op_filter_erase(filter);
     return -1;
 }
