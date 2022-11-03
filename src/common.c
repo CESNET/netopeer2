@@ -44,6 +44,7 @@
 
 #include "common.h"
 #include "compat.h"
+#include "err_netconf.h"
 #include "log.h"
 #include "netconf_monitoring.h"
 
@@ -1331,7 +1332,6 @@ int
 op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_options_t get_opts,
         const struct np2_filter *filter, sr_session_ctx_t *ev_sess, struct lyd_node **data)
 {
-    const sr_error_info_t *err_info;
     sr_data_t *sr_data;
     uint32_t i;
     int rc;
@@ -1342,8 +1342,7 @@ op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_options
         rc = sr_get_data(session, filter->filters[i].str, max_depth, np2srv.sr_timeout, get_opts, &sr_data);
         if (rc) {
             ERR("Getting data \"%s\" from sysrepo failed (%s).", filter->filters[i].str, sr_strerror(rc));
-            sr_session_get_error(session, &err_info);
-            sr_session_set_error_message(ev_sess, err_info->err[0].message);
+            np_err_sr2nc_get(ev_sess, session);
             return rc;
         }
 

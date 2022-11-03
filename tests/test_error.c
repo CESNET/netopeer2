@@ -346,6 +346,25 @@ test_none_missing(void **state)
     FREE_TEST_VARS(st);
 }
 
+/* RFC 6241 sec.8.9.1. */
+static void
+test_invalid_xpath_filter(void **state)
+{
+    struct np_test *st = *state;
+
+    /* use Xpath filter that does not evaluate to a node set */
+    SEND_GET_CONFIG_PARAM(st, NC_DATASTORE_RUNNING, NC_WD_ALL, "count(/errors:cont/l)");
+    ASSERT_ERROR_REPLY(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>application</error-type>\n"
+            "  <error-tag>invalid-value</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">XPath \"count(/errors:cont/l)\" result is not a node set.</error-message>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+}
+
 /* RFC 6241 Appendix A bad-element */
 static void
 test_bad_element(void **state)
@@ -465,6 +484,7 @@ main(int argc, char **argv)
         cmocka_unit_test(test_create_exists),
         cmocka_unit_test(test_delete_missing),
         cmocka_unit_test(test_none_missing),
+        cmocka_unit_test(test_invalid_xpath_filter),
         cmocka_unit_test(test_bad_element),
         cmocka_unit_test(test_unknown_element),
         cmocka_unit_test(test_unknown_namespace),

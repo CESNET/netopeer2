@@ -284,3 +284,23 @@ mem_error:
     free(str);
     free(str2);
 }
+
+void
+np_err_sr2nc_get(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
+{
+    const sr_error_info_t *err_info;
+    const sr_error_info_err_t *err;
+
+    /* get the error */
+    sr_session_get_error((sr_session_ctx_t *)err_sess, &err_info);
+    assert(err_info);
+    err = &err_info->err[0];
+
+    if (strstr(err->message, " result is not a node set.")) {
+        /* invalid-value */
+        np_err_invalid_value(ev_sess, err->message, NULL);
+    } else {
+        /* other error */
+        sr_session_dup_error((sr_session_ctx_t *)err_sess, ev_sess);
+    }
+}

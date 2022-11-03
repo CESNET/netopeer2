@@ -112,10 +112,13 @@
     assert_null(state->op); \
     assert_string_equal(LYD_NAME(lyd_child(state->envp)), "rpc-error");
 
-#define GET_CONFIG_DS_WD_FILTER(state, ds, wd, filter) \
+#define SEND_GET_CONFIG_PARAM(state, ds, wd, filter) \
     state->rpc = nc_rpc_getconfig(ds, filter, wd, NC_PARAMTYPE_CONST); \
     state->msgtype = nc_send_rpc(state->nc_sess, state->rpc, 1000, &state->msgid); \
-    assert_int_equal(NC_MSG_RPC, state->msgtype); \
+    assert_int_equal(NC_MSG_RPC, state->msgtype);
+
+#define GET_CONFIG_DS_WD_FILTER(state, ds, wd, filter) \
+    SEND_GET_CONFIG_PARAM(state, ds, wd, filter) \
     state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
     assert_non_null(state->op); \

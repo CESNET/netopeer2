@@ -37,4 +37,6 @@ void np_err_ntf_sub_no_such_sub(sr_session_ctx_t *ev_sess, const char *message);
 
 void np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess);
 
+void np_err_sr2nc_get(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess);
+
 #endif /* NP2SRV_ERR_NETCONF_H_ */
