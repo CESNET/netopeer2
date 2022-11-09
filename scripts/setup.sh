@@ -29,7 +29,6 @@ MODULES=(
 "nc-notifications@2008-07-14.yang"
 "notifications@2008-07-14.yang"
 "ietf-x509-cert-to-name@2014-12-10.yang"
-"ietf-crypto-types@2019-07-02.yang"
 "ietf-keystore@2019-07-02.yang -e keystore-supported"
 "ietf-truststore@2019-07-02.yang -e truststore-supported -e x509-certificates"
 "ietf-tcp-common@2019-07-02.yang -e keepalives-supported"
