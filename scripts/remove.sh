@@ -5,7 +5,7 @@
 if [ -n "$SYSREPOCTL_EXECUTABLE" ]; then
     SYSREPOCTL="$SYSREPOCTL_EXECUTABLE"
 # avoid problems with sudo PATH
-elif [ `id -u` -eq 0 ]; then
+elif [ `id -u` -eq 0 -a -n "$USER" ]; then
     SYSREPOCTL=`su -c 'command -v sysrepoctl' -l $USER`
 else
     SYSREPOCTL=`command -v sysrepoctl`
