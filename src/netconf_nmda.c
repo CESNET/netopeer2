@@ -139,8 +139,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     node = nodeset->count ? nodeset->dnodes[0] : NULL;
     ly_set_free(nodeset, NULL);
     if (node && !strcmp(node->schema->name, "subtree-filter")) {
-        if (op_filter_create_subtree(((struct lyd_node_any *)node)->value.tree, &filter)) {
-            rc = SR_ERR_INTERNAL;
+        if ((rc = op_filter_create_subtree(((struct lyd_node_any *)node)->value.tree, session, &filter))) {
             goto cleanup;
         }
     } else {

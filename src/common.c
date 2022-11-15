@@ -1160,8 +1160,9 @@ error:
 }
 
 int
-op_filter_create_subtree(const struct lyd_node *node, struct np2_filter *filter)
+op_filter_create_subtree(const struct lyd_node *node, sr_session_ctx_t *ev_sess, struct np2_filter *filter)
 {
+    int rc = SR_ERR_OK, match;
     const struct lyd_node *iter;
     const struct lys_module *mod;
     const struct lysc_node *snode;
@@ -1170,6 +1171,7 @@ op_filter_create_subtree(const struct lyd_node *node, struct np2_filter *filter)
     LY_LIST_FOR(node, iter) {
         if (!iter->schema && !((struct lyd_node_opaq *)iter)->name.prefix) {
             /* no top-level namespace, generate all possible XPaths */
+            match = 0;
             idx = 0;
             while ((mod = ly_ctx_get_module_iter(LYD_CTX(iter), &idx))) {
                 if (!mod->implemented) {
@@ -1180,25 +1182,35 @@ op_filter_create_subtree(const struct lyd_node *node, struct np2_filter *filter)
                 while ((snode = lys_getnext(snode, NULL, mod->compiled, 0))) {
                     if (snode->name == ((struct lyd_node_opaq *)iter)->name.name) {
                         /* match */
+                        match = 1;
                         if (filter_xpath_create_top(iter, mod, filter)) {
-                            goto error;
+                            rc = SR_ERR_NO_MEMORY;
+                            goto cleanup;
                         }
                     }
                 }
             }
+
+            if (!match) {
+                sr_session_set_error_message(ev_sess,
+                        "Subtree filter node \"%s\" without a namespace does not match any YANG nodes.", LYD_NAME(iter));
+                rc = SR_ERR_NOT_FOUND;
+                goto cleanup;
+            }
         } else {
             /* iter has a valid schema/namespace */
             if (filter_xpath_create_top(iter, NULL, filter)) {
-                goto error;
+                rc = SR_ERR_NO_MEMORY;
+                goto cleanup;
             }
         }
     }
 
-    return 0;
-
-error:
-    op_filter_erase(filter);
-    return -1;
+cleanup:
+    if (rc) {
+        op_filter_erase(filter);
+    }
+    return rc;
 }
 
 int

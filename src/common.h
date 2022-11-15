@@ -258,11 +258,11 @@ struct np2_filter {
  * @brief Create NP2 filter structure from a subtree filter.
  *
  * @param[in] node Subtree filter.
- * @param[out] filter Generated NP2 filter.
- * @return 0 on success;
- * @return -1 on error.
+ * @param[in,out] ev_sess SR event session to set the error on.
+ * @param[in,out] filter Generated NP2 filter.
+ * @return SR error value.
  */
-int op_filter_create_subtree(const struct lyd_node *node, struct np2_filter *filter);
+int op_filter_create_subtree(const struct lyd_node *node, sr_session_ctx_t *ev_sess, struct np2_filter *filter);
 
 /**
  * @brief Create NP2 filter structure from an XPath filter.

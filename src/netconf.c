@@ -132,8 +132,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
         if (!meta) {
             /* subtree */
             if (((struct lyd_node_any *)node)->value_type == LYD_ANYDATA_DATATREE) {
-                if (op_filter_create_subtree(((struct lyd_node_any *)node)->value.tree, &filter)) {
-                    rc = SR_ERR_INTERNAL;
+                if ((rc = op_filter_create_subtree(((struct lyd_node_any *)node)->value.tree, session, &filter))) {
                     goto cleanup;
                 }
             }
@@ -952,8 +951,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         if (!meta) {
             /* subtree */
             if (((struct lyd_node_any *)node)->value_type == LYD_ANYDATA_DATATREE) {
-                if (op_filter_create_subtree(((struct lyd_node_any *)node)->value.tree, &filter)) {
-                    rc = SR_ERR_INTERNAL;
+                if ((rc = op_filter_create_subtree(((struct lyd_node_any *)node)->value.tree, session, &filter))) {
                     goto cleanup;
                 }
                 if ((rc = op_filter_filter2xpath(&filter, &xp))) {
@@ -1056,8 +1054,6 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
 
     /* owned now by the callback */
     cb_data = NULL;
-
-    /* success */
 
 cleanup:
     if (rc && has_nc_ntf_status) {

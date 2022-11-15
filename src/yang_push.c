@@ -812,8 +812,7 @@ yang_push_rpc_filter2xpath(sr_session_ctx_t *user_sess, const struct lyd_node *r
     if (!strcmp(node->schema->name, "datastore-subtree-filter")) {
         /* subtree */
         if (((struct lyd_node_any *)node)->value_type == LYD_ANYDATA_DATATREE) {
-            if (op_filter_create_subtree(((struct lyd_node_any *)node)->value.tree, &filter)) {
-                rc = SR_ERR_INTERNAL;
+            if ((rc = op_filter_create_subtree(((struct lyd_node_any *)node)->value.tree, ev_sess, &filter))) {
                 goto cleanup;
             }
             if ((rc = op_filter_filter2xpath(&filter, xpath))) {
