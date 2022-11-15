@@ -27,6 +27,7 @@
 
 #include "common.h"
 #include "compat.h"
+#include "err_netconf.h"
 #include "log.h"
 
 struct ncm stats;
@@ -397,4 +398,112 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
 error:
     lyd_free_tree(root);
     return SR_ERR_INTERNAL;
+}
+
+int
+np2srv_rpc_getschema_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
+        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *output,
+        void *UNUSED(private_data))
+{
+    const char *identifier = NULL, *revision = NULL, *format = NULL;
+    const struct ly_ctx *ly_ctx = NULL;
+    int rc = SR_ERR_OK;
+    char *model_data = NULL;
+    struct ly_out *out;
+    const struct lys_module *module = NULL;
+    const struct lysp_submodule *submodule = NULL;
+    struct lyd_node *node;
+    LYS_OUTFORMAT outformat = 0;
+
+    if (np_ignore_rpc(session, event, &rc)) {
+        /* ignore in this case */
+        return rc;
+    }
+
+    /* identifier */
+    if (!lyd_find_path(input, "identifier", 0, &node)) {
+        identifier = lyd_get_value(node);
+    }
+
+    /* revision */
+    if (!lyd_find_path(input, "version", 0, &node)) {
+        revision = lyd_get_value(node);
+        if (!strlen(revision)) {
+            revision = NULL;
+        }
+    }
+
+    /* format */
+    if (!lyd_find_path(input, "format", 0, &node)) {
+        format = lyd_get_value(node);
+    }
+    VRB("Module \"%s@%s\" was requested.", identifier, revision ? revision : "<any>");
+
+    /* check revision */
+    if (revision && (strlen(revision) != 10) && strcmp(revision, "1.0")) {
+        np_err_invalid_value(session, "The requested version is not supported.", NULL);
+        rc = SR_ERR_INVAL_ARG;
+        goto cleanup;
+    }
+
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
+    if (revision) {
+        /* get specific module */
+        module = ly_ctx_get_module(ly_ctx, identifier, revision);
+        if (!module) {
+            submodule = ly_ctx_get_submodule(ly_ctx, identifier, revision);
+        }
+    } else {
+        /* try to get implemented, then latest module */
+        module = ly_ctx_get_module_implemented(ly_ctx, identifier);
+        if (!module) {
+            module = ly_ctx_get_module_latest(ly_ctx, identifier);
+        }
+        if (!module) {
+            submodule = ly_ctx_get_submodule_latest(ly_ctx, identifier);
+        }
+    }
+    if (!module && !submodule) {
+        np_err_invalid_value(session, "The requested module was not found.", NULL);
+        rc = SR_ERR_INVAL_ARG;
+        goto cleanup;
+    }
+
+    /* check format */
+    if (!format || !strcmp(format, "ietf-netconf-monitoring:yang")) {
+        outformat = LYS_OUT_YANG;
+    } else if (!strcmp(format, "ietf-netconf-monitoring:yin")) {
+        outformat = LYS_OUT_YIN;
+    } else {
+        np_err_invalid_value(session, "The requested format is not supported.", NULL);
+        rc = SR_ERR_INVAL_ARG;
+        goto cleanup;
+    }
+
+    /* print */
+    ly_out_new_memory(&model_data, 0, &out);
+    if (module) {
+        lys_print_module(out, module, outformat, 0, 0);
+    } else {
+        lys_print_submodule(out, submodule, outformat, 0, 0);
+    }
+    ly_out_free(out, NULL, 0);
+    if (!model_data) {
+        rc = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
+
+    /* add output */
+    if (lyd_new_any(output, NULL, "data", model_data, 1, LYD_ANYDATA_STRING, 1, NULL)) {
+        rc = SR_ERR_LY;
+        goto cleanup;
+    }
+    model_data = NULL;
+
+cleanup:
+    if (ly_ctx) {
+        sr_release_context(np2srv.sr_conn);
+    }
+    free(model_data);
+    return rc;
 }

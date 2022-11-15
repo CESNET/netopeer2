@@ -350,10 +350,8 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
     NC_WD_MODE nc_wd;
     int rc;
 
-    /* use default lnc2 callbacks when available */
-    if (!strcmp(LYD_NAME(rpc), "get-schema") && !strcmp(lyd_owner_module(rpc)->name, "ietf-netconf-monitoring")) {
-        return nc_clb_default_get_schema(rpc, ncs);
-    } else if (!strcmp(LYD_NAME(rpc), "close-session") && !strcmp(lyd_owner_module(rpc)->name, "ietf-netconf")) {
+    if (!strcmp(LYD_NAME(rpc), "close-session") && !strcmp(lyd_owner_module(rpc)->name, "ietf-netconf")) {
+        /* call close-session directly */
         return nc_clb_default_close_session(rpc, ncs);
     }
 
@@ -718,12 +716,15 @@ server_rpc_subscribe(void)
     SR_RPC_SUBSCR("/ietf-netconf:lock", np2srv_rpc_un_lock_cb);
     SR_RPC_SUBSCR("/ietf-netconf:unlock", np2srv_rpc_un_lock_cb);
     SR_RPC_SUBSCR("/ietf-netconf:get", np2srv_rpc_get_cb);
-    /* keep close-session empty so that internal lnc2 callback is used */
+    /* close-session called directly */
     SR_RPC_SUBSCR("/ietf-netconf:kill-session", np2srv_rpc_kill_cb);
     SR_RPC_SUBSCR("/ietf-netconf:commit", np2srv_rpc_commit_cb);
     SR_RPC_SUBSCR("/ietf-netconf:cancel-commit", np2srv_rpc_cancel_commit_cb);
     SR_RPC_SUBSCR("/ietf-netconf:discard-changes", np2srv_rpc_discard_cb);
     SR_RPC_SUBSCR("/ietf-netconf:validate", np2srv_rpc_validate_cb);
+
+    /* subscribe to get-schema */
+    SR_RPC_SUBSCR("/ietf-netconf-monitoring:get-schema", np2srv_rpc_getschema_cb);
 
     /* subscribe to create-subscription */
     SR_RPC_SUBSCR("/notifications:create-subscription", np2srv_rpc_subscribe_cb);
