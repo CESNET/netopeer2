@@ -6,7 +6,7 @@ set -e
 if [ -n "$SYSREPOCFG_EXECUTABLE" ]; then
     SYSREPOCFG="$SYSREPOCFG_EXECUTABLE"
 # avoid problems with sudo PATH
-elif [ `id -u` -eq 0 -a -n "$USER" ]; then
+elif [ `id -u` -eq 0 ] && [ -n "$USER" ] && [ `command -v su` ]; then
     SYSREPOCFG=`su -c 'command -v sysrepocfg' -l $USER`
 else
     SYSREPOCFG=`command -v sysrepocfg`
