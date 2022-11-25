@@ -2,7 +2,7 @@
 .\" groff -man -Tascii netopeer2-cli.1
 .\"
 
-.TH "netopeer2-cli" 1 "2021-11-10" "Netopeer"
+.TH "netopeer2-cli" 1 "2022-11-25" "Netopeer"
 .SH NAME
 netopeer2-cli \- NETCONF client with command line interface build on libnetconf2
 .
@@ -21,9 +21,9 @@ NETCONF protocol version 1.0 and 1.1 (RFC 6241)
 .IP \(bu 2
 SSH transport (RFC 6242)
 .IP \(bu 2
-TLS transport (RFC 5539bis)
+TLS transport (RFC 7589)
 .IP \(bu 2
-Call Home (reverse SSH/TLS)
+Call Home (RFC 8071)
 .IP \(bu 2
 Event Notifications (RFC 5277)
 .IP \(bu 2
@@ -44,6 +44,14 @@ Access Control (RFC 6536)
 :url capability
 .IP \(bu 2
 :xpath capability
+.IP \(bu 2
+NMDA operations (RFC 8526)
+.IP \(bu 2
+YANG Schema Mount (RFC 8528)
+.IP \(bu 2
+YANG notification subscriptions (RFC 8639)
+.IP \(bu 2
+YANG Push subscriptions (RFC 8641)
 .
 .SH TRANSPORT
 The supported transport protocols are detected automatically based on how was libnetconf2 compiled.
@@ -52,9 +60,146 @@ contains them all.
 .
 .SH COMMANDS
 
-.SS help
-Display list of commands. \fI\-\-(h)elp\fR option is also accepted by all commands
-to show detailed information about the command.
+.SS auth
+Manage SSH authentication options - authentication preferences and private keys.
+.PP
+This command is available with SSH support.
+.PP
+
+.B auth
+(\-\-help | pref [(publickey | interactive | password) \fIpreference\fR] | keys [add \fIprivate_key_path\fR] [remove \fIkey_index\fR])
+.PP
+.RS 4
+
+.B pref
+.RS 4
+Print the current authentication method preferences or change a specific method preference.
+.RE
+.PP
+\fIpreference\fR
+.RS 4
+The new preference of the authentication method. Negative values disable the authentication method.
+.RE
+.PP
+
+.B keys
+.RS 4
+Manage keys used for authentication.
+.RE
+.PP
+\fIpath_to_the_key\fR
+.RS 4
+If specified,
+.B add
+or
+.B remove
+the keys. If not, show the current keys.
+.RE
+.PP
+
+.B remove
+\fIcert_name\fR
+.RS 4
+Removes the \fIcert_name\fR certificate from the trusted CA dir \fI~/.netopeer2-cli/certs\fR and recalculates hashes of all the certificates. \fIcert_name\fR is the certificate file name, as displayed in the
+.B cert display
+command output.
+.RE
+.PP
+
+.B displayown
+.RS 4
+Shows information about the status of the default client certificates and displays information about any relevant found client certificates \fI~/.netopeer2-cli/client.crt\fR and \fI~/.netopeer2-cli/client.pem\fR.
+.RE
+.PP
+
+.B replaceown
+\fIcert_path\fR [\fIkey_path\fR]
+.RS 4
+Replaces the default client certificates with the PEM certificate in \fIcert_path\fR or the CRT certificate \fIcert_path\fR and private key \fIkey_path\fR.
+.B All
+previous client certificates are deleted.
+.RE
+.PP
+
+
+.SS cancel-commit
+Cancel a pending confirmed commit.
+.PP
+
+.B cancel-commit
+[\-\-help] [\-\-persist\-id \fIcommit-id\fR]
+.PP
+.RS 4
+
+.B \-\-persist-(i)d
+\fIcommit-id\fR
+.RS 4
+Cancel a specific \fIcommit-id\fR pending confirmed commit.
+.RE
+.RE
+
+
+.SS cert
+Manage client and trusted Certificate Authority certificates that are used for TLS verification stored in \fI~/.netopeer2-cli/client.*\fR and \fI~/.netopeer2-cli/certs\fR respectively.
+.PP
+This command is available with TLS support.
+.PP
+
+.B cert
+[\-\-help] [display] [add \fIcert_path\fR] [remove \fIcert_name\fR] [displayown] [replaceown (\fIcert_path.pem\fR | \fIcert_path.crt\fR \fIkey_path.key\fR)]
+.PP
+.RS 4
+
+.B display
+.RS 4
+Displays all the recognized certificates in \fI~/.netopeer2-cli/certs\fR. First the file name and serial number, then subject, issuer and validity are shown for each certificate.
+.RE
+.PP
+
+.B add
+\fIcert_path\fR
+.RS 4
+Adds the \fIcert_path\fR certificate to the trusted CA dir \fI~/.netopeer2-cli/certs\fR and recalculates hashes of all the certificates.
+.RE
+.PP
+
+
+.SS commit
+Perform NETCONF <commit> operation. For more details see \fIRFC 6241 section 8.3.4.1\fR.
+.PP
+
+.B commit
+[\-\-help] [\-\-confirmed] [\-\-confirm-timeout \fIsec\fR] [\-\-persist \fInew-commit-id\fR] [\-\-persist-id \fIcommit-id\fR]
+.PP
+.RS 4
+
+.B \-\-(c)onfirmed
+.RS 4
+Make the <commit> a confirmed commit. See \fIRFC 6421 section 8.4\fR.
+.RE
+.PP
+
+.B \-\-confirm-(t)imeout
+\fIsec\fR
+.RS 4
+Specify the confirmed commit timeout. Can be used only with
+.B \-\-confirmed.
+.RE
+.PP
+
+.B \-\-(p)ersist
+\fInew-commit-id\fR
+.RS 4
+Make the commit a persistent commit. \fInew-commit-id\fR is the identificator of the commit.
+.RE
+.PP
+
+.B \-\-persist-(i)d
+\fIcommit-id\fR
+.RS 4
+Confirm a persistent commit with the \fIcommit-id\fR identificator.
+.RE
+.RE
 
 
 .SS connect
@@ -130,100 +275,6 @@ Specifies path to a trusted CA certificate bundle in PEM format to be used exclu
 .RE
 
 
-.SS listen
-Listen for a NETCONF Call Home.
-.PP
-
-.B listen
-[\-\-help] [\-\-timeout \fIsec\fR] [\-\-host \fIhostname\fR] [\-\-port \fInum\fR]
-    [\-\-ssh] [\-\-login \fIusername\fR]
-    \-\-tls  [\-\-cert \fIcert_path\fR [\-\-key \fIkey_path\fR]] [\-\-trusted \fItrusted_CA_store.pem\fR]
-.PP
-.RS 4
-
-.B \-\-t(i)meout
-\fIsec\fR
-.RS 4
-Specifies the time for how long the CLI will listen for the Call Home connection. By default, 60 (a minute) is used.
-.RE
-.PP
-
-.B \-\-h(o)st
-\fIhostname\fR
-.RS 4
-Specifies the hostname (interface) to listen on. By default, ::0 is used.
-.RE
-.PP
-
-.B \fIother options\fR
-.RS 4
-The rest of the options have similar meaning as in
-.B connect.
-.RE
-.RE
-
-
-.SS disconnect
-Disconnect from a NETCONF server.
-.RE
-.RE
-
-
-.SS commit
-Perform NETCONF <commit> operation. For more details see \fIRFC 6241 section 8.3.4.1\fR.
-.PP
-
-.B commit
-[\-\-help] [\-\-confirmed] [\-\-confirm-timeout \fIsec\fR] [\-\-persist \fInew-commit-id\fR] [\-\-persist-id \fIcommit-id\fR]
-.PP
-.RS 4
-
-.B \-\-(c)onfirmed
-.RS 4
-Make the <commit> a confirmed commit. See \fIRFC 6421 section 8.4\fR.
-.RE
-.PP
-
-.B \-\-confirm-(t)imeout
-\fIsec\fR
-.RS 4
-Specify the confirmed commit timeout. Can be used only with
-.B \-\-confirmed.
-.RE
-.PP
-
-.B \-\-(p)ersist
-\fInew-commit-id\fR
-.RS 4
-Make the commit a persistent commit. \fInew-commit-id\fR is the identificator of the commit.
-.RE
-.PP
-
-.B \-\-persist-(i)d
-\fIcommit-id\fR
-.RS 4
-Confirm a persistent commit with the \fIcommit-id\fR identificator.
-.RE
-.RE
-
-
-.SS cancel-commit
-Cancel a pending confirmed commit.
-.PP
-
-.B cancel-commit
-[\-\-help] [\-\-persist\-id \fIcommit-id\fR]
-.PP
-.RS 4
-
-.B \-\-persist-(i)d
-\fIcommit-id\fR
-.RS 4
-Cancel a specific \fIcommit-id\fR pending confirmed commit.
-.RE
-.RE
-
-
 .SS copy-config
 Perform NETCONF <copy-config> operation. For more details see \fIRFC 6241 section 7.3\fR.
 .PP
@@ -264,6 +315,40 @@ see \fIRFC 6243 section 3\fR.
 .RE
 
 
+.SS crl
+Manage Certificate Revocation List certificates that are stored in the \fI~/.netopeer2-cli/crl\fR directory.
+.PP
+This command is available only with TLS support.
+.PP
+
+.B crl
+[\-\-help] [display] [add \fIcrl_path\fR] [remove \fIcrl_name\fR]
+.PP
+.RS 4
+
+.B display
+.RS 4
+Displays all the recognized CRLs in \fI~/.netopeer2-cli/crl\fR. First the file name, then issuer, last and next update dates are shown for each CRL followed by the serial numbers and revocation dates of all the revocated certificates.
+.RE
+.PP
+
+.B add
+\fIcrl_path\fR
+.RS 4
+Adds the \fIcrl_path\fR CRL to the \fI~/.netopeer2-cli/crl\fR dir and recalculates hashes of all the CRLs.
+.RE
+.PP
+
+.B remove
+\fIcrl_name\fR
+.RS 4
+Removes the \fIcert_name\fR CRL from the \fI~/.netopeer2-cli/crl\fR dir and recalculates hashes of all the CRLs. \fIcrl_name\fR is the CRL file name, as displayed in the
+.B crl display
+command output.
+.RE
+.RE
+
+
 .SS delete-config
 Perform NETCONF <delete-config> operation. For more details see \fIRFC 6241 section 7.4\fR.
 .PP
@@ -281,12 +366,35 @@ Specifies the target of the <delete-config> operation. Either the startup datast
 .RE
 
 
+.SS delete-sub
+Perform YANG notifications <delete-subscription> operation. For more details see \fIRFC 8639 section 2.4.4.\fR.
+.PP
+
+.B delete-sub
+[\-\-help] \-\-id <sub\-ID> [\-\-out <file>] [\-\-rpc\-timeout <seconds>]
+.PP
+.RS 4
+
+.B \-\-(i)d
+\fIsub\-ID\fR
+.RS 4
+ID of the subscription to delete.
+.RE
+.PP
+
+
 .SS discard-changes
 Perform NETCONF <discard-changes> operation. It reverts the
 .I candidate
 configuration to the current
 .I running
 configuration. For more details see \fIRFC 6241 section 8.3.4.2\fR.
+.RE
+.RE
+
+
+.SS disconnect
+Disconnect from a NETCONF server.
 .RE
 .RE
 
@@ -371,6 +479,267 @@ only if the server supports :rollback-on-error capability (see \fIRFC 6241 secti
 .RE
 
 
+.SS edit-data
+Perform NMDA <edit-data> operation. For more details see \fIRFC 8526 section 3.1.2.\fR.
+.PP
+
+.B edit-data
+[\-\-help] \-\-datastore running|startup|candidate (\-\-config[=<file>] | \-\-url <url>) [\-\-defop merge|replace|none]
+[\-\-rpc\-timeout <seconds>]
+.PP
+.RS 4
+
+.B \-\-(d)atastore
+running|startup|candidate
+.RS 4
+Selects the datastore to edit.
+.RE
+.PP
+
+.B \-\-(c)onfig
+[\fIfile\fR]
+.RS 4
+Specifies the content of the <edit-config> operation. If a \fIfile\fR with the configuration is not specified,
+the configuration is read from the standard input.
+.RE
+.PP
+
+.B \-\-(u)rl
+\fIur\fR
+.RS 4
+Specifies the content of the <edit-config> operation. It is retrieved from that specific URL.
+.RE
+.PP
+
+.B \-\-def(o)p
+merge|replace|none
+.RS 4
+Specifies default operation for applying configuration data.
+.IP merge
+Merge configuration data at the corresponding level. This is the default value.
+.IP replace
+Edit configuration data completely replaces the configuration in the target
+datastore.
+.IP none
+The target datastore is unaffected by the edit configuration data, unless and
+until the edit configuration data contains the
+.I operation
+attribute to request a different operation.
+.RE
+.PP
+
+
+.SS editor
+Manage the external editor used for modifying raw input data.
+.PP
+
+.B editor
+[\-\-help] [\fIpath/name_of_the_editor\fR]
+.PP
+.RS 4
+
+\fIpath/name_of_the_editor\fR
+.RS 4
+The full path or just the name of the editor to be used.
+.RE
+.RE
+
+
+.SS establish-push
+Perform YANG push <establish-subscription> operation. Must be either periodic or on-change. For more details
+see \fIRFC 8641 section 4.4.1.\fR.
+.PP
+
+.B establish-push
+[\-\-help] \-\-datastore running|startup|candidate|operational
+[\-\-filter\-subtree[=<file>] | \-\-filter\-xpath <XPath> | \-\-filter\-ref <name>] [\-\-end <time>]
+[\-\-encoding <encoding>] (\-\-periodic \-\-period <period> [\-\-anchor\-time <time>] |
+\-\-on\-change [\-\-dampening\-period <period>] [\-\-no\-sync\-on\-start] [\-\-excluded\-change <change>]*)
+[\-\-out <file>] [\-\-rpc\-timeout <seconds>]
+.PP
+.RS 4
+
+.B \-\-(d)atastore
+running|startup|candidate|operational
+.RS 4
+Selects the datastore to subscribe to for YANG push updates.
+.RE
+.PP
+
+.B \-\-filter-(s)ubtree
+[\fIfile\fR]
+.RS 4
+Specifies whether the request will contain a subtree filter (\fIRFC 6241 section 6\fR).
+The \fIfile\fR is expected to contain the filter specification. If it is not specified,
+it is read from standard input.
+.RE
+.PP
+
+.B \-\-filter-(x)path
+\fIXPath\fR
+.RS 4
+Specifies whether the request will contain an XPath filter. \fIXPath\fR is the expression
+used for filtering.
+.RE
+.PP
+
+.B \-\-filter-(r)ef
+\fIname\fR
+.RS 4
+Specifies whether the request will contain a referenced stored filter.
+.RE
+.PP
+
+.B \-\-(e)nd
+\fItime\fR
+.RS 4
+Specifies when the event replay stops. Format of the \fItime\fR parameter is
+as follows:
+.IP +\fItime\fR
+Current time plus the given number of seconds.
+.IP \fItime\fR
+Absolute time as number of seconds since 1970-01-01.
+.IP -\fItime\fR
+Current time minus the given number of seconds.
+.RE
+.PP
+
+.B \-\-(e)ncoding
+\fIencoding\fR
+.RS 4
+Encoding to use for the notification. The default is XML, which is only what NETCONF supports.
+.RE
+.PP
+
+.B \-\-period
+\fIperiod\fR
+.RS 4
+Periodic push subscription period determining the interval between notifications.
+.RE
+.PP
+
+.B \-\-anchor\-time
+\fItime\fR
+.RS 4
+Periodic push subscription point in time to anchor the period to.
+.RE
+.PP
+
+.B \-\-dampening\-period
+\fIperiod\fR
+.RS 4
+On-change push subscription dampening period to prevent too many subscriptions being sent.
+.RE
+.PP
+
+.B \-\-no\-sync\-on\-start
+.RS 4
+On-change push subscription option to not sent an initial subscription with the current configuration.
+.RE
+.PP
+
+.B \-\-excluded\-change
+\fIchange\fR
+.RS 4
+On-change push subscription changes that will be excluded and not reported in the notifications.
+.RE
+.PP
+
+
+.SS establish-sub
+Perform YANG notifications <establish-subscription> operation. For more details see \fIRFC 8639 section 2.4.2.\fR.
+.PP
+
+.B establish-sub
+[\-\-help] \-\-stream <stream> [\-\-filter\-subtree[=<file>] | \-\-filter\-xpath <XPath> | \-\-filter\-ref <name>]
+[\-\-begin <time>] [\-\-end <time>] [\-\-encoding <encoding>] [\-\-out <file>] [\-\-rpc\-timeout <seconds>]
+.PP
+.RS 4
+
+.B \-\-s(t)ream
+\fIstream\fR
+.RS 4
+NETCONF event stream to subscribe to.
+.RE
+.PP
+
+.B \-\-filter-(s)ubtree
+[\fIfile\fR]
+.RS 4
+Specifies whether the request will contain a subtree filter (\fIRFC 6241 section 6\fR).
+The \fIfile\fR is expected to contain the filter specification. If it is not specified,
+it is read from standard input.
+.RE
+.PP
+
+.B \-\-filter-(x)path
+\fIXPath\fR
+.RS 4
+Specifies whether the request will contain an XPath filter. \fIXPath\fR is the expression
+used for filtering.
+.RE
+.PP
+
+.B \-\-filter-(r)ef
+\fIname\fR
+.RS 4
+Specifies whether the request will contain a referenced stored filter.
+.RE
+.PP
+
+.B \-\-(b)egin
+\fItime\fR
+.RS 4
+Start to replay event notifications from past (future time is not valid).
+If the start time is not specified, replay feature is not activated and only
+new event notifications are received. Format of the \fItime\fR parameter is
+described below.
+.RE
+.PP
+
+.B \-\-(e)nd
+\fItime\fR
+.RS 4
+Specifies when the event replay stops. Format of the \fItime\fR parameter is
+as follows:
+.IP +\fItime\fR
+Current time plus the given number of seconds.
+.IP \fItime\fR
+Absolute time as number of seconds since 1970-01-01.
+.IP -\fItime\fR
+Current time minus the given number of seconds.
+.RE
+.PP
+
+.B \-\-(e)ncoding
+\fIencoding\fR
+.RS 4
+Encoding to use for the notification. The default is XML, which is only what NETCONF supports.
+.RE
+.PP
+
+
+.SS exit
+Quit the program.
+
+
+.SS ext-data
+Set path to a data file with libyang ext data. They are required for supporting some specific YANG extensions
+such as schema-mount (see RFC 8528).
+
+.B ext-data
+[\-\-help] [\-\-path <file>]
+.PP
+.RS 4
+
+.B \-\-(p)ath
+[\fIfile\fR]
+.RS 4
+Sets the path to the YANG data file.
+.RE
+.PP
+
+
 .SS get
 Perform NETCONF <get> operation. Retrieves both status as well as configuration
 data from the current running datastore. For more details see \fIRFC 6241 section 7.7\fR.
@@ -384,7 +753,7 @@ data from the current running datastore. For more details see \fIRFC 6241 sectio
 .B \-\-filter-(s)ubtree
 [\fIfile\fR]
 .RS 4
-Specifies if the request will contain a subtree filter (\fIRFC 6241 section 6\fR).
+Specifies whether the request will contain a subtree filter (\fIRFC 6241 section 6\fR).
 The \fIfile\fR is expected to contain the filter specification. If it is not specified,
 it is read from standard input.
 .RE
@@ -393,7 +762,7 @@ it is read from standard input.
 .B \-\-filter-(x)path
 \fIXPath\fR
 .RS 4
-Specififes is the request will contain an XPath filter. \fIXPath\fR is the expression
+Specifies whether the request will contain an XPath filter. \fIXPath\fR is the expression
 used for filtering.
 .RE
 .PP
@@ -405,13 +774,6 @@ Use :with-defaults capability with specified retrieval mode. For more details
 see \fIRFC 6243 section 3\fR.
 .RE
 .PP
-
-.B \-\-(o)ut
-\fIfile\fR
-.RS 4
-Print the result of the command into a file rather than to the standard output.
-.RE
-.RE
 
 
 .SS get-config
@@ -434,7 +796,7 @@ Specifies the source of the <get-config> operation.
 .B \-\-filter-(s)ubtree
 [\fIfile\fR]
 .RS 4
-Specifies if the request will contain a subtree filter (\fIRFC 6241 section 6\fR).
+Specifies whether the request will contain a subtree filter (\fIRFC 6241 section 6\fR).
 The \fIfile\fR is expected to contain the filter specification. If it is not specified,
 it is read from standard input.
 .RE
@@ -443,7 +805,7 @@ it is read from standard input.
 .B \-\-filter-(x)path
 \fIXPath\fR
 .RS 4
-Specififes is the request will contain an XPath filter. \fIXPath\fR is the expression
+Specifies whether the request will contain an XPath filter. \fIXPath\fR is the expression
 used for filtering.
 .RE
 .PP
@@ -456,12 +818,83 @@ see \fIRFC 6243 section 3\fR.
 .RE
 .PP
 
-.B \-\-(o)ut
-\fIfile\fR
+
+.SS get-data
+Perform NMDA <get-data> operation. For more details see \fIRFC 8526 section 3.1.1.\fR.
+.PP
+
+.B get-data
+[\-\-help] \-\-datastore running|startup|candidate|operational
+[\-\-filter\-subtree[=<file>] | \-\-filter-xpath <XPath>] [\-\-config true|false] [\-\-origin <origin>]*
+[\-\-negated\-origin] [\-\-depth <subtree\-depth>] [\-\-with\-origin]
+[\-\-defaults report\-all|report\-all\-tagged|trim|explicit] [\-\-out <file>] [\-\-rpc\-timeout <seconds>]
+.PP
 .RS 4
-Print the result of the command into a file rather than to the standard output.
+
+.B \-\-(d)atastore
+running|startup|candidate|operational
+.RS 4
+Selects the datastore to get the data of.
 .RE
+.PP
+
+.B \-\-filter-(s)ubtree
+[\fIfile\fR]
+.RS 4
+Specifies whether the request will contain a subtree filter (\fIRFC 6241 section 6\fR).
+The \fIfile\fR is expected to contain the filter specification. If it is not specified,
+it is read from standard input.
 .RE
+.PP
+
+.B \-\-filter-(x)path
+\fIXPath\fR
+.RS 4
+Specifies whether the request will contain an XPath filter. \fIXPath\fR is the expression
+used for filtering.
+.RE
+.PP
+
+.B \-\-(c)onfig
+true|false
+.RS 4
+Limit the retrieved data to only configuration or only state data, respectively.
+.RE
+.PP
+
+.B \-\-(O)rigin
+\fIorigin\fR
+.RS 4
+Limit the retrieved data to include only the data with the specified origin.
+.RE
+.PP
+
+.B \-\-(n)egated\-origin
+.RS 4
+Limit the retrieved data by \fIorigin\fR but do not include data with the specified origin.
+.RE
+.PP
+
+.B \-\-d(e)pth
+\fIsubtree\-depth\fR
+.RS 4
+Limit the retrieved data to include only subtrees to the specified depth.
+.RE
+.PP
+
+.B \-\-(w)ith\-origin
+.RS 4
+Include the origin metadata in the retrieved data.
+.RE
+.PP
+
+.B \-\-de(f)aults
+report-all|report-all-tagged|trim|explicit
+.RS 4
+Use :with-defaults capability with specified retrieval mode. For more details
+see \fIRFC 6243 section 3\fR.
+.RE
+.PP
 
 
 .SS get-schema
@@ -507,7 +940,12 @@ Print the result of the command into a file rather than to the standard output.
 .RE
 
 
-.SS  kill-session
+.SS help
+Display list of commands. \fI\-\-(h)elp\fR option is also accepted by all commands
+to show detailed information about the command.
+
+
+.SS kill-session
 Perform NETCONF <kill-session> operation to terminate specified NETCONF session.
 To terminate the current session, use the
 .B disconnect
@@ -523,6 +961,75 @@ command. For more details see \fIRFC 6241 section 7.9\fR.
 \fIsession-ID\fR
 .RS 4
 Session identifier of the NETCONF session to be terminated.
+.RE
+.RE
+
+
+.SS kill-sub
+Perform YANG notifications <kill-subscription> operation. For more details see \fIRFC 8639 section 2.4.5.\fR.
+.PP
+
+.B kill-sub
+[\-\-help] \-\-id <sub\-ID> [\-\-out <file>] [\-\-rpc\-timeout <seconds>]
+.PP
+.RS 4
+
+.B \-\-(i)d
+\fIsub\-ID\fR
+.RS 4
+ID of the subscription to kill.
+.RE
+.PP
+
+
+.SS knownhosts
+Manage the user knownhosts file where all the known SSH server host keys are stored.
+.PP
+
+.B knownhosts
+[\-\-help] [\-\-del <key_index>]
+.PP
+.RS 4
+
+.B \-\-(d)el
+\fIkey_index\fR
+.RS 4
+Remove a host key on a specific index. Useful when the server host key changed and the client refuses to connect.
+But note that unless the change is known (such as the key being newly generated), it is not safe to blindly trust
+a modified host key.
+.RE
+.PP
+
+
+.SS listen
+Listen for a NETCONF Call Home connection.
+.PP
+
+.B listen
+[\-\-help] [\-\-timeout \fIsec\fR] [\-\-host \fIhostname\fR] [\-\-port \fInum\fR]
+[\-\-ssh] [\-\-login \fIusername\fR]
+\-\-tls  [\-\-cert \fIcert_path\fR [\-\-key \fIkey_path\fR]] [\-\-trusted \fItrusted_CA_store.pem\fR]
+.PP
+.RS 4
+
+.B \-\-t(i)meout
+\fIsec\fR
+.RS 4
+Specifies the time for how long the CLI will listen for the Call Home connection. By default, 60 (a minute) is used.
+.RE
+.PP
+
+.B \-\-h(o)st
+\fIhostname\fR
+.RS 4
+Specifies the hostname (interface) to listen on. By default, ::0 is used.
+.RE
+.PP
+
+.B \fIother options\fR
+.RS 4
+The rest of the options have similar meaning as in
+.B connect.
 .RE
 .RE
 
@@ -545,51 +1052,187 @@ Target datastore to lock..
 .RE
 
 
-.SS  unlock
-Perform the NETCONF <unlock> operation to release a configuration lock,
-previously obtained with the <lock> operation. For more details see \fIRFC 6241 section 7.6\fR.
+.SS modify-push
+Perform YANG push <modify-subscription> operation. For more details see \fIRFC 8641 section 4.4.2.\fR.
 .PP
 
-.B lock
-[\-\-help] \-\-target running|startup|candidate
-.PP
-.RS 4
-
-.B \-\-(t)arget
-running|startup|candidate
-.RS 4
-Target datastore to unlock.
-.RE
-.RE
-
-
-.SS  validate
-Perform the NETCONF <validate> operation to validate configuration data. For
-more details see \fIRFC 6241 section 8.6.4.1\fR.
-.PP
-
-.B validate
-[\-\-help] (\-\-source running|startup|candidate|url:\fIurl\fR | \-\-src-config [\fIfile\fR])
+.B modify-push
+[\-\-help] \-\-id <sub\-ID> \-\-datastore running|startup|candidate|operational
+[\-\-filter\-subtree[=<file>] | \-\-filter\-xpath <XPath> | \-\-filter\-ref <name>] [\-\-end <time>]
+(\-\-periodic \-\-period <period> [\-\-anchor\-time <time>] |\-\-on\-change [\-\-dampening-period <period>])
+[\-\-out <file>] [\-\-rpc\-timeout <seconds>]
 .PP
 .RS 4
 
-.B \-\-(s)ource
-running|startup|candidate|url:\fIurl\fR
+.B \-\-(I)d
+\fIsub\-ID\fR
 .RS 4
-Specifies the source of the <validate> operation. Either a datastore or a specific URL can be specified.
+ID of the subscription to modify.
 .RE
 .PP
 
-.B \-\-src-(c)onfig
+.B \-\-(d)atastore
+running|startup|candidate|operational
+.RS 4
+Modifies the datastore to subscribe to for YANG push updates.
+.RE
+.PP
+
+.B \-\-filter-(s)ubtree
 [\fIfile\fR]
 .RS 4
-Specifies the source of the <validate> operation. If a \fIfile\fR with the configuration is not specified,
-the configuration is read from the standard input.
+Modifies the subtree filter of the subscription.
+.RE
+.PP
+
+.B \-\-filter-(x)path
+\fIXPath\fR
+.RS 4
+Modifies the XPath filter of the subscription.
+.RE
+.PP
+
+.B \-\-(f)ilter-ref
+\fIname\fR
+.RS 4
+Modifies the referenced filter of the subscription.
+.RE
+.PP
+
+.B \-\-(e)nd
+\fItime\fR
+.RS 4
+Modifies the subscription end time.
+.RE
+.PP
+
+.B \-\-per(i)od
+\fIperiod\fR
+.RS 4
+Modifies the periodic push subscription period.
+.RE
+.PP
+
+.B \-\-(a)nchor\-time
+\fItime\fR
+.RS 4
+Modifies the periodic push subscription point in time to anchor the period to.
+.RE
+.PP
+
+.B \-\-da(m)pening\-period
+\fIperiod\fR
+.RS 4
+Modifies the on-change push subscription dampening period.
+.RE
+.PP
+
+
+.SS modify-sub
+Perform YANG notifications <modify-subscription> operation. For more details see \fIRFC 8639 section 2.4.3.\fR.
+.PP
+
+.B modify-sub
+[\-\-help] \-\-id <sub\-ID> [\-\-filter\-subtree[=<file>] | \-\-filter\-xpath <XPath> | \-\-filter\-ref <name>]
+[\-\-end <time>] [\-\-out <file>] [\-\-rpc\-timeout <seconds>]
+.PP
+.RS 4
+
+.B \-\-(i)d
+\fIsub\-ID\fR
+.RS 4
+ID of the subscription to modify.
+.RE
+.PP
+
+.B \-\-filter-(s)ubtree
+[\fIfile\fR]
+.RS 4
+Specifies whether the request will contain a subtree filter (\fIRFC 6241 section 6\fR).
+The \fIfile\fR is expected to contain the filter specification. If it is not specified,
+it is read from standard input.
+.RE
+.PP
+
+.B \-\-filter-(x)path
+\fIXPath\fR
+.RS 4
+Specifies whether the request will contain an XPath filter. \fIXPath\fR is the expression
+used for filtering.
+.RE
+.PP
+
+.B \-\-(f)ilter-ref
+\fIname\fR
+.RS 4
+Specifies whether the request will contain a referenced stored filter.
+.RE
+.PP
+
+.B \-\-(e)nd
+\fItime\fR
+.RS 4
+Specifies when the event replay stops. Format of the \fItime\fR parameter is
+as follows:
+.IP +\fItime\fR
+Current time plus the given number of seconds.
+.IP \fItime\fR
+Absolute time as number of seconds since 1970-01-01.
+.IP -\fItime\fR
+Current time minus the given number of seconds.
+.RE
+.PP
+
+
+.SS outputformat
+Set the format for all the output data. XML is the default.
+.PP
+
+.B outputformat
+(xml | xml_noformat | json)
 .RE
 .RE
 
 
-.SS  subscribe
+.SS resync-sub
+Perform YANG push <resync-subscription> operation. For more details see \fIRFC 8641 section 4.4.4.\fR.
+.PP
+
+.B resync-sub
+[\-\-help] \-\-id <sub\-ID> [\-\-out <file>] [\-\-rpc\-timeout <seconds>]
+.PP
+.RS 4
+
+.B \-\-(i)d
+\fIsub\-ID\fR
+.RS 4
+ID of the on-change subscription to resync.
+.RE
+.PP
+
+
+.SS searchpath
+Set the directory, which will be used when searching for modules. Modules
+are always needed to be able to work with the same data as a NETCONF server.
+They are searched locally (in this directory) only if the server does not
+support the <get-schema> NETCONF operation. If it does, all the modules
+(except \fIietf-netconf-monitoring\fR, which includes the definition of
+the <get-schema> RPC itself) are downloaded from the server.
+.PP
+
+.B searchpath
+\fImodel-dir-path\fR
+.RE
+.RE
+
+
+.SS status
+Print information about the current NETCONF session.
+.RE
+.RE
+
+
+.SS subscribe
 Perform NETCONF Event Notifications <create-subscription> operation. For more
 details see \fIRFC 5277 section 2.1.1\fR.
 .PP
@@ -602,7 +1245,7 @@ details see \fIRFC 5277 section 2.1.1\fR.
 .B \-\-filter-(s)ubtree
 [\fIfile\fR]
 .RS 4
-Specifies if the request will contain a subtree filter (\fIRFC 6241 section 6\fR).
+Specifies whether the request will contain a subtree filter (\fIRFC 6241 section 6\fR).
 The \fIfile\fR is expected to contain the filter specification. If it is not specified,
 it is read from standard input.
 .RE
@@ -611,7 +1254,7 @@ it is read from standard input.
 .B \-\-filter-(x)path
 \fIXPath\fR
 .RS 4
-Specififes is the request will contain an XPath filter. \fIXPath\fR is the expression
+Specifies whether the request will contain an XPath filter. \fIXPath\fR is the expression
 used for filtering.
 .RE
 .PP
@@ -650,153 +1293,31 @@ subtree via the <get> operation.
 .RE
 .PP
 
-.B \-\-(o)ut
-\fIfile\fR
-.RS 4
-Print the received notifications into a file rather than to the standard output.
-.RE
-.RE
 
-
-.SS cert
-Manage client and trusted Certificate Authority certificates that are used for TLS verification stored in \fI~/.netopeer2-cli/client.*\fR and \fI~/.netopeer2-cli/certs\fR respectively.
-.PP
-This command is available with TLS support.
+.SS timed
+Time all the commands (that communicate with a server) from issuing an RPC to getting a reply.
 .PP
 
-.B cert
-[\-\-help] [display] [add \fIcert_path\fR] [remove \fIcert_name\fR] [displayown] [replaceown (\fIcert_path.pem\fR | \fIcert_path.crt\fR \fIkey_path.key\fR)]
+.B timed
+[\-\-help] on|off
 .PP
 .RS 4
 
-.B display
-.RS 4
-Displays all the recognized certificates in \fI~/.netopeer2-cli/certs\fR. First the file name and serial number, then subject, issuer and validity are shown for each certificate.
-.RE
+
+.SS unlock
+Perform the NETCONF <unlock> operation to release a configuration lock,
+previously obtained with the <lock> operation. For more details see \fIRFC 6241 section 7.6\fR.
 .PP
 
-.B add
-\fIcert_path\fR
-.RS 4
-Adds the \fIcert_path\fR certificate to the trusted CA dir \fI~/.netopeer2-cli/certs\fR and recalculates hashes of all the certificates.
-.RE
-.PP
-
-.B remove
-\fIcert_name\fR
-.RS 4
-Removes the \fIcert_name\fR certificate from the trusted CA dir \fI~/.netopeer2-cli/certs\fR and recalculates hashes of all the certificates. \fIcert_name\fR is the certificate file name, as displayed in the
-.B cert display
-command output.
-.RE
-.PP
-
-.B displayown
-.RS 4
-Shows information about the status of the default client certificates and displays information about any relevant found client certificates \fI~/.netopeer2-cli/client.crt\fR and \fI~/.netopeer2-cli/client.pem\fR.
-.RE
-.PP
-
-.B replaceown
-\fIcert_path\fR [\fIkey_path\fR]
-.RS 4
-Replaces the default client certificates with the PEM certificate in \fIcert_path\fR or the CRT certificate \fIcert_path\fR and private key \fIkey_path\fR.
-.B All
-previous client certificates are deleted.
-.RE
-.PP
-
-
-.SS crl
-Manage Certificate Revocation List certificates that are stored in the \fI~/.netopeer2-cli/crl\fR directory.
-.PP
-This command is available only with TLS support.
-.PP
-
-.B crl
-[\-\-help] [display] [add \fIcrl_path\fR] [remove \fIcrl_name\fR]
+.B lock
+[\-\-help] \-\-target running|startup|candidate
 .PP
 .RS 4
 
-.B display
+.B \-\-(t)arget
+running|startup|candidate
 .RS 4
-Displays all the recognized CRLs in \fI~/.netopeer2-cli/crl\fR. First the file name, then issuer, last and next update dates are shown for each CRL followed by the serial numbers and revocation dates of all the revocated certificates.
-.RE
-.PP
-
-.B add
-\fIcrl_path\fR
-.RS 4
-Adds the \fIcrl_path\fR CRL to the \fI~/.netopeer2-cli/crl\fR dir and recalculates hashes of all the CRLs.
-.RE
-.PP
-
-.B remove
-\fIcrl_name\fR
-.RS 4
-Removes the \fIcert_name\fR CRL from the \fI~/.netopeer2-cli/crl\fR dir and recalculates hashes of all the CRLs. \fIcrl_name\fR is the CRL file name, as displayed in the
-.B crl display
-command output.
-.RE
-.RE
-
-
-.SS  auth
-Manage SSH authentication options - authentication preferences and private keys.
-.PP
-This command is available with SSH support.
-.PP
-
-.B auth
-(\-\-help | pref [(publickey | interactive | password) \fIpreference\fR] | keys [add \fIprivate_key_path\fR] [remove \fIkey_index\fR])
-.PP
-.RS 4
-
-.B pref
-.RS 4
-Print the current authentication method preferences or change a specific method preference.
-.RE
-.PP
-\fIpreference\fR
-.RS 4
-The new preference of the authentication method. Negative values disable the authentication method.
-.RE
-.PP
-
-.B keys
-.RS 4
-Manage keys used for authentication.
-.RE
-.PP
-\fIpath_to_the_key\fR
-.RS 4
-If specified,
-.B add
-or
-.B remove
-the keys. If not, show the current keys.
-.RE
-.PP
-
-
-.SS editor
-Manage the external editor used for modifying raw input data.
-.PP
-
-.B editor
-[\-\-help] [\fIpath/name_of_the_editor\fR]
-.PP
-.RS 4
-
-\fIpath/name_of_the_editor\fR
-.RS 4
-The full path or just the name of the editor to be used.
-.RE
-.RE
-
-
-.SS status
-Print information about the current NETCONF session.
+Target datastore to unlock.
 .RE
 .RE
 
@@ -827,33 +1348,28 @@ Print the command result into a file rather than to the standard output.
 .RE
 
 
-.SS searchpath
-Set the directory, which will be used when searching for modules. Modules
-are always needed to be able to work with the same data as a NETCONF server.
-They are searched locally (in this directory) only if the server does not
-support the <get-schema> NETCONF operation. If it does, all the modules
-(except \fIietf-netconf-monitoring\fR, which includes the definition of
-the <get-schema> RPC itself) are downloaded from the server.
+.SS  validate
+Perform the NETCONF <validate> operation to validate configuration data. For
+more details see \fIRFC 6241 section 8.6.4.1\fR.
 .PP
 
-.B searchpath
-\fImodel-dir-path\fR
-.RE
-.RE
+.B validate
+[\-\-help] (\-\-source running|startup|candidate|url:\fIurl\fR | \-\-src-config [\fIfile\fR])
+.PP
+.RS 4
 
-
-.SS outputformat
-Set the format for all the output data. XML is the default.
+.B \-\-(s)ource
+running|startup|candidate|url:\fIurl\fR
+.RS 4
+Specifies the source of the <validate> operation. Either a datastore or a specific URL can be specified.
+.RE
 .PP
 
-.B outputformat
-(xml | xml_noformat | json)
-.RE
-.RE
-
-
-.SS version
-Print the CLI version.
+.B \-\-src-(c)onfig
+[\fIfile\fR]
+.RS 4
+Specifies the source of the <validate> operation. If a \fIfile\fR with the configuration is not specified,
+the configuration is read from the standard input.
 .RE
 .RE
 
@@ -866,6 +1382,17 @@ Set CLI verbosity. Only errors are printed by default.
 (error/0 | warning/1 | verbose/2 | debug/3)
 .RE
 .RE
+
+
+.SS version
+Print the CLI version.
+.RE
+.RE
+
+
+.SS ?
+Display list of commands. \fI\-\-(h)elp\fR option is also accepted by all commands
+to show detailed information about the command.
 
 
 .SS quit
@@ -924,10 +1451,17 @@ RFC 6243 (With-defaults capability)
 .br
 RFC 6536 (NETCONF Access Control)
 .br
-.na
-http://tools.ietf.org/html/draft-ietf-netconf-rfc5539bis-05 (NETCONF over TLS)
+RFC 7589 (NETCONF over TLS)
 .br
-http://tools.ietf.org/html/draft-ietf-netconf-reverse-ssh-05 (Call Home)
+RFC 8071 (Call Home)
+.br
+RFC 8526 (NMDA operations)
+.br
+RFC 8528 (YANG Schema Mount)
+.br
+RFC 8639 (YANG notification subscriptions)
+.br
+RFC 8641 (YANG Push subscriptions)
 .br
 https://github.com/CESNET/netopeer2 (Netopeer homepage)
 .ad
@@ -937,6 +1471,6 @@ Michal Vasko <mvasko@cesnet.cz>
 Radek Krejci <rkrejci@cesnet.cz>
 .
 .SH COPYRIGHT
-Copyright \(co 2012-2021 CESNET, a.l.e.
+Copyright \(co 2012-2022 CESNET, a.l.e.
 .br
-Copyright \(co 2018-2021 Deutsche Telekom AG.
+Copyright \(co 2018-2022 Deutsche Telekom AG.
