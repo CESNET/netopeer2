@@ -212,7 +212,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 # dependencies - OpenSSL (required by later libnetconf2 checks and not really the server itself)
 find_package(OpenSSL)
 if(OPENSSL_FOUND)
-    list(APPEND CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIRS})
+    list(APPEND CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
     list(APPEND CMAKE_REQUIRED_LIBRARIES ${OPENSSL_LIBRARIES})
 endif()
 
