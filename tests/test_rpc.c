@@ -1,11 +1,12 @@
 /**
  * @file test_rpc.c
  * @author Tadeas Vintrlik <xvintr04@stud.fit.vutbr.cz>
+ * @author Michal Vasko <mvasko@cesnet.cz>
  * @brief test executing simple RPCs
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2022 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2022 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -35,7 +36,11 @@ static int
 local_setup(void **state)
 {
     char test_name[256];
-    const char *modules[] = {NP_TEST_MODULE_DIR "/edit1.yang", NULL};
+    const char *modules[] = {
+        NP_TEST_MODULE_DIR "/edit1.yang",
+        NP_TEST_MODULE_DIR "/sm.yang",
+        NULL
+    };
     int rc;
 
     /* get test name */
@@ -59,7 +64,7 @@ local_setup(void **state)
 static int
 local_teardown(void **state)
 {
-    const char *modules[] = {"edit1", NULL};
+    const char *modules[] = {"edit1", "sm", NULL};
 
     /* close netopeer2 server */
     if (*state) {
@@ -369,33 +374,19 @@ static void
 test_getconfig(void **state)
 {
     struct np_test *st = *state;
-    const char *expected;
-    char *configuration;
 
     if (np_is_nacm_recovery()) {
         puts("Skipping the test.");
         return;
     }
 
-    /* Try getting configuration */
-    st->rpc = nc_rpc_getconfig(NC_DATASTORE_RUNNING, NULL, NC_WD_ALL, NC_PARAMTYPE_CONST);
-    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
-    assert_int_equal(NC_MSG_RPC, st->msgtype);
-    st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 2000, &st->envp, &st->op);
-    assert_int_equal(st->msgtype, NC_MSG_REPLY);
-
-    /* Check the reply */
-    assert_non_null(st->op);
-    assert_non_null(st->envp);
-    assert_int_equal(LY_SUCCESS, lyd_print_mem(&configuration, st->op, LYD_XML, 0));
-    expected =
+    /* get-config */
+    GET_CONFIG(st);
+    assert_string_equal(st->str,
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data/>\n"
-            "</get-config>\n";
-    assert_string_equal(configuration, expected);
-    free(configuration);
+            "</get-config>\n");
     FREE_TEST_VARS(st);
-    /* Functionality tested in test_edit.c */
 }
 
 static void
@@ -410,6 +401,40 @@ test_validate(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
     /* Functionality tested in test_candidate.c */
+}
+
+static void
+test_schema_mount(void **state)
+{
+    struct np_test *st = *state;
+
+    /* send RPC editing module edit1 on the same session, should succeed */
+    SEND_EDIT_RPC(st,
+            "<root xmlns=\"urn:sm\">"
+            "  <first xmlns=\"ed1\">TestFirst</first>"
+            "  <cont xmlns=\"ed1\">"
+            "    <second/>"
+            "    <third>25</third>"
+            "  </cont>"
+            "</root>");
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* read back the configuration */
+    GET_CONFIG_FILTER(st, "/sm:root/*");
+    assert_string_equal(st->str,
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <root xmlns=\"urn:sm\">\n"
+            "      <first xmlns=\"ed1\">TestFirst</first>\n"
+            "      <cont xmlns=\"ed1\">\n"
+            "        <second/>\n"
+            "        <third>25</third>\n"
+            "      </cont>\n"
+            "    </root>\n"
+            "  </data>\n"
+            "</get-config>\n");
+    FREE_TEST_VARS(st);
 }
 
 int
@@ -427,6 +452,7 @@ main(int argc, char **argv)
         cmocka_unit_test(test_discard),
         cmocka_unit_test(test_getconfig),
         cmocka_unit_test(test_validate),
+        cmocka_unit_test(test_schema_mount),
     };
 
     nc_verbosity(NC_VERB_WARNING);

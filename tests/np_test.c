@@ -135,7 +135,7 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
 {
     struct np_test *st;
     pid_t pid;
-    char str[256], serverdir[256], sockparam[128];
+    char str[256], server_dir[256], sock_param[128], extdata_path[128];
     int fd, pipefd[2], buf;
 
     if (!getcwd(str, 256)) {
@@ -185,10 +185,13 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
     }
 
     /* generate path to socket */
-    sprintf(sockparam, "-U%s/%s/%s", NP_TEST_DIR, test_name, NP_SOCKET_FILE);
+    sprintf(sock_param, "-U%s/%s/%s", NP_TEST_DIR, test_name, NP_SOCKET_FILE);
 
     /* generate path to server-files */
-    sprintf(serverdir, "%s/%s", NP_TEST_DIR, test_name);
+    sprintf(server_dir, "%s/%s", NP_TEST_DIR, test_name);
+
+    /* generate path to the schema-mount ext data */
+    sprintf(extdata_path, "%s/%s", NP_TEST_MODULE_DIR, NP_EXT_DATA_FILE);
 
     /* fork and start the server */
     if (!(pid = fork())) {
@@ -219,8 +222,8 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
 
         /* exec server listening on a unix socket */
         sprintf(str, "-p%s/%s/%s", NP_TEST_DIR, test_name, NP_PID_FILE);
-        execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", str, sockparam,
-                "-m 600", "-f", serverdir, (char *)NULL);
+        execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", str, sock_param,
+                "-m 600", "-f", server_dir, "-x", extdata_path, NULL);
 
 child_error:
         printf("Child execution failed\n");
@@ -239,7 +242,7 @@ child_error:
     }
 
     /* wait for the server, until it creates its socket */
-    if (setup_server_socket_wait(sockparam + 2)) {
+    if (setup_server_socket_wait(sock_param + 2)) {
         SETUP_FAIL_LOG;
         return 1;
     }
@@ -252,7 +255,7 @@ child_error:
     }
     *state = st;
     st->server_pid = pid;
-    strncpy(st->socket_path, sockparam + 2, sizeof st->socket_path - 1);
+    strncpy(st->socket_path, sock_param + 2, sizeof st->socket_path - 1);
     strncpy(st->test_name, test_name, sizeof st->test_name - 1);
 
     /* create connection and install modules */
@@ -274,6 +277,10 @@ child_error:
         SETUP_FAIL_LOG;
         return 1;
     }
+
+    /* init LNC2 */
+    nc_client_init();
+    nc_client_set_schema_searchpath(NP_TEST_MODULE_DIR);
 
     /* create NETCONF sessions */
     st->nc_sess = nc_connect_unix(st->socket_path, NULL);
@@ -304,6 +311,9 @@ np_glob_teardown(void **state, const char **modules)
     /* stop NETCONF sessions */
     nc_session_free(st->nc_sess, NULL);
     nc_session_free(st->nc_sess2, NULL);
+
+    /* destroy LNC2 */
+    nc_client_destroy();
 
     /* release context */
     sr_release_context(st->conn);

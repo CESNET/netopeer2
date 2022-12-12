@@ -1,0 +1,7 @@
+<schema-mounts xmlns="urn:ietf:params:xml:ns:yang:ietf-yang-schema-mount">
+    <mount-point>
+        <module>sm</module>
+        <label>root</label>
+        <shared-schema/>
+    </mount-point>
+</schema-mounts>

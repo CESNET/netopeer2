@@ -4,8 +4,8 @@
  * @brief test configuration header
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2022 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2022 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -39,6 +39,9 @@
 
 /* server socket path */
 #define NP_SOCKET_FILE "np2.sock"
+
+/* server ext data file */
+#define NP_EXT_DATA_FILE "schema_mount.xml"
 
 /* server log file */
 #define NP_LOG_FILE "np2.log"

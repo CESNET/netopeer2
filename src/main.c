@@ -499,25 +499,42 @@ np2srv_content_id_cb(void *UNUSED(user_data))
     return strdup(buf);
 }
 
-static LY_ERR
-np2srv_ext_data_clb(const struct lysc_ext_instance *ext, void *user_data, void **ext_data, ly_bool *ext_data_free)
+/**
+ * @brief SR operational get callback for schema-mounts data. They are obtained from the file provided
+ * by a parameter.
+ */
+static int
+np2srv_sm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
+        const char *UNUSED(path), const char *UNUSED(request_xpath), uint32_t UNUSED(request_id),
+        struct lyd_node **parent, void *UNUSED(private_data))
 {
-    const char *path = user_data;
-    struct lyd_node *data;
-    LY_ERR r;
-
-    if (strcmp(ext->def->module->name, "ietf-yang-schema-mount") || strcmp(ext->def->name, "mount-point")) {
-        return LY_EINVAL;
-    }
+    int rc = SR_ERR_OK;
+    const struct ly_ctx *ly_ctx = sr_session_acquire_context(session);
+    struct lyd_node *data = NULL, *sm;
 
     /* parse the data file */
-    if ((r = lyd_parse_data_path(ext->def->module->ctx, path, 0, LYD_PARSE_STRICT, LYD_VALIDATE_PRESENT, &data))) {
-        return r;
+    if (lyd_parse_data_path(ly_ctx, np2srv.ext_data_path, 0, LYD_PARSE_STRICT, LYD_VALIDATE_PRESENT, &data)) {
+        rc = SR_ERR_LY;
+        goto cleanup;
     }
 
-    *ext_data = data;
-    *ext_data_free = 1;
-    return LY_SUCCESS;
+    /* find the schema-mount data */
+    if (lyd_find_path(data, "/ietf-yang-schema-mount:schema-mounts", 0, &sm)) {
+        rc = SR_ERR_LY;
+        goto cleanup;
+    }
+
+    /* return them */
+    lyd_unlink_tree(sm);
+    if (sm == data) {
+        data = data->next;
+    }
+    *parent = sm;
+
+cleanup:
+    lyd_free_siblings(data);
+    sr_session_release_context(session);
+    return rc;
 }
 
 /**
@@ -540,11 +557,6 @@ server_init(void)
 
     /* set the content-id callback */
     nc_server_set_content_id_clb(np2srv_content_id_cb, NULL, NULL);
-
-    /* set the ext data callback */
-    if (np2srv.ext_data_path) {
-        sr_set_ext_data_cb(np2srv.sr_conn, np2srv_ext_data_clb, (void *)np2srv.ext_data_path);
-    }
 
     /* server session */
     rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &np2srv.sr_sess);
@@ -781,6 +793,12 @@ server_data_subscribe(void)
         EINT;
         goto error;
     }
+
+    if (np2srv.ext_data_path) {
+        mod_name = "ietf-yang-schema-mount";
+        SR_OPER_SUBSCR(mod_name, "/ietf-yang-schema-mount:schema-mounts", np2srv_sm_oper_cb);
+    }
+
     mod_name = "ietf-netconf-monitoring";
     SR_OPER_SUBSCR(mod_name, "/ietf-netconf-monitoring:netconf-state", np2srv_ncm_oper_cb);
 
@@ -1065,7 +1083,8 @@ print_usage(char *progname)
     fprintf(stdout, " -t TIMEOUT Timeout in seconds of all sysrepo functions (applying edit-config, reading data, ...),\n");
     fprintf(stdout, "            if 0 (default), the default sysrepo timeouts are used.\n");
     fprintf(stdout, " -x PATH    Path to a data file with data for libyang ext data callback. They are required for\n");
-    fprintf(stdout, "            supporting some extensions such as schema-mount.\n");
+    fprintf(stdout, "            supporting some extensions such as schema-mount, in which case the ietf-yang-schema-mount\n");
+    fprintf(stdout, "            operational data are expected to be in the file.\n");
     fprintf(stdout, " -v LEVEL   Verbose output level:\n");
     fprintf(stdout, "                0 - errors\n");
     fprintf(stdout, "                1 - errors and warnings\n");
