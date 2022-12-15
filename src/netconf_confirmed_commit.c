@@ -735,6 +735,7 @@ cleanup:
 static void
 create_meta_file(uint32_t timeout_s)
 {
+    int fd = -1;
     FILE *file = NULL;
     char *meta;
 
@@ -742,14 +743,26 @@ create_meta_file(uint32_t timeout_s)
         EMEM;
         goto cleanup;
     }
-    file = fopen(meta, "w");
+
+    fd = open(meta, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (fd == -1) {
+        WRN("Failed creating confirmed commit meta file. Changes will not recover in case the server is stopped.");
+        goto cleanup;
+    }
+
+    file = fdopen(fd, "w");
     if (!file) {
         WRN("Failed creating confirmed commit meta file. Changes will not recover in case the server is stopped.");
         goto cleanup;
     }
+    fd = -1;
+
     fprintf(file, "%ld\n%" PRIu32 "\n", (long)time(NULL), timeout_s);
 
 cleanup:
+    if (fd > -1) {
+        close(fd);
+    }
     if (file) {
         fclose(file);
     }
