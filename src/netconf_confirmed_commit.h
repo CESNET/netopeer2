@@ -14,6 +14,9 @@
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
+#ifndef NP2SRV_NETCONF_CONFIRMED_COMMIT_H_
+#define NP2SRV_NETCONF_CONFIRMED_COMMIT_H_
+
 #include <stdint.h>
 
 #include <libyang/libyang.h>
@@ -38,10 +41,10 @@ void ncc_try_restore(void);
  */
 void ncc_del_session(uint32_t nc_id);
 
-int np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path,
-        const struct lyd_node *input, sr_event_t event, uint32_t request_id,
-        struct lyd_node *output, void *private_data);
+int np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,
+        sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
 
 int np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path,
-        const struct lyd_node *input, sr_event_t event, uint32_t request_id,
-        struct lyd_node *output, void *private_data);
+        const struct lyd_node *input, sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
+
+#endif /* NP2SRV_NETCONF_CONFIRMED_COMMIT_H_ */
