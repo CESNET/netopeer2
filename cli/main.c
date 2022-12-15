@@ -47,9 +47,9 @@ lnc2_print_clb(NC_VERB_LEVEL level, const char *msg)
 {
     int was_rawmode = 0;
 
-    if (ls.rawmode) {
+    if (lss.rawmode) {
         was_rawmode = 1;
-        linenoiseDisableRawMode(ls.ifd);
+        linenoiseDisableRawMode(lss.ifd);
         printf("\n");
     }
 
@@ -70,7 +70,7 @@ lnc2_print_clb(NC_VERB_LEVEL level, const char *msg)
     }
 
     if (was_rawmode) {
-        linenoiseEnableRawMode(ls.ifd);
+        linenoiseEnableRawMode(lss.ifd);
         linenoiseRefreshLine();
     }
 }
@@ -80,9 +80,9 @@ ly_print_clb(LY_LOG_LEVEL level, const char *msg, const char *path)
 {
     int was_rawmode = 0;
 
-    if (ls.rawmode) {
+    if (lss.rawmode) {
         was_rawmode = 1;
-        linenoiseDisableRawMode(ls.ifd);
+        linenoiseDisableRawMode(lss.ifd);
         printf("\n");
     }
 
@@ -121,7 +121,7 @@ ly_print_clb(LY_LOG_LEVEL level, const char *msg, const char *path)
     }
 
     if (was_rawmode) {
-        linenoiseEnableRawMode(ls.ifd);
+        linenoiseEnableRawMode(lss.ifd);
         linenoiseRefreshLine();
     }
 }
@@ -197,8 +197,8 @@ main(void)
                     printf("%s\n", commands[i].helpstring);
                 }
             } else {
-                if (ls.history_index) {
-                    tmp_config_file = (char *)ls.history[ls.history_len - ls.history_index].data;
+                if (lss.history_index) {
+                    tmp_config_file = (char *)lss.history[lss.history_len - lss.history_index].data;
                 }
                 commands[i].func((const char *)cmdstart, &tmp_config_file);
             }

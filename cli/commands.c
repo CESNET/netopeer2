@@ -218,9 +218,9 @@ cli_ntf_clb(struct nc_session *UNUSED(session), const struct lyd_node *envp, con
     int was_rawmode = 0;
 
     if (output == stdout) {
-        if (ls.rawmode) {
+        if (lss.rawmode) {
             was_rawmode = 1;
-            linenoiseDisableRawMode(ls.ifd);
+            linenoiseDisableRawMode(lss.ifd);
             printf("\n");
         } else {
             was_rawmode = 0;
@@ -233,7 +233,7 @@ cli_ntf_clb(struct nc_session *UNUSED(session), const struct lyd_node *envp, con
     fflush(output);
 
     if ((output == stdout) && was_rawmode) {
-        linenoiseEnableRawMode(ls.ifd);
+        linenoiseEnableRawMode(lss.ifd);
         linenoiseRefreshLine();
     }
 
