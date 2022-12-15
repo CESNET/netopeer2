@@ -133,7 +133,7 @@ np2srv_cert_list_cb(const char *name, void *UNUSED(user_data), char ***UNUSED(ce
         /* libyang error printed */
         goto cleanup;
     } else if (!set->count) {
-        WRN("Certificate list \"%s\" does not define any actual certificates.");
+        WRN("Certificate list \"%s\" does not define any actual certificates.", name);
         rc = 0;
         goto cleanup;
     }
