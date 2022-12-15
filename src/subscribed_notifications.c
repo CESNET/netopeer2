@@ -162,7 +162,7 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
 {
     const struct ly_ctx *ly_ctx;
     const struct lys_module *ly_mod;
-    int rc, suspended = 0;
+    int rc = SR_ERR_OK, suspended = 0;
     const sr_error_info_t *err_info;
     struct ly_set mod_set = {0};
     uint32_t idx;
