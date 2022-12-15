@@ -340,11 +340,6 @@ test_commit(void **state)
 {
     struct np_test *st = *state;
 
-    /*if (sr_nacm_get_recovery_uid() == geteuid()) {
-        puts("Skipping the test.");
-        return;
-    }*/
-
     /* check if commit RPC succeeds */
     st->rpc = nc_rpc_commit(0, 0, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
