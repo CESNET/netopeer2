@@ -677,7 +677,7 @@ static void
 cmd_listen_help(void)
 {
 #if defined (NC_ENABLED_SSH) && defined (NC_ENABLED_TLS)
-    printf("listen [--help] [--timeout <sec>] [--host <hostname>] [--port <num>]\n");
+    printf("listen [--help] [--timeout <sec>] [--host <ip-address>] [--port <num>]\n");
     printf("   SSH [--ssh] [--login <username>]\n");
     printf("   TLS  --tls  [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>] [--peername <server-hostname>]\n");
 #elif defined (NC_ENABLED_SSH)
