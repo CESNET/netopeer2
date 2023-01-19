@@ -5,8 +5,6 @@ on:
     branches: [ "master", "devel" ]
   pull_request:
     branches: [ "devel" ]
-  schedule:
-    - cron: "21 6 * * 5"
 
 env:
   DEFAULT_PACKAGES: libcmocka-dev zlib1g-dev libssh-dev libssl-dev libpam0g-dev
