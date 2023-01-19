@@ -47,6 +47,7 @@ struct np_ps_match_data {
 struct np2_user_sess {
     sr_session_ctx_t *sess;
     ATOMIC_T ref_count;
+    pthread_mutex_t lock;
 };
 
 /* server internal data */

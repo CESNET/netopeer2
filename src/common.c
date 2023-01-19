@@ -146,6 +146,7 @@ np_ps_match_cb(struct nc_session *session, void *cb_data)
     struct np2_user_sess *user_sess;
 
     if (match_data->sr_id) {
+        /* No need to have user session lock for this case */
         user_sess = nc_session_get_data(session);
         if (sr_session_get_id(user_sess->sess) == match_data->sr_id) {
             return 1;
@@ -217,6 +218,10 @@ np_get_user_sess(sr_session_ctx_t *ev_sess, const char *func, struct nc_session 
 
     /* user sysrepo session */
     us = nc_session_get_data(ncs);
+    if ((rc = pthread_mutex_lock(&us->lock))) {
+        ERR("SR user session locking failed: %s", strerror(rc));
+        return SR_ERR_INTERNAL;
+    }
     ATOMIC_INC_RELAXED(us->ref_count);
     *user_sess = us;
 
@@ -227,15 +232,21 @@ void
 np_release_user_sess(struct np2_user_sess *user_sess)
 {
     ATOMIC_T prev_ref_count;
+    int rc;
 
     if (!user_sess) {
         return;
     }
 
     prev_ref_count = ATOMIC_DEC_RELAXED(user_sess->ref_count);
+    if ((rc = pthread_mutex_unlock(&user_sess->lock))) {
+        ERR("SR user session unlocking failed: %s", strerror(rc));
+        return;
+    }
     if (ATOMIC_LOAD_RELAXED(prev_ref_count) == 1) {
         /* is 0 now, free */
         sr_session_stop(user_sess->sess);
+        pthread_mutex_destroy(&user_sess->lock);
         free(user_sess);
     }
 }
@@ -321,6 +332,7 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
     }
     user_sess->sess = sr_sess;
     ATOMIC_STORE_RELAXED(user_sess->ref_count, 1);
+    pthread_mutex_init(&user_sess->lock, NULL);
     nc_session_set_data(new_session, user_sess);
 
     /* set NC ID and NETCONF username for sysrepo callbacks */
@@ -381,6 +393,9 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
 error:
     ncm_session_del(new_session);
     sr_session_stop(sr_sess);
+    if (user_sess) {
+        pthread_mutex_destroy(&user_sess->lock);
+    }
     free(user_sess);
     return -1;
 }

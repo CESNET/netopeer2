@@ -847,17 +847,24 @@ cleanup:
  * @return Sysrepo error value.
  */
 static int
-yang_push_notif_update_send(struct nc_session *ncs, struct yang_push_data *yp_data, uint32_t nc_sub_id)
+yang_push_notif_update_send(struct nc_session *ncs, struct yang_push_data *yp_data, uint32_t nc_sub_id, int lock)
 {
     struct np2_user_sess *user_sess;
     struct lyd_node *ly_ntf = NULL;
     const struct ly_ctx *ly_ctx;
     sr_data_t *data = NULL;
     char buf[11];
-    int rc = SR_ERR_OK;
+    ATOMIC_T prev_ref_count;
+    int rc = SR_ERR_OK, ret;
 
     /* get user session from NETCONF session */
     user_sess = nc_session_get_data(ncs);
+    if (lock) {
+        if ((ret = pthread_mutex_lock(&user_sess->lock))) {
+            ERR("SR user session locking failed: %s", strerror(ret));
+            return SR_ERR_INTERNAL;
+        }
+    }
     ATOMIC_INC_RELAXED(user_sess->ref_count);
 
     /* switch to the datastore */
@@ -898,7 +905,21 @@ yang_push_notif_update_send(struct nc_session *ncs, struct yang_push_data *yp_da
 cleanup:
     sr_release_data(data);
     lyd_free_tree(ly_ntf);
-    np_release_user_sess(user_sess);
+
+    if (lock) {
+        if ((ret = pthread_mutex_unlock(&user_sess->lock))) {
+            ERR("SR user session unlocking failed: %s", strerror(ret));
+            return SR_ERR_INTERNAL;
+        }
+    }
+    prev_ref_count = ATOMIC_DEC_RELAXED(user_sess->ref_count);
+    if (ATOMIC_LOAD_RELAXED(prev_ref_count) == 1) {
+        /* is 0 now, free */
+        sr_session_stop(user_sess->sess);
+        pthread_mutex_destroy(&user_sess->lock);
+        free(user_sess);
+    }
+
     return rc;
 }
 
@@ -916,7 +937,7 @@ yang_push_update_timer_cb(union sigval sval)
     }
 
     /* send the push-update notification */
-    yang_push_notif_update_send(arg->ncs, arg->yp_data, arg->nc_sub_id);
+    yang_push_notif_update_send(arg->ncs, arg->yp_data, arg->nc_sub_id, 1);
 
     /* UNLOCK */
     sub_ntf_unlock(0);
@@ -1170,7 +1191,7 @@ yang_push_rpc_establish_sub_start_async(sr_session_ctx_t *ev_sess, struct np2srv
     } else {
         if (yp_data->sync_on_start) {
             /* send the initial update notification */
-            rc = yang_push_notif_update_send(ncs, yp_data, sub->nc_sub_id);
+            rc = yang_push_notif_update_send(ncs, yp_data, sub->nc_sub_id, 0);
             if (rc != SR_ERR_OK) {
                 goto cleanup;
             }
@@ -1780,7 +1801,7 @@ np2srv_rpc_resync_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 
     /* resync the subscription */
     ATOMIC_STORE_RELAXED(yp_data->patch_id, 1);
-    rc = yang_push_notif_update_send(yp_data->cb_arg.ncs, yp_data, nc_sub_id);
+    rc = yang_push_notif_update_send(yp_data->cb_arg.ncs, yp_data, nc_sub_id, 1);
     if (rc != SR_ERR_OK) {
         goto cleanup_unlock;
     }
