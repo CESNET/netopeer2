@@ -214,51 +214,55 @@ test_discard_changes(void **state)
     struct np_test *st = *state;
     char *expected;
 
-    /* Check if Running is empty */
+    /* check if Running is empty */
     GET_DS_CONFIG(st, NC_DATASTORE_RUNNING);
-
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data/>\n"
             "</get-config>\n";
-
     assert_string_equal(st->str, expected);
-
     FREE_TEST_VARS(st);
 
-    /* Check if Candidate has config */
-    GET_DS_CONFIG(st, NC_DATASTORE_CANDIDATE);
-
-    expected =
-            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <first xmlns=\"ed1\">TestFirst</first>\n"
-            "  </data>\n"
-            "</get-config>\n";
-
-    assert_string_equal(st->str, expected);
-
+    /* lock candidate */
+    st->rpc = nc_rpc_lock(NC_DATASTORE_CANDIDATE);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 2000, &st->msgid);
+    assert_int_equal(NC_MSG_RPC, st->msgtype);
+    ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
-    /* Send discard-changes rpc */
+    /* edit candidate */
+    SEND_EDIT_RPC_DS(st, NC_DATASTORE_CANDIDATE, "<first xmlns=\"ed1\">TestFirst</first>");
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* send discard-changes RPC on sess2, fail */
+    st->rpc = nc_rpc_discard();
+    st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 2000, &st->msgid);
+    assert_int_equal(NC_MSG_RPC, st->msgtype);
+    ASSERT_ERROR_REPLY_SESS2(st);
+    FREE_TEST_VARS(st);
+
+    /* send discard-changes RPC */
     st->rpc = nc_rpc_discard();
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 2000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
-
     ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
 
-    /* Check if Candidate is now empty too */
+    /* check if Candidate is now empty too */
     GET_DS_CONFIG(st, NC_DATASTORE_CANDIDATE);
-
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data/>\n"
             "</get-config>\n";
-
     assert_string_equal(st->str, expected);
+    FREE_TEST_VARS(st);
 
+    /* unlock candidate */
+    st->rpc = nc_rpc_unlock(NC_DATASTORE_CANDIDATE);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 2000, &st->msgid);
+    assert_int_equal(NC_MSG_RPC, st->msgtype);
+    ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 }
 
@@ -520,7 +524,7 @@ main(int argc, char **argv)
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_edit_basic),
         cmocka_unit_test_setup_teardown(test_commit, setup_candidate, empty_running),
-        cmocka_unit_test_setup(test_discard_changes, setup_candidate),
+        cmocka_unit_test(test_discard_changes),
         cmocka_unit_test_setup_teardown(test_validate_valid, setup_candidate, empty_candidate),
         cmocka_unit_test(test_validate_invalid),
         cmocka_unit_test_setup_teardown(test_commit_locked_running, setup_commit_locked_running,
