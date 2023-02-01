@@ -1344,7 +1344,7 @@ int
 op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_options_t get_opts,
         const struct np2_filter *filter, sr_session_ctx_t *ev_sess, struct lyd_node **data)
 {
-    sr_data_t *sr_data;
+    sr_data_t *sr_data = NULL;
     uint32_t i;
     int rc;
     LY_ERR lyrc;
@@ -1352,7 +1352,7 @@ op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_options
     for (i = 0; i < filter->count; ++i) {
         /* get the selected data */
         rc = sr_get_data(session, filter->filters[i].str, max_depth, np2srv.sr_timeout, get_opts, &sr_data);
-        if (rc) {
+        if (rc && (rc != SR_ERR_NOT_FOUND)) {
             ERR("Getting data \"%s\" from sysrepo failed (%s).", filter->filters[i].str, sr_strerror(rc));
             np_err_sr2nc_get(ev_sess, session);
             return rc;
