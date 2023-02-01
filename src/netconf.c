@@ -776,16 +776,6 @@ cleanup:
     return rc;
 }
 
-static LY_ERR
-np2srv_lysc_has_notif_clb(struct lysc_node *node, void *UNUSED(data), ly_bool *UNUSED(dfs_continue))
-{
-    if (node->nodetype == LYS_NOTIF) {
-        return LY_EEXIST;
-    }
-
-    return LY_SUCCESS;
-}
-
 /**
  * @brief Make sure data are freed on thread exit.
  *
@@ -1020,7 +1010,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
                 continue;
             }
 
-            if (lysc_module_dfs_full(ly_mod, np2srv_lysc_has_notif_clb, NULL) == LY_EEXIST) {
+            if (np_ly_mod_has_notif(ly_mod)) {
                 /* a notification was found */
                 if (ly_set_add(&mod_set, (void *)ly_mod, 1, NULL)) {
                     rc = SR_ERR_INTERNAL;
