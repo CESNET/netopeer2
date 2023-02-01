@@ -216,6 +216,7 @@ cli_ntf_clb(struct nc_session *UNUSED(session), const struct lyd_node *envp, con
 {
     FILE *output = user_data;
     int was_rawmode = 0;
+    const struct lyd_node *top;
 
     if (output == stdout) {
         if (lss.rawmode) {
@@ -227,8 +228,10 @@ cli_ntf_clb(struct nc_session *UNUSED(session), const struct lyd_node *envp, con
         }
     }
 
+    for (top = op; top->parent; top = lyd_parent(top)) {}
+
     fprintf(output, "notification (%s)\n", ((struct lyd_node_opaq *)lyd_child(envp))->value);
-    lyd_print_file(output, op, output_format, LYD_PRINT_WITHSIBLINGS | output_flag);
+    lyd_print_file(output, top, output_format, LYD_PRINT_WITHSIBLINGS | output_flag);
     fprintf(output, "\n");
     fflush(output);
 
