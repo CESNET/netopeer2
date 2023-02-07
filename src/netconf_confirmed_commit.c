@@ -380,7 +380,6 @@ ncc_changes_rollback_cb(union sigval sev)
     DIR *dir = NULL;
     struct dirent *dirent = NULL;
 
-    VRB("Confirmed commit timeout reached. Restoring previous \"running\" datastore.");
     ly_ctx = sr_acquire_context(np2srv.sr_conn);
 
     /* Start a session */
@@ -491,6 +490,7 @@ ncc_del_session(uint32_t nc_id)
 
     if (commit_ctx.timer && !commit_ctx.persist && (commit_ctx.nc_id == nc_id)) {
         /* rollback */
+        VRB("Performing confirmed commit rollback after the issuing session has terminated.");
         ncc_changes_rollback_cb((union sigval)1);
     }
 
@@ -645,8 +645,8 @@ cleanup:
 void
 ncc_try_restore(void)
 {
-    time_t timestamp = 0, end_time = 0, current = 0;
-    uint32_t timeout = 0, new_timeout = 0;
+    time_t timestamp = 0;
+    uint32_t timeout = 0;
 
     /* it should be under a mutex, but since it is called in init it is not needed */
 
@@ -658,17 +658,8 @@ ncc_try_restore(void)
         return;
     }
 
-    /* check when the confirmed commit was supposed to timeout */
-    end_time = timestamp + timeout;
-    current = time(NULL);
-    if (end_time > current) {
-        /* in the future -> compute the remaining time */
-        new_timeout = end_time - current;
-    }
-    /* else it was in the past -> should be zero */
-
-    VRB("Restoring a previous confirmed commit.");
-    ncc_commit_timeout_schedule(new_timeout);
+    VRB("Performing confirmed commit rollback after server restart.");
+    ncc_changes_rollback_cb((union sigval)1);
 }
 
 /**
@@ -1002,6 +993,7 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     }
 
     /* rollback */
+    VRB("Performing confirmed commit rollback after receiving <cancel-commit>.");
     ncc_changes_rollback_cb((union sigval)1);
 
 cleanup:

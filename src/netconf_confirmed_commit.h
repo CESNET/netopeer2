@@ -1,11 +1,12 @@
 /**
  * @file netconf_confirmed_commit.h
  * @author Tadeas Vintrlik <xvintr04@stud.fit.vutbr.cz>
+ * @author Michal Vasko <mvasko@cesnet.cz>
  * @brief ietf-netconf confirmed-commit capability header
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2023 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2023 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -30,7 +31,7 @@
 void ncc_commit_ctx_destroy(void);
 
 /**
- * @brief Try and restore a previous confirmed commit after server stopping.
+ * @brief Try and restore a previous confirmed commit after server reboot.
  */
 void ncc_try_restore(void);
 
