@@ -7,7 +7,7 @@ include(CheckFunctionExists)
 project(netopeer2-cli C)
 
 # set version
-set(NP2CLI_VERSION 2.0.70)
+set(NP2CLI_VERSION 2.0.71)
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cli_version.h.in" "${PROJECT_BINARY_DIR}/cli_version.h" ESCAPE_QUOTES @ONLY)
 include_directories(${PROJECT_BINARY_DIR})
 
