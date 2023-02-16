@@ -4756,7 +4756,7 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
     }
 
     if (!nc_session_cpblt(session, NC_CAP_INTERLEAVE_ID)) {
-        fprintf(output, "NETCONF server does not support interleave, you\n"
+        fprintf(stdout, "NETCONF server does not support interleave, you\n"
                 "cannot issue any RPCs during the subscription.\n"
                 "Close the session with \"disconnect\".\n");
         interleave = 0;
