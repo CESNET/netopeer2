@@ -206,14 +206,18 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
         assert(path);
         sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", "instance-required", path, str, 0);
     } else if (!strncmp(err->message, "Mandatory choice", 16)) {
-        /* get choice parent */
+        /* get the choice */
         assert(path);
-        ptr = strrchr(path, '/');
-        str = strndup(path, (ptr == path) ? 1 : ptr - path);
+        assert(err->message[17] == '\"');
+        ptr = err->message + 18;
+        ptr2 = strchr(ptr, '\"');
+        if (asprintf(&str, "%s/%.*s", path, (int)(ptr2 - ptr), ptr) == -1) {
+            goto mem_error;
+        }
 
         /* missing-choice */
-        sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", "mandatory-choice", str,
-                "Missing mandatory choice.", 1, "missing-choice", path);
+        sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", "mandatory-choice", path,
+                "Missing mandatory choice.", 1, "missing-choice", str);
     } else if (strstr(err->message, "instance to insert next to not found.")) {
         /* get the node name */
         assert(err->message[5] == '\"');
