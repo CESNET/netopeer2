@@ -63,7 +63,7 @@ set(SYSREPO_DEP_VERSION 2.2.47)
 set(SYSREPO_DEP_SOVERSION 7.14.7)
 set(SYSREPO_DEP_SOVERSION_MAJOR 7)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -std=gnu99")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -std=c99")
 
 #
 # options
