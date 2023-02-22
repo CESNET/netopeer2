@@ -15,7 +15,6 @@
  */
 
 #define _GNU_SOURCE
-#define _POSIX_SOURCE
 
 #include "netconf_subscribed_notifications.h"
 

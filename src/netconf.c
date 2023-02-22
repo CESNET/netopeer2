@@ -16,7 +16,6 @@
 
 #define _GNU_SOURCE
 #define _DEFAULT_SOURCE
-#define _POSIX_SOURCE
 
 #include "netconf.h"
 
