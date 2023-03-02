@@ -1313,7 +1313,7 @@ static int
 cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
 {
     int i;
-    short int pref;
+    short pref;
     char *args = strdupa(arg);
     char *cmd = NULL, *ptr = NULL, *str;
     const char *pub_key, *priv_key;
