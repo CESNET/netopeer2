@@ -355,7 +355,9 @@ cleanup:
 static void
 ncc_commit_confirmed(void)
 {
-    timer_delete(commit_ctx.timer);
+    if (commit_ctx.timer) {
+        timer_delete(commit_ctx.timer);
+    }
     commit_ctx.timer = 0;
     ncc_set_persist(NULL);
     clean_backup_directory();
