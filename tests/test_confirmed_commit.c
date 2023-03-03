@@ -588,6 +588,14 @@ test_wrong_session(void **state)
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "operation-failed");
     FREE_TEST_VARS(st);
 
+    /* send running lock rpc on a different NC session, invalid */
+    st->rpc = nc_rpc_lock(NC_DATASTORE_RUNNING);
+    st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_ERROR_REPLY_SESS2(st);
+    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "lock-denied");
+    FREE_TEST_VARS(st);
+
     /* send cancel-commit rpc */
     st->rpc = nc_rpc_cancel(NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);

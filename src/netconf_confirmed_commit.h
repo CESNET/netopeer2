@@ -31,6 +31,14 @@
 void ncc_commit_ctx_destroy(void);
 
 /**
+ * @brief Check whether there is an ongoing confirmed commit.
+ *
+ * @param[out] nc_id NETCONF session ID of the session that started the confirmed commit, if any.
+ * @return Whether there is an ongoing confirmed commit or not.
+ */
+int ncc_ongoing_confirmed_commit(uint32_t *nc_id);
+
+/**
  * @brief Try and restore a previous confirmed commit after server reboot.
  */
 void ncc_try_restore(void);

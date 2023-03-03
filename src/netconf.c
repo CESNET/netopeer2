@@ -566,6 +566,7 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     struct ly_set *nodeset = NULL;
     struct np2_user_sess *user_sess = NULL;
     const sr_error_info_t *err_info;
+    uint32_t nc_id;
     int rc = SR_ERR_OK;
 
     if (np_ignore_rpc(session, event, &rc)) {
@@ -584,6 +585,13 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         ds = SR_DS_CANDIDATE;
     }
     ly_set_free(nodeset, NULL);
+
+    if ((ds == SR_DS_RUNNING) && !strcmp(input->schema->name, "lock") && ncc_ongoing_confirmed_commit(&nc_id)) {
+        /* RFC 6241 sec. 7.5. */
+        np_err_lock_denied(session, "There is an ongoing confirmed commit.", nc_id);
+        rc = SR_ERR_LOCKED;
+        goto cleanup;
+    }
 
     /* get the user session */
     if ((rc = np_get_user_sess(session, __func__, NULL, &user_sess))) {

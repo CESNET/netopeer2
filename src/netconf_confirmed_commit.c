@@ -70,6 +70,27 @@ ncc_commit_ctx_destroy(void)
     commit_ctx.persist = NULL;
 }
 
+int
+ncc_ongoing_confirmed_commit(uint32_t *nc_id)
+{
+    int cc;
+
+    /* LOCK */
+    pthread_mutex_lock(&commit_ctx.lock);
+
+    if (commit_ctx.timer) {
+        *nc_id = commit_ctx.nc_id;
+        cc = 1;
+    } else {
+        cc = 0;
+    }
+
+    /* UNLOCK */
+    pthread_mutex_unlock(&commit_ctx.lock);
+
+    return cc;
+}
+
 /**
  * @brief Set value of persist in the commit context structure.
  *

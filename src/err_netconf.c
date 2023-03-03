@@ -81,6 +81,17 @@ np_err_sr2nc_same_ds(sr_session_ctx_t *ev_sess, const char *err_msg)
 }
 
 void
+np_err_lock_denied(sr_session_ctx_t *ev_sess, const char *err_msg, uint32_t nc_id)
+{
+    char buf[11];
+
+    sprintf(buf, "%" PRIu32, nc_id);
+
+    /* set error */
+    sr_session_set_netconf_error(ev_sess, "protocol", "lock-denied", NULL, NULL, err_msg, 1, "session-id", buf);
+}
+
+void
 np_err_missing_element(sr_session_ctx_t *ev_sess, const char *elem_name)
 {
     const char *msg;
