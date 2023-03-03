@@ -52,10 +52,10 @@
  * Alternatively use the set_* and get_* functions
  */
 typedef struct commit_ctx_s {
-    char *persist;          /* persist-id of the commit */
-    uint32_t nc_id;         /* NETCONF session ID of the commit */
-    timer_t timer;          /* POSIX timer used for rollback, zero if none */
-    pthread_mutex_t lock;   /* Lock for access to this structure and to NCC_DIR */
+    char *persist;              /* persist-id of the commit */
+    struct nc_session *nc_sess; /* NETCONF session of the pending commit */
+    timer_t timer;              /* POSIX timer used for rollback, zero if none */
+    pthread_mutex_t lock;       /* Lock for access to this structure and to NCC_DIR */
 } commit_ctx_t;
 
 static commit_ctx_t commit_ctx = {.persist = NULL, .timer = 0, .lock = PTHREAD_MUTEX_INITIALIZER};
@@ -71,7 +71,7 @@ ncc_commit_ctx_destroy(void)
 }
 
 int
-ncc_ongoing_confirmed_commit(uint32_t *nc_id)
+ncc_ongoing_confirmed_commit(struct nc_session **nc_sess)
 {
     int cc;
 
@@ -79,7 +79,7 @@ ncc_ongoing_confirmed_commit(uint32_t *nc_id)
     pthread_mutex_lock(&commit_ctx.lock);
 
     if (commit_ctx.timer) {
-        *nc_id = commit_ctx.nc_id;
+        *nc_sess = commit_ctx.nc_sess;
         cc = 1;
     } else {
         cc = 0;
@@ -381,6 +381,7 @@ ncc_commit_confirmed(void)
         timer_delete(commit_ctx.timer);
     }
     commit_ctx.timer = 0;
+    commit_ctx.nc_sess = NULL;
     ncc_set_persist(NULL);
     ncc_clean_backup_directory();
 }
@@ -500,12 +501,12 @@ cleanup:
 }
 
 void
-ncc_del_session(uint32_t nc_id)
+ncc_del_session(const struct nc_session *nc_sess)
 {
     /* LOCK */
     pthread_mutex_lock(&commit_ctx.lock);
 
-    if (commit_ctx.timer && !commit_ctx.persist && (commit_ctx.nc_id == nc_id)) {
+    if (commit_ctx.timer && !commit_ctx.persist && (commit_ctx.nc_sess == nc_sess)) {
         /* rollback */
         VRB("Performing confirmed commit rollback after the issuing session has terminated.");
         ncc_changes_rollback_cb((union sigval)1);
@@ -587,11 +588,12 @@ ncc_commit_timeout_schedule(uint32_t timeout_s)
     VRB("Scheduling confirmed commit rollback in %" PRIu32 "s.", timeout_s);
 
     if (!timeout_s) {
-        /* just perform the rollback with locking */
+        /* just perform the rollback without locking */
         ncc_changes_rollback_cb((union sigval)1);
     } else {
         /* create and arm the timer */
         sev.sigev_notify = SIGEV_THREAD;
+        sev.sigev_value = (union sigval)0;
         sev.sigev_notify_function = ncc_changes_rollback_cb;
         its.it_value.tv_sec = timeout_s;
         if (timer_create(CLOCK_REALTIME, &sev, &timer_id) == -1) {
@@ -839,7 +841,7 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
                 goto cleanup;
             }
         } else {
-            if (commit_ctx.nc_id != nc_session_get_id(nc_sess)) {
+            if (commit_ctx.nc_sess != nc_sess) {
                 np_err_operation_failed(session,
                         "Follow-up confirm commit session does not match the pending confirmed commit session.");
                 rc = SR_ERR_OPERATION_FAILED;
@@ -855,11 +857,11 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
     /* (re)set the meta file timeout */
     ncc_create_meta_file(timeout);
 
-    /* set persist and NC ID */
+    /* set persist and NC session */
     if (persist && ncc_set_persist(persist)) {
         goto cleanup;
     }
-    commit_ctx.nc_id = nc_session_get_id(nc_sess);
+    commit_ctx.nc_sess = nc_sess;
 
     /* (re)schedule the timer thread for rollback */
     if (ncc_commit_timeout_schedule(timeout)) {
@@ -928,7 +930,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
 
     /* ff there is a commit waiting to be confirmed, confirm it */
     if (commit_ctx.timer) {
-        if (!persist_id && (commit_ctx.nc_id != nc_session_get_id(nc_sess))) {
+        if (!persist_id && (commit_ctx.nc_sess != nc_sess)) {
             np_err_operation_failed(session, "Commit session does not match the pending confirmed commit session.");
             rc = SR_ERR_OPERATION_FAILED;
             goto cleanup;
@@ -1000,7 +1002,7 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     }
 
     /* check NC session */
-    if (!persist_id && (commit_ctx.nc_id != nc_session_get_id(nc_sess))) {
+    if (!persist_id && (commit_ctx.nc_sess != nc_sess)) {
         np_err_operation_failed(session, "Cancel commit session does not match the pending confirmed commit session.");
         rc = SR_ERR_OPERATION_FAILED;
         goto cleanup;

@@ -33,10 +33,10 @@ void ncc_commit_ctx_destroy(void);
 /**
  * @brief Check whether there is an ongoing confirmed commit.
  *
- * @param[out] nc_id NETCONF session ID of the session that started the confirmed commit, if any.
+ * @param[out] nc_sess NETCONF session that started the confirmed commit, if any.
  * @return Whether there is an ongoing confirmed commit or not.
  */
-int ncc_ongoing_confirmed_commit(uint32_t *nc_id);
+int ncc_ongoing_confirmed_commit(struct nc_session **nc_sess);
 
 /**
  * @brief Try and restore a previous confirmed commit after server reboot.
@@ -46,9 +46,9 @@ void ncc_try_restore(void);
 /**
  * @brief Revert current confirmed commit, if any, if not persistent and this session started it.
  *
- * @param[in] nc_id NC ID of a terminated NC session.
+ * @param[in] nc_sess Terminated NC session.
  */
-void ncc_del_session(uint32_t nc_id);
+void ncc_del_session(const struct nc_session *nc_sess);
 
 int np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,
         sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);

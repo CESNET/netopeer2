@@ -121,7 +121,7 @@ np2srv_del_session_cb(struct nc_session *session)
     sr_session_unsubscribe(user_sess->sess);
 
     /* revert any pending confirmed commits */
-    ncc_del_session(nc_session_get_id(session));
+    ncc_del_session(session);
 
     /* free sysrepo session, if no callback is using it */
     if (ATOMIC_DEC_RELAXED(user_sess->ref_count) == 1) {
