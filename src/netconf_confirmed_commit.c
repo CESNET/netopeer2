@@ -283,7 +283,7 @@ cleanup:
  * @return SR_ERR_OK When directory exists or was successfully created.
  */
 static int
-ncc_check_dir(void)
+ncc_check_server_dir(void)
 {
     int rc = SR_ERR_OK;
     char *path = NULL;
@@ -419,7 +419,7 @@ ncc_changes_rollback_cb(union sigval sev)
     /* username */
     sr_session_push_orig_data(session, 1, "");
 
-    if ((rc = ncc_check_dir())) {
+    if ((rc = ncc_check_server_dir())) {
         goto cleanup;
     }
     /* Iterate over all files in backup directory */
@@ -707,7 +707,7 @@ ncc_running_backup(void)
     }
 
     /* iterate over all implemented modules */
-    if ((rc = ncc_check_dir())) {
+    if ((rc = ncc_check_server_dir())) {
         goto cleanup;
     }
     while ((module = ly_ctx_get_module_iter(ly_ctx, &index))) {
