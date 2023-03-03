@@ -167,6 +167,15 @@ test_timeout_runout(void **state)
     /* Prior to the test running should be empty */
     ASSERT_EMPTY_CONFIG(st);
 
+    /* running lock RPC */
+    st->rpc = nc_rpc_lock(NC_DATASTORE_RUNNING);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+
+    /* received an OK reply */
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
     /* Send a confirmed-commit rpc with 1s timeout */
     st->rpc = nc_rpc_commit(1, 1, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
@@ -194,6 +203,15 @@ test_timeout_runout(void **state)
 
     /* Running should have reverted back to it's original value */
     ASSERT_EMPTY_CONFIG(st);
+
+    /* running unlock RPC */
+    st->rpc = nc_rpc_unlock(NC_DATASTORE_RUNNING);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+
+    /* received an OK reply */
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
 }
 
 static void

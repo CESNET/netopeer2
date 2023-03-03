@@ -35,6 +35,7 @@
 #include <libyang/libyang.h>
 #include <nc_server.h>
 #include <sysrepo.h>
+#include <sysrepo/netconf_acm.h>
 
 #include "common.h"
 #include "compat.h"
@@ -396,25 +397,37 @@ static void
 ncc_changes_rollback_cb(union sigval sev)
 {
     int rc;
+    struct np2_user_sess *user_sess = NULL;
     struct lyd_node *node = NULL;
     const struct ly_ctx *ly_ctx;
     struct lys_module *module = NULL;
-    sr_session_ctx_t *session;
-    char *path = NULL, *module_name = NULL, *meta = NULL, *srv_path = NULL;
+    char *path = NULL, *module_name = NULL, *meta = NULL, *srv_path = NULL, *nacm_user = NULL;
     DIR *dir = NULL;
     struct dirent *dirent = NULL;
 
+    /* basic server dir check */
+    if (ncc_check_server_dir()) {
+        return;
+    }
     ly_ctx = sr_acquire_context(np2srv.sr_conn);
 
-    /* start a session */
-    if ((rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &session))) {
-        ERR("Failed starting a sysrepo session (%s).", sr_strerror(rc));
+    if (!sev.sival_int) {
+        /* LOCK */
+        pthread_mutex_lock(&commit_ctx.lock);
+    }
+
+    /* get user session, use it in case it was used for locking running DS */
+    if ((rc = np_acquire_user_sess(commit_ctx.nc_sess, &user_sess))) {
         goto cleanup;
     }
 
-    if ((rc = ncc_check_server_dir())) {
+    /* clear user to skip NACM checks */
+    nacm_user = strdup(sr_nacm_get_user(user_sess->sess));
+    if (!nacm_user) {
+        EMEM;
         goto cleanup;
     }
+    sr_nacm_set_user(user_sess->sess, NULL);
 
     /* iterate over all the files in backup directory */
     if (asprintf(&srv_path, "%s/%s", np2srv.server_dir, NCC_DIR) == -1) {
@@ -451,13 +464,13 @@ ncc_changes_rollback_cb(union sigval sev)
             continue;
         }
 
-        /* get, restore and delete the backup */
+        /* get, restore, and delete the backup */
         VRB("Rolling back module \"%s\"...", module->name);
         if (ncc_get_running_backup(ly_ctx, path, &node)) {
             ncc_rename_failed_file(module_name, path);
             continue;
         }
-        if ((rc = sr_replace_config(session, module->name, node, np2srv.sr_timeout))) {
+        if ((rc = sr_replace_config(user_sess->sess, module->name, node, np2srv.sr_timeout))) {
             ERR("Failed restoring backup for module \"%s\".", module->name);
             ncc_rename_failed_file(module_name, path);
             continue;
@@ -477,23 +490,21 @@ ncc_changes_rollback_cb(union sigval sev)
         goto cleanup;
     }
 
-    if (!sev.sival_int) {
-        /* LOCK */
-        pthread_mutex_lock(&commit_ctx.lock);
-    }
-
     /* just timer clean up */
     ncc_commit_confirmed();
 
+cleanup:
     if (!sev.sival_int) {
         /* UNLOCK */
         pthread_mutex_unlock(&commit_ctx.lock);
     }
-
-cleanup:
     sr_release_context(np2srv.sr_conn);
+    if (nacm_user) {
+        sr_nacm_set_user(user_sess->sess, nacm_user);
+        free(nacm_user);
+    }
+    np_release_user_sess(user_sess);
     closedir(dir);
-    sr_session_stop(session);
     free(path);
     free(srv_path);
     free(meta);
