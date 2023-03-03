@@ -1,11 +1,12 @@
 /**
  * @file netconf_confirmed_commit.c
  * @author Tadeas Vintrlik <xvintr04@stud.fit.vutbr.cz>
+ * @author Michal Vasko <mvasko@cesnet.cz>
  * @brief ietf-netconf confirmed-commit capability callbacks
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2023 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2023 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -107,7 +108,7 @@ cleanup:
  * @return Module name.
  */
 static char *
-get_module_name_from_filename(const char *filename)
+ncc_get_module_name_from_filename(const char *filename)
 {
     char *point = strstr(filename, ".json");
     char *new = NULL;
@@ -133,7 +134,7 @@ cleanup:
  * @param[in] path Absolute path to the file.
  */
 static void
-rename_failed_file(const char *filename, const char *path)
+ncc_rename_failed_file(const char *filename, const char *path)
 {
     char *new = NULL;
 
@@ -161,7 +162,7 @@ cleanup:
  * @return SR_ERR_OK When successful.
  */
 static int
-get_running_backup(const struct ly_ctx *ctx, const char *path, struct lyd_node **node)
+ncc_get_running_backup(const struct ly_ctx *ctx, const char *path, struct lyd_node **node)
 {
     int ret = SR_ERR_OK;
 
@@ -307,7 +308,7 @@ cleanup:
  * @brief Remove all the backup files not marked as failed.
  */
 static void
-clean_backup_directory(void)
+ncc_clean_backup_directory(void)
 {
     DIR *dir = NULL;
     struct dirent *dirent;
@@ -360,7 +361,7 @@ ncc_commit_confirmed(void)
     }
     commit_ctx.timer = 0;
     ncc_set_persist(NULL);
-    clean_backup_directory();
+    ncc_clean_backup_directory();
 }
 
 /**
@@ -417,7 +418,7 @@ ncc_changes_rollback_cb(union sigval sev)
 
         /* try to find the module that corresponds with the file */
         free(module_name);
-        module_name = get_module_name_from_filename(dirent->d_name);
+        module_name = ncc_get_module_name_from_filename(dirent->d_name);
         if (!module_name) {
             /* Skipping files that do not match the expected format */
             continue;
@@ -431,19 +432,19 @@ ncc_changes_rollback_cb(union sigval sev)
         module = ly_ctx_get_module_implemented(ly_ctx, module_name);
         if (!module) {
             ERR("Module \"%s\" does not exist/not implemented.", module_name);
-            rename_failed_file(module_name, path);
+            ncc_rename_failed_file(module_name, path);
             continue;
         }
 
         /* get, restore and delete the backup */
         VRB("Rolling back module \"%s\"...", module->name);
-        if (get_running_backup(ly_ctx, path, &node)) {
-            rename_failed_file(module_name, path);
+        if (ncc_get_running_backup(ly_ctx, path, &node)) {
+            ncc_rename_failed_file(module_name, path);
             continue;
         }
         if ((rc = sr_replace_config(session, module->name, node, np2srv.sr_timeout))) {
             ERR("Failed restoring backup for module \"%s\".", module->name);
-            rename_failed_file(module_name, path);
+            ncc_rename_failed_file(module_name, path);
             continue;
         }
         if (unlink(path) == -1) {
@@ -505,13 +506,12 @@ ncc_del_session(uint32_t nc_id)
  *
  * @param[in] session Sysrepo session used to get data of the module.
  * @param[in] module Module to backup.
- *
  * @return SR_ERR_LY When printing into the file failed.
  * @return SR_ERR_NO_MEMORY When memory ran during allocation
  * @return SR_ERR_OK On success
  */
 static int
-backup_module(sr_session_ctx_t *session, const struct lys_module *module)
+ncc_backup_module(sr_session_ctx_t *session, const struct lys_module *module)
 {
     int rc = SR_ERR_OK;
     char *path = NULL, *xpath = NULL, *ncc_path = NULL;
@@ -603,7 +603,7 @@ ncc_commit_timeout_schedule(uint32_t timeout_s)
  * @return SR_ERR_OK When successful. If time is zero no meta file existed.
  */
 static int
-read_meta_file(time_t *time, uint32_t *timeout_s)
+ncc_read_meta_file(time_t *time, uint32_t *timeout_s)
 {
     int rc = SR_ERR_OK;
     FILE *file = NULL;
@@ -652,7 +652,7 @@ ncc_try_restore(void)
 
     /* it should be under a mutex, but since it is called in init it is not needed */
 
-    if (read_meta_file(&timestamp, &timeout)) {
+    if (ncc_read_meta_file(&timestamp, &timeout)) {
         return;
     }
     if (!timestamp) {
@@ -708,7 +708,7 @@ ncc_running_backup(void)
         }
 
         /* Create the backup */
-        if ((rc = backup_module(session, module))) {
+        if ((rc = ncc_backup_module(session, module))) {
             ERR("Failed creating backup of module \"%s\".", module->name);
             goto cleanup;
         }
@@ -726,7 +726,7 @@ cleanup:
  * @param[in] timeout_s Timeout (in seconds) that was used for the confirmed commit.
  */
 static void
-create_meta_file(uint32_t timeout_s)
+ncc_create_meta_file(uint32_t timeout_s)
 {
     int fd = -1;
     FILE *file = NULL;
@@ -839,7 +839,7 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
     }
 
     /* (re)set the meta file timeout */
-    create_meta_file(timeout);
+    ncc_create_meta_file(timeout);
 
     /* set persist and NC ID */
     if (persist && ncc_set_persist(persist)) {
