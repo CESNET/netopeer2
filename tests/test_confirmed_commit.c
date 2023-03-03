@@ -120,21 +120,6 @@ teardown_common(void **state)
 }
 
 static void
-test_basic(void **state)
-{
-    struct np_test *st = *state;
-
-    /* Send a confirmed-commit rpc */
-    st->rpc = nc_rpc_commit(1, 0, NULL, NULL, NC_PARAMTYPE_CONST);
-    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
-    assert_int_equal(st->msgtype, NC_MSG_RPC);
-
-    /* Check if received an OK reply */
-    ASSERT_OK_REPLY(st);
-    FREE_TEST_VARS(st);
-}
-
-static void
 test_sameas_commit(void **state)
 {
     struct np_test *st = *state;
@@ -161,6 +146,15 @@ test_sameas_commit(void **state)
             "  </data>\n"
             "</get-config>\n";
     assert_string_equal(st->str, expected);
+    FREE_TEST_VARS(st);
+
+    /* Send a commit rpc to confirm it */
+    st->rpc = nc_rpc_commit(0, 0, NULL, NULL, NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+
+    /* Check if received an OK reply */
+    ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 }
 
@@ -726,7 +720,6 @@ main(int argc, char **argv)
     }
 
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_basic),
         cmocka_unit_test_setup_teardown(test_sameas_commit, setup_common, teardown_common),
         cmocka_unit_test_setup_teardown(test_timeout_runout, setup_common, teardown_common),
         cmocka_unit_test_setup_teardown(test_timeout_confirm, setup_common, teardown_common),
