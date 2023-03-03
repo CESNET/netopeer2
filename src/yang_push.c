@@ -842,29 +842,26 @@ cleanup:
  * @brief Send a push-update yang-push notification.
  *
  * @param[in] ncs NETCONF session.
+ * @param[in] sr_sess SR session.
  * @param[in] yp_data yang-push data with the datastore, filter, and counters.
  * @param[in] nc_sub_id NC sub ID of the subscription.
  * @return Sysrepo error value.
  */
 static int
-yang_push_notif_update_send(struct nc_session *ncs, struct yang_push_data *yp_data, uint32_t nc_sub_id)
+yang_push_notif_update_send(struct nc_session *ncs, sr_session_ctx_t *sr_sess, struct yang_push_data *yp_data,
+        uint32_t nc_sub_id)
 {
-    struct np2_user_sess *user_sess;
     struct lyd_node *ly_ntf = NULL;
     const struct ly_ctx *ly_ctx;
     sr_data_t *data = NULL;
     char buf[11];
     int rc = SR_ERR_OK;
 
-    /* get user session from NETCONF session */
-    user_sess = nc_session_get_data(ncs);
-    ATOMIC_INC_RELAXED(user_sess->ref_count);
-
     /* switch to the datastore */
-    sr_session_switch_ds(user_sess->sess, yp_data->datastore);
+    sr_session_switch_ds(sr_sess, yp_data->datastore);
 
     /* get the data from sysrepo */
-    rc = sr_get_data(user_sess->sess, yp_data->xpath ? yp_data->xpath : "/*", 0, np2srv.sr_timeout, 0, &data);
+    rc = sr_get_data(sr_sess, yp_data->xpath ? yp_data->xpath : "/*", 0, np2srv.sr_timeout, 0, &data);
     if (rc != SR_ERR_OK) {
         goto cleanup;
     }
@@ -898,7 +895,6 @@ yang_push_notif_update_send(struct nc_session *ncs, struct yang_push_data *yp_da
 cleanup:
     sr_release_data(data);
     lyd_free_tree(ly_ntf);
-    np_release_user_sess(user_sess);
     return rc;
 }
 
@@ -909,15 +905,25 @@ static void
 yang_push_update_timer_cb(union sigval sval)
 {
     struct yang_push_cb_arg *arg = sval.sival_ptr;
+    struct np2_user_sess *user_sess;
 
     /* READ LOCK */
     if (!sub_ntf_find_lock(arg->nc_sub_id, 0, 0)) {
         return;
     }
 
-    /* send the push-update notification */
-    yang_push_notif_update_send(arg->ncs, arg->yp_data, arg->nc_sub_id);
+    /* ACQUIRE user session from NETCONF session */
+    if (np_acquire_user_sess(arg->ncs, &user_sess)) {
+        goto unlock;
+    }
 
+    /* send the push-update notification */
+    yang_push_notif_update_send(arg->ncs, user_sess->sess, arg->yp_data, arg->nc_sub_id);
+
+    /* RELEASE user sess */
+    np_release_user_sess(user_sess);
+
+unlock:
     /* UNLOCK */
     sub_ntf_unlock(0);
 }
@@ -990,7 +996,7 @@ yang_push_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_
     struct timespec anchor_time = {0};
 
     /* get the NETCONF session and user session */
-    if ((rc = np_get_user_sess(ev_sess, __func__, &ncs, &user_sess))) {
+    if ((rc = np_find_user_sess(ev_sess, __func__, &ncs, &user_sess))) {
         goto cleanup;
     }
 
@@ -1135,7 +1141,7 @@ yang_push_rpc_establish_sub_start_async(sr_session_ctx_t *ev_sess, struct np2srv
     struct itimerspec trspec = {0};
 
     /* get the NETCONF session and user session */
-    if ((rc = np_get_user_sess(ev_sess, __func__, &ncs, &user_sess))) {
+    if ((rc = np_find_user_sess(ev_sess, __func__, &ncs, &user_sess))) {
         goto cleanup;
     }
 
@@ -1170,8 +1176,7 @@ yang_push_rpc_establish_sub_start_async(sr_session_ctx_t *ev_sess, struct np2srv
     } else {
         if (yp_data->sync_on_start) {
             /* send the initial update notification */
-            rc = yang_push_notif_update_send(ncs, yp_data, sub->nc_sub_id);
-            if (rc != SR_ERR_OK) {
+            if ((rc = yang_push_notif_update_send(ncs, user_sess->sess, yp_data, sub->nc_sub_id))) {
                 goto cleanup;
             }
         }
@@ -1210,7 +1215,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     uint32_t i, period, dampening_period;
 
     /* get the user session */
-    if ((rc = np_get_user_sess(ev_sess, __func__, NULL, &user_sess))) {
+    if ((rc = np_find_user_sess(ev_sess, __func__, NULL, &user_sess))) {
         goto cleanup;
     }
 
@@ -1753,6 +1758,7 @@ np2srv_rpc_resync_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     struct lyd_node *node;
     struct np2srv_sub_ntf *sub;
     struct yang_push_data *yp_data;
+    struct np2_user_sess *user_sess = NULL;
     int rc = SR_ERR_OK;
     uint32_t nc_sub_id;
 
@@ -1778,10 +1784,14 @@ np2srv_rpc_resync_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     }
     yp_data = sub->data;
 
+    /* ACQUIRE user session from NETCONF session */
+    if (np_acquire_user_sess(yp_data->cb_arg.ncs, &user_sess)) {
+        goto cleanup_unlock;
+    }
+
     /* resync the subscription */
     ATOMIC_STORE_RELAXED(yp_data->patch_id, 1);
-    rc = yang_push_notif_update_send(yp_data->cb_arg.ncs, yp_data, nc_sub_id);
-    if (rc != SR_ERR_OK) {
+    if ((rc = yang_push_notif_update_send(yp_data->cb_arg.ncs, user_sess->sess, yp_data, nc_sub_id))) {
         goto cleanup_unlock;
     }
 
@@ -1789,5 +1799,6 @@ cleanup_unlock:
     /* UNLOCK */
     sub_ntf_unlock(0);
 
+    np_release_user_sess(user_sess);
     return rc;
 }

@@ -123,8 +123,12 @@ np2srv_del_session_cb(struct nc_session *session)
     /* revert any pending confirmed commits */
     ncc_del_session(nc_session_get_id(session));
 
-    /* stop sysrepo session, if no callback is using it */
-    np_release_user_sess(user_sess);
+    /* free sysrepo session, if no callback is using it */
+    if (ATOMIC_DEC_RELAXED(user_sess->ref_count) == 1) {
+        sr_session_stop(user_sess->sess);
+        pthread_mutex_destroy(&user_sess->lock);
+        free(user_sess);
+    }
 
     ly_ctx = nc_session_get_ctx(session);
     if ((mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-netconf-notifications"))) {

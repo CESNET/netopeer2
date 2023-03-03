@@ -186,9 +186,24 @@ np_get_nc_sess_by_id(uint32_t sr_id, uint32_t nc_id, const char *func, struct nc
 }
 
 int
-np_get_user_sess(sr_session_ctx_t *ev_sess, const char *func, struct nc_session **nc_sess, struct np2_user_sess **user_sess)
+np_acquire_user_sess(const struct nc_session *ncs, struct np2_user_sess **user_sess)
 {
     struct np2_user_sess *us;
+
+    /* increase ref_count */
+    us = nc_session_get_data(ncs);
+    ATOMIC_INC_RELAXED(us->ref_count);
+
+    /* LOCK */
+    pthread_mutex_lock(&us->lock);
+
+    *user_sess = us;
+    return SR_ERR_OK;
+}
+
+int
+np_find_user_sess(sr_session_ctx_t *ev_sess, const char *func, struct nc_session **nc_sess, struct np2_user_sess **user_sess)
+{
     const char *orig_name;
     uint32_t *nc_id, size;
     struct nc_session *ncs;
@@ -216,26 +231,23 @@ np_get_user_sess(sr_session_ctx_t *ev_sess, const char *func, struct nc_session 
     }
 
     /* user sysrepo session */
-    us = nc_session_get_data(ncs);
-    ATOMIC_INC_RELAXED(us->ref_count);
-    *user_sess = us;
-
-    return SR_ERR_OK;
+    return np_acquire_user_sess(ncs, user_sess);
 }
 
 void
 np_release_user_sess(struct np2_user_sess *user_sess)
 {
-    ATOMIC_T prev_ref_count;
-
     if (!user_sess) {
         return;
     }
 
-    prev_ref_count = ATOMIC_DEC_RELAXED(user_sess->ref_count);
-    if (ATOMIC_LOAD_RELAXED(prev_ref_count) == 1) {
+    /* UNLOCK */
+    pthread_mutex_unlock(&user_sess->lock);
+
+    if (ATOMIC_DEC_RELAXED(user_sess->ref_count) == 1) {
         /* is 0 now, free */
         sr_session_stop(user_sess->sess);
+        pthread_mutex_destroy(&user_sess->lock);
         free(user_sess);
     }
 }
@@ -332,6 +344,7 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
     }
     user_sess->sess = sr_sess;
     ATOMIC_STORE_RELAXED(user_sess->ref_count, 1);
+    pthread_mutex_init(&user_sess->lock, NULL);
     nc_session_set_data(new_session, user_sess);
 
     /* set NC ID and NETCONF username for sysrepo callbacks */

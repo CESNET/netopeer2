@@ -571,7 +571,7 @@ cleanup:
 /**
  * @brief Schedule a rollback of confirmed commit. Create the timer and set all the options.
  *
- * @param[in] timeout_s Time (in seconnds) after which the timer will start the rollback.
+ * @param[in] timeout_s Time (in seconds) after which the timer will start the rollback.
  * @return SR_ERR_SYS on timer creation failure.
  * @return SR_ERR_OK on succeeded.
  */
@@ -788,7 +788,7 @@ static int
 np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *input)
 {
     int rc = SR_ERR_OK;
-    struct np2_user_sess *user_sess;
+    struct np2_user_sess *user_sess = NULL;
     struct nc_session *nc_sess;
     const sr_error_info_t *err_info;
     const char *persist = NULL;
@@ -797,7 +797,7 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
     uint32_t timeout;
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, __func__, &nc_sess, &user_sess))) {
+    if ((rc = np_find_user_sess(session, __func__, &nc_sess, &user_sess))) {
         goto cleanup;
     }
     if ((rc = sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING))) {
@@ -900,14 +900,6 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
         return rc;
     }
 
-    /* get the user session */
-    if ((rc = np_get_user_sess(session, __func__, &nc_sess, &user_sess))) {
-        goto cleanup;
-    }
-
-    /* update sysrepo session datastore */
-    sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING);
-
     /* LOCK */
     pthread_mutex_lock(&commit_ctx.lock);
 
@@ -929,6 +921,11 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
         goto cleanup;
     }
 
+    /* get the user session */
+    if ((rc = np_find_user_sess(session, __func__, &nc_sess, &user_sess))) {
+        goto cleanup;
+    }
+
     /* ff there is a commit waiting to be confirmed, confirm it */
     if (commit_ctx.timer) {
         if (!persist_id && (commit_ctx.nc_id != nc_session_get_id(nc_sess))) {
@@ -940,6 +937,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
     }
 
     /* sysrepo API */
+    sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING);
     rc = sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout);
     if ((rc == SR_ERR_LOCKED) && NP_IS_ORIG_NP(session)) {
         /* NETCONF error */
@@ -974,7 +972,7 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     }
 
     /* get the NC session */
-    if ((rc = np_get_user_sess(session, __func__, &nc_sess, NULL))) {
+    if ((rc = np_find_user_sess(session, __func__, &nc_sess, NULL))) {
         goto cleanup;
     }
 

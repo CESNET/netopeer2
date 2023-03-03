@@ -328,7 +328,7 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     }
 
     /* find this NETCONF session */
-    if ((rc = np_get_user_sess(session, __func__, &ncs, NULL))) {
+    if ((rc = np_find_user_sess(session, __func__, &ncs, NULL))) {
         goto error;
     }
 
@@ -720,7 +720,7 @@ np2srv_rpc_delete_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     }
 
     /* get NETCONF session */
-    if ((rc = np_get_user_sess(session, __func__, &ncs, NULL))) {
+    if ((rc = np_find_user_sess(session, __func__, &ncs, NULL))) {
         goto cleanup_unlock;
     }
 
@@ -770,7 +770,7 @@ np2srv_rpc_kill_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     }
 
     /* get the user session */
-    if ((rc = np_get_user_sess(session, __func__, &ncs, NULL))) {
+    if ((rc = np_find_user_sess(session, __func__, &ncs, NULL))) {
         goto cleanup_unlock;
     }
 

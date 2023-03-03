@@ -400,7 +400,7 @@ sub_ntf_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_no
     int rc = SR_ERR_OK;
 
     /* get the NETCONF session and user session */
-    if ((rc = np_get_user_sess(ev_sess, __func__, &ncs, &user_sess))) {
+    if ((rc = np_find_user_sess(ev_sess, __func__, &ncs, &user_sess))) {
         goto cleanup;
     }
 
@@ -507,7 +507,7 @@ sub_ntf_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, st
     uint32_t i;
 
     /* get the user session */
-    if ((rc = np_get_user_sess(ev_sess, __func__, NULL, &user_sess))) {
+    if ((rc = np_find_user_sess(ev_sess, __func__, NULL, &user_sess))) {
         goto cleanup;
     }
 

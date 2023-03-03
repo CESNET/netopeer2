@@ -4,8 +4,8 @@
  * @brief netopeer2-server common structures and functions
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2023 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2023 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ struct np_ps_match_data {
 struct np2_user_sess {
     sr_session_ctx_t *sess;
     ATOMIC_T ref_count;
+    pthread_mutex_t lock;
 };
 
 /* server internal data */
@@ -138,23 +139,34 @@ struct timespec np_modtimespec(const struct timespec *ts, uint32_t msec);
 int np_get_nc_sess_by_id(uint32_t sr_id, uint32_t nc_id, const char *func, struct nc_session **nc_sess);
 
 /**
- * @brief Get NC session and/or SR user session based on SR event session.
+ * @brief Get SR user session from a NC session.
  *
  * Increases refcount of the session, needs ::np_release_user_sess() call to decrease.
+ *
+ * @param[in] nc_sess NC session to use.
+ * @param[out] user_sess Sysrepo user session.
+ * @return SR error value.
+ */
+int np_acquire_user_sess(const struct nc_session *ncs, struct np2_user_sess **user_sess);
+
+/**
+ * @brief Find NC session and/or SR user session based on SR event session.
+ *
+ * Increases refcount of the session if @p user_sess is set, needs ::np_release_user_sess() call to decrease.
  *
  * @param[in] ev_sess Sysrepo event session.
  * @param[in] func Caller function, for logging.
  * @param[out] nc_sess Optional found NC session.
- * @param[out] user_sess Sysrepo user session.
+ * @param[out] user_sess Optional sysrepo user session.
  * @return SR error value.
  */
-int np_get_user_sess(sr_session_ctx_t *ev_sess, const char *func, struct nc_session **nc_sess,
+int np_find_user_sess(sr_session_ctx_t *ev_sess, const char *func, struct nc_session **nc_sess,
         struct np2_user_sess **user_sess);
 
 /**
  * @brief Release SR user session, free if no longer referenced.
  *
- * Decreases refcount after ::np_get_user_sess() call.
+ * Decreases refcount after ::np_find_user_sess() or ::np_acquire_user_sess() call.
  *
  * @param[in] user_sess Sysrepo user session.
  */
