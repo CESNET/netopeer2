@@ -400,29 +400,22 @@ ncc_changes_rollback_cb(union sigval sev)
     struct lys_module *module = NULL;
     sr_session_ctx_t *session;
     char *path = NULL, *module_name = NULL, *meta = NULL, *srv_path = NULL;
-    uint32_t nc_id;
     DIR *dir = NULL;
     struct dirent *dirent = NULL;
 
     ly_ctx = sr_acquire_context(np2srv.sr_conn);
 
-    /* Start a session */
+    /* start a session */
     if ((rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &session))) {
         ERR("Failed starting a sysrepo session (%s).", sr_strerror(rc));
         goto cleanup;
     }
-    /* set session attributes for diff_check_cb to skip NACM check */
-    sr_session_set_orig_name(session, "netopeer2");
-    /* nc_id */
-    nc_id = 0;
-    sr_session_push_orig_data(session, sizeof nc_id, &nc_id);
-    /* username */
-    sr_session_push_orig_data(session, 1, "");
 
     if ((rc = ncc_check_server_dir())) {
         goto cleanup;
     }
-    /* Iterate over all files in backup directory */
+
+    /* iterate over all the files in backup directory */
     if (asprintf(&srv_path, "%s/%s", np2srv.server_dir, NCC_DIR) == -1) {
         EMEM;
         goto cleanup;
