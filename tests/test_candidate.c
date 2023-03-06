@@ -95,13 +95,13 @@ static int
 empty_candidate(void **state)
 {
     struct np_test *st = *state;
-    const char *data;
 
-    data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
-
-    SR_EDIT_SESSION(st, st->sr_sess2, data);
-
+    st->rpc = nc_rpc_discard();
+    st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 2000, &st->msgid);
+    assert_int_equal(NC_MSG_RPC, st->msgtype);
+    ASSERT_OK_REPLY_PARAM(st->nc_sess2, 3000, st);
     FREE_TEST_VARS(st);
+
     return 0;
 }
 
@@ -277,7 +277,6 @@ test_validate_valid(void **state)
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
     ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
 }
 
@@ -333,55 +332,58 @@ setup_discard_changes_advanced(void **state)
     return 0;
 }
 
-static int
-setup_commit_locked_running(void **state)
+static void
+test_commit_locked(void **state)
 {
     struct np_test *st = *state;
 
-    /* lock from another session */
+    /* lock running from another session */
     st->rpc = nc_rpc_lock(NC_DATASTORE_RUNNING);
     st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
-
-    /* receive reply, should succeed */
     ASSERT_OK_REPLY_SESS2(st);
-
     FREE_TEST_VARS(st);
 
-    return 0;
-}
-
-static int
-teardown_commit_locked_running(void **state)
-{
-    struct np_test *st = *state;
-
-    /* lock from another session */
-    st->rpc = nc_rpc_unlock(NC_DATASTORE_RUNNING);
-    st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
-    assert_int_equal(st->msgtype, NC_MSG_RPC);
-
-    /* receive reply, should succeed */
-    ASSERT_OK_REPLY_SESS2(st);
-    return 0;
-}
-
-static void
-test_commit_locked_running(void **state)
-{
-    struct np_test *st = *state;
-
-    /* Send commit rpc */
+    /* commit RPC */
     st->rpc = nc_rpc_commit(0, 0, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 2000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
-    /* Receive  a reply should have error-tag in-use */
+    /* receive a reply, should have error-tag in-use */
     st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 2000, &st->envp, &st->op);
     assert_int_equal(st->msgtype, NC_MSG_REPLY);
     assert_null(st->op);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "in-use");
+    FREE_TEST_VARS(st);
 
+    /* unlock from another session */
+    st->rpc = nc_rpc_unlock(NC_DATASTORE_RUNNING);
+    st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_OK_REPLY_SESS2(st);
+    FREE_TEST_VARS(st);
+
+    /* repeat for candidate (RFC 6241 sec. 8.3.4.1.) */
+    st->rpc = nc_rpc_lock(NC_DATASTORE_CANDIDATE);
+    st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_OK_REPLY_SESS2(st);
+    FREE_TEST_VARS(st);
+
+    st->rpc = nc_rpc_commit(0, 0, NULL, NULL, NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 2000, &st->msgid);
+    assert_int_equal(NC_MSG_RPC, st->msgtype);
+
+    st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 2000, &st->envp, &st->op);
+    assert_int_equal(st->msgtype, NC_MSG_REPLY);
+    assert_null(st->op);
+    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "in-use");
+    FREE_TEST_VARS(st);
+
+    st->rpc = nc_rpc_unlock(NC_DATASTORE_CANDIDATE);
+    st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_OK_REPLY_SESS2(st);
     FREE_TEST_VARS(st);
 }
 
@@ -527,8 +529,7 @@ main(int argc, char **argv)
         cmocka_unit_test(test_discard_changes),
         cmocka_unit_test_setup_teardown(test_validate_valid, setup_candidate, empty_candidate),
         cmocka_unit_test(test_validate_invalid),
-        cmocka_unit_test_setup_teardown(test_commit_locked_running, setup_commit_locked_running,
-                teardown_commit_locked_running),
+        cmocka_unit_test(test_commit_locked),
         cmocka_unit_test_setup_teardown(test_lock_modified_candidate, setup_lock_modified_candidate,
                 teardown_lock_modified_candidate),
         cmocka_unit_test_setup_teardown(test_discard_changes_advanced, setup_discard_changes_advanced,
