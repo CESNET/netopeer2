@@ -783,29 +783,41 @@ cleanup:
     return rc;
 }
 
+static void
+np2srv_sub_arg_free(void *ptr)
+{
+    struct np_ntf_arg *arg = ptr;
+    uint32_t i;
+
+    for (i = 0; i < arg->rt_notif_count; ++i) {
+        lyd_free_tree(arg->rt_notifs[i].notif);
+    }
+    free(arg);
+}
+
 /**
  * @brief Make sure data are freed on thread exit.
  *
- * @param[in] cb_data Callback data to be freed.
+ * @param[in] arg Callback data to be freed.
  */
 static void
-np2srv_sub_free_on_thread_exit(struct subscribe_ntf_arg *cb_data)
+np2srv_sub_arg_thread_exit(struct np_ntf_arg *arg)
 {
     static pthread_key_t key;
 
-    if (cb_data->owned) {
+    if (arg->owned) {
         /* nothing to do */
         return;
     }
 
     /* initialize the key to be freed */
-    pthread_key_create(&key, free);
+    pthread_key_create(&key, np2srv_sub_arg_free);
 
     /* store the data */
-    pthread_setspecific(key, cb_data);
+    pthread_setspecific(key, arg);
 
     /* data now owned */
-    cb_data->owned = 1;
+    arg->owned = 1;
 }
 
 /**
@@ -815,79 +827,83 @@ static void
 np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, const sr_ev_notif_type_t notif_type,
         const struct lyd_node *notif, struct timespec *timestamp, void *private_data)
 {
-    struct nc_server_notif *nc_ntf = NULL;
-    struct subscribe_ntf_arg *cb_data = private_data;
-    struct lyd_node *ly_ntf = NULL;
+    struct np_ntf_arg *arg = private_data;
+    struct lyd_node *ly_ntf;
     const struct ly_ctx *ly_ctx;
-    NC_MSG_TYPE msg_type;
-    char *datetime = NULL;
     struct timespec stop, cur_ts;
+    uint32_t i;
 
-    /* make sure cb_data are freed on thread exit */
-    np2srv_sub_free_on_thread_exit(cb_data);
+    /* make sure arg is freed on thread exit */
+    np2srv_sub_arg_thread_exit(arg);
 
-    ly_ctx = sr_acquire_context(np2srv.sr_conn);
+    if (notif) {
+        /* find the top-level node */
+        while (notif->parent) {
+            notif = lyd_parent(notif);
+        }
+    }
 
-    /* create these notifications, sysrepo only emulates them */
-    if (notif_type == SR_EV_NOTIF_REPLAY_COMPLETE) {
-        ATOMIC_INC_RELAXED(cb_data->sr_ntf_replay_complete_count);
-        if (ATOMIC_LOAD_RELAXED(cb_data->sr_ntf_replay_complete_count) < cb_data->sr_sub_count) {
+    switch (notif_type) {
+    case SR_EV_NOTIF_REPLAY_COMPLETE:
+        if (ATOMIC_INC_RELAXED(arg->sr_ntf_replay_complete_count) + 1 < arg->sr_sub_count) {
             /* ignore, wait for the last SR subscription */
-            goto cleanup;
+            break;
         }
 
+        /* context lock is held while the callback is executing */
+        ly_ctx = sr_acquire_context(np2srv.sr_conn);
+        sr_release_context(np2srv.sr_conn);
+
         lyd_new_path(NULL, ly_ctx, "/nc-notifications:replayComplete", NULL, 0, &ly_ntf);
-        notif = ly_ntf;
-    } else if (notif_type == SR_EV_NOTIF_TERMINATED) {
+        np_ntf_send(arg->nc_sess, timestamp, &ly_ntf, 1);
+
+        /* now send all the buffered notifications */
+        for (i = 0; i < arg->rt_notif_count; ++i) {
+            np_ntf_send(arg->nc_sess, &arg->rt_notifs[i].timestamp, &arg->rt_notifs[i].notif, 1);
+        }
+        break;
+    case SR_EV_NOTIF_TERMINATED:
         sr_notif_sub_get_info(np2srv.sr_notif_sub, sub_id, NULL, NULL, NULL, &stop, NULL);
         cur_ts = np_gettimespec(1);
         if (!stop.tv_sec || (np_difftimespec(&stop, &cur_ts) < 0)) {
             /* no stop-time or it was not reached so no notification should be generated */
-            goto cleanup;
+            break;
         }
 
-        ATOMIC_INC_RELAXED(cb_data->sr_ntf_stop_count);
-        if (ATOMIC_LOAD_RELAXED(cb_data->sr_ntf_stop_count) < cb_data->sr_sub_count) {
+        if (ATOMIC_INC_RELAXED(arg->sr_ntf_stop_count) + 1 < arg->sr_sub_count) {
             /* ignore, wait for the last SR subscription */
-            goto cleanup;
+            break;
         }
+
+        /* context lock is held while the callback is executing */
+        ly_ctx = sr_acquire_context(np2srv.sr_conn);
+        sr_release_context(np2srv.sr_conn);
 
         lyd_new_path(NULL, ly_ctx, "/nc-notifications:notificationComplete", NULL, 0, &ly_ntf);
-        notif = ly_ntf;
-    } else if ((notif_type == SR_EV_NOTIF_MODIFIED) || (notif_type == SR_EV_NOTIF_RESUMED) ||
-            (notif_type == SR_EV_NOTIF_SUSPENDED)) {
-        /* these subscriptions do not support these events, ignore */
-        goto cleanup;
-    }
+        np_ntf_send(arg->nc_sess, timestamp, &ly_ntf, 1);
 
-    /* find the top-level node */
-    while (notif->parent) {
-        notif = lyd_parent(notif);
-    }
-
-    /* create the notification object, all the passed arguments must exist until it is sent */
-    ly_time_ts2str(timestamp, &datetime);
-    nc_ntf = nc_server_notif_new((struct lyd_node *)notif, datetime, NC_PARAMTYPE_CONST);
-
-    /* send the notification */
-    msg_type = nc_server_notif_send(cb_data->nc_sess, nc_ntf, NP2SRV_NOTIF_SEND_TIMEOUT);
-    if ((msg_type == NC_MSG_ERROR) || (msg_type == NC_MSG_WOULDBLOCK)) {
-        ERR("Sending a notification to session %d %s.", nc_session_get_id(cb_data->nc_sess), msg_type == NC_MSG_ERROR ?
-                "failed" : "timed out");
-        goto cleanup;
-    }
-    ncm_session_notification(cb_data->nc_sess);
-
-    if (notif_type == SR_EV_NOTIF_TERMINATED) {
         /* subscription finished */
-        nc_session_dec_notif_status(cb_data->nc_sess);
+        nc_session_dec_notif_status(arg->nc_sess);
+        break;
+    case SR_EV_NOTIF_REALTIME:
+        if (ATOMIC_LOAD_RELAXED(arg->sr_ntf_replay_complete_count) < arg->sr_sub_count) {
+            /* realtime notification received before replay has been completed, store in buffer */
+            np_ntf_add_dup(notif, timestamp, &arg->rt_notifs, &arg->rt_notif_count);
+        } else {
+            /* send the realtime notification */
+            np_ntf_send(arg->nc_sess, timestamp, (struct lyd_node **)&notif, 0);
+        }
+        break;
+    case SR_EV_NOTIF_REPLAY:
+        /* send the replayed notification */
+        np_ntf_send(arg->nc_sess, timestamp, (struct lyd_node **)&notif, 0);
+        break;
+    case SR_EV_NOTIF_MODIFIED:
+    case SR_EV_NOTIF_SUSPENDED:
+    case SR_EV_NOTIF_RESUMED:
+        /* ignore */
+        break;
     }
-
-cleanup:
-    nc_server_notif_free(nc_ntf);
-    free(datetime);
-    lyd_free_all(ly_ntf);
-    sr_release_context(np2srv.sr_conn);
 }
 
 int
@@ -908,7 +924,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     const sr_error_info_t *err_info;
     uint32_t idx;
     struct ly_set mod_set = {0};
-    struct subscribe_ntf_arg *cb_data = NULL;
+    struct np_ntf_arg *cb_data = NULL;
 
     if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
@@ -1028,6 +1044,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
 
         /* subscribe to all the modules */
         cb_data->sr_sub_count = mod_set.count;
+        cb_data->sr_ntf_replay_complete_count = start.tv_sec ? 0 : cb_data->sr_sub_count;
         for (idx = 0; idx < mod_set.count; ++idx) {
             ly_mod = mod_set.objs[idx];
             rc = sr_notif_subscribe_tree(user_sess->sess, ly_mod->name, xp, start.tv_sec ? &start : NULL,
@@ -1041,6 +1058,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     } else {
         /* subscribe to the specific module (stream) */
         cb_data->sr_sub_count = 1;
+        cb_data->sr_ntf_replay_complete_count = start.tv_sec ? 0 : 1;
         rc = sr_notif_subscribe_tree(user_sess->sess, stream, xp, start.tv_sec ? &start : NULL, stop.tv_sec ? &stop : NULL,
                 np2srv_rpc_subscribe_ntf_cb, cb_data, 0, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {

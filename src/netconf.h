@@ -22,12 +22,15 @@
 
 #include "compat.h"
 
-struct subscribe_ntf_arg {
+struct np_ntf_arg {
     struct nc_session *nc_sess;
     uint32_t sr_sub_count;
     ATOMIC_T sr_ntf_replay_complete_count;
     ATOMIC_T sr_ntf_stop_count;
     int owned;
+
+    struct np_rt_notif *rt_notifs;  /* buffered realtime notifications received before replay complete */
+    uint32_t rt_notif_count;
 };
 
 int np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,

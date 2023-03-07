@@ -43,6 +43,11 @@ struct np_ps_match_data {
     uint32_t nc_id;
 };
 
+struct np_rt_notif {
+    struct lyd_node *notif;
+    struct timespec timestamp;
+};
+
 /* user session structure assigned as data of NC sessions */
 struct np2_user_sess {
     sr_session_ctx_t *sess;
@@ -190,6 +195,29 @@ int np_ly_mod_has_notif(const struct lys_module *mod);
  * @return 0 if there are no data.
  */
 int np_ly_mod_has_data(const struct lys_module *mod, uint32_t config_mask);
+
+/**
+ * @brief Add a notification duplicate into an array.
+ *
+ * @param[in] notif Notification to store.
+ * @param[in] timestamp Notification timestamp.
+ * @param[in,out] ntfs Notification array to add to.
+ * @param[in,out] ntf_count Count of notifications in @p ntfs.
+ * @return SR error value.
+ */
+int np_ntf_add_dup(const struct lyd_node *notif, const struct timespec *timestamp, struct np_rt_notif **ntfs,
+        uint32_t *ntf_count);
+
+/**
+ * @brief Send a notification to a NETCONF client.
+ *
+ * @param[in] ncs NC session to use.
+ * @param[in] timestamp Notification timestamp.
+ * @param[in,out] ly_ntf Notification to send, may be spent.
+ * @param[in] use_ntf Whether to spend @p ly_ntf or not.
+ * @return SR error value.
+ */
+int np_ntf_send(struct nc_session *ncs, const struct timespec *timestamp, struct lyd_node **ly_ntf, int use_ntf);
 
 /**
  * @brief NP2 callback for acquiring context.

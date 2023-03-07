@@ -155,11 +155,8 @@ int
 sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, struct timespec timestamp, struct lyd_node **ly_ntf,
         int use_ntf)
 {
-    struct np2srv_sub_ntf *sub;
-    struct nc_server_notif *nc_ntf = NULL;
-    NC_MSG_TYPE msg_type;
-    char *datetime = NULL;
     int rc = SR_ERR_OK;
+    struct np2srv_sub_ntf *sub;
 
     /* find the subscription structure */
     sub = sub_ntf_find(nc_sub_id, nc_session_get_id(ncs), 0, 0);
@@ -169,37 +166,14 @@ sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, struct timespec t
         goto cleanup;
     }
 
-    /* create the notification object */
-    ly_time_ts2str(&timestamp, &datetime);
-    if (use_ntf) {
-        /* take ownership of the objects */
-        nc_ntf = nc_server_notif_new(*ly_ntf, datetime, NC_PARAMTYPE_FREE);
-        *ly_ntf = NULL;
-        datetime = NULL;
-    } else {
-        /* objects const, their lifetime must last until the notif is sent */
-        nc_ntf = nc_server_notif_new(*ly_ntf, datetime, NC_PARAMTYPE_CONST);
+    /* send the notification */
+    if ((rc = np_ntf_send(ncs, &timestamp, ly_ntf, use_ntf))) {
+        goto cleanup;
     }
 
-    /* send the notification */
-    msg_type = nc_server_notif_send(ncs, nc_ntf, NP2SRV_NOTIF_SEND_TIMEOUT);
-    if ((msg_type == NC_MSG_ERROR) || (msg_type == NC_MSG_WOULDBLOCK)) {
-        ERR("Sending a notification to session %d %s.", nc_session_get_id(ncs),
-                msg_type == NC_MSG_ERROR ? "failed" : "timed out");
-        rc = (msg_type == NC_MSG_ERROR) ? SR_ERR_OPERATION_FAILED : SR_ERR_TIME_OUT;
-        goto cleanup;
-    } else {
-        ncm_session_notification(ncs);
-        ATOMIC_INC_RELAXED(sub->sent_count);
-    }
+    ATOMIC_INC_RELAXED(sub->sent_count);
 
 cleanup:
-    if (use_ntf) {
-        lyd_free_tree(*ly_ntf);
-        *ly_ntf = NULL;
-    }
-    free(datetime);
-    nc_server_notif_free(nc_ntf);
     return rc;
 }
 

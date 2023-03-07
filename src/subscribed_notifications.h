@@ -29,13 +29,16 @@ struct np2srv_sub_ntf;
 /**
  * @brief Sysrepo notification callback argument.
  */
-struct sub_ntf_cb_arg {
+struct np_sub_ntf_arg {
     struct nc_session *ncs;
     struct sub_ntf_data *sn_data;
     uint32_t nc_sub_id;
 
     uint32_t sr_sub_count;          /* number of SR subscriptions made for this NC subscription */
     ATOMIC_T replay_complete_count; /* counter of special replay-complete notifications received */
+
+    struct np_rt_notif *rt_notifs;  /* buffered realtime notifications received before replay complete */
+    uint32_t rt_notif_count;
 };
 
 /**
@@ -50,7 +53,7 @@ struct sub_ntf_data {
     struct timespec replay_start_time;
 
     /* internal data */
-    struct sub_ntf_cb_arg cb_arg;
+    struct np_sub_ntf_arg cb_arg;
 };
 
 /**

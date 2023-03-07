@@ -300,6 +300,69 @@ np_ly_mod_has_data(const struct lys_module *mod, uint32_t config_mask)
     return 0;
 }
 
+int
+np_ntf_add_dup(const struct lyd_node *notif, const struct timespec *timestamp, struct np_rt_notif **ntfs,
+        uint32_t *ntf_count)
+{
+    void *mem;
+
+    mem = realloc(*ntfs, (*ntf_count + 1) * sizeof *ntfs);
+    if (!mem) {
+        EMEM;
+        return SR_ERR_NO_MEMORY;
+    }
+    *ntfs = mem;
+
+    if (lyd_dup_single(notif, NULL, LYD_DUP_RECURSIVE | LYD_DUP_WITH_FLAGS, &(*ntfs)[*ntf_count].notif)) {
+        return SR_ERR_LY;
+    }
+    (*ntfs)[*ntf_count].timestamp = *timestamp;
+    ++(*ntf_count);
+
+    return SR_ERR_OK;
+}
+
+int
+np_ntf_send(struct nc_session *ncs, const struct timespec *timestamp, struct lyd_node **ly_ntf, int use_ntf)
+{
+    int rc = SR_ERR_OK;
+    struct nc_server_notif *nc_ntf = NULL;
+    NC_MSG_TYPE msg_type;
+    char *datetime = NULL;
+
+    /* create the notification object, all the passed arguments must exist until it is sent */
+    ly_time_ts2str(timestamp, &datetime);
+    if (use_ntf) {
+        /* take ownership of the objects */
+        nc_ntf = nc_server_notif_new(*ly_ntf, datetime, NC_PARAMTYPE_FREE);
+        *ly_ntf = NULL;
+        datetime = NULL;
+    } else {
+        /* objects const, their lifetime must last until the notif is sent */
+        nc_ntf = nc_server_notif_new(*ly_ntf, datetime, NC_PARAMTYPE_CONST);
+    }
+
+    /* send the notification */
+    msg_type = nc_server_notif_send(ncs, nc_ntf, NP2SRV_NOTIF_SEND_TIMEOUT);
+    if ((msg_type == NC_MSG_ERROR) || (msg_type == NC_MSG_WOULDBLOCK)) {
+        ERR("Sending a notification to session %d %s.", nc_session_get_id(ncs), msg_type == NC_MSG_ERROR ?
+                "failed" : "timed out");
+        goto cleanup;
+    }
+
+    /* NETCONF monitoring notification counter */
+    ncm_session_notification(ncs);
+
+cleanup:
+    if (use_ntf) {
+        lyd_free_tree(*ly_ntf);
+        *ly_ntf = NULL;
+    }
+    free(datetime);
+    nc_server_notif_free(nc_ntf);
+    return rc;
+}
+
 const struct ly_ctx *
 np2srv_acquire_ctx_cb(void *cb_data)
 {
