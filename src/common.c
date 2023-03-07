@@ -306,7 +306,7 @@ np_ntf_add_dup(const struct lyd_node *notif, const struct timespec *timestamp, s
 {
     void *mem;
 
-    mem = realloc(*ntfs, (*ntf_count + 1) * sizeof *ntfs);
+    mem = realloc(*ntfs, (*ntf_count + 1) * sizeof **ntfs);
     if (!mem) {
         EMEM;
         return SR_ERR_NO_MEMORY;
