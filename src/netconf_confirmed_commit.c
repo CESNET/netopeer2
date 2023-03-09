@@ -52,14 +52,12 @@
  * When accessing struct members must use the lock mutex.
  * Alternatively use the set_* and get_* functions
  */
-typedef struct commit_ctx_s {
+static struct {
     char *persist;              /* persist-id of the commit */
     struct nc_session *nc_sess; /* NETCONF session of the pending commit */
     timer_t timer;              /* POSIX timer used for rollback, zero if none */
     pthread_mutex_t lock;       /* Lock for access to this structure and to NCC_DIR */
-} commit_ctx_t;
-
-static commit_ctx_t commit_ctx = {.persist = NULL, .timer = 0, .lock = PTHREAD_MUTEX_INITIALIZER};
+} commit_ctx = {.persist = NULL, .timer = 0, .lock = PTHREAD_MUTEX_INITIALIZER};
 
 void
 ncc_commit_ctx_destroy(void)
