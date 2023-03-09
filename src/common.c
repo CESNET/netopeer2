@@ -21,6 +21,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -87,7 +88,7 @@ np_gettimespec(int force_real)
     if (force_real) {
         clock_gettime(CLOCK_REALTIME, &ts);
     } else {
-        clock_gettime(NP_CLOCK_ID, &ts);
+        clock_gettime(COMPAT_CLOCK_ID, &ts);
     }
 
     return ts;
@@ -189,13 +190,20 @@ int
 np_acquire_user_sess(const struct nc_session *ncs, struct np2_user_sess **user_sess)
 {
     struct np2_user_sess *us;
+    struct timespec ts_timeout;
 
     /* increase ref_count */
     us = nc_session_get_data(ncs);
     ATOMIC_INC_RELAXED(us->ref_count);
 
+    ts_timeout = np_gettimespec(0);
+    np_addtimespec(&ts_timeout, NP2SRV_USER_SESS_LOCK_TIMEOUT);
+
     /* LOCK */
-    pthread_mutex_lock(&us->lock);
+    if (pthread_mutex_clocklock(&us->lock, COMPAT_CLOCK_ID, &ts_timeout)) {
+        ATOMIC_DEC_RELAXED(us->ref_count);
+        return SR_ERR_TIME_OUT;
+    }
 
     *user_sess = us;
     return SR_ERR_OK;

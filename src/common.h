@@ -28,13 +28,6 @@
 #include "compat.h"
 #include "config.h"
 
-/* define clock ID to use */
-#ifdef _POSIX_MONOTONIC_CLOCK
-# define NP_CLOCK_ID CLOCK_MONOTONIC
-#else
-# define NP_CLOCK_ID CLOCK_REALTIME
-#endif
-
 /* macro to check if SR callback was originated by netopeer2 */
 #define NP_IS_ORIG_NP(session) (sr_session_get_orig_name(session) && !strcmp(sr_session_get_orig_name(session), "netopeer2"))
 

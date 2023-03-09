@@ -972,7 +972,7 @@ yang_push_create_timer(void (*cb)(union sigval), void *arg, int force_real, time
             return SR_ERR_SYS;
         }
     } else {
-        if (timer_create(NP_CLOCK_ID, &sevp, timer_id) == -1) {
+        if (timer_create(COMPAT_CLOCK_ID, &sevp, timer_id) == -1) {
             return SR_ERR_SYS;
         }
     }
