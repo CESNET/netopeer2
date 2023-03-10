@@ -108,6 +108,9 @@ yang_push_ident2ds(const char *str, sr_datastore_t *ds)
     } else if (!strcmp(str, "ietf-datastores:operational")) {
         *ds = SR_DS_OPERATIONAL;
         return SR_ERR_OK;
+    } else if (!strcmp(str, "ietf-factory-default:factory-default")) {
+        *ds = SR_DS_FACTORY_DEFAULT;
+        return SR_ERR_OK;
     }
 
     return SR_ERR_UNSUPPORTED;
@@ -132,6 +135,8 @@ yang_push_ds2ident(sr_datastore_t ds)
         return "ietf-datastores:candidate";
     case SR_DS_OPERATIONAL:
         return "ietf-datastores:operational";
+    case SR_DS_FACTORY_DEFAULT:
+        return "ietf-factory-default:factory-default";
     }
 
     return NULL;
