@@ -427,6 +427,9 @@ ncc_changes_rollback_cb(union sigval sev)
     }
     sr_nacm_set_user(user_sess->sess, NULL);
 
+    /* replacing running datastore */
+    sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING);
+
     /* iterate over all the files in backup directory */
     if (asprintf(&srv_path, "%s/%s", np2srv.server_dir, NCC_DIR) == -1) {
         EMEM;

@@ -186,13 +186,13 @@ test_timeout_runout(void **state)
     FREE_TEST_VARS(st);
 
     /* Running should now be same as candidate */
-    GET_CONFIG(st);
+    GET_FILTER(st, "/edit1:first");
     expected =
-            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
             "    <first xmlns=\"ed1\">Test</first>\n"
             "  </data>\n"
-            "</get-config>\n";
+            "</get>\n";
     assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
 
