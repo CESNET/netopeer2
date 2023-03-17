@@ -479,6 +479,65 @@ test_rollback_disconnect(void **state)
 }
 
 static void
+test_rollback_locked(void **state)
+{
+    struct np_test *st = *state;
+    const char *expected;
+
+    /* prior to the test running should be empty */
+    ASSERT_EMPTY_CONFIG(st);
+
+    /* running lock RPC */
+    st->rpc = nc_rpc_lock(NC_DATASTORE_RUNNING);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* send a persistent confirmed-commit rpc with 60s timeout */
+    st->rpc = nc_rpc_commit(1, 60, "test-persist", NULL, NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* running should now be the same as candidate */
+    GET_CONFIG(st);
+    expected =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <first xmlns=\"ed1\">Test</first>\n"
+            "  </data>\n"
+            "</get-config>\n";
+    assert_string_equal(st->str, expected);
+    FREE_TEST_VARS(st);
+
+    /* cancel-commit on a different session, running locked */
+    st->rpc = nc_rpc_cancel("test-persist", NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_ERROR_REPLY_SESS2(st);
+    FREE_TEST_VARS(st);
+
+    /* cancel-commit on the same session */
+    st->rpc = nc_rpc_cancel("test-persist", NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* data should remain unchanged, empty */
+    ASSERT_EMPTY_CONFIG(st);
+
+    /* running unlock RPC */
+    st->rpc = nc_rpc_unlock(NC_DATASTORE_RUNNING);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+}
+
+static void
 test_confirm_persist(void **state)
 {
     struct np_test *st = *state;
@@ -753,6 +812,7 @@ main(int argc, char **argv)
         cmocka_unit_test_setup_teardown(test_timeout_followup, setup_common, teardown_common),
         cmocka_unit_test_setup_teardown(test_cancel, setup_common, teardown_common),
         cmocka_unit_test_setup_teardown(test_rollback_disconnect, setup_common, teardown_common),
+        cmocka_unit_test_setup_teardown(test_rollback_locked, setup_common, teardown_common),
         cmocka_unit_test_setup_teardown(test_confirm_persist, setup_common, teardown_common),
         cmocka_unit_test_setup_teardown(test_cancel_persist, setup_common, teardown_common),
         cmocka_unit_test_setup_teardown(test_wrong_session, setup_common, teardown_common),

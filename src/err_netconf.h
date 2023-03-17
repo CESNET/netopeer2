@@ -25,6 +25,8 @@ void np_err_sr2nc_in_use(sr_session_ctx_t *ev_sess, const sr_error_info_t *err_i
 
 void np_err_sr2nc_same_ds(sr_session_ctx_t *ev_sess, const char *err_msg);
 
+void np_err_in_use(sr_session_ctx_t *ev_sess, uint32_t sr_id);
+
 void np_err_lock_denied(sr_session_ctx_t *ev_sess, const char *err_msg, uint32_t nc_id);
 
 void np_err_missing_element(sr_session_ctx_t *ev_sess, const char *elem_name);

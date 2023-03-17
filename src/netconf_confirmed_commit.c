@@ -992,10 +992,11 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
         const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
         void *UNUSED(private_data))
 {
-    int rc = SR_ERR_OK;
+    int rc = SR_ERR_OK, is_locked;
     struct nc_session *nc_sess;
     struct lyd_node *node;
     const char *persist_id = NULL, *persist = NULL;
+    uint32_t sr_id;
 
     if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
@@ -1039,6 +1040,16 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
             goto cleanup;
         }
     } else {
+        /* make sure the running datastore in unlocked */
+        if ((rc = sr_get_lock(np2srv.sr_conn, SR_DS_RUNNING, NULL, &is_locked, &sr_id, NULL))) {
+            np_err_operation_failed(session, "Failed to learn the lock state of the <running> datastore.");
+            goto cleanup;
+        } else if (is_locked && (sr_session_get_id(((struct np2_user_sess *)nc_session_get_data(nc_sess))->sess) != sr_id)) {
+            np_err_in_use(session, sr_id);
+            rc = SR_ERR_LOCKED;
+            goto cleanup;
+        }
+
         /* persist commit, set the NC session to use for the rollback */
         assert(!commit_ctx.nc_sess);
         commit_ctx.nc_sess = nc_sess;

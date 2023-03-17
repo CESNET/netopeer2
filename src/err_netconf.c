@@ -81,6 +81,25 @@ np_err_sr2nc_same_ds(sr_session_ctx_t *ev_sess, const char *err_msg)
 }
 
 void
+np_err_in_use(sr_session_ctx_t *ev_sess, uint32_t sr_id)
+{
+    struct nc_session *nc_sess;
+    const char *msg;
+    char buf[11];
+
+    /* message */
+    msg = "The request requires a resource that already is in use.";
+
+    /* error info session ID */
+    np_get_nc_sess_by_id(sr_id, 0, __func__, &nc_sess);
+
+    sprintf(buf, "%" PRIu32, nc_sess ? nc_session_get_id(nc_sess) : 0);
+
+    /* set error */
+    sr_session_set_netconf_error(ev_sess, "protocol", "in-use", NULL, NULL, msg, 1, "session-id", buf);
+}
+
+void
 np_err_lock_denied(sr_session_ctx_t *ev_sess, const char *err_msg, uint32_t nc_id)
 {
     char buf[11];
