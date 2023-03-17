@@ -527,20 +527,25 @@ test_cancel_persist(void **state)
 {
     struct np_test *st = *state;
     const char *expected, *persist = "test-persist-2";
+    struct nc_session *nc_sess;
 
-    /* Prior to the test running should be empty */
+    /* prior to the test running should be empty */
     ASSERT_EMPTY_CONFIG(st);
 
-    /* Send a confirmed-commit rpc with persist */
+    /* start a new NC session */
+    nc_sess = nc_connect_unix(st->socket_path, NULL);
+    assert_non_null(nc_sess);
+
+    /* send a confirmed-commit rpc with persist */
     st->rpc = nc_rpc_commit(1, 0, persist, NULL, NC_PARAMTYPE_CONST);
-    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    st->msgtype = nc_send_rpc(nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
 
-    /* Check if received an OK reply */
-    ASSERT_OK_REPLY(st);
+    /* check if received an OK reply */
+    ASSERT_OK_REPLY_PARAM(nc_sess, 3000, st)
     FREE_TEST_VARS(st);
 
-    /* Running should now be same as candidate */
+    /* running should now be same as candidate */
     GET_CONFIG(st);
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -551,16 +556,19 @@ test_cancel_persist(void **state)
     assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
 
-    /* Send cancel-commit rpc on a different session */
+    /* disconnect NC session */
+    nc_session_free(nc_sess, NULL);
+
+    /* send cancel-commit rpc on a different session */
     st->rpc = nc_rpc_cancel(persist, NC_PARAMTYPE_CONST);
-    st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
 
-    /* Check if received an OK reply */
-    ASSERT_OK_REPLY_SESS2(st);
+    /* check if received an OK reply */
+    ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
-    /* Running should now be empty */
+    /* running should now be empty */
     ASSERT_EMPTY_CONFIG(st);
 }
 

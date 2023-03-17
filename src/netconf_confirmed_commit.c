@@ -396,6 +396,7 @@ ncc_changes_rollback_cb(union sigval sev)
 {
     int rc;
     struct np2_user_sess *user_sess = NULL;
+    sr_session_ctx_t *sr_sess;
     struct lyd_node *node = NULL;
     const struct ly_ctx *ly_ctx;
     struct lys_module *module = NULL;
@@ -414,21 +415,29 @@ ncc_changes_rollback_cb(union sigval sev)
         pthread_mutex_lock(&commit_ctx.lock);
     }
 
-    /* get user session, use it in case it was used for locking running DS */
-    if ((rc = np_acquire_user_sess(commit_ctx.nc_sess, &user_sess))) {
-        goto cleanup;
-    }
+    if (commit_ctx.nc_sess) {
+        /* get user session, use the original NC (SR) session in case it was used for locking running DS */
+        if ((rc = np_acquire_user_sess(commit_ctx.nc_sess, &user_sess))) {
+            goto cleanup;
+        }
+        sr_sess = user_sess->sess;
 
-    /* clear user to skip NACM checks */
-    nacm_user = strdup(sr_nacm_get_user(user_sess->sess));
-    if (!nacm_user) {
-        EMEM;
-        goto cleanup;
-    }
-    sr_nacm_set_user(user_sess->sess, NULL);
+        /* clear user to skip NACM checks */
+        nacm_user = strdup(sr_nacm_get_user(sr_sess));
+        if (!nacm_user) {
+            EMEM;
+            goto cleanup;
+        }
+        sr_nacm_set_user(sr_sess, NULL);
 
-    /* replacing running datastore */
-    sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING);
+        /* replacing running datastore */
+        sr_session_switch_ds(sr_sess, SR_DS_RUNNING);
+    } else {
+        /* create a new SR session for the rollback */
+        if ((rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &sr_sess))) {
+            goto cleanup;
+        }
+    }
 
     /* iterate over all the files in backup directory */
     if (asprintf(&srv_path, "%s/%s", np2srv.server_dir, NCC_DIR) == -1) {
@@ -471,7 +480,7 @@ ncc_changes_rollback_cb(union sigval sev)
             ncc_rename_failed_file(module_name, path);
             continue;
         }
-        if ((rc = sr_replace_config(user_sess->sess, module->name, node, np2srv.sr_timeout))) {
+        if ((rc = sr_replace_config(sr_sess, module->name, node, np2srv.sr_timeout))) {
             ERR("Failed restoring backup for module \"%s\".", module->name);
             ncc_rename_failed_file(module_name, path);
             continue;
@@ -500,11 +509,15 @@ cleanup:
         pthread_mutex_unlock(&commit_ctx.lock);
     }
     sr_release_context(np2srv.sr_conn);
-    if (nacm_user) {
-        sr_nacm_set_user(user_sess->sess, nacm_user);
-        free(nacm_user);
+    if (user_sess) {
+        if (nacm_user) {
+            sr_nacm_set_user(sr_sess, nacm_user);
+            free(nacm_user);
+        }
+        np_release_user_sess(user_sess);
+    } else {
+        sr_session_stop(sr_sess);
     }
-    np_release_user_sess(user_sess);
     closedir(dir);
     free(path);
     free(srv_path);
@@ -853,6 +866,7 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
                 goto cleanup;
             }
         } else {
+            assert(commit_ctx.nc_sess);
             if (commit_ctx.nc_sess != nc_sess) {
                 np_err_operation_failed(session,
                         "Follow-up confirm commit session does not match the pending confirmed commit session.");
@@ -869,11 +883,14 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
     /* (re)set the meta file timeout */
     ncc_create_meta_file(timeout);
 
-    /* set persist and NC session */
-    if (persist && ncc_set_persist(persist)) {
-        goto cleanup;
+    /* set persist or NC session */
+    if (persist) {
+        if (ncc_set_persist(persist)) {
+            goto cleanup;
+        }
+    } else {
+        commit_ctx.nc_sess = nc_sess;
     }
-    commit_ctx.nc_sess = nc_sess;
 
     /* (re)schedule the timer thread for rollback */
     if (ncc_commit_timeout_schedule(timeout)) {
@@ -1013,11 +1030,18 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
         goto cleanup;
     }
 
-    /* check NC session */
-    if (!persist_id && (commit_ctx.nc_sess != nc_sess)) {
-        np_err_operation_failed(session, "Cancel commit session does not match the pending confirmed commit session.");
-        rc = SR_ERR_OPERATION_FAILED;
-        goto cleanup;
+    if (!persist_id) {
+        /* non-persist pending confirmed commit and session issuing the <cancel-commit> does not match
+         * the one issuing <commit> */
+        if (commit_ctx.nc_sess != nc_sess) {
+            np_err_operation_failed(session, "Cancel commit session does not match the pending confirmed commit session.");
+            rc = SR_ERR_OPERATION_FAILED;
+            goto cleanup;
+        }
+    } else {
+        /* persist commit, set the NC session to use for the rollback */
+        assert(!commit_ctx.nc_sess);
+        commit_ctx.nc_sess = nc_sess;
     }
 
     /* rollback */

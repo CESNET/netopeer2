@@ -588,7 +588,11 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
 
     if ((ds == SR_DS_RUNNING) && !strcmp(input->schema->name, "lock") && ncc_ongoing_confirmed_commit(&nc_sess)) {
         /* RFC 6241 sec. 7.5. */
-        np_err_lock_denied(session, "There is an ongoing confirmed commit.", nc_session_get_id(nc_sess));
+        if (nc_sess) {
+            np_err_lock_denied(session, "There is an ongoing confirmed commit.", nc_session_get_id(nc_sess));
+        } else {
+            np_err_lock_denied(session, "There is an ongoing persistent confirmed commit.", 0);
+        }
         rc = SR_ERR_LOCKED;
         goto cleanup;
     }
