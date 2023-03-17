@@ -396,7 +396,7 @@ ncc_changes_rollback_cb(union sigval sev)
 {
     int rc;
     struct np2_user_sess *user_sess = NULL;
-    sr_session_ctx_t *sr_sess;
+    sr_session_ctx_t *sr_sess = NULL;
     struct lyd_node *node = NULL;
     const struct ly_ctx *ly_ctx;
     struct lys_module *module = NULL;
