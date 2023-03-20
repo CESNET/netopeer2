@@ -565,7 +565,7 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     sr_datastore_t ds = 0;
     struct ly_set *nodeset = NULL;
     struct np2_user_sess *user_sess = NULL;
-    struct nc_session *nc_sess;
+    struct nc_session *nc_sess, *ncc_sess;
     const sr_error_info_t *err_info;
     int rc = SR_ERR_OK;
 
@@ -586,7 +586,13 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     }
     ly_set_free(nodeset, NULL);
 
-    if ((ds == SR_DS_RUNNING) && !strcmp(input->schema->name, "lock") && ncc_ongoing_confirmed_commit(&nc_sess)) {
+    /* get the user session */
+    if ((rc = np_find_user_sess(session, __func__, &nc_sess, &user_sess))) {
+        goto cleanup;
+    }
+
+    if ((ds == SR_DS_RUNNING) && !strcmp(input->schema->name, "lock") && ncc_ongoing_confirmed_commit(&ncc_sess) &&
+            (!ncc_sess || (ncc_sess != nc_sess))) {
         /* RFC 6241 sec. 7.5. */
         if (nc_sess) {
             np_err_lock_denied(session, "There is an ongoing confirmed commit.", nc_session_get_id(nc_sess));
@@ -594,11 +600,6 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
             np_err_lock_denied(session, "There is an ongoing persistent confirmed commit.", 0);
         }
         rc = SR_ERR_LOCKED;
-        goto cleanup;
-    }
-
-    /* get the user session */
-    if ((rc = np_find_user_sess(session, __func__, NULL, &user_sess))) {
         goto cleanup;
     }
 
@@ -622,8 +623,6 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         sr_session_set_error_message(session, err_info->err[0].message);
         goto cleanup;
     }
-
-    /* success */
 
 cleanup:
     np_release_user_sess(user_sess);
