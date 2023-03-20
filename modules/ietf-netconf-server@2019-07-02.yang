@@ -428,8 +428,8 @@
                    leaf anchor-time {
                      type yang:date-and-time {
                        // constrained to minute-level granularity
-                       pattern '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}'
-                             + '(Z|[\+\-]\d{2}:\d{2})';
+                       pattern '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:00'
+                             + '(Z|[\+\-][0-9]{2}:[0-9]{2})';
                      }
                      description
                        "Designates a timestamp before or after which a
