@@ -957,7 +957,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
         goto cleanup;
     }
 
-    /* ff there is a commit waiting to be confirmed, confirm it */
+    /* if there is a commit waiting to be confirmed, confirm it */
     if (commit_ctx.timer) {
         if (!persist_id && (commit_ctx.nc_sess != nc_sess)) {
             np_err_operation_failed(session, "Commit session does not match the pending confirmed commit session.");
