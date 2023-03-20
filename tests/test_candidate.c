@@ -520,6 +520,76 @@ test_discard_changes_advanced(void **state)
     FREE_TEST_VARS(st);
 }
 
+static void
+test_locked_discard_changes(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* modify running */
+    data =
+            "<top xmlns=\"ed2\">"
+            "  <name>TestSecond</name>"
+            "</top>";
+    SEND_EDIT_RPC_DS(st, NC_DATASTORE_RUNNING, data)
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* lock candidate */
+    st->rpc = nc_rpc_lock(NC_DATASTORE_CANDIDATE);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* modify candidate */
+    data =
+            "<top xmlns=\"ed2\">"
+            "  <name>TestSecond</name>"
+            "  <num>12</num>"
+            "</top>";
+    SEND_EDIT_RPC_DS(st, NC_DATASTORE_CANDIDATE, data)
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* commit from another session */
+    st->rpc = nc_rpc_commit(0, 0, NULL, NULL, NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 2000, &st->msgid);
+    assert_int_equal(NC_MSG_RPC, st->msgtype);
+
+    /* receive a reply, should have error-tag in-use */
+    ASSERT_ERROR_REPLY_SESS2(st);
+    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "in-use");
+    FREE_TEST_VARS(st);
+
+    /* discard-changes */
+    st->rpc = nc_rpc_discard();
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 2000, &st->msgid);
+    assert_int_equal(NC_MSG_RPC, st->msgtype);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* check candidate */
+    GET_DS_CONFIG(st, NC_DATASTORE_CANDIDATE);
+    data =
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <top xmlns=\"ed2\">\n"
+            "      <name>TestSecond</name>\n"
+            "    </top>\n"
+            "  </data>\n"
+            "</get-config>\n";
+    assert_string_equal(st->str, data);
+    FREE_TEST_VARS(st);
+
+    /* unlock candidate */
+    st->rpc = nc_rpc_unlock(NC_DATASTORE_CANDIDATE);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -534,6 +604,7 @@ main(int argc, char **argv)
                 teardown_lock_modified_candidate),
         cmocka_unit_test_setup_teardown(test_discard_changes_advanced, setup_discard_changes_advanced,
                 teardown_discard_changes_advanced),
+        cmocka_unit_test_teardown(test_locked_discard_changes, teardown_discard_changes_advanced),
     };
 
     if (np_is_nacm_recovery()) {
