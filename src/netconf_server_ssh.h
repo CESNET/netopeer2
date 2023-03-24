@@ -29,21 +29,21 @@ int np2srv_endpt_ssh_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *
         sr_event_t event, uint32_t request_id, void *private_data);
 
 int np2srv_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
-        uint32_t request_id, sr_event_t event, void *private_data);
+        sr_event_t event, uint32_t request_id, void *private_data);
 
 int np2srv_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
-        const char *xpath, uint32_t request_id, sr_event_t event, void *private_data);
+        const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
 
 int np2srv_endpt_ssh_auth_users_oper_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
         const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
 int np2srv_ch_client_endpt_ssh_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
-        uint32_t request_id, sr_event_t event, void *private_data);
+        sr_event_t event, uint32_t request_id, void *private_data);
 
 int np2srv_ch_endpt_ssh_hostkey_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
-        uint32_t request_id, sr_event_t event, void *private_data);
+        sr_event_t event, uint32_t request_id, void *private_data);
 
 int np2srv_ch_endpt_ssh_auth_methods_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
-        const char *xpath, uint32_t request_id, sr_event_t event, void *private_data);
+        const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
 
 #endif /* NP2SRV_NETCONF_SERVER_SSH_H_ */
