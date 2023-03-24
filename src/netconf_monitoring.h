@@ -17,6 +17,8 @@
 #ifndef NP2SRV_NETCONF_MONITORING_H_
 #define NP2SRV_NETCONF_MONITORING_H_
 
+#define _GNU_SOURCE
+
 #include <pthread.h>
 
 #include <nc_server.h>

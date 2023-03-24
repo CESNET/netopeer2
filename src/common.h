@@ -17,6 +17,8 @@
 #ifndef NP2SRV_COMMON_H_
 #define NP2SRV_COMMON_H_
 
+#define _GNU_SOURCE
+
 #include <pthread.h>
 #include <stdint.h>
 #include <sys/types.h>
