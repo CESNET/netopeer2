@@ -91,8 +91,12 @@
 #define ASSERT_ERROR_REPLY(state) \
     state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
-    if (strcmp(LYD_NAME(lyd_child(state->envp)), "rpc-error")) { \
-        printf("Expected \"rpc-error\" reply, received \"%s\" instead.\n", LYD_NAME(lyd_child(state->envp))); \
+    if (!lyd_child(state->envp) || strcmp(LYD_NAME(lyd_child(state->envp)), "rpc-error")) { \
+        if (lyd_child(state->envp)) { \
+            printf("Expected \"rpc-error\" reply, received \"%s\" instead.\n", LYD_NAME(lyd_child(state->envp))); \
+        } else { \
+            printf("Expected \"rpc-error\" reply, received data instead.\n"); \
+        } \
         printf("op:\n"); \
         if (state->op) { \
             lyd_print_file(stdout, state->op, LYD_XML, 0); \
