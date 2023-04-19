@@ -180,7 +180,7 @@ change_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, c
 }
 
 static int
-change_serial_num(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *path,
+oper_get_serial_num(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *path,
         const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
 {
     (void) session; (void) sub_id; (void) module_name; (void) path;
@@ -194,13 +194,117 @@ change_serial_num(sr_session_ctx_t *session, uint32_t sub_id, const char *module
 }
 
 static int
+oper_get_routing_state(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *path,
+        const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
+{
+    const struct ly_ctx *ly_ctx;
+    const char *xml;
+    struct lyd_node *data;
+    LY_ERR lyrc;
+
+    (void) sub_id; (void) module_name; (void) path;
+    (void) request_xpath; (void) request_id; (void) private_data;
+
+    xml =
+            "<routing-state xmlns=\"urn:ietf:params:xml:ns:yang:ietf-routing\">\n"
+            "  <ribs>\n"
+            "    <rib>\n"
+            "      <name>default</name>\n"
+            "      <address-family xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:ipv4</address-family>\n"
+            "      <routes>\n"
+            "        <route>\n"
+            "          <next-hop>\n"
+            "            <next-hop-address xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">172.17.0.1</next-hop-address>\n"
+            "            <special-next-hop>receive</special-next-hop>\n"
+            "          </next-hop>\n"
+            "          <source-protocol xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:static</source-protocol>\n"
+            "          <destination-prefix xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">0.0.0.0/0</destination-prefix>\n"
+            "        </route>\n"
+            "        <route>\n"
+            "          <next-hop>\n"
+            "            <next-hop-address xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">0.0.0.1</next-hop-address>\n"
+            "            <special-next-hop>receive</special-next-hop>\n"
+            "          </next-hop>\n"
+            "          <source-protocol xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:static</source-protocol>\n"
+            "          <destination-prefix xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">172.17.0.0/16</destination-prefix>\n"
+            "        </route>\n"
+            "      </routes>\n"
+            "    </rib>\n"
+            "    <rib>\n"
+            "      <name>outband</name>\n"
+            "      <address-family xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:ipv4</address-family>\n"
+            "      <routes>\n"
+            "        <route>\n"
+            "          <next-hop>\n"
+            "            <next-hop-address xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">10.161.164.1</next-hop-address>\n"
+            "            <special-next-hop>receive</special-next-hop>\n"
+            "          </next-hop>\n"
+            "          <source-protocol xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:static</source-protocol>\n"
+            "          <destination-prefix xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">0.0.0.0/0</destination-prefix>\n"
+            "        </route>\n"
+            "        <route>\n"
+            "          <next-hop>\n"
+            "            <next-hop-address xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">192.0.0.8</next-hop-address>\n"
+            "            <special-next-hop>receive</special-next-hop>\n"
+            "          </next-hop>\n"
+            "          <source-protocol xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:static</source-protocol>\n"
+            "          <destination-prefix xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">1.2.3.0/24</destination-prefix>\n"
+            "        </route>\n"
+            "        <route>\n"
+            "          <next-hop>\n"
+            "            <outgoing-interface>management 0/1</outgoing-interface>\n"
+            "          </next-hop>\n"
+            "          <source-protocol xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:direct</source-protocol>\n"
+            "          <destination-prefix xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">10.161.164.0/24</destination-prefix>\n"
+            "        </route>\n"
+            "        <route>\n"
+            "          <next-hop>\n"
+            "            <special-next-hop>receive</special-next-hop>\n"
+            "          </next-hop>\n"
+            "          <source-protocol xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:direct</source-protocol>\n"
+            "          <destination-prefix xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">192.168.0.0/24</destination-prefix>\n"
+            "        </route>\n"
+            "        <route>\n"
+            "          <next-hop>\n"
+            "            <next-hop-address xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">192.0.0.8</next-hop-address>\n"
+            "            <special-next-hop>receive</special-next-hop>\n"
+            "          </next-hop>\n"
+            "          <source-protocol xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:static</source-protocol>\n"
+            "          <destination-prefix xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">192.168.0.0/16</destination-prefix>\n"
+            "        </route>\n"
+            "        <route>\n"
+            "          <next-hop>\n"
+            "            <special-next-hop>receive</special-next-hop>\n"
+            "          </next-hop>\n"
+            "          <source-protocol xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:direct</source-protocol>\n"
+            "          <destination-prefix xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">192.168.1.0/24</destination-prefix>\n"
+            "        </route>\n"
+            "      </routes>\n"
+            "    </rib>\n"
+            "  </ribs>\n"
+            "</routing-state>\n";
+
+    ly_ctx = sr_session_acquire_context(session);
+    lyrc = lyd_parse_data_mem(ly_ctx, xml, LYD_XML, LYD_PARSE_ONLY, 0, &data);
+    sr_session_release_context(session);
+    if (lyrc) {
+        return SR_ERR_LY;
+    }
+
+    *parent = data;
+    return SR_ERR_OK;
+}
+
+static int
 local_setup(void **state)
 {
     struct np_test *st;
     char test_name[256];
     const char *modules[] = {
         NP_TEST_MODULE_DIR "/example2.yang", NP_TEST_MODULE_DIR "/filter1-imp.yang", NP_TEST_MODULE_DIR "/filter1.yang",
-        NP_TEST_MODULE_DIR "/xpath.yang", NP_TEST_MODULE_DIR "/issue1.yang", NP_TEST_MODULE_DIR "/edit1.yang", NULL
+        NP_TEST_MODULE_DIR "/xpath.yang", NP_TEST_MODULE_DIR "/issue1.yang", NP_TEST_MODULE_DIR "/edit1.yang",
+        NP_TEST_MODULE_DIR "/ietf-routing@2018-03-13.yang", NP_TEST_MODULE_DIR "/ietf-ipv4-unicast-routing@2018-03-13.yang",
+        NULL
     };
     int rc;
 
@@ -221,7 +325,9 @@ local_setup(void **state)
 
     /* setup subscriptions */
     assert_int_equal(SR_ERR_OK, sr_oper_get_subscribe(st->sr_sess, "issue1",
-            "/issue1:hardware/component/serial-num", change_serial_num, NULL, 0, &st->sub));
+            "/issue1:hardware/component/serial-num", oper_get_serial_num, NULL, 0, &st->sub));
+    assert_int_equal(SR_ERR_OK, sr_oper_get_subscribe(st->sr_sess, "ietf-routing", "/ietf-routing:routing-state",
+            oper_get_routing_state, NULL, 0, &st->sub));
     assert_int_equal(SR_ERR_OK, sr_module_change_subscribe(st->sr_sess, "issue1", NULL, change_cb, NULL, 0, 0, &st->sub));
 
     return 0;
@@ -231,7 +337,10 @@ static int
 local_teardown(void **state)
 {
     struct np_test *st = *state;
-    const char *modules[] = {"example2", "filter1-imp", "filter1", "xpath", "issue1", "edit1", NULL};
+    const char *modules[] = {
+        "example2", "filter1-imp", "filter1", "xpath", "issue1", "edit1", "ietf-routing",
+        "ietf-ipv4-unicast-routing", NULL
+    };
 
     if (!st) {
         return 0;
@@ -1139,6 +1248,149 @@ test_getdata_operational_data(void **state)
     FREE_TEST_VARS(st);
 }
 
+static void
+test_keyless_list(void **state)
+{
+    struct np_test *st = *state;
+    char *filter, *expected;
+
+    filter = "/ietf-routing:routing-state//ietf-ipv4-unicast-routing:next-hop-address";
+    GET_DATA_FILTER(st, "ietf-datastores:operational", filter, NULL, NULL, 0, 0, 0, 0, NC_WD_ALL);
+    expected =
+            "<get-data xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-nmda\">\n"
+            "  <data>\n"
+            "    <routing-state xmlns=\"urn:ietf:params:xml:ns:yang:ietf-routing\">\n"
+            "      <ribs>\n"
+            "        <rib>\n"
+            "          <name>default</name>\n"
+            "          <routes>\n"
+            "            <route>\n"
+            "              <next-hop>\n"
+            "                <next-hop-address xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">172.17.0.1</next-hop-address>\n"
+            "              </next-hop>\n"
+            "            </route>\n"
+            "            <route>\n"
+            "              <next-hop>\n"
+            "                <next-hop-address xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">0.0.0.1</next-hop-address>\n"
+            "              </next-hop>\n"
+            "            </route>\n"
+            "          </routes>\n"
+            "        </rib>\n"
+            "        <rib>\n"
+            "          <name>outband</name>\n"
+            "          <routes>\n"
+            "            <route>\n"
+            "              <next-hop>\n"
+            "                <next-hop-address xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">10.161.164.1</next-hop-address>\n"
+            "              </next-hop>\n"
+            "            </route>\n"
+            "            <route>\n"
+            "              <next-hop>\n"
+            "                <next-hop-address xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">192.0.0.8</next-hop-address>\n"
+            "              </next-hop>\n"
+            "            </route>\n"
+            "            <route>\n"
+            "              <next-hop>\n"
+            "                <next-hop-address xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">192.0.0.8</next-hop-address>\n"
+            "              </next-hop>\n"
+            "            </route>\n"
+            "          </routes>\n"
+            "        </rib>\n"
+            "      </ribs>\n"
+            "    </routing-state>\n"
+            "  </data>\n"
+            "</get-data>\n";
+    assert_string_equal(st->str, expected);
+    FREE_TEST_VARS(st);
+
+    filter = "/ietf-routing:routing-state//*";
+    GET_DATA_FILTER(st, "ietf-datastores:operational", filter, NULL, NULL, 0, 0, 0, 0, NC_WD_ALL);
+    expected =
+            "<get-data xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-nmda\">\n"
+            "  <data>\n"
+            "    <routing-state xmlns=\"urn:ietf:params:xml:ns:yang:ietf-routing\">\n"
+            "      <ribs>\n"
+            "        <rib>\n"
+            "          <name>default</name>\n"
+            "          <address-family xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:ipv4</address-family>\n"
+            "          <routes>\n"
+            "            <route>\n"
+            "              <next-hop>\n"
+            "                <next-hop-address xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">172.17.0.1</next-hop-address>\n"
+            "                <special-next-hop>receive</special-next-hop>\n"
+            "              </next-hop>\n"
+            "              <source-protocol xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:static</source-protocol>\n"
+            "              <destination-prefix xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">0.0.0.0/0</destination-prefix>\n"
+            "            </route>\n"
+            "            <route>\n"
+            "              <next-hop>\n"
+            "                <next-hop-address xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">0.0.0.1</next-hop-address>\n"
+            "                <special-next-hop>receive</special-next-hop>\n"
+            "              </next-hop>\n"
+            "              <source-protocol xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:static</source-protocol>\n"
+            "              <destination-prefix xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">172.17.0.0/16</destination-prefix>\n"
+            "            </route>\n"
+            "          </routes>\n"
+            "        </rib>\n"
+            "        <rib>\n"
+            "          <name>outband</name>\n"
+            "          <address-family xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:ipv4</address-family>\n"
+            "          <routes>\n"
+            "            <route>\n"
+            "              <next-hop>\n"
+            "                <next-hop-address xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">10.161.164.1</next-hop-address>\n"
+            "                <special-next-hop>receive</special-next-hop>\n"
+            "              </next-hop>\n"
+            "              <source-protocol xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:static</source-protocol>\n"
+            "              <destination-prefix xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">0.0.0.0/0</destination-prefix>\n"
+            "            </route>\n"
+            "            <route>\n"
+            "              <next-hop>\n"
+            "                <next-hop-address xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">192.0.0.8</next-hop-address>\n"
+            "                <special-next-hop>receive</special-next-hop>\n"
+            "              </next-hop>\n"
+            "              <source-protocol xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:static</source-protocol>\n"
+            "              <destination-prefix xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">1.2.3.0/24</destination-prefix>\n"
+            "            </route>\n"
+            "            <route>\n"
+            "              <next-hop>\n"
+            "                <outgoing-interface>management 0/1</outgoing-interface>\n"
+            "              </next-hop>\n"
+            "              <source-protocol xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:direct</source-protocol>\n"
+            "              <destination-prefix xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">10.161.164.0/24</destination-prefix>\n"
+            "            </route>\n"
+            "            <route>\n"
+            "              <next-hop>\n"
+            "                <special-next-hop>receive</special-next-hop>\n"
+            "              </next-hop>\n"
+            "              <source-protocol xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:direct</source-protocol>\n"
+            "              <destination-prefix xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">192.168.0.0/24</destination-prefix>\n"
+            "            </route>\n"
+            "            <route>\n"
+            "              <next-hop>\n"
+            "                <next-hop-address xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">192.0.0.8</next-hop-address>\n"
+            "                <special-next-hop>receive</special-next-hop>\n"
+            "              </next-hop>\n"
+            "              <source-protocol xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:static</source-protocol>\n"
+            "              <destination-prefix xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">192.168.0.0/16</destination-prefix>\n"
+            "            </route>\n"
+            "            <route>\n"
+            "              <next-hop>\n"
+            "                <special-next-hop>receive</special-next-hop>\n"
+            "              </next-hop>\n"
+            "              <source-protocol xmlns:rt=\"urn:ietf:params:xml:ns:yang:ietf-routing\">rt:direct</source-protocol>\n"
+            "              <destination-prefix xmlns=\"urn:ietf:params:xml:ns:yang:ietf-ipv4-unicast-routing\">192.168.1.0/24</destination-prefix>\n"
+            "            </route>\n"
+            "          </routes>\n"
+            "        </rib>\n"
+            "      </ribs>\n"
+            "    </routing-state>\n"
+            "  </data>\n"
+            "</get-data>\n";
+    assert_string_equal(st->str, expected);
+    FREE_TEST_VARS(st);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -1158,6 +1410,7 @@ main(int argc, char **argv)
         cmocka_unit_test(test_get_content_match_node),
         cmocka_unit_test(test_get_operational_data),
         cmocka_unit_test(test_getdata_operational_data),
+        cmocka_unit_test(test_keyless_list),
     };
 
     nc_verbosity(NC_VERB_WARNING);
