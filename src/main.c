@@ -604,6 +604,11 @@ server_init(void)
     /* set libnetconf2 SSH callbacks */
     nc_server_ssh_set_hostkey_clb(np2srv_hostkey_cb, NULL, NULL);
     nc_server_ssh_set_pubkey_auth_clb(np2srv_pubkey_auth_cb, NULL, NULL);
+
+    /* configure netconf2 PAM module */
+    if (np2srv.pam_config_name) {
+        nc_server_ssh_set_pam_conf_path(np2srv.pam_config_name, np2srv.pam_config_dir);
+    }
 #endif
 
 #ifdef NC_ENABLED_TLS
@@ -1084,6 +1089,8 @@ print_usage(char *progname)
     fprintf(stdout, " -m MODE    Set mode for the listening UNIX socket.\n");
     fprintf(stdout, " -u UID     Set UID/user for the listening UNIX socket.\n");
     fprintf(stdout, " -g GID     Set GID/group for the listening UNIX socket.\n");
+    fprintf(stdout, " -n NAME    Set PAM Module config name for interactive ssh authentication.\n");
+    fprintf(stdout, " -i PATH    Set PAM Module config dir for interactive ssh authentication.\n");
     fprintf(stdout, " -t TIMEOUT Timeout in seconds of all sysrepo functions (applying edit-config, reading data, ...),\n");
     fprintf(stdout, "            if 0 (default), the default sysrepo timeouts are used.\n");
     fprintf(stdout, " -x PATH    Path to a data file with data for libyang ext data callback. They are required for\n");
@@ -1145,7 +1152,7 @@ main(int argc, char *argv[])
     np2srv.server_dir = SERVER_DIR;
 
     /* process command line options */
-    while ((c = getopt(argc, argv, "dhVp:f:U::m:u:g:t:x:v:c:")) != -1) {
+    while ((c = getopt(argc, argv, "dhVp:f:U::m:u:g:n:i:t:x:v:c:")) != -1) {
         switch (c) {
         case 'd':
             daemonize = 0;
@@ -1223,6 +1230,12 @@ main(int argc, char *argv[])
                 }
                 np2srv.unix_gid = grp->gr_gid;
             }
+            break;
+        case 'n':
+            np2srv.pam_config_name = optarg;
+            break;
+        case 'i':
+            np2srv.pam_config_dir = optarg;
             break;
         case 't':
             np2srv.sr_timeout = strtoul(optarg, &ptr, 10);
