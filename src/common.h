@@ -63,6 +63,8 @@ struct np2srv {
     gid_t unix_gid;                 /**< UNIX socket GID */
     uint32_t sr_timeout;            /**< timeout in ms for all sysrepo functions */
     const char *ext_data_path;      /**< path to the data file with data for LY ext data callback */
+    const char *pam_config_name;    /**< name of the PAM config file */
+    const char *pam_config_dir;     /**< path to the PAM config dir */
 
     const char *server_dir;         /**< path to server files (just confirmed commit for the moment) */
 
