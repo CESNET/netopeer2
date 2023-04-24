@@ -2013,7 +2013,7 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
     int ret;
     char *args = strdupa(arg);
     char *cmd = NULL, *ptr = NULL, *path, *path2, *dest = NULL;
-    char *trusted_dir = NULL, *netconf_dir = NULL, *c_rehash_cmd = NULL;
+    char *trusted_dir = NULL, *netconf_dir = NULL, *rehash_cmd = NULL;
     DIR *dir = NULL;
     struct dirent *d;
 
@@ -2069,7 +2069,7 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
         }
 
         if ((asprintf(&dest, "%s/%s", trusted_dir, strrchr(path, '/') + 1) == -1) ||
-                (asprintf(&c_rehash_cmd, "c_rehash %s &> /dev/null", trusted_dir) == -1)) {
+                (asprintf(&rehash_cmd, "openssl rehash %s &> /dev/null", trusted_dir) == -1)) {
             ERROR("cert add", "Memory allocation failed");
             goto error;
         }
@@ -2084,8 +2084,8 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
             goto error;
         }
 
-        if (((ret = system(c_rehash_cmd)) == -1) || WEXITSTATUS(ret)) {
-            ERROR("cert add", "c_rehash execution failed");
+        if (((ret = system(rehash_cmd)) == -1) || WEXITSTATUS(ret)) {
+            ERROR("cert add", "openssl rehash execution failed");
             goto error;
         }
 
@@ -2108,7 +2108,7 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
         }
 
         if ((asprintf(&dest, "%s/%s.pem", trusted_dir, path) == -1) ||
-                (asprintf(&c_rehash_cmd, "c_rehash %s &> /dev/null", trusted_dir) == -1)) {
+                (asprintf(&rehash_cmd, "openssl rehash %s &> /dev/null", trusted_dir) == -1)) {
             ERROR("cert remove", "Memory allocation failed");
             goto error;
         }
@@ -2119,8 +2119,8 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
             goto error;
         }
 
-        if (((ret = system(c_rehash_cmd)) == -1) || WEXITSTATUS(ret)) {
-            ERROR("cert remove", "c_rehash execution failed");
+        if (((ret = system(rehash_cmd)) == -1) || WEXITSTATUS(ret)) {
+            ERROR("cert remove", "openssl rehash execution failed");
             goto error;
         }
 
@@ -2255,14 +2255,14 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
     free(dest);
     free(trusted_dir);
     free(netconf_dir);
-    free(c_rehash_cmd);
+    free(rehash_cmd);
     return EXIT_SUCCESS;
 
 error:
     free(dest);
     free(trusted_dir);
     free(netconf_dir);
-    free(c_rehash_cmd);
+    free(rehash_cmd);
     return EXIT_FAILURE;
 }
 
@@ -2272,7 +2272,7 @@ cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
     int ret;
     char *args = strdupa(arg);
     char *cmd = NULL, *ptr = NULL, *path, *dest = NULL;
-    char *crl_dir = NULL, *c_rehash_cmd = NULL;
+    char *crl_dir = NULL, *rehash_cmd = NULL;
     DIR *dir = NULL;
     struct dirent *d;
 
@@ -2328,7 +2328,7 @@ cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
         }
 
         if ((asprintf(&dest, "%s/%s", crl_dir, strrchr(path, '/') + 1) == -1) ||
-                (asprintf(&c_rehash_cmd, "c_rehash %s &> /dev/null", crl_dir) == -1)) {
+                (asprintf(&rehash_cmd, "openssl rehash %s &> /dev/null", crl_dir) == -1)) {
             ERROR("crl add", "Memory allocation failed");
             goto error;
         }
@@ -2343,8 +2343,8 @@ cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
             goto error;
         }
 
-        if (((ret = system(c_rehash_cmd)) == -1) || WEXITSTATUS(ret)) {
-            ERROR("crl add", "c_rehash execution failed");
+        if (((ret = system(rehash_cmd)) == -1) || WEXITSTATUS(ret)) {
+            ERROR("crl add", "openssl rehash execution failed");
             goto error;
         }
 
@@ -2367,7 +2367,7 @@ cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
         }
 
         if ((asprintf(&dest, "%s/%s.pem", crl_dir, path) == -1) ||
-                (asprintf(&c_rehash_cmd, "c_rehash %s &> /dev/null", crl_dir) == -1)) {
+                (asprintf(&rehash_cmd, "openssl rehash %s &> /dev/null", crl_dir) == -1)) {
             ERROR("crl remove", "Memory allocation failed");
             goto error;
         }
@@ -2378,8 +2378,8 @@ cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
             goto error;
         }
 
-        if (((ret = system(c_rehash_cmd)) == -1) || WEXITSTATUS(ret)) {
-            ERROR("crl remove", "c_rehash execution failed");
+        if (((ret = system(rehash_cmd)) == -1) || WEXITSTATUS(ret)) {
+            ERROR("crl remove", "openssl rehash execution failed");
             goto error;
         }
 
@@ -2389,13 +2389,13 @@ cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
     }
 
     free(dest);
-    free(c_rehash_cmd);
+    free(rehash_cmd);
     free(crl_dir);
     return EXIT_SUCCESS;
 
 error:
     free(dest);
-    free(c_rehash_cmd);
+    free(rehash_cmd);
     free(crl_dir);
     return EXIT_FAILURE;
 }

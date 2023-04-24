@@ -19,11 +19,6 @@ BuildRequires: openssl-devel
 BuildRequires: systemd-devel
 BuildRequires: systemd
 
-%if 0%{?fedora}
-# c_rehash needed by CLI
-BuildRequires: openssl-perl
-%endif
-
 Requires: %{name}-server%{?_isa} = %{version}-%{release}
 Requires: %{name}-cli%{?_isa} = %{version}-%{release}
 
@@ -42,10 +37,6 @@ Requires: systemd
 
 %package cli
 Summary: netopeer2 NETCONF CLI client
-
-%if 0%{?fedora}
-Requires: openssl-perl
-%endif
 
 
 %description
