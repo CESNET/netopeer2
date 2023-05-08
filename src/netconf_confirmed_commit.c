@@ -345,8 +345,11 @@ ncc_clean_backup_directory(void)
         goto cleanup;
     }
     while ((dirent = readdir(dir))) {
-        if (!strcmp(dirent->d_name, ".") || !strcmp(dirent->d_name, "..") ||
-                !strstr(".json", dirent->d_name) || strcmp(META_FILE, dirent->d_name)) {
+        if (!strcmp(dirent->d_name, ".") || !strcmp(dirent->d_name, "..")) {
+            continue;
+        }
+        
+        if (!strstr(dirent->d_name, ".json") && strcmp(META_FILE, dirent->d_name)) {
             /* If some unexpected file, just skip */
             continue;
         }
