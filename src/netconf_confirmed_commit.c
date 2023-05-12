@@ -348,7 +348,7 @@ ncc_clean_backup_directory(void)
         if (!strcmp(dirent->d_name, ".") || !strcmp(dirent->d_name, "..")) {
             continue;
         }
-        
+
         if (!strstr(dirent->d_name, ".json") && strcmp(META_FILE, dirent->d_name)) {
             /* If some unexpected file, just skip */
             continue;
