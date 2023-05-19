@@ -6696,10 +6696,14 @@ COMMAND commands[] = {
     {"edit-config", cmd_editconfig, cmd_editconfig_help, "ietf-netconf <edit-config> operation"},
     {"edit-data", cmd_editdata, cmd_editdata_help, "ietf-netconf-nmda <edit-data> operation"},
     {"editor", cmd_editor, cmd_editor_help, "Set the text editor for working with XML data"},
-    {"establish-push", cmd_establishpush, cmd_establishpush_help,
-        "ietf-subscribed-notifications <establish-subscription> operation with ietf-yang-push augments"},
-    {"establish-sub", cmd_establishsub, cmd_establishsub_help,
-        "ietf-subscribed-notifications <establish-subscription> operation"},
+    {
+        "establish-push", cmd_establishpush, cmd_establishpush_help,
+        "ietf-subscribed-notifications <establish-subscription> operation with ietf-yang-push augments"
+    },
+    {
+        "establish-sub", cmd_establishsub, cmd_establishsub_help,
+        "ietf-subscribed-notifications <establish-subscription> operation"
+    },
     {"exit", cmd_quit, NULL, "Quit the program"},
     {"get", cmd_get, cmd_get_help, "ietf-netconf <get> operation"},
     {"get-config", cmd_getconfig, cmd_getconfig_help, "ietf-netconf <get-config> operation"},
@@ -6713,16 +6717,20 @@ COMMAND commands[] = {
 #endif
     {"listen", cmd_listen, cmd_listen_help, "Wait for a Call Home connection from a NETCONF server"},
     {"lock", cmd_lock, cmd_lock_help, "ietf-netconf <lock> operation"},
-    {"modify-push", cmd_modifypush, cmd_modifypush_help,
-        "ietf-subscribed-notifications <modify-subscription> operation with ietf-yang-push augments"},
+    {
+        "modify-push", cmd_modifypush, cmd_modifypush_help,
+        "ietf-subscribed-notifications <modify-subscription> operation with ietf-yang-push augments"
+    },
     {"modify-sub", cmd_modifysub, cmd_modifysub_help, "ietf-subscribed-notifications <modify-subscription> operation"},
     {"outputformat", cmd_outputformat, cmd_outputformat_help, "Set the output format of all the data"},
     {"resync-sub", cmd_resyncsub, cmd_resyncsub_help, "ietf-yang-push <resync-subscription> operation"},
     {"searchpath", cmd_searchpath, cmd_searchpath_help, "Set the search path for models"},
     {"status", cmd_status, NULL, "Display information about the current NETCONF session"},
     {"subscribe", cmd_subscribe, cmd_subscribe_help, "notifications <create-subscription> operation"},
-    {"timed", cmd_timed, cmd_timed_help, "Time all the commands (that communicate with a server) from issuing an RPC"
-        " to getting a reply"},
+    {
+        "timed", cmd_timed, cmd_timed_help, "Time all the commands (that communicate with a server) from issuing an RPC"
+        " to getting a reply"
+    },
     {"unlock", cmd_unlock, cmd_unlock_help, "ietf-netconf <unlock> operation"},
     {"user-rpc", cmd_userrpc, cmd_userrpc_help, "Send your own content in an RPC envelope"},
     {"validate", cmd_validate, cmd_validate_help, "ietf-netconf <validate> operation"},
