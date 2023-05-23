@@ -21,6 +21,7 @@
 #include <sysrepo.h>
 
 #include "common.h"
+#include "receivers.h"
 
 /**
  * @brief Type of a subscribed-notifications subscription.
@@ -53,6 +54,9 @@ struct np2srv_sub_ntf_info {
         void *data;
     } *subs;
     uint32_t count;
+
+    struct csn_receiver_config *recv_configs;
+    uint32_t recv_cfg_count;
 };
 
 /*
@@ -161,7 +165,69 @@ int np2srv_config_sub_ntf_filters_cb(sr_session_ctx_t *session, uint32_t sub_id,
 int np2srv_oper_sub_ntf_streams_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *path,
         const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
+int np2srv_config_receivers_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
+        const char *path, sr_event_t event, uint32_t request_id, void *private_data);
+
 int np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
         const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
+
+/*
+ * for configured subscribed notifications
+ */
+
+/**
+ * @brief Send a notification.
+ *
+ * @param[in] receivers reference to receivers to use.
+ * @param[in] receivers_count the number of receivers.
+ * @param[in] nc_sub_id NETCONF sub ID of the subscription.
+ * @param[in] timestamp Timestamp to use.
+ * @param[in,out] ly_ntf Notification to send.
+ * @param[in] use_ntf Whether to free @p ly_ntf and set to NULL or leave unchanged.
+ * @return Sysrepo error value.
+ */
+int csn_send_notif(struct csn_receiver_info *recv_info, uint32_t nc_sub_id,
+        struct timespec timestamp, struct lyd_node **ly_ntf, int use_ntf);
+
+/**
+ * @brief Destroy content of receiver info in a subscription
+ *
+ * @param[in] receiver_info in the subscription.
+ */
+void csn_receiver_info_destroy(struct csn_receiver_info *recv_info);
+
+/**
+ * @brief Destroy content of receiver in a subscription
+ *
+ * @param[in] receiver in the subscription in the receiver_info.
+ */
+void csn_receiver_destroy(struct csn_receiver *receiver, int keep_ref);
+
+/**
+ * @brief start a receiver
+ *
+ * @param[in] receiver in the subscription in the receiver_info.
+ * @param[in] receiver_config is the global receiver config
+ * @param[in] receiver_info in the subscription.
+ * @return Sysrepo error value.
+ */
+int csn_receiver_start(struct csn_receiver *receiver, struct csn_receiver_config *recv_config,
+                 struct csn_receiver_info *recv_info);
+/**
+ * @brief add a receiver in the receiver_info list
+ *
+ * @param[in] receiver in the subscription in the receiver_info.
+ * @param[in] receiver_info in the subscription.
+ * @return Sysrepo error value.
+ */
+int csn_receiver_add(struct csn_receiver_info *recv_info, struct csn_receiver *receiver);
+
+/**
+ * @brief get a receiver configration from the list
+ *
+ * @param[in] name of a receiver configuration.
+ * @return a config containing receiver connection parameters
+ */
+struct csn_receiver_config *csn_receiver_config_get_by_name(const char *name);
 
 #endif /* NP2SRV_NETCONF_SUBSCRIBED_NOTIFICATIONS_H_ */

@@ -152,6 +152,83 @@ sub_ntf_find_next(struct np2srv_sub_ntf *last, int (*sub_ntf_match_cb)(struct np
 }
 
 int
+csn_send_notif(struct csn_receiver_info *recv_info, uint32_t nc_sub_id,
+        struct timespec timestamp, struct lyd_node **ly_ntf, int use_ntf)
+{
+    char *string_notification = NULL;
+    unyte_message_t *message = NULL;
+    static uint32_t message_id = 0;
+    char *string_to_send = NULL;
+    struct np2srv_sub_ntf *sub;
+    char *eventtime = NULL;
+    int rc = SR_ERR_OK;
+    uint32_t r;
+
+    /* find the subscription structure */
+    ly_time_ts2str(&timestamp, &eventtime);
+    lyd_print_mem(&string_to_send, *ly_ntf, LYD_XML, LYD_PRINT_WD_ALL | LY_PRINT_SHRINK);
+    if (asprintf(&string_notification,
+            "<notification xmlns:\""NC_NS_NOTIF "\">"
+            "<eventTime>%s</eventTime>"
+            "%s"
+            "</notification>",
+            eventtime, string_to_send) < 0) {
+        EINT;
+        rc = SR_ERR_NO_MEMORY;
+        goto cleanup;
+    }
+
+    sub = sub_ntf_find(nc_sub_id, 0, 0, 0);
+    if (!sub) {
+        EINT;
+        rc = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
+
+    message = (unyte_message_t *)malloc(sizeof *message);
+    if (!message) {
+        EINT;
+        rc = SR_ERR_NO_MEMORY;
+        goto cleanup;
+    }
+
+    message->buffer = string_notification;
+    message->buffer_len = strlen(string_notification);
+    /* UDP-notif */
+    message->version = 0;
+    message->space = 0;
+
+    /* xml string */
+    message->media_type = 2;
+    message->observation_domain_id = 0;
+
+    message->message_id = message_id;
+    message_id = (message_id + 1) % UINT32_MAX;
+
+    message->options = NULL;
+    message->options_len = 0;
+
+    /* search transport */
+    for (r = 0; r < recv_info->count; r++) {
+        unyte_send(recv_info->receivers[r].udp.sender, message);
+    }
+
+    free(string_notification);
+
+    ATOMIC_INC_RELAXED(sub->sent_count);
+
+cleanup:
+    free(message);
+    free(eventtime);
+    free(string_to_send);
+    if (use_ntf) {
+        lyd_free_tree(*ly_ntf);
+        *ly_ntf = NULL;
+    }
+    return rc;
+}
+
+int
 sub_ntf_send_notif(struct nc_session *ncs, uint32_t nc_sub_id, struct timespec timestamp, struct lyd_node **ly_ntf,
         int use_ntf)
 {
@@ -218,6 +295,31 @@ sub_ntf_add(const struct np2srv_sub_ntf *sub)
     return 0;
 }
 
+/**
+ * @brief add receiver config to the list of receivers
+ *
+ * @param[in] recv_config receiver config to add to the list.
+ * @return 0 on success.
+ * @return -1 on error.
+ */
+static int
+csn_receiver_config_add(const struct csn_receiver_config *recv_config)
+{
+    void *mem;
+
+    mem = realloc(info.recv_configs, (info.recv_cfg_count + 1) * sizeof *info.recv_configs);
+    if (!mem) {
+        return -1;
+    }
+
+    info.recv_configs = mem;
+
+    info.recv_configs[info.recv_cfg_count] = *recv_config;
+    ++info.recv_cfg_count;
+
+    return 0;
+}
+
 void
 np2srv_sub_ntf_session_destroy(struct nc_session *ncs)
 {
@@ -273,6 +375,22 @@ np2srv_sub_ntf_destroy(void)
     free(info.subs);
     info.subs = NULL;
     info.count = 0;
+
+    for (i = 0; i < info.recv_cfg_count; ++i) {
+        if (info.recv_configs[i].instance_name) {
+            free(info.recv_configs[i].instance_name);
+        }
+        if (info.recv_configs[i].udp.address) {
+            free(info.recv_configs[i].udp.address);
+        }
+        if (info.recv_configs[i].udp.port) {
+            free(info.recv_configs[i].udp.port);
+        }
+    }
+
+    free(info.recv_configs);
+    info.recv_configs = NULL;
+    info.recv_cfg_count = 0;
 
     /* UNLOCK */
     INFO_UNLOCK;
@@ -409,6 +527,334 @@ error_unlock:
 error:
     if (ntf_status) {
         nc_session_dec_notif_status(ncs);
+    }
+    return rc;
+}
+
+struct csn_receiver *
+csn_receiver_get_by_name(struct csn_receiver_info *recv_info, const char *name)
+{
+    uint32_t r;
+
+    for (r = 0; r < recv_info->count; r++) {
+        if (!strcmp(name, recv_info->receivers[r].name)) {
+            return &recv_info->receivers[r];
+        }
+    }
+
+    return NULL;
+}
+
+void
+csn_receiver_destroy(struct csn_receiver *receiver, int keep_ref)
+{
+    if (!receiver) {
+        return;
+    }
+
+    if (!keep_ref) {
+        free(receiver->name);
+        receiver->name = NULL;
+
+        free(receiver->instance_ref);
+        receiver->instance_ref = NULL;
+    }
+
+    free_sender_socket(receiver->udp.sender);
+    receiver->udp.sender = NULL;
+
+    free(receiver->udp.options.address);
+    receiver->udp.options.address = NULL;
+
+    free(receiver->udp.options.port);
+    receiver->udp.options.port = NULL;
+
+    free(receiver->udp.options.interface);
+    receiver->udp.options.interface = NULL;
+
+    free(receiver->udp.options.local_address);
+    receiver->udp.options.local_address = NULL;
+}
+
+int
+csn_receiver_remove_by_name(struct csn_receiver_info *recv_info, const char *name)
+{
+    uint32_t r;
+
+    for (r = 0; r < recv_info->count; r++) {
+        if (strcmp(name, recv_info->receivers[r].name)) {
+            continue;
+        }
+
+        csn_receiver_destroy(&recv_info->receivers[r], 0);
+
+        recv_info->count--;
+        if (r < recv_info->count) {
+            memmove(&recv_info->receivers[r], &recv_info->receivers[r + 1], (recv_info->count - r) * sizeof *recv_info->receivers);
+        } else if (recv_info->count) {
+            free(recv_info->receivers);
+            recv_info->receivers = NULL;
+        }
+        return SR_ERR_OK;
+    }
+
+    return SR_ERR_INTERNAL;
+}
+
+static int
+csn_receiver_config_remove_by_name(const char *name)
+{
+    uint32_t r;
+
+    for (r = 0; r < info.recv_cfg_count; r++) {
+        if (strcmp(name, info.recv_configs[r].instance_name)) {
+            continue;
+        }
+
+        if (info.recv_configs[r].udp.address) {
+            free(info.recv_configs[r].udp.address);
+        }
+        if (info.recv_configs[r].udp.port) {
+            free(info.recv_configs[r].udp.port);
+        }
+
+        --info.recv_cfg_count;
+        if (r < info.recv_cfg_count) {
+            memmove(&info.recv_configs[r], &info.recv_configs[r + 1],
+                    (info.recv_cfg_count - r) * sizeof *info.recv_configs);
+        }
+
+        return 0;
+    }
+
+    return -1;
+}
+
+static int
+csn_receiver_config_delete(const struct lyd_node *input)
+{
+    struct lyd_node *name_node;
+    int rc = SR_ERR_OK;
+
+    if (lyd_find_path(input, "name", 0, &name_node)) {
+        ERR("Missing receiver name\n");
+        return -1;
+    }
+
+    /* remove from receivers */
+    rc = csn_receiver_config_remove_by_name(lyd_get_value(name_node));
+    if (rc) {
+        ERR("Cannot remove receiver\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+void
+csn_receiver_info_destroy(struct csn_receiver_info *recv_info)
+{
+    uint32_t i;
+
+    if (!recv_info) {
+        return;
+    }
+
+    free(recv_info->local_address);
+    recv_info->local_address = NULL;
+
+    free(recv_info->interface);
+    recv_info->interface = NULL;
+
+    if (!recv_info->receivers) {
+        return;
+    }
+
+    for (i = 0; i < recv_info->count; ++i) {
+        csn_receiver_destroy(&recv_info->receivers[i], 0);
+    }
+
+    free(recv_info->receivers);
+    recv_info->receivers = NULL;
+    recv_info->count = 0;
+}
+
+struct csn_receiver_config *
+csn_receiver_config_get_by_name(const char *name)
+{
+    uint32_t r;
+
+    for (r = 0; r < info.recv_cfg_count; r++) {
+        if (!strcmp(name, info.recv_configs[r].instance_name)) {
+            return &info.recv_configs[r];
+        }
+    }
+
+    return NULL;
+}
+
+int
+csn_receiver_start(struct csn_receiver *receiver, struct csn_receiver_config *recv_config,
+        struct csn_receiver_info *recv_info)
+{
+    receiver->state = CSN_RECEIVER_STATE_CONNECTING;
+    receiver->reset_time = np_gettimespec(1);
+
+    receiver->udp.options.default_mtu = 1500;
+    receiver->udp.options.address = strdup(recv_config->udp.address);
+    if (!receiver->udp.options.address) {
+        EMEM;
+        goto error;
+    }
+
+    receiver->udp.options.port = strdup(recv_config->udp.port);
+    if (!receiver->udp.options.port) {
+        EMEM;
+        goto error;
+    }
+
+    if (recv_info->local_address) {
+        receiver->udp.options.local_address = strdup(recv_info->local_address);
+        if (!receiver->udp.options.local_address) {
+            EMEM;
+            goto error;
+        }
+    }
+
+    if (recv_info->interface) {
+        receiver->udp.options.interface = strdup(recv_info->interface);
+        if (!receiver->udp.options.interface) {
+            EMEM;
+            goto error;
+        }
+    }
+
+    receiver->udp.sender = unyte_start_sender(&receiver->udp.options);
+    if (!receiver->udp.sender) {
+        ERR("Cannot create udp sender\n");
+        goto error;
+    }
+
+    receiver->state = CSN_RECEIVER_STATE_ACTIVE;
+
+    return 0;
+
+error:
+    free(receiver->udp.options.address);
+    free(receiver->udp.options.port);
+    free(receiver->udp.options.interface);
+    free(receiver->udp.options.local_address);
+    return -1;
+}
+
+static int
+csn_receiver_reset(struct csn_receiver *receiver)
+{
+    free_sender_socket(receiver->udp.sender);
+    receiver->state = CSN_RECEIVER_STATE_CONNECTING;
+    receiver->reset_time = np_gettimespec(1);
+
+    receiver->udp.sender = unyte_start_sender(&receiver->udp.options);
+    if (!receiver->udp.sender) {
+        ERR("Cannot create udp sender\n");
+        goto error;
+    }
+
+    receiver->state = CSN_RECEIVER_STATE_ACTIVE;
+
+    return 0;
+
+error:
+    return -1;
+}
+
+int
+csn_receiver_add(struct csn_receiver_info *recv_info, struct csn_receiver *receiver)
+{
+    void *mem;
+
+    mem = realloc(recv_info->receivers, (recv_info->count + 1) * sizeof *receiver);
+    if (!mem) {
+        return -1;
+    }
+
+    recv_info->receivers = mem;
+
+    recv_info->receivers[recv_info->count] = *receiver;
+    ++recv_info->count;
+
+    return 0;
+}
+
+static int
+csn_receiver_config_start(const struct lyd_node *input)
+{
+    struct csn_receiver_config recv_config = {0};
+    struct lyd_node *remote_address_node = NULL;
+    struct lyd_node *remote_port_node = NULL;
+    struct lyd_node *receiver_node = NULL;
+    struct lyd_node *name_node = NULL;
+    int rc = SR_ERR_OK;
+
+    if (lyd_find_path(input, "name", 0, &name_node)) {
+        ERR("Missing receiver name\n");
+        goto error;
+    }
+
+    recv_config.instance_name = strdup(lyd_get_value(name_node));
+    if (!recv_config.instance_name) {
+        ERR("Cannot allocate instance_name\n");
+        goto error;
+    }
+
+    /* detect type */
+    if (lyd_find_path(input, "ietf-udp-notif-transport:udp-notif-receiver", 0, &receiver_node)) {
+        ERR("Missing mandatory \"udp-notif-receiver\" leave.");
+        goto error;
+    }
+
+    recv_config.type = CSN_TRANSPORT_UDP;
+
+    if (lyd_find_path(receiver_node, "remote-address", 0, &remote_address_node)) {
+        ERR("Missing receiver remote address\n");
+        goto error;
+    }
+
+    recv_config.udp.address = strdup(lyd_get_value(remote_address_node));
+    if (!recv_config.udp.address) {
+        ERR("Cannot allocate remote address\n");
+        goto error;
+    }
+
+    if (lyd_find_path(receiver_node, "remote-port", 0, &remote_port_node)) {
+        ERR("Missing receiver remote port\n");
+        goto error;
+    }
+
+    recv_config.udp.port = strdup(lyd_get_value(remote_port_node));
+    if (!recv_config.udp.port) {
+        ERR("Cannot allocate remote port\n");
+        goto error;
+    }
+
+    /* add into receivers, is not accessible before */
+    rc = csn_receiver_config_add(&recv_config);
+    if (rc) {
+        ERR("Cannot add receiver\n");
+        goto error;
+    }
+
+    return SR_ERR_OK;
+
+error:
+    if (recv_config.instance_name) {
+        free(recv_config.instance_name);
+    }
+    if (recv_config.udp.address) {
+        free(recv_config.udp.address);
+    }
+    if (recv_config.udp.port) {
+        free(recv_config.udp.port);
     }
     return rc;
 }
@@ -818,6 +1264,54 @@ np2srv_config_sub_ntf_filters_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_
             goto cleanup;
         }
     }
+    if (r != SR_ERR_NOT_FOUND) {
+        rc = r;
+        ERR("Getting next change failed (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+
+cleanup:
+    /* UNLOCK */
+    INFO_UNLOCK;
+
+    sr_free_change_iter(iter);
+    return rc;
+}
+
+int
+np2srv_config_receivers_cb(sr_session_ctx_t *session,
+        uint32_t UNUSED(sub_id), const char *UNUSED(module_name), const char *UNUSED(path),
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+{
+    sr_change_iter_t *iter = NULL;
+    const struct lyd_node *node;
+    int r, rc = SR_ERR_OK;
+    sr_change_oper_t op;
+
+    /* WRITE LOCK */
+    INFO_WLOCK;
+    /* subscribed-notifications */
+    rc = sr_get_changes_iter(session, "/ietf-subscribed-notifications:subscriptions/receiver-instances/receiver-instance", &iter);
+    if (rc != SR_ERR_OK) {
+        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+
+    while ((r = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
+
+        if (op == SR_OP_CREATED) {
+            rc = csn_receiver_config_start(node);
+            if (rc != SR_ERR_OK) {
+                goto cleanup;
+            }
+        } else if (op == SR_OP_DELETED) {
+            rc = csn_receiver_config_delete(node);
+            if (rc != SR_ERR_OK) {
+                goto cleanup;
+            }
+        }
+    }
+
     if (r != SR_ERR_NOT_FOUND) {
         rc = r;
         ERR("Getting next change failed (%s).", sr_strerror(rc));
