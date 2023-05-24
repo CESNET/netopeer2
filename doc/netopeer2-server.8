@@ -2,13 +2,13 @@
 .\" groff -man -Tascii netopeer2-server.8
 .\"
 
-.TH "netopeer2-server" 8 "2021-11-10" "Netopeer"
+.TH "netopeer2-server" 8 "2023-05-25" "Netopeer"
 .SH NAME
 netopeer2-server \- NETCONF server daemon build on libnetconf2 with sysrepo datastore
 .
 .SH SYNOPSIS
 .B netopeer2-server
-[\fB-dhV\fP] [\fB-p\fP \fIPATH\fP] [\fB-U\fP[\fIPATH\fP]] [\fB-m\fP \fIMODE\fP] [\fB-u\fP \fIUID\fP]
+[\fB-dFhV\fP] [\fB-p\fP \fIPATH\fP] [\fB-U\fP[\fIPATH\fP]] [\fB-m\fP \fIMODE\fP] [\fB-u\fP \fIUID\fP]
 [\fB-g\fP \fIGID\fP] [\fB-t\fP \fITIMEOUT\fP] [\fB-v\fP \fILEVEL\fP] [\fB-c\fP \fICATEGORY\fP]
 .br
 .
@@ -21,6 +21,9 @@ YANG module data in sysrepo.
 .TP
 .BR "\-d"
 Debug mode (do not daemonize and print verbose messages to stderr instead of syslog).
+.TP
+.BR "\-F"
+Run in foreground (do not daemonize) and log to syslog.
 .TP
 .BR "\-h"
 Display help.
