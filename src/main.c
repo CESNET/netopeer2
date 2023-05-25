@@ -268,7 +268,7 @@ np2srv_err_nc(sr_error_info_err_t *err)
             ns = "urn:ietf:params:xml:ns:yang:1";
         } else {
             /* custom */
-            ns = NULL;
+            ns = "urn:netconf:custom-error-info";
         }
         if (lyd_new_opaq2(err_info, NULL, err_info_elem[i], err_info_val[i], NULL, ns, NULL)) {
             goto error;
