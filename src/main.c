@@ -1078,9 +1078,10 @@ print_version(void)
 static void
 print_usage(char *progname)
 {
-    fprintf(stdout, "Usage: %s [-dhV] [-p PATH] [-U[PATH]] [-m MODE] [-u UID] [-g GID] [-t TIMEOUT] [-x PATH]\n", progname);
+    fprintf(stdout, "Usage: %s [-dFhV] [-p PATH] [-U[PATH]] [-m MODE] [-u UID] [-g GID] [-t TIMEOUT] [-x PATH]\n", progname);
     fprintf(stdout, "          [-v LEVEL] [-c CATEGORY]\n");
     fprintf(stdout, " -d         Debug mode (do not daemonize and print verbose messages to stderr instead of syslog).\n");
+    fprintf(stdout, " -F         Run in foreground, like -d, but log to syslog.\n");
     fprintf(stdout, " -h         Display help.\n");
     fprintf(stdout, " -V         Show program version.\n");
     fprintf(stdout, " -p PATH    Path to pidfile (default path is \"%s\").\n", NP2SRV_PID_FILE_PATH);
@@ -1152,10 +1153,14 @@ main(int argc, char *argv[])
     np2srv.server_dir = SERVER_DIR;
 
     /* process command line options */
-    while ((c = getopt(argc, argv, "dhVp:f:U::m:u:g:n:i:t:x:v:c:")) != -1) {
+    while ((c = getopt(argc, argv, "dFhVp:f:U::m:u:g:n:i:t:x:v:c:")) != -1) {
         switch (c) {
         case 'd':
             daemonize = 0;
+            break;
+        case 'F':
+            daemonize = 0;
+            np2_stderr_log = 0;
             break;
         case 'h':
             print_usage(argv[0]);
