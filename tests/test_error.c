@@ -25,6 +25,8 @@
 
 #include <cmocka.h>
 #include <libyang/libyang.h>
+#include <sysrepo.h>
+#include <sysrepo/error_format.h>
 
 #include "np_test.h"
 #include "np_test_config.h"
@@ -57,14 +59,18 @@ local_setup(void **state)
 static int
 local_teardown(void **state)
 {
+    struct np_test *st = *state;
     const char *modules[] = {"errors", NULL};
 
-    /* close netopeer2 server */
-    if (*state) {
-        return np_glob_teardown(state, modules);
+    if (!st) {
+        return 0;
     }
 
-    return 0;
+    /* unsubscribe */
+    sr_unsubscribe(st->sub);
+
+    /* close netopeer2 server */
+    return np_glob_teardown(state, modules);
 }
 
 /* RFC 7950 sec.15.1 */
@@ -470,6 +476,53 @@ test_unknown_namespace(void **state)
     FREE_TEST_VARS(st);
 }
 
+static int
+multi_error_change_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath, sr_event_t event,
+        uint32_t request_id, void *private_data)
+{
+    (void) session; (void) sub_id; (void) module_name; (void) xpath;
+    (void) event; (void) request_id; (void) private_data;
+
+    sr_session_set_netconf_error(session, "transport", "too-big", NULL, "/some/node", "Node is too big to handle.", 2,
+            "reason", "just cause", "severity", "semi-critical");
+    sr_session_set_netconf_error(session, "rpc", "malformed-message", NULL, NULL, "Incomplete message read.", 0);
+    return SR_ERR_OPERATION_FAILED;
+}
+
+static void
+test_multi_error(void **state)
+{
+    struct np_test *st = *state;
+    const char *data;
+
+    /* setup subscription */
+    assert_int_equal(SR_ERR_OK, sr_module_change_subscribe(st->sr_sess, "errors", NULL, multi_error_change_cb, NULL,
+            0, 0, &st->sub));
+
+    data = "<num xmlns=\"urn:errors\">20</num>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_ERROR_REPLY(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>transport</error-type>\n"
+            "  <error-tag>too-big</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-path>/some/node</error-path>\n"
+            "  <error-message xml:lang=\"en\">Node is too big to handle.</error-message>\n"
+            "  <error-info>\n"
+            "    <reason xmlns=\"urn:netconf:custom-error-info\">just cause</reason>\n"
+            "    <severity xmlns=\"urn:netconf:custom-error-info\">semi-critical</severity>\n"
+            "  </error-info>\n"
+            "</rpc-error>\n"
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>rpc</error-type>\n"
+            "  <error-tag>malformed-message</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">Incomplete message read.</error-message>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -488,6 +541,7 @@ main(int argc, char **argv)
         cmocka_unit_test(test_bad_element),
         cmocka_unit_test(test_unknown_element),
         cmocka_unit_test(test_unknown_namespace),
+        cmocka_unit_test(test_multi_error),
     };
 
     nc_verbosity(NC_VERB_WARNING);
