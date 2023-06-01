@@ -63,6 +63,7 @@ struct np2_user_sess {
 struct np2srv {
     sr_conn_ctx_t *sr_conn;         /**< sysrepo connection */
     sr_session_ctx_t *sr_sess;      /**< sysrepo server session */
+    sr_session_ctx_t *sr_sess_cfg;      /**< sysrepo server session for cfg sub */
     sr_subscription_ctx_t *sr_rpc_sub;  /**< sysrepo RPC subscription context */
     sr_subscription_ctx_t *sr_create_sub_rpc_sub;   /**< sysrepo \<create-subscription\> RPC subscription context */
     sr_subscription_ctx_t *sr_data_sub; /**< sysrepo data subscription context */

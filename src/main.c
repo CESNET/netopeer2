@@ -589,8 +589,19 @@ server_init(void)
         goto error;
     }
 
+    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &np2srv.sr_sess_cfg);
+    if (rc != SR_ERR_OK) {
+        ERR("Creating sysrepo session cfg failed (%s).", sr_strerror(rc));
+        goto error;
+    }
+
     /* check libyang context */
     if (np2srv_check_schemas(np2srv.sr_sess)) {
+        goto error;
+    }
+
+    /* check libyang context */
+    if (np2srv_check_schemas(np2srv.sr_sess_cfg)) {
         goto error;
     }
 
