@@ -435,7 +435,8 @@ np2srv_rpc_getschema_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
 
     /* format */
     if (!lyd_find_path(input, "format", 0, &node)) {
-        format = lyd_get_value(node);
+        /* get the identity name directly */
+        format = ((struct lyd_node_term *)node)->value.ident->name;
     }
     VRB("Module \"%s@%s\" was requested.", identifier, revision ? revision : "<any>");
 
@@ -470,9 +471,9 @@ np2srv_rpc_getschema_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     }
 
     /* check format */
-    if (!format || !strcmp(format, "ietf-netconf-monitoring:yang")) {
+    if (!format || !strcmp(format, "yang")) {
         outformat = LYS_OUT_YANG;
-    } else if (!strcmp(format, "ietf-netconf-monitoring:yin")) {
+    } else if (!strcmp(format, "yin")) {
         outformat = LYS_OUT_YIN;
     } else {
         np_err_invalid_value(session, "The requested format is not supported.", NULL);

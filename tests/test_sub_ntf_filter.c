@@ -446,7 +446,7 @@ test_filter_remove(void **state)
     template =
             "<subscription-terminated xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
             "  <id>%d</id>\n"
-            "  <reason xmlns:sn=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">sn:filter-unavailable</reason>\n"
+            "  <reason>filter-unavailable</reason>\n"
             "</subscription-terminated>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
     assert_string_equal(st->str, ntf);

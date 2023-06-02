@@ -391,7 +391,7 @@ test_stop_time(void **state)
     template =
             "<subscription-terminated xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
             "  <id>%d</id>\n"
-            "  <reason xmlns:sn=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">sn:no-such-subscription</reason>\n"
+            "  <reason>no-such-subscription</reason>\n"
             "</subscription-terminated>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
     assert_string_equal(st->str, ntf);
@@ -449,7 +449,7 @@ test_history_only(void **state)
     template =
             "<subscription-terminated xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
             "  <id>%d</id>\n"
-            "  <reason xmlns:sn=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">sn:no-such-subscription</reason>\n"
+            "  <reason>no-such-subscription</reason>\n"
             "</subscription-terminated>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
     assert_string_equal(st->str, ntf);
