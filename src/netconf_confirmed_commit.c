@@ -902,7 +902,7 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
 
     /* sysrepo API */
     rc = sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout);
-    if ((rc == SR_ERR_LOCKED) && NP_IS_ORIG_NP(session)) {
+    if (rc == SR_ERR_LOCKED) {
         /* NETCONF error */
         sr_session_get_error(user_sess->sess, &err_info);
         np_err_sr2nc_in_use(session, err_info);
@@ -973,7 +973,7 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
     /* sysrepo API */
     sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING);
     rc = sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout);
-    if ((rc == SR_ERR_LOCKED) && NP_IS_ORIG_NP(session)) {
+    if (rc == SR_ERR_LOCKED) {
         /* NETCONF error */
         sr_session_get_error(user_sess->sess, &err_info);
         np_err_sr2nc_in_use(session, err_info);

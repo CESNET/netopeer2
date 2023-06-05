@@ -30,9 +30,6 @@
 #include "compat.h"
 #include "config.h"
 
-/* macro to check if SR callback was originated by netopeer2 */
-#define NP_IS_ORIG_NP(session) (sr_session_get_orig_name(session) && !strcmp(sr_session_get_orig_name(session), "netopeer2"))
-
 struct np_ps_match_data {
     uint32_t sr_id;
     uint32_t nc_id;

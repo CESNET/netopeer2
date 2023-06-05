@@ -612,7 +612,7 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     } else if (!strcmp(input->schema->name, "unlock")) {
         rc = sr_unlock(user_sess->sess, NULL);
     }
-    if ((rc == SR_ERR_LOCKED) && NP_IS_ORIG_NP(session)) {
+    if (rc == SR_ERR_LOCKED) {
         /* NETCONF error */
         sr_session_get_error(user_sess->sess, &err_info);
         np_err_sr2nc_lock_denied(session, err_info);

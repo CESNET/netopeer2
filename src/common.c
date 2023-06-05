@@ -60,7 +60,7 @@ np_ignore_rpc(sr_session_ctx_t *ev_sess, sr_event_t event, int *rc)
         return 1;
     }
 
-    if (!NP_IS_ORIG_NP(ev_sess)) {
+    if (sr_session_get_orig_name(ev_sess) && strcmp(sr_session_get_orig_name(ev_sess), "netopeer2")) {
         /* forbidden */
         sr_session_set_error_message(ev_sess, "Non-NETCONF originating RPC will not be executed.");
         *rc = SR_ERR_UNSUPPORTED;
