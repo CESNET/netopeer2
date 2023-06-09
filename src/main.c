@@ -175,7 +175,7 @@ np2srv_del_session_cb(struct nc_session *session)
             break;
         }
         rc = sr_notif_send(np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-end", event_data, i,
-                np2srv.sr_timeout, 1);
+                np2srv.sr_timeout, 0);
         if (rc != SR_ERR_OK) {
             WRN("Failed to send a notification (%s).", sr_strerror(rc));
         } else {
