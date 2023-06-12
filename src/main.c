@@ -1339,7 +1339,7 @@ main(int argc, char *argv[])
     }
 
     /* make sure we are the only instance - lock the PID file and write the PID */
-    pidfd = open(pidfile, O_RDWR | O_CREAT, 0640);
+    pidfd = open(pidfile, O_RDWR | O_CREAT, 00644);
     if (pidfd < 0) {
         ERR("Unable to open the PID file \"%s\" (%s).", pidfile, strerror(errno));
         return EXIT_FAILURE;
