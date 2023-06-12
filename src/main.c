@@ -101,12 +101,13 @@ signal_handler(int sig)
 static void
 np2srv_del_session_cb(struct nc_session *session)
 {
-    int i, rc;
+    int rc;
     char *host = NULL;
     sr_val_t *event_data;
     struct np2_user_sess *user_sess;
     const struct ly_ctx *ly_ctx;
     const struct lys_module *mod;
+    uint32_t i;
 
     /* terminate any subscriptions for the NETCONF session */
     np2srv_sub_ntf_session_destroy(session);
@@ -127,6 +128,11 @@ np2srv_del_session_cb(struct nc_session *session)
     if (ATOMIC_DEC_RELAXED(user_sess->ref_count) == 1) {
         sr_session_stop(user_sess->sess);
         pthread_mutex_destroy(&user_sess->lock);
+
+        for (i = 0; i < user_sess->ntf_arg.rt_notif_count; ++i) {
+            lyd_free_tree(user_sess->ntf_arg.rt_notifs[i].notif);
+        }
+
         free(user_sess);
     }
 

@@ -40,11 +40,23 @@ struct np_rt_notif {
     struct timespec timestamp;
 };
 
+struct np_ntf_arg {
+    struct nc_session *nc_sess;
+    uint32_t sr_sub_count;
+    ATOMIC_T sr_ntf_replay_complete_count;
+    ATOMIC_T sr_ntf_stop_count;
+
+    struct np_rt_notif *rt_notifs;  /* buffered realtime notifications received before replay complete */
+    uint32_t rt_notif_count;
+};
+
 /* user session structure assigned as data of NC sessions */
 struct np2_user_sess {
     sr_session_ctx_t *sess;
     ATOMIC_T ref_count;
     pthread_mutex_t lock;
+
+    struct np_ntf_arg ntf_arg;
 };
 
 /* server internal data */

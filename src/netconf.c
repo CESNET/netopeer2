@@ -786,43 +786,6 @@ cleanup:
     return rc;
 }
 
-static void
-np2srv_sub_arg_free(void *ptr)
-{
-    struct np_ntf_arg *arg = ptr;
-    uint32_t i;
-
-    for (i = 0; i < arg->rt_notif_count; ++i) {
-        lyd_free_tree(arg->rt_notifs[i].notif);
-    }
-    free(arg);
-}
-
-/**
- * @brief Make sure data are freed on thread exit.
- *
- * @param[in] arg Callback data to be freed.
- */
-static void
-np2srv_sub_arg_thread_exit(struct np_ntf_arg *arg)
-{
-    static pthread_key_t key;
-
-    if (arg->owned) {
-        /* nothing to do */
-        return;
-    }
-
-    /* initialize the key to be freed */
-    pthread_key_create(&key, np2srv_sub_arg_free);
-
-    /* store the data */
-    pthread_setspecific(key, arg);
-
-    /* data now owned */
-    arg->owned = 1;
-}
-
 /**
  * @brief New notification callback used for notifications received on subscription made by \<create-subscription\> RPC.
  */
@@ -835,9 +798,6 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
     const struct ly_ctx *ly_ctx;
     struct timespec stop, cur_ts;
     uint32_t i;
-
-    /* make sure arg is freed on thread exit */
-    np2srv_sub_arg_thread_exit(arg);
 
     if (notif) {
         /* find the top-level node */
@@ -927,7 +887,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     const sr_error_info_t *err_info;
     uint32_t idx;
     struct ly_set mod_set = {0};
-    struct np_ntf_arg *cb_data = NULL;
+    struct np_ntf_arg *ntf_arg;
 
     if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
@@ -1014,14 +974,9 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         goto cleanup;
     }
 
-    /* create notif CB data */
-    cb_data = calloc(1, sizeof *cb_data);
-    if (!cb_data) {
-        EMEM;
-        rc = SR_ERR_NO_MEMORY;
-        goto cleanup;
-    }
-    cb_data->nc_sess = ncs;
+    /* init notif CB data */
+    ntf_arg = &user_sess->ntf_arg;
+    ntf_arg->nc_sess = ncs;
 
     /* set ongoing notifications flag */
     nc_session_inc_notif_status(ncs);
@@ -1046,12 +1001,12 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         }
 
         /* subscribe to all the modules */
-        cb_data->sr_sub_count = mod_set.count;
-        cb_data->sr_ntf_replay_complete_count = start.tv_sec ? 0 : cb_data->sr_sub_count;
+        ntf_arg->sr_sub_count = mod_set.count;
+        ntf_arg->sr_ntf_replay_complete_count = start.tv_sec ? 0 : ntf_arg->sr_sub_count;
         for (idx = 0; idx < mod_set.count; ++idx) {
             ly_mod = mod_set.objs[idx];
             rc = sr_notif_subscribe_tree(user_sess->sess, ly_mod->name, xp, start.tv_sec ? &start : NULL,
-                    stop.tv_sec ? &stop : NULL, np2srv_rpc_subscribe_ntf_cb, cb_data, 0, &np2srv.sr_notif_sub);
+                    stop.tv_sec ? &stop : NULL, np2srv_rpc_subscribe_ntf_cb, ntf_arg, 0, &np2srv.sr_notif_sub);
             if (rc != SR_ERR_OK) {
                 sr_session_get_error(user_sess->sess, &err_info);
                 sr_session_set_error_message(session, err_info->err[0].message);
@@ -1060,10 +1015,10 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         }
     } else {
         /* subscribe to the specific module (stream) */
-        cb_data->sr_sub_count = 1;
-        cb_data->sr_ntf_replay_complete_count = start.tv_sec ? 0 : 1;
+        ntf_arg->sr_sub_count = 1;
+        ntf_arg->sr_ntf_replay_complete_count = start.tv_sec ? 0 : 1;
         rc = sr_notif_subscribe_tree(user_sess->sess, stream, xp, start.tv_sec ? &start : NULL, stop.tv_sec ? &stop : NULL,
-                np2srv_rpc_subscribe_ntf_cb, cb_data, 0, &np2srv.sr_notif_sub);
+                np2srv_rpc_subscribe_ntf_cb, ntf_arg, 0, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {
             sr_session_get_error(user_sess->sess, &err_info);
             sr_session_set_error_message(session, err_info->err[0].message);
@@ -1071,15 +1026,11 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         }
     }
 
-    /* owned now by the callback */
-    cb_data = NULL;
-
 cleanup:
     if (rc && has_nc_ntf_status) {
         nc_session_dec_notif_status(ncs);
     }
     ly_set_erase(&mod_set, NULL);
-    free(cb_data);
     op_filter_erase(&filter);
     free(xp);
     np_release_user_sess(user_sess);

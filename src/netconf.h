@@ -4,8 +4,8 @@
  * @brief ietf-netconf callbacks header
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2023 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2023 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -21,17 +21,6 @@
 #include <sysrepo.h>
 
 #include "compat.h"
-
-struct np_ntf_arg {
-    struct nc_session *nc_sess;
-    uint32_t sr_sub_count;
-    ATOMIC_T sr_ntf_replay_complete_count;
-    ATOMIC_T sr_ntf_stop_count;
-    int owned;
-
-    struct np_rt_notif *rt_notifs;  /* buffered realtime notifications received before replay complete */
-    uint32_t rt_notif_count;
-};
 
 int np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,
         sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);

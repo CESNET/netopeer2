@@ -408,7 +408,7 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
     }
 
     /* create user session with ref-count so that it is not freed while being used */
-    user_sess = malloc(sizeof *user_sess);
+    user_sess = calloc(1, sizeof *user_sess);
     if (!user_sess) {
         EMEM;
         goto error;
