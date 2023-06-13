@@ -82,6 +82,32 @@ cleanup:
     return rc;
 }
 
+static int
+np2srv_validate_posix_username(const char *username)
+{
+    /* use POSIX username definition
+     * https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap03.html#tag_03_437 */
+
+    /* not empty */
+    if (strlen(username) == 0) {
+        return -1;
+    }
+
+    /* no hyphen as first char */
+    if (username[0] == '-') {
+        return -1;
+    }
+
+    /* check for Portable Filename Character Set */
+    for (unsigned long i = 0; i < strlen(username); i++) {
+        if (!(isalnum(username[i]) || (username[i] == '.') || (username[i] == '_') || (username[i] == '-'))) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
 int
 np2srv_pubkey_auth_cb(const struct nc_session *session, ssh_key key, void *UNUSED(user_data))
 {
@@ -98,13 +124,19 @@ np2srv_pubkey_auth_cb(const struct nc_session *session, ssh_key key, void *UNUSE
 
     errno = 0;
     pwd = getpwnam(username);
-    if (!pwd) {
+
+    if (!NP2SRV_SSH_AUTHORIZED_KEYS_ARG_IS_USERNAME && !pwd) {
         ERR("Failed to find user entry for \"%s\" (%s).", username, errno ? strerror(errno) : "User not found");
         goto cleanup;
     }
 
+    if (!pwd && np2srv_validate_posix_username(username)) {
+        ERR("The username \"%s\" is not a valid posix username.", username);
+        goto cleanup;
+    }
+
     /* check any authorized keys */
-    r = asprintf(&line, NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN, NP2SRV_SSH_AUTHORIZED_KEYS_ARG_IS_USERNAME ? pwd->pw_name : pwd->pw_dir);
+    r = asprintf(&line, NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN, NP2SRV_SSH_AUTHORIZED_KEYS_ARG_IS_USERNAME ? username : pwd->pw_dir);
     if (r == -1) {
         EMEM;
         line = NULL;
