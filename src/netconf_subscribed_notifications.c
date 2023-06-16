@@ -20,6 +20,7 @@
 
 #include <assert.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -2227,4 +2228,25 @@ cleanup:
         *parent = root;
     }
     return rc;
+}
+
+int
+sub_ntf_create_timer(void (*cb)(union sigval), void *arg, int force_real, timer_t *timer_id)
+{
+    struct sigevent sevp = {0};
+
+    sevp.sigev_notify = SIGEV_THREAD;
+    sevp.sigev_value.sival_ptr = arg;
+    sevp.sigev_notify_function = cb;
+    if (force_real) {
+        if (timer_create(CLOCK_REALTIME, &sevp, timer_id) == -1) {
+            return SR_ERR_SYS;
+        }
+    } else {
+        if (timer_create(COMPAT_CLOCK_ID, &sevp, timer_id) == -1) {
+            return SR_ERR_SYS;
+        }
+    }
+
+    return SR_ERR_OK;
 }

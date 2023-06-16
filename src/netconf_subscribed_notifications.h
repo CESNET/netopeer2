@@ -142,6 +142,17 @@ int sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs);
  */
 int sub_ntf_send_notif_modified(const struct np2srv_sub_ntf *sub);
 
+/**
+ * @brief Create a new function timer.
+ *
+ * @param[in] cb Callback to be called.
+ * @param[in] arg Argument for @p cb.
+ * @param[in] force_real Whether to force realtime clock ID or can be monotonic if available.
+ * @param[out] timer_id Created timer ID.
+ * @return Sysrepo error value.
+ */
+int sub_ntf_create_timer(void (*cb)(union sigval), void *arg, int force_real, timer_t *timer_id);
+
 /*
  * for main.c
  */
