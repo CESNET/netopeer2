@@ -36,12 +36,8 @@ MODULES=(
 CMD_UNINSTALL=
 
 # functions
-UNINSTALL_MODULE_CMD() {
-    if [ -z "${CMD_UNINSTALL}" ]; then
-        CMD_UNINSTALL="'$SYSREPOCTL' -v2"
-    fi
-
-    CMD_UNINSTALL="${CMD_UNINSTALL} -u $1"
+UNINSTALL_MODULE_QUIET() {
+    "$SYSREPOCTL" -u $1 &> /dev/null
 }
 
 DISABLE_FEATURE() {
@@ -89,20 +85,11 @@ for (( i = 0; i < $MODULES_LEN; i++ )); do
             # internal module, we can only disable features
             DISABLE_MODULE_FEATURES $name "$SCTL_MODULE" "$module"
         else
-            # prpare command to uninstall module
-            UNINSTALL_MODULE_CMD "$name"
+            # uninstall module and ignore the result, there may be new modules depending on this one
+            UNINSTALL_MODULE_QUIET "$name"
         fi
         continue
     fi
 done
-
-# uninstall all the modules
-if [ ! -z "${CMD_UNINSTALL}" ]; then
-    eval $CMD_UNINSTALL
-    rc=$?
-    if [ $rc -ne 0 ]; then
-        exit $rc
-    fi
-fi
 
 # {% endraw %}
