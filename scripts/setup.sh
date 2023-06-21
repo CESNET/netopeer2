@@ -40,6 +40,10 @@ MODULES=(
 "ietf-network-instance@2019-01-21.yang"
 "ietf-subscribed-notifications@2019-09-09.yang -e encode-xml -e replay -e subtree -e xpath -e configured"
 "ietf-yang-push@2019-09-09.yang -e on-change"
+"ietf-subscribed-notif-receivers.yang"
+"ietf-udp-client.yang"
+"ietf-udp-notif.yang"
+"ietf-udp-notif-transport.yang"
 )
 
 CMD_INSTALL=
