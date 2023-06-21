@@ -157,12 +157,12 @@ module ietf-udp-notif {
     }*/
   }
 
-  augment "/sn:subscriptions/sn:subscription/sn:receivers/sn:receiver" {
+  /*augment "/sn:subscriptions/sn:subscription/sn:receivers/sn:receiver" {
     when "derived-from(../../transport, 'un:udp-notif')";
     description
       "This augmentation allows UDP-Notif specific parameters to be
        exposed for a subscription.";
 
     uses udp-receiver-grouping;
-  }
+  }*/
 }
