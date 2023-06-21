@@ -38,7 +38,7 @@ MODULES=(
 "ietf-interfaces@2018-02-20.yang"
 "ietf-ip@2018-02-22.yang"
 "ietf-network-instance@2019-01-21.yang"
-"ietf-subscribed-notifications@2019-09-09.yang -e encode-xml -e replay -e subtree -e xpath"
+"ietf-subscribed-notifications@2019-09-09.yang -e encode-xml -e replay -e subtree -e xpath -e configured"
 "ietf-yang-push@2019-09-09.yang -e on-change"
 )
 
