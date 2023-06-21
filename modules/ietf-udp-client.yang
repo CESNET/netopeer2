@@ -8,11 +8,11 @@ module ietf-udp-client {
     reference
       "RFC 6991: Common YANG Data Types";
   }
-  import ietf-tls-client {
+  /*import ietf-tls-client {
     prefix tlsc;
     reference
       "RFC TTTT: YANG Groupings for TLS Clients and TLS Servers";
-  }
+  }*/
 
   organization "IETF NETCONF (Network Configuration) Working Group";
   contact
@@ -82,7 +82,7 @@ module ietf-udp-client {
         "Port number of the UDP client.";
     }
 
-    container dtls {
+    /*container dtls {
       if-feature dtls13;
       presence dtls;
       uses tlsc:tls-client-grouping {
@@ -99,6 +99,6 @@ module ietf-udp-client {
       }
       description 
         "Container for configuring DTLS 1.3 parameters.";
-    }
+    }*/
   }
 }
