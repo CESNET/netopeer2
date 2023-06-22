@@ -117,6 +117,7 @@ np2srv_rpc_establish_sub_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_
         }
         break;
     case SR_EV_NOTIF_TERMINATED:
+    case SR_EV_NOTIF_STOP_TIME:
         /* WRITE LOCK on sub */
         sub = sub_ntf_find_lock(arg->nc_sub_id, sub_id, 1);
         if (!sub) {

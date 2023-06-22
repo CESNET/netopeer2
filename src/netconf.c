@@ -790,13 +790,12 @@ cleanup:
  * @brief New notification callback used for notifications received on subscription made by \<create-subscription\> RPC.
  */
 static void
-np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, const sr_ev_notif_type_t notif_type,
+np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(sub_id), const sr_ev_notif_type_t notif_type,
         const struct lyd_node *notif, struct timespec *timestamp, void *private_data)
 {
     struct np_ntf_arg *arg = private_data;
     struct lyd_node *ly_ntf;
     const struct ly_ctx *ly_ctx;
-    struct timespec stop, cur_ts;
     uint32_t i;
 
     if (notif) {
@@ -825,14 +824,7 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
             np_ntf_send(arg->nc_sess, &arg->rt_notifs[i].timestamp, &arg->rt_notifs[i].notif, 1);
         }
         break;
-    case SR_EV_NOTIF_TERMINATED:
-        sr_notif_sub_get_info(np2srv.sr_notif_sub, sub_id, NULL, NULL, NULL, &stop, NULL);
-        cur_ts = np_gettimespec(1);
-        if (!stop.tv_sec || (np_difftimespec(&stop, &cur_ts) < 0)) {
-            /* no stop-time or it was not reached so no notification should be generated */
-            break;
-        }
-
+    case SR_EV_NOTIF_STOP_TIME:
         if (ATOMIC_INC_RELAXED(arg->sr_ntf_stop_count) + 1 < arg->sr_sub_count) {
             /* ignore, wait for the last SR subscription */
             break;
@@ -864,6 +856,7 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_id, 
     case SR_EV_NOTIF_MODIFIED:
     case SR_EV_NOTIF_SUSPENDED:
     case SR_EV_NOTIF_RESUMED:
+    case SR_EV_NOTIF_TERMINATED:
         /* ignore */
         break;
     }
