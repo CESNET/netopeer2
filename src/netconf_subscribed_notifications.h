@@ -200,6 +200,13 @@ int np2srv_config_subscriptions_receivers_cb(sr_session_ctx_t *session, uint32_t
 int np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
         const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
+int np2srv_oper_sub_ntf_receivers_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
+        const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
+
+int np2srv_rpc_reset_receiver_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path,
+        const struct lyd_node *input, sr_event_t event, uint32_t request_id, struct lyd_node *output,
+        void *private_data);
+
 /*
  * for configured subscribed notifications
  */

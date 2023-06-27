@@ -2092,7 +2092,7 @@ error:
 
 int
 np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
-        const char *UNUSED(path), const char *UNUSED(request_xpath), uint32_t UNUSED(request_id),
+        const char *UNUSED(path), const char *request_xpath, uint32_t UNUSED(request_id),
         struct lyd_node **parent, void *UNUSED(private_data))
 {
     const struct ly_ctx *ly_ctx;
@@ -2103,6 +2103,11 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
     int r, rc = SR_ERR_OK;
     char *name = NULL;
     uint32_t id;
+
+    if (strstr(request_xpath,"subscriptions/subscription[")
+		    && strstr(request_xpath,"/receivers/receiver[")) {
+        return np2srv_oper_sub_ntf_receivers_cb(session, 0, NULL, NULL, request_xpath, 0, parent, NULL);
+    }
 
     /* context is locked while the callback is executing */
     ly_ctx = sr_session_acquire_context(session);
@@ -2246,6 +2251,122 @@ sub_ntf_create_timer(void (*cb)(union sigval), void *arg, int force_real, timer_
         if (timer_create(COMPAT_CLOCK_ID, &sevp, timer_id) == -1) {
             return SR_ERR_SYS;
         }
+    }
+
+    return SR_ERR_OK;
+}
+
+int
+np2srv_rpc_reset_receiver_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
+        const struct lyd_node *input, sr_event_t UNUSED(event), uint32_t UNUSED(request_id), struct lyd_node *output,
+        void *UNUSED(private_data))
+{
+    struct csn_receiver_info *recv_info = NULL;
+    struct csn_receiver *receiver = NULL;
+    struct np2srv_sub_ntf *sub;
+    const char *receiver_name;
+    struct lyd_node *node;
+    char *time_str = NULL;
+    int r, rc = SR_ERR_OK;
+    uint32_t nc_sub_id;
+
+    /* WLOCK */
+    INFO_WLOCK;
+
+    if (lyd_find_path(lyd_parent(input), "name", 0, &node)) {
+        rc = SR_ERR_LY;
+        ERR("Could not find receiver name");
+        goto cleanup;
+    }
+
+    receiver_name = lyd_get_value(node);
+
+    input = lyd_parent(lyd_parent(lyd_parent(input)));
+
+    if (lyd_find_path(input, "id", 0, &node)) {
+        rc = SR_ERR_LY;
+        ERR("Could not find subscription id");
+        goto cleanup;
+    }
+
+    nc_sub_id = strtoul(lyd_get_value(node), NULL, 10);
+
+    sub = sub_ntf_find(nc_sub_id, 0, 0, 0);
+    if (!sub) {
+        rc = SR_ERR_INVAL_ARG;
+        ERR("Subscription not found");
+        goto cleanup;
+    }
+
+    switch (sub->type) {
+    case SUB_TYPE_CFG_SUB:
+        recv_info = sub_ntf_receivers_info_get(sub->data);
+        break;
+    case SUB_TYPE_CFG_YANG_PUSH:
+        recv_info = yang_push_receivers_info_get(sub->data);
+        break;
+    default:
+        ERR("Bad subscription type");
+        break;
+    }
+
+    if (!recv_info) {
+        rc = SR_ERR_INVAL_ARG;
+        ERR("Receiver info not found");
+        goto cleanup;
+    }
+
+    receiver = csn_receiver_get_by_name(recv_info, receiver_name);
+    if (!receiver) {
+        rc = SR_ERR_INVAL_ARG;
+        ERR("Receiver not found");
+        goto cleanup;
+    }
+
+    if (csn_receiver_reset(receiver)) {
+        rc = SR_ERR_INVAL_ARG;
+        ERR("Receiver could not be reset");
+        goto cleanup;
+    }
+
+    if (output) {
+        ly_time_ts2str(&receiver->reset_time, &time_str);
+        if (lyd_new_term(output, NULL, "time", time_str, 1, NULL)) {
+            rc = SR_ERR_LY;
+            ERR("Could not add time");
+            goto cleanup;
+        }
+    }
+
+cleanup:
+    free(time_str);
+    /* UNLOCK */
+    INFO_UNLOCK;
+
+    return rc;
+}
+
+int
+np2srv_oper_sub_ntf_receivers_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
+        const char *UNUSED(path), const char *request_xpath, uint32_t UNUSED(request_id),
+        struct lyd_node **parent, void *UNUSED(private_data))
+{
+    const struct ly_ctx *ly_ctx;
+    struct lyd_node *root;
+    int r;
+
+    /* context is locked while the callback is executing */
+    ly_ctx = sr_session_acquire_context(session);
+    sr_session_release_context(session);
+
+    if (lyd_new_path(NULL, ly_ctx, request_xpath, NULL, 0, &root)) {
+        r = SR_ERR_LY;
+    }
+
+    if (r) {
+        lyd_free_tree(root);
+    } else {
+        *parent = root;
     }
 
     return SR_ERR_OK;
