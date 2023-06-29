@@ -39,7 +39,7 @@
 #include "configuration.h"
 #include "linenoise/linenoise.h"
 
-struct cli_opts opts = { .output_format = LYD_XML };
+struct cli_opts opts = {.output_format = LYD_XML};
 
 /* NetConf Client home (appended to ~/) */
 #define NCC_DIR ".netopeer2-cli"
