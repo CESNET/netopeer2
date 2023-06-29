@@ -1347,6 +1347,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
                 return EXIT_FAILURE;
             } else {
                 nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PUBLICKEY, atoi(cmd));
+                store_config();
             }
         } else if (strcmp(cmd, "interactive") == 0) {
             cmd = strtok_r(NULL, " ", &ptr);
@@ -1355,6 +1356,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
                 return EXIT_FAILURE;
             } else {
                 nc_client_ssh_set_auth_pref(NC_SSH_AUTH_INTERACTIVE, atoi(cmd));
+                store_config();
             }
         } else if (strcmp(cmd, "password") == 0) {
             cmd = strtok_r(NULL, " ", &ptr);
@@ -1363,6 +1365,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
                 return EXIT_FAILURE;
             } else {
                 nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PASSWORD, atoi(cmd));
+                store_config();
             }
         } else {
             ERROR("auth pref", "Unknown authentication method (%s)", cmd);
@@ -1407,6 +1410,7 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
             if (eaccess(str, R_OK) != 0) {
                 ERROR("auth keys add", "The public key for the new private key is not accessible (%s), but added anyway", strerror(errno));
             }
+            store_config();
 
         } else if (strcmp(cmd, "remove") == 0) {
             cmd = strtok_r(NULL, " ", &ptr);
@@ -1420,6 +1424,8 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
                 ERROR("auth keys remove", "Wrong index");
                 return EXIT_FAILURE;
             }
+            store_config();
+
         } else {
             ERROR("auth keys", "Unknown argument %s", cmd);
             return EXIT_FAILURE;
@@ -2664,6 +2670,7 @@ cmd_searchpath(const char *arg, char **UNUSED(tmp_config_file))
     }
 
     nc_client_set_schema_searchpath(arg);
+    store_config();
     return 0;
 }
 
@@ -2701,6 +2708,7 @@ cmd_outputformat(const char *arg, char **UNUSED(tmp_config_file))
         return 1;
     }
 
+    store_config();
     return 0;
 }
 
@@ -3019,6 +3027,7 @@ cmd_editor(const char *arg, char **UNUSED(tmp_config_file))
     } else {
         free(opts.config_editor);
         opts.config_editor = strdup(cmd);
+        store_config();
     }
 
     return EXIT_SUCCESS;

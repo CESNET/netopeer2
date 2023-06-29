@@ -215,14 +215,11 @@ main(void)
     }
 
     store_history();
-    store_config();
-
     free(opts.config_editor);
 
     if (session) {
         nc_session_free(session, NULL);
     }
-
     nc_client_destroy();
 
     return 0;
