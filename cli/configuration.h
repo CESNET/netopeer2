@@ -4,8 +4,8 @@
  * @brief netopeer2-cli configuration header
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2023 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2023 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -23,8 +23,12 @@
  * @brief The CLI XML config options.
  */
 struct cli_opts {
+    LYD_FORMAT output_format;
+    uint32_t output_flag;
     char *config_editor;
 };
+
+extern struct cli_opts opts;
 
 /**
  * @brief Finds the current user's netconf dir
@@ -58,6 +62,16 @@ char *get_default_trustedCA_dir(DIR **ret_dir);
  * on error
  */
 char *get_default_CRL_dir(DIR **ret_dir);
+
+/**
+ * @brief Load stored history.
+ */
+void load_history(void);
+
+/**
+ * @brief Store current history.
+ */
+void store_history(void);
 
 /**
  * @brief Checks all the relevant files and directories creating any

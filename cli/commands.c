@@ -4,8 +4,8 @@
  * @brief netopeer2-cli commands
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2023 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2023 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -67,9 +67,6 @@ char some_msg[4096];
 
 COMMAND commands[];
 extern int done;
-LYD_FORMAT output_format = LYD_XML;
-uint32_t output_flag;
-char *config_editor;
 struct nc_session *session;
 volatile int interleave;
 int timed;
@@ -231,7 +228,7 @@ cli_ntf_clb(struct nc_session *UNUSED(session), const struct lyd_node *envp, con
     for (top = op; top->parent; top = lyd_parent(top)) {}
 
     fprintf(output, "notification (%s)\n", ((struct lyd_node_opaq *)lyd_child(envp))->value);
-    lyd_print_file(output, top, output_format, LYD_PRINT_WITHSIBLINGS | output_flag);
+    lyd_print_file(output, top, opts.output_format, LYD_PRINT_WITHSIBLINGS | opts.output_flag);
     fprintf(output, "\n");
     fflush(output);
 
@@ -407,7 +404,7 @@ recv_reply:
                 break;
             }
 
-            lyd_print_file(output, lyd_child(op), output_format, LYD_PRINT_WITHSIBLINGS | ly_wd | output_flag);
+            lyd_print_file(output, lyd_child(op), opts.output_format, LYD_PRINT_WITHSIBLINGS | ly_wd | opts.output_flag);
             if (output == stdout) {
                 fprintf(output, "\n");
             }
@@ -2688,17 +2685,17 @@ cmd_outputformat(const char *arg, char **UNUSED(tmp_config_file))
     }
 
     if (!strncmp(format, "xml", 3) && ((format[3] == '\0') || (format[3] == ' '))) {
-        output_format = LYD_XML;
-        output_flag = 0;
+        opts.output_format = LYD_XML;
+        opts.output_flag = 0;
     } else if (!strncmp(format, "xml_noformat", 12) && ((format[12] == '\0') || (format[12] == ' '))) {
-        output_format = LYD_XML;
-        output_flag = LYD_PRINT_SHRINK;
+        opts.output_format = LYD_XML;
+        opts.output_flag = LYD_PRINT_SHRINK;
     } else if (!strncmp(format, "json", 4) && ((format[4] == '\0') || (format[4] == ' '))) {
-        output_format = LYD_JSON;
-        output_flag = 0;
+        opts.output_format = LYD_JSON;
+        opts.output_flag = 0;
     } else if (!strncmp(format, "json_noformat", 13) && ((format[13] == '\0') || (format[13] == ' '))) {
-        output_format = LYD_JSON;
-        output_flag = LYD_PRINT_SHRINK;
+        opts.output_format = LYD_JSON;
+        opts.output_flag = LYD_PRINT_SHRINK;
     } else {
         fprintf(stderr, "Unknown output format \"%s\".\n", format);
         return 1;
@@ -3016,12 +3013,12 @@ cmd_editor(const char *arg, char **UNUSED(tmp_config_file))
     cmd = strtok_r(NULL, " ", &ptr);
     if (cmd == NULL) {
         printf("Current editor: ");
-        printf("%s\n", config_editor);
+        printf("%s\n", opts.config_editor);
     } else if ((strcmp(cmd, "--help") == 0) || (strcmp(cmd, "-h") == 0)) {
         cmd_editor_help();
     } else {
-        free(config_editor);
-        config_editor = strdup(cmd);
+        free(opts.config_editor);
+        opts.config_editor = strdup(cmd);
     }
 
     return EXIT_SUCCESS;

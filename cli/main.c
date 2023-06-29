@@ -4,8 +4,8 @@
  * @brief netopeer2-cli tool
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2023 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2023 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -38,8 +38,6 @@
 #include "linenoise/linenoise.h"
 
 int done;
-
-extern char *config_editor;
 extern struct nc_session *session;
 
 void
@@ -145,16 +143,17 @@ main(void)
     linenoiseSetCompletionCallback(complete_cmd);
     linenoiseHistoryDataFree(free);
 
+    load_history();
     load_config();
 
-    if (!config_editor) {
-        config_editor = getenv("EDITOR");
-        if (config_editor) {
-            config_editor = strdup(config_editor);
+    if (!opts.config_editor) {
+        opts.config_editor = getenv("EDITOR");
+        if (opts.config_editor) {
+            opts.config_editor = strdup(opts.config_editor);
         }
     }
-    if (!config_editor) {
-        config_editor = strdup("vi");
+    if (!opts.config_editor) {
+        opts.config_editor = strdup("vi");
     }
 
     while (!done) {
@@ -215,9 +214,10 @@ main(void)
         free(cmdline);
     }
 
+    store_history();
     store_config();
 
-    free(config_editor);
+    free(opts.config_editor);
 
     if (session) {
         nc_session_free(session, NULL);

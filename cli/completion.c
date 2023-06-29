@@ -4,8 +4,8 @@
  * @brief netopeer2-cli auto completion
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2023 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2023 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -35,10 +35,8 @@
 
 #include "commands.h"
 #include "compat.h"
+#include "configuration.h"
 #include "linenoise/linenoise.h"
-
-extern struct ly_ctx *ctx;
-extern char *config_editor;
 
 static void
 get_cmd_completion(const char *hint, char ***matches, unsigned int *match_count)
@@ -201,7 +199,7 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
         goto fail;
     } else if (pid == 0) {
         /* child */
-        execlp(config_editor, config_editor, tmpname, (char *)NULL);
+        execlp(opts.config_editor, opts.config_editor, tmpname, (char *)NULL);
 
         ERROR(__func__, "Exec failed (%s).", strerror(errno));
         exit(1);
