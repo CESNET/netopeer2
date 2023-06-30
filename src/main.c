@@ -688,6 +688,7 @@ server_destroy(void)
 
     /* stop subscriptions */
     sr_unsubscribe(np2srv.sr_rpc_sub);
+    sr_unsubscribe(np2srv.sr_create_sub_rpc_sub);
     sr_unsubscribe(np2srv.sr_data_sub);
     sr_unsubscribe(np2srv.sr_nacm_stats_sub);
     sr_unsubscribe(np2srv.sr_notif_sub);
@@ -738,8 +739,8 @@ server_rpc_subscribe(void)
 {
     int rc;
 
-#define SR_RPC_SUBSCR(xpath, cb) \
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, cb, NULL, 0, 0, &np2srv.sr_rpc_sub); \
+#define SR_RPC_SUBSCR(xpath, cb, sub) \
+    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, cb, NULL, 0, 0, sub); \
     if (rc != SR_ERR_OK) { \
         ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc)); \
         goto error; \
@@ -750,38 +751,38 @@ server_rpc_subscribe(void)
         EINT;
         goto error;
     }
-    SR_RPC_SUBSCR("/ietf-netconf:get-config", np2srv_rpc_get_cb);
-    SR_RPC_SUBSCR("/ietf-netconf:edit-config", np2srv_rpc_editconfig_cb);
-    SR_RPC_SUBSCR("/ietf-netconf:copy-config", np2srv_rpc_copyconfig_cb);
-    SR_RPC_SUBSCR("/ietf-netconf:delete-config", np2srv_rpc_deleteconfig_cb);
-    SR_RPC_SUBSCR("/ietf-netconf:lock", np2srv_rpc_un_lock_cb);
-    SR_RPC_SUBSCR("/ietf-netconf:unlock", np2srv_rpc_un_lock_cb);
-    SR_RPC_SUBSCR("/ietf-netconf:get", np2srv_rpc_get_cb);
+    SR_RPC_SUBSCR("/ietf-netconf:get-config", np2srv_rpc_get_cb, &np2srv.sr_rpc_sub);
+    SR_RPC_SUBSCR("/ietf-netconf:edit-config", np2srv_rpc_editconfig_cb, &np2srv.sr_rpc_sub);
+    SR_RPC_SUBSCR("/ietf-netconf:copy-config", np2srv_rpc_copyconfig_cb, &np2srv.sr_rpc_sub);
+    SR_RPC_SUBSCR("/ietf-netconf:delete-config", np2srv_rpc_deleteconfig_cb, &np2srv.sr_rpc_sub);
+    SR_RPC_SUBSCR("/ietf-netconf:lock", np2srv_rpc_un_lock_cb, &np2srv.sr_rpc_sub);
+    SR_RPC_SUBSCR("/ietf-netconf:unlock", np2srv_rpc_un_lock_cb, &np2srv.sr_rpc_sub);
+    SR_RPC_SUBSCR("/ietf-netconf:get", np2srv_rpc_get_cb, &np2srv.sr_rpc_sub);
     /* close-session called directly */
-    SR_RPC_SUBSCR("/ietf-netconf:kill-session", np2srv_rpc_kill_cb);
-    SR_RPC_SUBSCR("/ietf-netconf:commit", np2srv_rpc_commit_cb);
-    SR_RPC_SUBSCR("/ietf-netconf:cancel-commit", np2srv_rpc_cancel_commit_cb);
-    SR_RPC_SUBSCR("/ietf-netconf:discard-changes", np2srv_rpc_discard_cb);
-    SR_RPC_SUBSCR("/ietf-netconf:validate", np2srv_rpc_validate_cb);
+    SR_RPC_SUBSCR("/ietf-netconf:kill-session", np2srv_rpc_kill_cb, &np2srv.sr_rpc_sub);
+    SR_RPC_SUBSCR("/ietf-netconf:commit", np2srv_rpc_commit_cb, &np2srv.sr_rpc_sub);
+    SR_RPC_SUBSCR("/ietf-netconf:cancel-commit", np2srv_rpc_cancel_commit_cb, &np2srv.sr_rpc_sub);
+    SR_RPC_SUBSCR("/ietf-netconf:discard-changes", np2srv_rpc_discard_cb, &np2srv.sr_rpc_sub);
+    SR_RPC_SUBSCR("/ietf-netconf:validate", np2srv_rpc_validate_cb, &np2srv.sr_rpc_sub);
 
     /* subscribe to get-schema */
-    SR_RPC_SUBSCR("/ietf-netconf-monitoring:get-schema", np2srv_rpc_getschema_cb);
+    SR_RPC_SUBSCR("/ietf-netconf-monitoring:get-schema", np2srv_rpc_getschema_cb, &np2srv.sr_rpc_sub);
 
-    /* subscribe to create-subscription */
-    SR_RPC_SUBSCR("/notifications:create-subscription", np2srv_rpc_subscribe_cb);
+    /* subscribe to create-subscription, separate structure */
+    SR_RPC_SUBSCR("/notifications:create-subscription", np2srv_rpc_subscribe_cb, &np2srv.sr_create_sub_rpc_sub);
 
     /* subscribe to NMDA RPCs */
-    SR_RPC_SUBSCR("/ietf-netconf-nmda:get-data", np2srv_rpc_getdata_cb);
-    SR_RPC_SUBSCR("/ietf-netconf-nmda:edit-data", np2srv_rpc_editdata_cb);
+    SR_RPC_SUBSCR("/ietf-netconf-nmda:get-data", np2srv_rpc_getdata_cb, &np2srv.sr_rpc_sub);
+    SR_RPC_SUBSCR("/ietf-netconf-nmda:edit-data", np2srv_rpc_editdata_cb, &np2srv.sr_rpc_sub);
 
     /* subscribe to ietf-subscribed-notifications RPCs */
-    SR_RPC_SUBSCR("/ietf-subscribed-notifications:establish-subscription", np2srv_rpc_establish_sub_cb);
-    SR_RPC_SUBSCR("/ietf-subscribed-notifications:modify-subscription", np2srv_rpc_modify_sub_cb);
-    SR_RPC_SUBSCR("/ietf-subscribed-notifications:delete-subscription", np2srv_rpc_delete_sub_cb);
-    SR_RPC_SUBSCR("/ietf-subscribed-notifications:kill-subscription", np2srv_rpc_kill_sub_cb);
+    SR_RPC_SUBSCR("/ietf-subscribed-notifications:establish-subscription", np2srv_rpc_establish_sub_cb, &np2srv.sr_rpc_sub);
+    SR_RPC_SUBSCR("/ietf-subscribed-notifications:modify-subscription", np2srv_rpc_modify_sub_cb, &np2srv.sr_rpc_sub);
+    SR_RPC_SUBSCR("/ietf-subscribed-notifications:delete-subscription", np2srv_rpc_delete_sub_cb, &np2srv.sr_rpc_sub);
+    SR_RPC_SUBSCR("/ietf-subscribed-notifications:kill-subscription", np2srv_rpc_kill_sub_cb, &np2srv.sr_rpc_sub);
 
     /* one more yang-push RPC */
-    SR_RPC_SUBSCR("/ietf-yang-push:resync-subscription", np2srv_rpc_resync_sub_cb);
+    SR_RPC_SUBSCR("/ietf-yang-push:resync-subscription", np2srv_rpc_resync_sub_cb, &np2srv.sr_rpc_sub);
 
     return 0;
 
