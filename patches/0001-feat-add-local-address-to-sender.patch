@@ -1,0 +1,112 @@
+From 4c643bd340b07a010b32dec79d3ac2b3a609c83b Mon Sep 17 00:00:00 2001
+From: Jeremie Leska <jeremie.leska@6wind.com>
+Date: Mon, 3 Jul 2023 11:39:01 +0200
+Subject: [PATCH] feat: add local address to sender
+
+add possibility to choose a local address for unyte_sender.
+---
+ src/unyte_sender.c | 66 ++++++++++++++++++++++++++++++++++++++++++++++
+ src/unyte_sender.h |  1 +
+ 2 files changed, 67 insertions(+)
+
+diff --git a/src/unyte_sender.c b/src/unyte_sender.c
+index e97275b08cd2..bbd3ae4f1e08 100644
+--- a/src/unyte_sender.c
++++ b/src/unyte_sender.c
+@@ -7,8 +7,66 @@
+ #include <string.h>
+ #include <net/if.h>
+ #include <netdb.h>
++#include <errno.h>
+ #include "unyte_sender.h"
+ 
++static void set_ipv4_freebind(int sockfd)
++{
++#ifdef IP_FREEBIND
++  int opt = 1;
++  if (setsockopt(sockfd, IPPROTO_IP, IP_FREEBIND, (void *)&opt, sizeof(opt)) == -1) {
++    printf("couldn't set IP_FREEBIND: %d %s\n", errno, strerror(errno));
++  }
++#endif
++}
++
++static void set_ipv6_freebind(int sockfd)
++{
++#ifdef IPV6_FREEBIND
++  int opt = 1;
++  if (setsockopt(sockfd, IPPROTO_IPV6, IPV6_FREEBIND, (void *)&opt, sizeof(opt)) == -1) {
++    printf("couldn't set IPV6_FREEBIND: %d %s\n", errno, strerror(errno));
++  }
++#endif
++}
++
++static int set_local_address(int sockfd, const char *local_address)
++{
++  struct addrinfo *local_addr_info = NULL;
++  struct addrinfo hints;
++  int rc;
++
++  memset(&hints, 0, sizeof(hints));
++  hints.ai_socktype = SOCK_DGRAM;
++  hints.ai_family = AF_UNSPEC;
++  hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV | AI_NUMERICHOST;
++
++  rc = getaddrinfo(local_address, NULL, &hints, &local_addr_info);
++  if (rc != 0) {
++    printf("getaddrinfo error: %s\n", gai_strerror(rc));
++    return -1;
++  }
++
++  if (local_addr_info->ai_family == AF_INET) {
++    set_ipv4_freebind(sockfd);
++  } else if (local_addr_info->ai_family == AF_INET6) {
++    set_ipv6_freebind(sockfd);
++  } else {
++    printf("%s is an is unknown address format %d\n", local_address, local_addr_info->ai_family);
++    freeaddrinfo(local_addr_info);
++    return -1;
++  }
++
++  if (bind(sockfd, local_addr_info->ai_addr, local_addr_info->ai_addrlen)) {
++    perror("bind socket error");
++    freeaddrinfo(local_addr_info);
++    return -1;
++  }
++
++  freeaddrinfo(local_addr_info);
++  return rc;
++}
++
+ struct unyte_sender_socket *unyte_start_sender(unyte_sender_options_t *options)
+ {
+   struct addrinfo *addr_info;
+@@ -66,6 +124,14 @@ struct unyte_sender_socket *unyte_start_sender(unyte_sender_options_t *options)
+     }
+   }
+ 
++  const char *local_address = options->local_address;
++  if (local_address && strlen(local_address) > 0) {
++    if (set_local_address(sockfd, local_address)) {
++      perror("Bind socket to address failed");
++      exit(EXIT_FAILURE);
++    }
++  }
++
+   uint64_t send_buf_size = DEFAULT_SK_SND_BUFF_SIZE;
+   if (options->socket_buff_size > 0)
+     send_buf_size = options->socket_buff_size;
+diff --git a/src/unyte_sender.h b/src/unyte_sender.h
+index 1ea0866be1d0..61e322650501 100644
+--- a/src/unyte_sender.h
++++ b/src/unyte_sender.h
+@@ -13,6 +13,7 @@ typedef struct
+   char *port;
+   uint default_mtu;
+   char *interface;
++  char *local_address;
+   uint64_t socket_buff_size;  // socket buffer size in bytes
+ } unyte_sender_options_t;
+ 
+-- 
+2.39.2
+
