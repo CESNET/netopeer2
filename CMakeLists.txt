@@ -46,7 +46,7 @@ endif()
 # Generic version of not only the library. Major version is reserved for really big changes of the project,
 # minor version changes with added functionality (new tool, functionality of the tool or library, ...) and
 # micro version is changed with a set of small changes or bugfixes anywhere in the project.
-set(NP2SRV_VERSION 2.1.67)
+set(NP2SRV_VERSION 2.1.68)
 
 # libyang required version
 set(LIBYANG_DEP_VERSION 2.1.87)
@@ -59,8 +59,8 @@ set(LIBNETCONF2_DEP_SOVERSION 3.5.3)
 set(LIBNETCONF2_DEP_SOVERSION_MAJOR 3)
 
 # sysrepo required version
-set(SYSREPO_DEP_VERSION 2.2.93)
-set(SYSREPO_DEP_SOVERSION 7.17.0)
+set(SYSREPO_DEP_VERSION 2.2.95)
+set(SYSREPO_DEP_SOVERSION 7.18.0)
 set(SYSREPO_DEP_SOVERSION_MAJOR 7)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -std=c99")
