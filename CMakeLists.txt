@@ -135,6 +135,7 @@ ExternalProject_Add(udp-notif-c-collector
     GIT_REPOSITORY https://github.com/network-analytics/udp-notif-c-collector
     GIT_TAG main
     BUILD_IN_SOURCE 1
+    PATCH_COMMAND patch -p1 < ${CMAKE_CURRENT_SOURCE_DIR}/patches/0001-feat-add-local-address-to-sender.patch
     CONFIGURE_COMMAND ./bootstrap && ./configure --prefix=${UDP_NOTIF_BIN}
     BUILD_COMMAND make
     INSTALL_COMMAND make install
