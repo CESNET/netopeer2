@@ -571,6 +571,193 @@ csn_receiver_get_by_name(struct csn_receiver_info *recv_info, const char *name)
     return NULL;
 }
 
+int
+csn_config_sub_receivers_prepare(const struct lyd_node *node_receiver,
+        struct csn_receiver_info *recv_info)
+{
+    struct csn_receiver_config *recv_config = NULL;
+    struct csn_receiver *receiver_search = NULL;
+    struct lyd_node *node_receiver_name;
+    struct lyd_node *node_receiver_ref;
+    struct csn_receiver receiver = {0};
+    int rc = SR_ERR_OK;
+
+    if (lyd_find_path(node_receiver, "name", 0, &node_receiver_name)) {
+        ERR("Missing receiver name");
+        goto cleanup;
+    }
+
+    if (lyd_find_path(node_receiver, "ietf-subscribed-notif-receivers:receiver-instance-ref", 0, &node_receiver_ref)) {
+        ERR("Missing receiver instance ref");
+        goto cleanup;
+    }
+
+    receiver_search = csn_receiver_get_by_name(recv_info, lyd_get_value(node_receiver_name));
+    if (receiver_search) {
+        WRN("Receiver already existing");
+        goto cleanup;
+    }
+
+    receiver.name = strdup(lyd_get_value(node_receiver_name));
+    if (!receiver.name) {
+        rc = SR_ERR_NO_MEMORY;
+        csn_receiver_destroy(&receiver, 0);
+        goto cleanup;
+    }
+
+    receiver.instance_ref = strdup(lyd_get_value(node_receiver_ref));
+    if (!receiver.instance_ref) {
+        rc = SR_ERR_NO_MEMORY;
+        csn_receiver_destroy(&receiver, 0);
+        goto cleanup;
+    }
+
+    recv_config = csn_receiver_config_get_by_name(lyd_get_value(node_receiver_ref));
+    if (!recv_config) {
+        EINT;
+        csn_receiver_destroy(&receiver, 0);
+        goto cleanup;
+    }
+
+    rc = csn_receiver_start(&receiver, recv_config, recv_info);
+    if (rc) {
+        ERR("Cannot init receiver");
+        csn_receiver_destroy(&receiver, 0);
+        goto cleanup;
+    }
+
+    rc = csn_receiver_add(recv_info, &receiver);
+    if (rc) {
+        rc = SR_ERR_NO_MEMORY;
+        ERR("Cannot add receiver");
+        csn_receiver_destroy(&receiver, 0);
+        goto cleanup;
+    }
+cleanup:
+    return rc;
+}
+
+int
+csn_modify_sub_receiver(const struct lyd_node *node_receiver)
+{
+    const struct lyd_node *input = lyd_parent(lyd_parent(node_receiver));
+    struct csn_receiver_info *recv_info = NULL;
+    struct csn_receiver_config *recv_config;
+    struct lyd_node *node_receiver_ref;
+    struct csn_receiver *receiver;
+    struct np2srv_sub_ntf *sub;
+    struct lyd_node *node;
+    int rc = SR_ERR_OK;
+    uint32_t nc_sub_id;
+
+    if (lyd_find_path(input, "id", 0, &node)) {
+        ERR("id not found.");
+        rc = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
+
+    nc_sub_id = ((struct lyd_node_term *)node)->value.uint32;
+    sub = sub_ntf_find(nc_sub_id, 0, 0, 0);
+    if (!sub) {
+        ERR("no such subscription.");
+        rc = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
+
+    if (sub->type == SUB_TYPE_CFG_SUB) {
+        recv_info = sub_ntf_receivers_info_get(sub->data);
+    } else if (sub->type == SUB_TYPE_CFG_YANG_PUSH) {
+        recv_info = yang_push_receivers_info_get(sub->data);
+    }
+
+    if (!recv_info) {
+        ERR("no receivers info.");
+        rc = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
+
+    if (lyd_find_path(node_receiver, "ietf-subscribed-notif-receivers:receiver-instance-ref", 0, &node_receiver_ref)) {
+        ERR("Missing receiver instance ref");
+        goto cleanup;
+    }
+
+    if (lyd_find_path(node_receiver, "name", 0, &node)) {
+        rc = SR_ERR_LY;
+        ERR("Could not find receiver name");
+        goto cleanup;
+    }
+
+    receiver = csn_receiver_get_by_name(recv_info, lyd_get_value(node));
+    if (!receiver) {
+        rc = SR_ERR_INVAL_ARG;
+        ERR("Receiver not found");
+        goto cleanup;
+    }
+
+    recv_config = csn_receiver_config_get_by_name(lyd_get_value(node_receiver_ref));
+    if (!recv_config) {
+        EINT;
+        goto cleanup;
+    }
+
+    if (strcmp(lyd_get_value(node_receiver_ref), receiver->instance_ref)) {
+        free(receiver->instance_ref);
+        receiver->instance_ref = strdup(lyd_get_value(node_receiver_ref));
+
+        csn_receiver_destroy(receiver, 1);
+        rc = csn_receiver_start(receiver, recv_config, recv_info);
+        if (rc) {
+            ERR("Cannot init receiver");
+            goto cleanup;
+        }
+    }
+
+cleanup:
+    return rc;
+}
+
+int
+csn_config_sub_receiver(const struct lyd_node *node_receiver)
+{
+    const struct lyd_node *input = lyd_parent(lyd_parent(node_receiver));
+    struct csn_receiver_info *recv_info = NULL;
+    struct np2srv_sub_ntf *sub;
+    struct lyd_node *node;
+    int rc = SR_ERR_OK;
+    uint32_t nc_sub_id;
+
+    if (lyd_find_path(input, "id", 0, &node)) {
+        ERR("id not found.");
+        rc = SR_ERR_INTERNAL;
+        goto error;
+    }
+
+    nc_sub_id = ((struct lyd_node_term *)node)->value.uint32;
+    sub = sub_ntf_find(nc_sub_id, 0, 0, 0);
+    if (!sub) {
+        ERR("no such subscription.");
+        rc = SR_ERR_INTERNAL;
+        goto error;
+    }
+
+    if (sub->type == SUB_TYPE_CFG_SUB) {
+        recv_info = sub_ntf_receivers_info_get(sub->data);
+    } else if (sub->type == SUB_TYPE_CFG_YANG_PUSH) {
+        recv_info = yang_push_receivers_info_get(sub->data);
+    }
+
+    if (!recv_info) {
+        ERR("no receivers info.");
+        rc = SR_ERR_INTERNAL;
+        goto error;
+    }
+
+    rc = csn_config_sub_receivers_prepare(node_receiver, recv_info);
+
+error:
+    return rc;
+}
+
 void
 csn_receiver_destroy(struct csn_receiver *receiver, int keep_ref)
 {
@@ -628,6 +815,58 @@ csn_receiver_remove_by_name(struct csn_receiver_info *recv_info, const char *nam
 }
 
 int
+csn_delete_sub_receiver(const struct lyd_node *node_receiver)
+{
+    const struct lyd_node *input = lyd_parent(lyd_parent(node_receiver));
+    struct csn_receiver_info *recv_info = NULL;
+    struct np2srv_sub_ntf *sub;
+    const char *receiver_name;
+    struct lyd_node *node;
+    int rc = SR_ERR_OK;
+    uint32_t nc_sub_id;
+
+    if (lyd_find_path(input, "id", 0, &node)) {
+        ERR("id not found.");
+        rc = SR_ERR_INTERNAL;
+        goto error;
+    }
+
+    nc_sub_id = ((struct lyd_node_term *)node)->value.uint32;
+
+    if (lyd_find_path(node_receiver, "name", 0, &node)) {
+        rc = SR_ERR_LY;
+        ERR("Could not find receiver name");
+        goto error;
+    }
+
+    receiver_name = lyd_get_value(node);
+
+    sub = sub_ntf_find(nc_sub_id, 0, 0, 0);
+    if (!sub) {
+        ERR("no such subscription.");
+        rc = SR_ERR_INTERNAL;
+        goto error;
+    }
+
+    if (sub->type == SUB_TYPE_CFG_SUB) {
+        recv_info = sub_ntf_receivers_info_get(sub->data);
+    } else if (sub->type == SUB_TYPE_CFG_YANG_PUSH) {
+        recv_info = yang_push_receivers_info_get(sub->data);
+    }
+
+    if (!recv_info) {
+        ERR("no receivers info.");
+        rc = SR_ERR_INTERNAL;
+        goto error;
+    }
+
+    rc = csn_receiver_remove_by_name(recv_info, receiver_name);
+
+error:
+    return rc;
+}
+
+int
 np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
         const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *output,
         void *UNUSED(private_data))
@@ -650,6 +889,23 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
 error:
 
     return rc;
+}
+
+static struct lyd_node *
+get_sr_config_sub_ntf(sr_session_ctx_t *session, uint32_t nc_sub_id)
+{
+    sr_data_t *data_node;
+    char *xpath;
+
+    asprintf(&xpath, "/ietf-subscribed-notifications:subscriptions/subscription[id=%" PRIu32 "]", nc_sub_id);
+    sr_get_subtree(session, xpath, 0, &data_node);
+    free(xpath);
+
+    if (data_node) {
+        return data_node->tree;
+    }
+
+    return NULL;
 }
 
 int
@@ -706,6 +962,108 @@ csn_receiver_config_delete(const struct lyd_node *input)
     }
 
     return 0;
+}
+
+static int
+csn_receivers_restart(struct csn_receiver_config *recv_config)
+{
+    int rc = SR_ERR_OK;
+    uint32_t s;
+
+    /* iterate over all the subscriptions */
+    for (s = 0; s < info.count; s++) {
+        struct csn_receiver_info *recv_info = NULL;
+        uint32_t r;
+
+        if (info.subs[s].type == SUB_TYPE_CFG_SUB) {
+            recv_info = sub_ntf_receivers_info_get(info.subs[s].data);
+        } else if (info.subs[s].type == SUB_TYPE_CFG_YANG_PUSH) {
+            recv_info = yang_push_receivers_info_get(info.subs[s].data);
+        }
+
+        if (!recv_info) {
+            continue;
+        }
+
+        /* restart receivers of this subscription if they match the name */
+        for (r = 0; r < recv_info->count; r++) {
+            struct csn_receiver *receiver = &recv_info->receivers[r];
+            if (strcmp(receiver->instance_ref, recv_config->instance_name)) {
+                continue;
+            }
+
+            csn_receiver_destroy(receiver, 1);
+            rc = csn_receiver_start(receiver, recv_config, recv_info);
+            if (rc) {
+                ERR("Cannot init receiver");
+                goto cleanup;
+            }
+
+        }
+    }
+
+cleanup:
+    return rc;
+}
+
+static int
+csn_receiver_config_modify(const struct lyd_node *input)
+{
+    struct lyd_node *remote_address_node = NULL;
+    struct lyd_node *remote_port_node = NULL;
+    struct csn_receiver_config *recv_config;
+    struct lyd_node *receiver_node = NULL;
+    struct lyd_node *name_node = NULL;
+    int rc = SR_ERR_OK;
+
+    if (lyd_find_path(input, "name", 0, &name_node)) {
+        ERR("Missing receiver name\n");
+        rc = SR_ERR_NOT_FOUND;
+        goto error;
+    }
+
+    /* get from receivers */
+    recv_config = csn_receiver_config_get_by_name(lyd_get_value(name_node));
+    if (rc) {
+        ERR("Cannot get receiver config.\n");
+        rc = SR_ERR_NOT_FOUND;
+        goto error;
+    }
+
+    if (lyd_find_path(input, "ietf-udp-notif-transport:udp-notif-receiver", 0, &receiver_node)) {
+        ERR("Missing mandatory \"udp-notif-receiver\" leave.");
+        rc = SR_ERR_LY;
+        goto error;
+    }
+
+    if (!lyd_find_path(receiver_node, "remote-address", 0, &remote_address_node)) {
+        free(recv_config->udp.address);
+        recv_config->udp.address = strdup(lyd_get_value(remote_address_node));
+        if (!recv_config->udp.address) {
+            ERR("Cannot allocate remote address.\n");
+            rc = SR_ERR_NO_MEMORY;
+            goto error;
+        }
+    }
+
+    if (!lyd_find_path(receiver_node, "remote-port", 0, &remote_port_node)) {
+        free(recv_config->udp.port);
+        recv_config->udp.port = strdup(lyd_get_value(remote_port_node));
+        if (!recv_config->udp.port) {
+            ERR("Cannot allocate remote port.\n");
+            rc = SR_ERR_NO_MEMORY;
+            goto error;
+        }
+    }
+
+    rc = csn_receivers_restart(recv_config);
+    if (rc) {
+        ERR("Cannot init receivers");
+        goto error;
+    }
+
+error:
+    return rc;
 }
 
 void
@@ -1463,6 +1821,28 @@ np2srv_config_receivers_cb(sr_session_ctx_t *session,
         goto cleanup;
     }
 
+    sr_free_change_iter(iter);
+
+    rc = sr_get_changes_iter(session,
+            "/ietf-subscribed-notifications:subscriptions/receiver-instances/receiver-instance/udp-notif-receiver/*",
+            &iter);
+    if (rc != SR_ERR_OK) {
+        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+
+    while ((r = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
+        if (op == SR_OP_MODIFIED) {
+            csn_receiver_config_modify(lyd_parent(lyd_parent(node)));
+        }
+    }
+
+    if (r != SR_ERR_NOT_FOUND) {
+        rc = r;
+        ERR("Getting next change failed (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+
 cleanup:
     /* UNLOCK */
     INFO_UNLOCK;
@@ -1478,6 +1858,7 @@ np2srv_config_subscriptions_cb(sr_session_ctx_t *session,
 {
     sr_change_iter_t *iter = NULL;
     const struct lyd_node *node;
+    uint32_t last_nc_sub_id = 0;
     int r, rc = SR_ERR_OK;
     sr_change_oper_t op;
 
@@ -1500,6 +1881,123 @@ np2srv_config_subscriptions_cb(sr_session_ctx_t *session,
             if (rc != SR_ERR_OK) {
                 goto cleanup;
             }
+        }
+    }
+
+    if (r != SR_ERR_NOT_FOUND) {
+        rc = r;
+        ERR("Getting next change failed (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+
+    sr_free_change_iter(iter);
+
+    rc = sr_get_changes_iter(session, "/ietf-subscribed-notifications:subscriptions/subscription/*", &iter);
+    if (rc != SR_ERR_OK) {
+        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+
+    while ((r = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
+        struct lyd_node *node_receivers;
+        struct lyd_node *node_receiver;
+        struct lyd_node *id_node;
+        struct lyd_node *config;
+        uint32_t nc_sub_id;
+
+        /* handle subscription modification or subscription subset create or delete */
+        if (op != SR_OP_MODIFIED) {
+            struct lyd_meta *meta = lyd_find_meta(lyd_parent(node)->meta, NULL, "yang:operation");
+            if (!meta || (meta->value.enum_item->name[0] != 'n')) {
+                continue;
+            }
+        }
+
+        lyd_find_path(lyd_parent(node), "id", 0, &id_node);
+        nc_sub_id = ((struct lyd_node_term *)id_node)->value.uint32;
+        if (nc_sub_id == last_nc_sub_id) {
+            continue;
+        }
+
+        /* restart subscription with actual config */
+        config = get_sr_config_sub_ntf(session, nc_sub_id);
+        if (!config) {
+            VRB("Could not find sub config %lu", nc_sub_id);
+            rc = SR_ERR_INTERNAL;
+            goto cleanup;
+        }
+
+        /* delete and create the subscriptions */
+        rc = csn_delete_sub(session, lyd_parent(node));
+        if (rc != SR_ERR_OK) {
+            VRB("Could not delete subscription");
+            goto cleanup;
+        }
+
+        csn_config_sub(session, config);
+        if (!lyd_find_path(config, "receivers", 0, &node_receivers)) {
+            LY_LIST_FOR(lyd_child(node_receivers), node_receiver) {
+                csn_config_sub_receiver(node_receiver);
+            }
+        }
+
+        /* save id of modified subscription */
+        last_nc_sub_id = nc_sub_id;
+    }
+
+    if (r != SR_ERR_NOT_FOUND) {
+        rc = r;
+        ERR("Getting next change failed (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+
+cleanup:
+
+    sr_free_change_iter(iter);
+    return rc;
+}
+
+int
+np2srv_config_subscriptions_receivers_cb(sr_session_ctx_t *session,
+        uint32_t UNUSED(sub_id), const char *UNUSED(module_name), const char *UNUSED(path),
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+{
+    sr_change_iter_t *iter = NULL;
+    const struct lyd_node *node;
+    int r, rc = SR_ERR_OK;
+    sr_change_oper_t op;
+
+    rc = sr_get_changes_iter(session, "/ietf-subscribed-notifications:subscriptions/subscription/receivers/receiver", &iter);
+    if (rc != SR_ERR_OK) {
+        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+
+    while ((r = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
+        if (op == SR_OP_CREATED) {
+            csn_config_sub_receiver(node);
+        } else if (op == SR_OP_DELETED) {
+            csn_delete_sub_receiver(node);
+        }
+    }
+
+    if (r != SR_ERR_NOT_FOUND) {
+        rc = r;
+        ERR("Getting next change failed (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+
+    sr_free_change_iter(iter);
+
+    rc = sr_get_changes_iter(session, "/ietf-subscribed-notifications:subscriptions/subscription/receivers/receiver/*", &iter);
+    if (rc != SR_ERR_OK) {
+        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+
+    while ((r = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
+        if (op == SR_OP_MODIFIED) {
+            csn_modify_sub_receiver(lyd_parent(node));
         }
     }
 
