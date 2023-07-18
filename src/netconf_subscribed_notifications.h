@@ -28,7 +28,8 @@
  */
 enum sub_ntf_type {
     SUB_TYPE_DYN_SUB,       /**< standard subscribed-notifications subscription */
-    SUB_TYPE_DYN_YANG_PUSH  /**< yang-push subscription */
+    SUB_TYPE_DYN_YANG_PUSH, /**< yang-push subscription */
+    SUB_TYPE_CFG_SUB        /**< configured subscriptions */
 };
 
 /**
@@ -168,6 +169,9 @@ int np2srv_oper_sub_ntf_streams_cb(sr_session_ctx_t *session, uint32_t sub_id, c
 int np2srv_config_receivers_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
         const char *path, sr_event_t event, uint32_t request_id, void *private_data);
 
+int np2srv_config_subscriptions_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
+        const char *path, sr_event_t event, uint32_t request_id, void *private_data);
+
 int np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
         const char *path, const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data);
 
@@ -212,7 +216,7 @@ void csn_receiver_destroy(struct csn_receiver *receiver, int keep_ref);
  * @return Sysrepo error value.
  */
 int csn_receiver_start(struct csn_receiver *receiver, struct csn_receiver_config *recv_config,
-                 struct csn_receiver_info *recv_info);
+        struct csn_receiver_info *recv_info);
 /**
  * @brief add a receiver in the receiver_info list
  *

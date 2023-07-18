@@ -354,6 +354,7 @@ np2srv_sub_ntf_destroy(void)
 
     for (i = 0; i < info.count; ++i) {
         switch (info.subs[i].type) {
+        case SUB_TYPE_CFG_SUB:
         case SUB_TYPE_DYN_SUB:
             sub_ntf_terminate_async(info.subs[i].data);
             break;
@@ -364,6 +365,7 @@ np2srv_sub_ntf_destroy(void)
 
         free(info.subs[i].sub_ids);
         switch (info.subs[i].type) {
+        case SUB_TYPE_CFG_SUB:
         case SUB_TYPE_DYN_SUB:
             sub_ntf_data_destroy(info.subs[i].data);
             break;
@@ -396,29 +398,17 @@ np2srv_sub_ntf_destroy(void)
     INFO_UNLOCK;
 }
 
-int
-np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
-        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *output,
-        void *UNUSED(private_data))
+static int
+np2srv_establish_sub_cb(sr_session_ctx_t *session, const struct lyd_node *input,
+        struct lyd_node *output, struct nc_session *ncs)
 {
     struct lyd_node *node;
-    struct nc_session *ncs;
     struct np2srv_sub_ntf sub = {0}, *sub_p;
     char id_str[11];
     struct timespec stop = {0};
     int r, rc = SR_ERR_OK, ntf_status = 0;
     uint32_t nc_sub_id, *nc_id;
     enum sub_ntf_type type;
-
-    if (np_ignore_rpc(session, event, &rc)) {
-        /* ignore in this case */
-        return rc;
-    }
-
-    /* find this NETCONF session */
-    if ((rc = np_find_user_sess(session, __func__, &ncs, NULL))) {
-        goto error;
-    }
 
     /* stop time */
     if (!lyd_find_path(input, "stop-time", 0, &node)) {
@@ -434,26 +424,52 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     }
 
     /* detect type */
-    if (!lyd_find_path(input, "stream", 0, NULL)) {
-        type = SUB_TYPE_DYN_SUB;
-    } else if (!lyd_find_path(input, "ietf-yang-push:datastore", 0, NULL)) {
-        type = SUB_TYPE_DYN_YANG_PUSH;
+    if (ncs) {
+        if (!lyd_find_path(input, "stream", 0, NULL)) {
+            type = SUB_TYPE_DYN_SUB;
+        } else if (!lyd_find_path(input, "ietf-yang-push:datastore", 0, NULL)) {
+            type = SUB_TYPE_DYN_YANG_PUSH;
+        } else {
+            ERR("Missing mandatory \"stream\" or \"datastore\" leaves.");
+            rc = SR_ERR_INVAL_ARG;
+            goto error;
+        }
+        nc_session_inc_notif_status(ncs);
+        ntf_status = 1;
+        sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_id);
+        sub.nc_id = *nc_id;
+        /* get new NC sub ID */
+        do {
+            nc_sub_id = ATOMIC_INC_RELAXED(new_nc_sub_id);
+        } while (sub_ntf_find(nc_sub_id, 0, 0, 0));
+
     } else {
-        ERR("Missing mandatory \"stream\" or \"datastore\" leaves.");
-        rc = SR_ERR_INVAL_ARG;
-        goto error;
+        sub.nc_id = 0;
+
+        if (!lyd_find_path(input, "stream", 0, NULL)) {
+            type = SUB_TYPE_CFG_SUB;
+        } else {
+            ERR("Missing mandatory \"stream\" leaves.");
+            rc = SR_ERR_INVAL_ARG;
+            goto error;
+        }
+
+        if (lyd_find_path(input, "id", 0, &node)) {
+            ERR("id not found.");
+            rc = SR_ERR_INTERNAL;
+            goto error;
+        }
+
+        nc_sub_id = ((struct lyd_node_term *)node)->value.uint32;
+
+        if (sub_ntf_find(nc_sub_id, 0, 0, 0)) {
+            ERR("id already exists.");
+            rc = SR_ERR_INTERNAL;
+            goto error;
+        }
     }
 
-    /* set ongoing notifications flag */
-    nc_session_inc_notif_status(ncs);
-    ntf_status = 1;
-
-    /* get new NC sub ID */
-    nc_sub_id = ATOMIC_INC_RELAXED(new_nc_sub_id);
-
     /* prepare a new subscription */
-    sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_id);
-    sub.nc_id = *nc_id;
     sub.nc_sub_id = nc_sub_id;
     sub.term_reason = "ietf-subscribed-notifications:no-such-subscription";
     sub.stop_time = stop;
@@ -461,6 +477,7 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
 
     /* create sysrepo subscriptions and type-specific data */
     switch (type) {
+    case SUB_TYPE_CFG_SUB:
     case SUB_TYPE_DYN_SUB:
         rc = sub_ntf_rpc_establish_sub_prepare(session, input, &sub);
         break;
@@ -494,6 +511,7 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
 
     /* start even asynchronous tasks that may access subscriptions and require read lock to be held now */
     switch (type) {
+    case SUB_TYPE_CFG_SUB:
     case SUB_TYPE_DYN_SUB:
         rc = sub_ntf_rpc_establish_sub_start_async(session, sub_p);
         break;
@@ -509,10 +527,12 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     INFO_UNLOCK;
 
     /* generate output */
-    sprintf(id_str, "%" PRIu32, nc_sub_id);
-    if (lyd_new_term(output, NULL, "id", id_str, 1, NULL)) {
-        rc = SR_ERR_LY;
-        goto error;
+    if (output) {
+        sprintf(id_str, "%" PRIu32, nc_sub_id);
+        if (lyd_new_term(output, NULL, "id", id_str, 1, NULL)) {
+            rc = SR_ERR_LY;
+            goto error;
+        }
     }
     /* TODO "replay-start-time-revision" - sent only if the earliest (theoretical) stored notif is later than start-time */
 
@@ -525,7 +545,7 @@ error_unlock:
     INFO_UNLOCK;
 
 error:
-    if (ntf_status) {
+    if (ntf_status && ncs) {
         nc_session_dec_notif_status(ncs);
     }
     return rc;
@@ -599,6 +619,37 @@ csn_receiver_remove_by_name(struct csn_receiver_info *recv_info, const char *nam
     }
 
     return SR_ERR_INTERNAL;
+}
+
+int
+np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
+        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *output,
+        void *UNUSED(private_data))
+{
+    struct nc_session *ncs;
+    int rc = SR_ERR_OK;
+
+    if (np_ignore_rpc(session, event, &rc)) {
+        /* ignore in this case */
+        return rc;
+    }
+
+    /* find this NETCONF session */
+    if ((rc = np_find_user_sess(session, __func__, &ncs, NULL))) {
+        goto error;
+    }
+
+    return np2srv_establish_sub_cb(session, input, output, ncs);
+
+error:
+
+    return rc;
+}
+
+int
+csn_config_sub(sr_session_ctx_t *session, const struct lyd_node *input)
+{
+    return np2srv_establish_sub_cb(session, input, NULL, NULL);
 }
 
 static int
@@ -899,6 +950,9 @@ sub_ntf_send_notif_modified(const struct np2srv_sub_ntf *sub)
     case SUB_TYPE_DYN_YANG_PUSH:
         rc = yang_push_notif_modified_append_data(ly_ntf, sub->data);
         break;
+    default:
+        rc = SR_ERR_INTERNAL;
+        break;
     }
     if (rc != SR_ERR_OK) {
         goto cleanup;
@@ -970,6 +1024,9 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
     case SUB_TYPE_DYN_YANG_PUSH:
         rc = yang_push_rpc_modify_sub(session, input, stop, sub);
         break;
+    default:
+        rc = SR_ERR_INVAL_ARG;
+        break;
     }
     if (rc != SR_ERR_OK) {
         goto cleanup_unlock;
@@ -1012,13 +1069,18 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
 
     /* unsubscribe all sysrepo subscriptions */
     switch (sub_type) {
+    case SUB_TYPE_CFG_SUB:
     case SUB_TYPE_DYN_SUB:
         sub_id_count = ATOMIC_LOAD_RELAXED(sub->sub_id_count);
         for (idx = 0; idx < sub_id_count; ++idx) {
             /* pass the lock to the notification CB, which removes its sub ID, the final one the whole sub */
             sub_id = sub->sub_ids[0];
             sub_ntf_cb_lock_pass(sub_id);
-            r = sr_unsubscribe_sub(np2srv.sr_notif_sub, sub_id);
+            if (ncs) {
+                r = sr_unsubscribe_sub(np2srv.sr_notif_sub, sub_id);
+            } else {
+                r = sr_unsubscribe_sub(np2srv.sr_cfg_notif_sub, sub_id);
+            }
             sub_ntf_cb_lock_clear(sub_id);
             if (r != SR_ERR_OK) {
                 rc = r;
@@ -1042,6 +1104,7 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
 
     /* terminate any asynchronous tasks */
     switch (sub_type) {
+    case SUB_TYPE_CFG_SUB:
     case SUB_TYPE_DYN_SUB:
         sub_ntf_terminate_async(sub->data);
         break;
@@ -1075,28 +1138,39 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
     }
     assert(sub);
 
-    if (nc_session_get_status(ncs) == NC_STATUS_RUNNING) {
-        ly_ctx = sr_acquire_context(np2srv.sr_conn);
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
+    /* send the subscription-terminated notification */
+    sprintf(buf, "%" PRIu32, sub->nc_sub_id);
+    lyd_new_path(NULL, ly_ctx, "/ietf-subscribed-notifications:subscription-terminated/id", buf, 0, &ly_ntf);
+    lyd_new_path(ly_ntf, NULL, "reason", sub->term_reason, 0, NULL);
 
-        /* send the subscription-terminated notification */
-        sprintf(buf, "%" PRIu32, sub->nc_sub_id);
-        lyd_new_path(NULL, ly_ctx, "/ietf-subscribed-notifications:subscription-terminated/id", buf, 0, &ly_ntf);
-        lyd_new_path(ly_ntf, NULL, "reason", sub->term_reason, 0, NULL);
-
-        r = sub_ntf_send_notif(ncs, sub->nc_sub_id, np_gettimespec(1), &ly_ntf, 1);
-        if (r != SR_ERR_OK) {
-            rc = r;
+    if (ncs) {
+        if (nc_session_get_status(ncs) == NC_STATUS_RUNNING) {
+            /* send the subscription-terminated notification */
+            r = sub_ntf_send_notif(ncs, sub->nc_sub_id, np_gettimespec(1), &ly_ntf, 1);
+            if (r != SR_ERR_OK) {
+                rc = r;
+            }
         }
-
-        sr_release_context(np2srv.sr_conn);
+        /* subscription terminated */
+        nc_session_dec_notif_status(ncs);
+    } else {
+        struct csn_receiver_info *recv_info = NULL;
+        recv_info = sub_ntf_receivers_info_get(sub->data);
+        if (recv_info) {
+            r = csn_send_notif(recv_info, sub->nc_sub_id, np_gettimespec(1), &ly_ntf, 1);
+            if (r != SR_ERR_OK) {
+                rc = r;
+            }
+        }
     }
 
-    /* subscription terminated */
-    nc_session_dec_notif_status(ncs);
+    sr_release_context(np2srv.sr_conn);
 
     /* free the sub */
     free(sub->sub_ids);
     switch (sub->type) {
+    case SUB_TYPE_CFG_SUB:
     case SUB_TYPE_DYN_SUB:
         sub_ntf_data_destroy(sub->data);
         break;
@@ -1163,6 +1237,51 @@ np2srv_rpc_delete_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 cleanup_unlock:
     /* UNLOCK */
     INFO_UNLOCK;
+
+    return rc;
+}
+
+int
+csn_delete_sub(sr_session_ctx_t *session, const struct lyd_node *input)
+{
+    struct np2srv_sub_ntf *sub;
+    struct lyd_node *node;
+    int r, rc = SR_ERR_OK;
+    char *message = NULL;
+    uint32_t nc_sub_id;
+
+    /* id */
+    lyd_find_path(input, "id", 0, &node);
+    nc_sub_id = ((struct lyd_node_term *)node)->value.uint32;
+
+    /* WRITE LOCK */
+    sub = sub_ntf_find(nc_sub_id, 0, 1, 0);
+    if (!sub) {
+        if (asprintf(&message, "Subscription with ID %" PRIu32 " for the current receiver does not exist.", nc_sub_id) == -1) {
+            rc = SR_ERR_NO_MEMORY;
+            EMEM;
+            return rc;
+        }
+
+        np_err_ntf_sub_no_such_sub(session, message);
+        ERR("np_err_ntf_sub_no_such_sub");
+        rc = SR_ERR_INVAL_ARG;
+        return rc;
+
+    }
+
+    /* terminate the subscription */
+    rc = sub_ntf_terminate_sub(sub, NULL);
+    if (rc != SR_ERR_OK) {
+        ERR("sub_ntf_terminate_sub");
+        goto cleanup_unlock;
+    }
+
+cleanup_unlock:
+    /* UNLOCK */
+    INFO_UNLOCK;
+
+    free(message);
 
     return rc;
 }
@@ -1327,6 +1446,50 @@ cleanup:
 }
 
 int
+np2srv_config_subscriptions_cb(sr_session_ctx_t *session,
+        uint32_t UNUSED(sub_id), const char *UNUSED(module_name), const char *UNUSED(path),
+        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+{
+    sr_change_iter_t *iter = NULL;
+    const struct lyd_node *node;
+    int r, rc = SR_ERR_OK;
+    sr_change_oper_t op;
+
+    /* subscribed-notifications */
+    rc = sr_get_changes_iter(session, "/ietf-subscribed-notifications:subscriptions/subscription", &iter);
+    if (rc != SR_ERR_OK) {
+        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+
+    while ((r = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
+
+        if (op == SR_OP_CREATED) {
+            rc = csn_config_sub(session, node);
+            if (rc != SR_ERR_OK) {
+                goto cleanup;
+            }
+        } else if (op == SR_OP_DELETED) {
+            rc = csn_delete_sub(session, node);
+            if (rc != SR_ERR_OK) {
+                goto cleanup;
+            }
+        }
+    }
+
+    if (r != SR_ERR_NOT_FOUND) {
+        rc = r;
+        ERR("Getting next change failed (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+
+cleanup:
+
+    sr_free_change_iter(iter);
+    return rc;
+}
+
+int
 np2srv_oper_sub_ntf_streams_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
         const char *UNUSED(path), const char *UNUSED(request_xpath), uint32_t UNUSED(request_id),
         struct lyd_node **parent, void *UNUSED(private_data))
@@ -1413,6 +1576,8 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
     char buf[26], *path = NULL, *datetime = NULL;
     uint32_t i, excluded_count = 0;
     int r, rc = SR_ERR_OK;
+    char *name = NULL;
+    uint32_t id;
 
     /* context is locked while the callback is executing */
     ly_ctx = sr_session_acquire_context(session);
@@ -1439,11 +1604,15 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
 
         /* subscription type-specific data */
         switch (sub->type) {
+        case SUB_TYPE_CFG_SUB:
         case SUB_TYPE_DYN_SUB:
             rc = sub_ntf_oper_subscription(list, sub->data);
             break;
         case SUB_TYPE_DYN_YANG_PUSH:
             rc = yang_push_oper_subscription(list, sub->data);
+            break;
+        default:
+            rc = SR_ERR_NOT_FOUND;
             break;
         }
         if (rc != SR_ERR_OK) {
@@ -1459,8 +1628,21 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
             }
         }
 
+        switch (sub->type) {
+        case SUB_TYPE_CFG_SUB:
+            id = sub->nc_sub_id;
+            name = "CONFIG notif";
+            break;
+        case SUB_TYPE_DYN_SUB:
+        case SUB_TYPE_DYN_YANG_PUSH:
+        default:
+            id = sub->nc_id;
+            name = "NETCONF session";
+            break;
+        }
+
         /* receivers */
-        if (asprintf(&path, "receivers/receiver[name='NETCONF session %u']", sub->nc_id) == -1) {
+        if (asprintf(&path, "receivers/receiver[name='%s %u']", name, id) == -1) {
             EMEM;
             rc = SR_ERR_NO_MEMORY;
             goto cleanup;
@@ -1482,11 +1664,15 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
 
         /* excluded-event-records, type-specific */
         switch (sub->type) {
+        case SUB_TYPE_CFG_SUB:
         case SUB_TYPE_DYN_SUB:
             excluded_count = sub_ntf_oper_receiver_excluded(sub);
             break;
         case SUB_TYPE_DYN_YANG_PUSH:
             excluded_count = yang_push_oper_receiver_excluded(sub);
+            break;
+        default:
+            rc = SR_ERR_NOT_FOUND;
             break;
         }
 

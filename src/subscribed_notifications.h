@@ -23,6 +23,7 @@
 #include <sysrepo.h>
 
 #include "common.h"
+#include "receivers.h"
 
 struct np2srv_sub_ntf;
 
@@ -30,6 +31,7 @@ struct np2srv_sub_ntf;
  * @brief Sysrepo notification callback argument.
  */
 struct np_sub_ntf_arg {
+    struct csn_receiver_info recv_info;
     struct nc_session *ncs;
     struct sub_ntf_data *sn_data;
     uint32_t nc_sub_id;
@@ -143,5 +145,12 @@ void sub_ntf_terminate_async(void *data);
  * @param[in] data Type-specific data to free.
  */
 void sub_ntf_data_destroy(void *data);
+
+/**
+ * @brief Get receivers_info from this type of configured subscription.
+ *
+ * @param[in] data Type-specific data to free.
+ */
+struct csn_receiver_info *sub_ntf_receivers_info_get(void *data);
 
 #endif /* NP2SRV_SUBSCRIBED_NOTIFICATIONS_H_ */

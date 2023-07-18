@@ -109,12 +109,24 @@ np2srv_rpc_establish_sub_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_
 
         sprintf(buf, "%" PRIu32, arg->nc_sub_id);
         lyd_new_path(NULL, ly_ctx, "/ietf-subscribed-notifications:replay-completed/id", buf, 0, &ly_ntf);
-        sub_ntf_send_notif(arg->ncs, arg->nc_sub_id, *timestamp, &ly_ntf, 1);
 
-        /* now send all the buffered notifications */
-        for (i = 0; i < arg->rt_notif_count; ++i) {
-            np_ntf_send(arg->ncs, &arg->rt_notifs[i].timestamp, &arg->rt_notifs[i].notif, 1);
+        if (arg->ncs) {
+            sub_ntf_send_notif(arg->ncs, arg->nc_sub_id, *timestamp, &ly_ntf, 1);
+
+            /* now send all the buffered notifications */
+            for (i = 0; i < arg->rt_notif_count; ++i) {
+                np_ntf_send(arg->ncs, &arg->rt_notifs[i].timestamp, &arg->rt_notifs[i].notif, 1);
+            }
+        } else {
+            csn_send_notif(&arg->recv_info, arg->nc_sub_id, *timestamp, &ly_ntf, 1);
+
+            /* now send all the buffered notifications */
+            for (i = 0; i < arg->rt_notif_count; ++i) {
+                csn_send_notif(&arg->recv_info, arg->nc_sub_id, arg->rt_notifs[i].timestamp,
+                        &arg->rt_notifs[i].notif, 1);
+            }
         }
+
         break;
     case SR_EV_NOTIF_TERMINATED:
     case SR_EV_NOTIF_STOP_TIME:
@@ -141,12 +153,22 @@ np2srv_rpc_establish_sub_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_
             np_ntf_add_dup(notif, timestamp, &arg->rt_notifs, &arg->rt_notif_count);
         } else {
             /* send the realtime notification */
-            sub_ntf_send_notif(arg->ncs, arg->nc_sub_id, *timestamp, (struct lyd_node **)&notif, 0);
+            if (arg->ncs) {
+                sub_ntf_send_notif(arg->ncs, arg->nc_sub_id, *timestamp, (struct lyd_node **)&notif, 0);
+            } else {
+                csn_send_notif(&arg->recv_info, arg->nc_sub_id, *timestamp,
+                        (struct lyd_node **)&notif, 0);
+            }
         }
         break;
     case SR_EV_NOTIF_REPLAY:
         /* send the replayed notification */
-        sub_ntf_send_notif(arg->ncs, arg->nc_sub_id, *timestamp, (struct lyd_node **)&notif, 0);
+        if (arg->ncs) {
+            sub_ntf_send_notif(arg->ncs, arg->nc_sub_id, *timestamp, (struct lyd_node **)&notif, 0);
+        } else {
+            csn_send_notif(&arg->recv_info, arg->nc_sub_id, *timestamp,
+                    (struct lyd_node **)&notif, 0);
+        }
         break;
     case SR_EV_NOTIF_MODIFIED:
         /* handled elsewhere */
@@ -176,7 +198,7 @@ np2srv_rpc_establish_sub_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_
 static int
 sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char *xpath, const struct timespec *start,
         const struct timespec *stop, struct np_sub_ntf_arg *cb_arg, sr_session_ctx_t *ev_sess, uint32_t **sub_ids,
-        uint32_t *sub_id_count)
+        uint32_t *sub_id_count, sr_subscription_ctx_t **sr_sub_ctx)
 {
     const struct ly_ctx *ly_ctx;
     const struct lys_module *ly_mod;
@@ -225,7 +247,7 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
 
             /* subscribe to the module */
             rc = sr_notif_subscribe_tree(user_sess, ly_mod->name, xpath, start, stop, np2srv_rpc_establish_sub_ntf_cb,
-                    cb_arg, SR_SUBSCR_THREAD_SUSPEND, &np2srv.sr_notif_sub);
+                    cb_arg, SR_SUBSCR_THREAD_SUSPEND, sr_sub_ctx);
             if (rc != SR_ERR_OK) {
                 sr_session_get_error(user_sess, &err_info);
                 sr_session_set_error_message(ev_sess, err_info->err[0].message);
@@ -234,7 +256,7 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
             suspended = 1;
 
             /* add new sub ID */
-            (*sub_ids)[*sub_id_count] = sr_subscription_get_last_sub_id(np2srv.sr_notif_sub);
+            (*sub_ids)[*sub_id_count] = sr_subscription_get_last_sub_id(*sr_sub_ctx);
             ++(*sub_id_count);
         }
     } else {
@@ -252,7 +274,7 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
 
         /* subscribe to the specific module (stream) */
         rc = sr_notif_subscribe_tree(user_sess, stream, xpath, start, stop, np2srv_rpc_establish_sub_ntf_cb,
-                cb_arg, SR_SUBSCR_THREAD_SUSPEND, &np2srv.sr_notif_sub);
+                cb_arg, SR_SUBSCR_THREAD_SUSPEND, sr_sub_ctx);
         if (rc != SR_ERR_OK) {
             sr_session_get_error(user_sess, &err_info);
             sr_session_set_error_message(ev_sess, err_info->err[0].message);
@@ -261,7 +283,7 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
         suspended = 1;
 
         /* add new sub ID */
-        (*sub_ids)[*sub_id_count] = sr_subscription_get_last_sub_id(np2srv.sr_notif_sub);
+        (*sub_ids)[*sub_id_count] = sr_subscription_get_last_sub_id(*sr_sub_ctx);
         ++(*sub_id_count);
     }
 
@@ -269,11 +291,11 @@ sub_ntf_sr_subscribe(sr_session_ctx_t *user_sess, const char *stream, const char
 
 error:
     for (idx = 0; idx < *sub_id_count; ++idx) {
-        sr_unsubscribe_sub(np2srv.sr_notif_sub, (*sub_ids)[idx]);
+        sr_unsubscribe_sub(*sr_sub_ctx, (*sub_ids)[idx]);
     }
     if (suspended) {
         /* resume subscription thread */
-        sr_subscription_thread_resume(np2srv.sr_notif_sub);
+        sr_subscription_thread_resume(*sr_sub_ctx);
     }
     free(*sub_ids);
     *sub_ids = NULL;
@@ -418,14 +440,36 @@ sub_ntf_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_no
     struct timespec start = {0};
     uint32_t sub_id_count;
     int rc = SR_ERR_OK;
+    sr_subscription_ctx_t **sr_sub_ctx;
+    const char *local_address = NULL;
+    const char *interface = NULL;
+    sr_session_ctx_t *sess;
 
-    /* get the NETCONF session and user session */
-    if ((rc = np_find_user_sess(ev_sess, __func__, &ncs, &user_sess))) {
-        goto cleanup;
+    if (sub->type == SUB_TYPE_DYN_SUB) {
+        /* get the NETCONF session and user session */
+        if ((rc = np_find_user_sess(ev_sess, __func__, &ncs, &user_sess))) {
+            goto cleanup;
+        }
+        sess = user_sess->sess;
+        sr_sub_ctx = &np2srv.sr_notif_sub;
+    } else {
+        /* SUB_TYPE_CFG_SUB */
+        ncs = NULL;
+        sess = np2srv.sr_sess_cfg;
+        if (!lyd_find_path(rpc, "source-address", 0, &node)) {
+            local_address = lyd_get_value(node);
+        }
+
+        /* interface */
+        if (!lyd_find_path(rpc, "interface", 0, &node)) {
+            interface = lyd_get_value(node);
+        }
+
+        sr_sub_ctx = &np2srv.sr_cfg_notif_sub;
     }
 
     /* filter, join all into one xpath */
-    rc = sub_ntf_rpc_filter2xpath(user_sess->sess, rpc, ev_sess, &xp, &stream_filter_name, &stream_subtree_filter,
+    rc = sub_ntf_rpc_filter2xpath(sess, rpc, ev_sess, &xp, &stream_filter_name, &stream_subtree_filter,
             &stream_xpath_filter);
     if (rc != SR_ERR_OK) {
         goto cleanup;
@@ -472,6 +516,15 @@ sub_ntf_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_no
     }
     sn_data->stream_xpath_filter = stream_xpath_filter ? strdup(stream_xpath_filter) : NULL;
     sn_data->stream = strdup(stream);
+
+    if (local_address) {
+        sn_data->cb_arg.recv_info.local_address = strdup(local_address);
+    }
+
+    if (interface) {
+        sn_data->cb_arg.recv_info.interface = strdup(interface);
+    }
+
     sn_data->replay_start_time = start;
     if ((stream_filter_name && !sn_data->stream_filter_name) || (stream_subtree_filter && !sn_data->stream_subtree_filter) ||
             (stream_xpath_filter && !sn_data->stream_xpath_filter) || !sn_data->stream) {
@@ -487,8 +540,9 @@ sub_ntf_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_no
     sn_data->cb_arg.nc_sub_id = sub->nc_sub_id;
 
     /* subscribe to sysrepo notifications, cb_arg is managed (freed) by the callback */
-    rc = sub_ntf_sr_subscribe(user_sess->sess, stream, xp, start.tv_sec ? &start : NULL,
-            sub->stop_time.tv_sec ? &sub->stop_time : NULL, &sn_data->cb_arg, ev_sess, &sub->sub_ids, &sub_id_count);
+    rc = sub_ntf_sr_subscribe(sess, stream, xp, start.tv_sec ? &start : NULL,
+            sub->stop_time.tv_sec ? &sub->stop_time : NULL, &sn_data->cb_arg, ev_sess, &sub->sub_ids, &sub_id_count,
+            sr_sub_ctx);
     ATOMIC_STORE_RELAXED(sub->sub_id_count, sub_id_count);
     if (rc != SR_ERR_OK) {
         goto cleanup;
@@ -504,10 +558,14 @@ cleanup:
 }
 
 int
-sub_ntf_rpc_establish_sub_start_async(sr_session_ctx_t *UNUSED(ev_sess), struct np2srv_sub_ntf *UNUSED(sub))
+sub_ntf_rpc_establish_sub_start_async(sr_session_ctx_t *UNUSED(ev_sess), struct np2srv_sub_ntf *sub)
 {
     /* resume subscription thread */
-    sr_subscription_thread_resume(np2srv.sr_notif_sub);
+    if (sub->type == SUB_TYPE_DYN_SUB) {
+        sr_subscription_thread_resume(np2srv.sr_notif_sub);
+    } else {
+        sr_subscription_thread_resume(np2srv.sr_cfg_notif_sub);
+    }
 
     return 0;
 }
@@ -757,7 +815,11 @@ sub_ntf_oper_receiver_excluded(struct np2srv_sub_ntf *sub)
     /* excluded-event-records */
     for (i = 0; i < ATOMIC_LOAD_RELAXED(sub->sub_id_count); ++i) {
         /* get filter-out count for the subscription */
-        r = sr_notif_sub_get_info(np2srv.sr_notif_sub, sub->sub_ids[i], NULL, NULL, NULL, NULL, &filtered_out);
+        if (sub->type == SUB_TYPE_DYN_SUB) {
+            r = sr_notif_sub_get_info(np2srv.sr_notif_sub, sub->sub_ids[i], NULL, NULL, NULL, NULL, &filtered_out);
+        } else {
+            r = sr_notif_sub_get_info(np2srv.sr_cfg_notif_sub, sub->sub_ids[i], NULL, NULL, NULL, NULL, &filtered_out);
+        }
         if (r != SR_ERR_OK) {
             return r;
         }
@@ -778,17 +840,36 @@ void
 sub_ntf_data_destroy(void *data)
 {
     struct sub_ntf_data *sn_data = data;
+    struct csn_receiver_info *recv_info;
     uint32_t i;
 
-    if (sn_data) {
-        free(sn_data->stream_filter_name);
-        lyd_free_tree(sn_data->stream_subtree_filter);
-        free(sn_data->stream_xpath_filter);
-        free(sn_data->stream);
-        for (i = 0; i < sn_data->cb_arg.rt_notif_count; ++i) {
-            lyd_free_tree(sn_data->cb_arg.rt_notifs[i].notif);
-        }
-
-        free(sn_data);
+    if (!sn_data) {
+        return;
     }
+
+    recv_info = &sn_data->cb_arg.recv_info;
+
+    free(sn_data->stream_filter_name);
+    lyd_free_tree(sn_data->stream_subtree_filter);
+    free(sn_data->stream_xpath_filter);
+    free(sn_data->stream);
+    for (i = 0; i < sn_data->cb_arg.rt_notif_count; ++i) {
+        lyd_free_tree(sn_data->cb_arg.rt_notifs[i].notif);
+    }
+
+    csn_receiver_info_destroy(recv_info);
+
+    free(sn_data);
+}
+
+struct csn_receiver_info *
+sub_ntf_receivers_info_get(void *data)
+{
+    struct sub_ntf_data *sn_data = data;
+
+    if (!sn_data) {
+        return NULL;
+    }
+
+    return &sn_data->cb_arg.recv_info;
 }
