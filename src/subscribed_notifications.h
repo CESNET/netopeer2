@@ -23,6 +23,7 @@
 #include <sysrepo.h>
 
 #include "common.h"
+#include "netconf_subscribed_notifications.h"
 #include "receivers.h"
 
 struct np2srv_sub_ntf;
@@ -57,6 +58,7 @@ struct sub_ntf_data {
     /* internal data */
     struct np_sub_ntf_arg cb_arg;
     timer_t stop_timer;
+    enum sub_cfg_state state;
 };
 
 /**

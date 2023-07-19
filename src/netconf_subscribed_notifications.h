@@ -24,6 +24,16 @@
 #include "receivers.h"
 
 /**
+ * @brief state of a configured subscribed-notifications.
+ */
+enum sub_cfg_state {
+    SUB_CFG_STATE_NONE = 0,
+    SUB_CFG_STATE_VALID,
+    SUB_CFG_STATE_INVALID,
+    SUB_CFG_STATE_CONCLUDED
+};
+
+/**
  * @brief Type of a subscribed-notifications subscription.
  */
 enum sub_ntf_type {

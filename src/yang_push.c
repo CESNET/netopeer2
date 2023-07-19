@@ -979,6 +979,8 @@ yang_push_stop_timer_cb(union sigval sval)
         return;
     }
 
+    arg->yp_data->state = SUB_CFG_STATE_CONCLUDED;
+
     /* terminate the subscription */
     sub_ntf_terminate_sub(sub, arg->ncs);
 
@@ -1110,6 +1112,10 @@ yang_push_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_
     yp_data->cb_arg.ncs = ncs;
     yp_data->cb_arg.yp_data = yp_data;
     yp_data->cb_arg.nc_sub_id = sub->nc_sub_id;
+
+    if (!ncs) {
+        yp_data->state = SUB_CFG_STATE_VALID;
+    }
 
     if (yp_data->periodic) {
         yp_data->period_ms = period * 10;
@@ -1645,8 +1651,8 @@ int
 yang_push_oper_subscription(struct lyd_node *subscription, void *data)
 {
     struct yang_push_data *yp_data = data;
+    char buf[26] = {0}, *datetime;
     const struct lys_module *mod;
-    char buf[26], *datetime;
     struct lyd_node_any *any;
     struct lyd_node *cont;
     enum yang_push_op op;
@@ -1728,6 +1734,23 @@ yang_push_oper_subscription(struct lyd_node *subscription, void *data)
                     return SR_ERR_LY;
                 }
             }
+        }
+    }
+
+    if (!yp_data->cb_arg.ncs) {
+        /* configured-subscription-state of SUB_TYPE_CFG_YANG_PUSH */
+        switch (yp_data->state) {
+        case SUB_CFG_STATE_CONCLUDED:
+            strcpy(buf, "concluded");
+            break;
+        default:
+            strcpy(buf, "valid");
+            break;
+        }
+
+        /* configured-subscription-state */
+        if (lyd_new_term(subscription, NULL, "configured-subscription-state", buf, 0, NULL)) {
+            return SR_ERR_LY;
         }
     }
 

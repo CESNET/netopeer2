@@ -442,6 +442,8 @@ sub_ntf_stop_timer_cb(union sigval sval)
         return;
     }
 
+    arg->sn_data->state = SUB_CFG_STATE_CONCLUDED;
+
     /* terminate the subscription */
     sub_ntf_terminate_sub(sub, NULL);
 
@@ -578,6 +580,10 @@ sub_ntf_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_no
     ATOMIC_STORE_RELAXED(sub->sub_id_count, sub_id_count);
     if (rc != SR_ERR_OK) {
         goto cleanup;
+    }
+
+    if (!ncs) {
+        sn_data->state = SUB_CFG_STATE_VALID;
     }
 
 cleanup:
@@ -833,6 +839,22 @@ sub_ntf_oper_subscription(struct lyd_node *subscription, void *data)
             return SR_ERR_LY;
         }
         free(buf);
+    }
+
+    if (!sn_data->cb_arg.ncs) {
+        /* configured-subscription-state of SUB_TYPE_CFG_SUB */
+        switch (sn_data->state) {
+        case SUB_CFG_STATE_CONCLUDED:
+            buf = "concluded";
+            break;
+        default:
+            buf = "valid";
+            break;
+        }
+
+        if (lyd_new_term(subscription, NULL, "configured-subscription-state", buf, 0, NULL)) {
+            return SR_ERR_LY;
+        }
     }
 
     return SR_ERR_OK;
