@@ -986,36 +986,6 @@ yang_push_stop_timer_cb(union sigval sval)
     sub_ntf_unlock(0);
 }
 
-/**
- * @brief Create a new function timer.
- *
- * @param[in] cb Callback to be called.
- * @param[in] arg Argument for @p cb.
- * @param[in] force_real Whether to force realtime clock ID or can be monotonic if available.
- * @param[out] timer_id Created timer ID.
- * @return Sysrepo error value.
- */
-static int
-yang_push_create_timer(void (*cb)(union sigval), void *arg, int force_real, timer_t *timer_id)
-{
-    struct sigevent sevp = {0};
-
-    sevp.sigev_notify = SIGEV_THREAD;
-    sevp.sigev_value.sival_ptr = arg;
-    sevp.sigev_notify_function = cb;
-    if (force_real) {
-        if (timer_create(CLOCK_REALTIME, &sevp, timer_id) == -1) {
-            return SR_ERR_SYS;
-        }
-    } else {
-        if (timer_create(COMPAT_CLOCK_ID, &sevp, timer_id) == -1) {
-            return SR_ERR_SYS;
-        }
-    }
-
-    return SR_ERR_OK;
-}
-
 int
 yang_push_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct np2srv_sub_ntf *sub)
 {
@@ -1153,7 +1123,7 @@ yang_push_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_
         ATOMIC_STORE_RELAXED(yp_data->patch_id, 1);
         if (yp_data->dampening_period_ms) {
             /* create dampening timer */
-            rc = yang_push_create_timer(yang_push_damp_timer_cb, &yp_data->cb_arg, 1, &yp_data->damp_timer);
+            rc = sub_ntf_create_timer(yang_push_damp_timer_cb, &yp_data->cb_arg, 1, &yp_data->damp_timer);
             if (rc != SR_ERR_OK) {
                 goto cleanup;
             }
@@ -1168,7 +1138,7 @@ yang_push_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_
 
     if (sub->stop_time.tv_sec) {
         /* create stop timer */
-        rc = yang_push_create_timer(yang_push_stop_timer_cb, &yp_data->cb_arg, 1, &yp_data->stop_timer);
+        rc = sub_ntf_create_timer(yang_push_stop_timer_cb, &yp_data->cb_arg, 1, &yp_data->stop_timer);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
@@ -1176,7 +1146,7 @@ yang_push_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_
 
     if (yp_data->periodic) {
         /* create update timer */
-        rc = yang_push_create_timer(yang_push_update_timer_cb, &yp_data->cb_arg, 1, &yp_data->update_timer);
+        rc = sub_ntf_create_timer(yang_push_update_timer_cb, &yp_data->cb_arg, 1, &yp_data->update_timer);
         if (rc != SR_ERR_OK) {
             goto cleanup;
         }
@@ -1379,7 +1349,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
         if (dampening_period * 10 != yp_data->dampening_period_ms) {
             if (!yp_data->dampening_period_ms) {
                 /* create dampening timer */
-                rc = yang_push_create_timer(yang_push_damp_timer_cb, &yp_data->cb_arg, 1, &yp_data->damp_timer);
+                rc = sub_ntf_create_timer(yang_push_damp_timer_cb, &yp_data->cb_arg, 1, &yp_data->damp_timer);
                 if (rc != SR_ERR_OK) {
                     goto cleanup;
                 }
@@ -1460,7 +1430,7 @@ yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, 
     if (stop.tv_sec && memcmp(&stop, &sub->stop_time, sizeof stop)) {
         if (!sub->stop_time.tv_sec) {
             /* create stop timer */
-            rc = yang_push_create_timer(yang_push_stop_timer_cb, &yp_data->cb_arg, 1, &yp_data->stop_timer);
+            rc = sub_ntf_create_timer(yang_push_stop_timer_cb, &yp_data->cb_arg, 1, &yp_data->stop_timer);
             if (rc != SR_ERR_OK) {
                 goto cleanup;
             }
@@ -1798,6 +1768,9 @@ yang_push_terminate_async(void *data)
 {
     struct yang_push_data *yp_data = data;
     struct itimerspec tspec = {0};
+    const struct ly_ctx *ly_ctx;
+    struct lyd_node *ly_ntf;
+    char buf[26];
 
     /* disarm all timers */
     if (yp_data->periodic) {
@@ -1807,9 +1780,26 @@ yang_push_terminate_async(void *data)
             timer_settime(yp_data->damp_timer, TIMER_ABSTIME, &tspec, NULL);
         }
     }
-    if (yp_data->stop_timer) {
-        timer_settime(yp_data->stop_timer, TIMER_ABSTIME, &tspec, NULL);
+
+    if (!yp_data->stop_timer) {
+        return;
     }
+
+    timer_settime(yp_data->stop_timer, TIMER_ABSTIME, &tspec, NULL);
+
+    if (yp_data->cb_arg.ncs) {
+        return;
+    }
+
+    /* SUB_TYPE_CFG_YANG_PUSH */
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
+    sr_release_context(np2srv.sr_conn);
+
+    sprintf(buf, "%" PRIu32, yp_data->cb_arg.nc_sub_id);
+    lyd_new_path(NULL, ly_ctx, "/ietf-subscribed-notifications:subscription-completed/id",
+            buf, 0, &ly_ntf);
+    csn_send_notif(&yp_data->cb_arg.recv_info, yp_data->cb_arg.nc_sub_id,
+            np_gettimespec(1), &ly_ntf, 1);
 }
 
 void

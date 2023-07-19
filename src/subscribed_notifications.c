@@ -427,6 +427,28 @@ cleanup:
     return rc;
 }
 
+/**
+ * @brief Timer callback for stopping configured yang-push subscriptions.
+ */
+static void
+sub_ntf_stop_timer_cb(union sigval sval)
+{
+    struct np_sub_ntf_arg *arg = sval.sival_ptr;
+    struct np2srv_sub_ntf *sub;
+
+    /* WRITE LOCK */
+    sub = sub_ntf_find_lock(arg->nc_sub_id, 0, 1);
+    if (!sub) {
+        return;
+    }
+
+    /* terminate the subscription */
+    sub_ntf_terminate_sub(sub, NULL);
+
+    /* UNLOCK */
+    sub_ntf_unlock(0);
+}
+
 int
 sub_ntf_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_node *rpc, struct np2srv_sub_ntf *sub)
 {
@@ -538,6 +560,16 @@ sub_ntf_rpc_establish_sub_prepare(sr_session_ctx_t *ev_sess, const struct lyd_no
     /* no API to get these data in the callback, so they are accessible directly this way, the lock must always be held */
     sn_data->cb_arg.sn_data = sn_data;
     sn_data->cb_arg.nc_sub_id = sub->nc_sub_id;
+
+    if (!ncs && sub->stop_time.tv_sec) {
+        /* create stop timer for SUB_TYPE_CFG_SUB */
+        rc = sub_ntf_create_timer(sub_ntf_stop_timer_cb,
+                &sn_data->cb_arg, 1,
+                &sn_data->stop_timer);
+        if (rc != SR_ERR_OK) {
+            goto cleanup;
+        }
+    }
 
     /* subscribe to sysrepo notifications, cb_arg is managed (freed) by the callback */
     rc = sub_ntf_sr_subscribe(sess, stream, xp, start.tv_sec ? &start : NULL,
@@ -832,8 +864,26 @@ sub_ntf_oper_receiver_excluded(struct np2srv_sub_ntf *sub)
 void
 sub_ntf_terminate_async(void *data)
 {
-    /* there are no asynchronous tasks except for the sysrepo subscriptions */
-    (void)data;
+    struct sub_ntf_data *sn_data = data;
+    struct itimerspec tspec = {0};
+    const struct ly_ctx *ly_ctx;
+    struct lyd_node *ly_ntf;
+    char buf[26];
+
+    if (!sn_data->stop_timer) {
+        return;
+    }
+
+    timer_settime(sn_data->stop_timer, TIMER_ABSTIME, &tspec, NULL);
+
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
+    sr_release_context(np2srv.sr_conn);
+
+    sprintf(buf, "%" PRIu32, sn_data->cb_arg.nc_sub_id);
+    lyd_new_path(NULL, ly_ctx, "/ietf-subscribed-notifications:subscription-completed/id",
+            buf, 0, &ly_ntf);
+    csn_send_notif(&sn_data->cb_arg.recv_info, sn_data->cb_arg.nc_sub_id,
+            np_gettimespec(1), &ly_ntf, 1);
 }
 
 void
@@ -855,6 +905,10 @@ sub_ntf_data_destroy(void *data)
     free(sn_data->stream);
     for (i = 0; i < sn_data->cb_arg.rt_notif_count; ++i) {
         lyd_free_tree(sn_data->cb_arg.rt_notifs[i].notif);
+    }
+
+    if (sn_data->stop_timer) {
+        timer_delete(sn_data->stop_timer);
     }
 
     csn_receiver_info_destroy(recv_info);

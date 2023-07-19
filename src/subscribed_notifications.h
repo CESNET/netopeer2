@@ -56,6 +56,7 @@ struct sub_ntf_data {
 
     /* internal data */
     struct np_sub_ntf_arg cb_arg;
+    timer_t stop_timer;
 };
 
 /**
