@@ -23,6 +23,7 @@
 #include <sysrepo.h>
 
 #include "common.h"
+#include "receivers.h"
 
 struct np2srv_sub_ntf;
 
@@ -42,6 +43,9 @@ enum yang_push_op {
  * @brief yang-push sysrepo change and timer callback argument.
  */
 struct yang_push_cb_arg {
+    /* reference to receivers */
+    struct csn_receiver_info recv_info;
+
     struct nc_session *ncs;
     struct yang_push_data *yp_data;
     uint32_t nc_sub_id;
@@ -98,6 +102,8 @@ int yang_push_rpc_modify_sub(sr_session_ctx_t *ev_sess, const struct lyd_node *r
 int yang_push_notif_modified_append_data(struct lyd_node *ntf, void *data);
 
 int yang_push_config_filters(const struct lyd_node *filter, sr_change_oper_t op);
+
+struct csn_receiver_info *yang_push_receivers_info_get(void *data);
 
 int yang_push_oper_subscription(struct lyd_node *subscription, void *data);
 

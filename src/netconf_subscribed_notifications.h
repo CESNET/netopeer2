@@ -29,7 +29,8 @@
 enum sub_ntf_type {
     SUB_TYPE_DYN_SUB,       /**< standard subscribed-notifications subscription */
     SUB_TYPE_DYN_YANG_PUSH, /**< yang-push subscription */
-    SUB_TYPE_CFG_SUB        /**< configured subscriptions */
+    SUB_TYPE_CFG_SUB,       /**< configured subscriptions */
+    SUB_TYPE_CFG_YANG_PUSH  /**< configured yang push */
 };
 
 /**

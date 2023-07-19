@@ -704,6 +704,7 @@ server_destroy(void)
     sr_unsubscribe(np2srv.sr_nacm_stats_sub);
     sr_unsubscribe(np2srv.sr_notif_sub);
     sr_unsubscribe(np2srv.sr_cfg_notif_sub);
+    sr_unsubscribe(np2srv.sr_cfg_data_sub);
 
     /* libnetconf2 cleanup */
     nc_server_destroy();

@@ -67,6 +67,7 @@ struct np2srv {
     sr_subscription_ctx_t *sr_rpc_sub;  /**< sysrepo RPC subscription context */
     sr_subscription_ctx_t *sr_create_sub_rpc_sub;   /**< sysrepo \<create-subscription\> RPC subscription context */
     sr_subscription_ctx_t *sr_data_sub; /**< sysrepo data subscription context */
+    sr_subscription_ctx_t *sr_cfg_data_sub; /**< sysrepo config data subscription context */
     sr_subscription_ctx_t *sr_nacm_stats_sub;   /**< sysrepo NACM global stats subscription context */
     sr_subscription_ctx_t *sr_notif_sub;    /**< sysrepo notification subscription context */
     sr_subscription_ctx_t *sr_cfg_notif_sub;    /**< sysrepo notification subscription context */
