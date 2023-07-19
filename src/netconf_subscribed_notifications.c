@@ -354,20 +354,20 @@ np2srv_sub_ntf_destroy(void)
 
     for (i = 0; i < info.count; ++i) {
         switch (info.subs[i].type) {
-        case SUB_TYPE_SUB_NTF:
+        case SUB_TYPE_DYN_SUB:
             sub_ntf_terminate_async(info.subs[i].data);
             break;
-        case SUB_TYPE_YANG_PUSH:
+        case SUB_TYPE_DYN_YANG_PUSH:
             yang_push_terminate_async(info.subs[i].data);
             break;
         }
 
         free(info.subs[i].sub_ids);
         switch (info.subs[i].type) {
-        case SUB_TYPE_SUB_NTF:
+        case SUB_TYPE_DYN_SUB:
             sub_ntf_data_destroy(info.subs[i].data);
             break;
-        case SUB_TYPE_YANG_PUSH:
+        case SUB_TYPE_DYN_YANG_PUSH:
             yang_push_data_destroy(info.subs[i].data);
             break;
         }
@@ -435,9 +435,9 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
 
     /* detect type */
     if (!lyd_find_path(input, "stream", 0, NULL)) {
-        type = SUB_TYPE_SUB_NTF;
+        type = SUB_TYPE_DYN_SUB;
     } else if (!lyd_find_path(input, "ietf-yang-push:datastore", 0, NULL)) {
-        type = SUB_TYPE_YANG_PUSH;
+        type = SUB_TYPE_DYN_YANG_PUSH;
     } else {
         ERR("Missing mandatory \"stream\" or \"datastore\" leaves.");
         rc = SR_ERR_INVAL_ARG;
@@ -461,10 +461,10 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
 
     /* create sysrepo subscriptions and type-specific data */
     switch (type) {
-    case SUB_TYPE_SUB_NTF:
+    case SUB_TYPE_DYN_SUB:
         rc = sub_ntf_rpc_establish_sub_prepare(session, input, &sub);
         break;
-    case SUB_TYPE_YANG_PUSH:
+    case SUB_TYPE_DYN_YANG_PUSH:
         rc = yang_push_rpc_establish_sub_prepare(session, input, &sub);
         break;
     }
@@ -494,10 +494,10 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
 
     /* start even asynchronous tasks that may access subscriptions and require read lock to be held now */
     switch (type) {
-    case SUB_TYPE_SUB_NTF:
+    case SUB_TYPE_DYN_SUB:
         rc = sub_ntf_rpc_establish_sub_start_async(session, sub_p);
         break;
-    case SUB_TYPE_YANG_PUSH:
+    case SUB_TYPE_DYN_YANG_PUSH:
         rc = yang_push_rpc_establish_sub_start_async(session, sub_p);
         break;
     }
@@ -893,10 +893,10 @@ sub_ntf_send_notif_modified(const struct np2srv_sub_ntf *sub)
 
     /* type-specific data */
     switch (sub->type) {
-    case SUB_TYPE_SUB_NTF:
+    case SUB_TYPE_DYN_SUB:
         rc = sub_ntf_notif_modified_append_data(ly_ntf, sub->data);
         break;
-    case SUB_TYPE_YANG_PUSH:
+    case SUB_TYPE_DYN_YANG_PUSH:
         rc = yang_push_notif_modified_append_data(ly_ntf, sub->data);
         break;
     }
@@ -964,10 +964,10 @@ np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 
     /* update type-specific operational data */
     switch (sub->type) {
-    case SUB_TYPE_SUB_NTF:
+    case SUB_TYPE_DYN_SUB:
         rc = sub_ntf_rpc_modify_sub(session, input, stop, sub);
         break;
-    case SUB_TYPE_YANG_PUSH:
+    case SUB_TYPE_DYN_YANG_PUSH:
         rc = yang_push_rpc_modify_sub(session, input, stop, sub);
         break;
     }
@@ -1012,7 +1012,7 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
 
     /* unsubscribe all sysrepo subscriptions */
     switch (sub_type) {
-    case SUB_TYPE_SUB_NTF:
+    case SUB_TYPE_DYN_SUB:
         sub_id_count = ATOMIC_LOAD_RELAXED(sub->sub_id_count);
         for (idx = 0; idx < sub_id_count; ++idx) {
             /* pass the lock to the notification CB, which removes its sub ID, the final one the whole sub */
@@ -1030,7 +1030,7 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
             return rc;
         }
         break;
-    case SUB_TYPE_YANG_PUSH:
+    case SUB_TYPE_DYN_YANG_PUSH:
         for (idx = 0; idx < ATOMIC_LOAD_RELAXED(sub->sub_id_count); ++idx) {
             r = sr_unsubscribe_sub(np2srv.sr_data_sub, sub->sub_ids[idx]);
             if (r != SR_ERR_OK) {
@@ -1042,10 +1042,10 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
 
     /* terminate any asynchronous tasks */
     switch (sub_type) {
-    case SUB_TYPE_SUB_NTF:
+    case SUB_TYPE_DYN_SUB:
         sub_ntf_terminate_async(sub->data);
         break;
-    case SUB_TYPE_YANG_PUSH:
+    case SUB_TYPE_DYN_YANG_PUSH:
         yang_push_terminate_async(sub->data);
         break;
     }
@@ -1097,10 +1097,10 @@ sub_ntf_terminate_sub(struct np2srv_sub_ntf *sub, struct nc_session *ncs)
     /* free the sub */
     free(sub->sub_ids);
     switch (sub->type) {
-    case SUB_TYPE_SUB_NTF:
+    case SUB_TYPE_DYN_SUB:
         sub_ntf_data_destroy(sub->data);
         break;
-    case SUB_TYPE_YANG_PUSH:
+    case SUB_TYPE_DYN_YANG_PUSH:
         yang_push_data_destroy(sub->data);
         break;
     }
@@ -1439,10 +1439,10 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
 
         /* subscription type-specific data */
         switch (sub->type) {
-        case SUB_TYPE_SUB_NTF:
+        case SUB_TYPE_DYN_SUB:
             rc = sub_ntf_oper_subscription(list, sub->data);
             break;
-        case SUB_TYPE_YANG_PUSH:
+        case SUB_TYPE_DYN_YANG_PUSH:
             rc = yang_push_oper_subscription(list, sub->data);
             break;
         }
@@ -1482,10 +1482,10 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
 
         /* excluded-event-records, type-specific */
         switch (sub->type) {
-        case SUB_TYPE_SUB_NTF:
+        case SUB_TYPE_DYN_SUB:
             excluded_count = sub_ntf_oper_receiver_excluded(sub);
             break;
-        case SUB_TYPE_YANG_PUSH:
+        case SUB_TYPE_DYN_YANG_PUSH:
             excluded_count = yang_push_oper_receiver_excluded(sub);
             break;
         }

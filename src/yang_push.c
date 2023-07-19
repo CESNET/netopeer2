@@ -1516,7 +1516,7 @@ yang_push_datastore_filter_match_cb(struct np2srv_sub_ntf *sub, const void *matc
     const char *filter_id = match_data;
     struct yang_push_data *yp_data = sub->data;
 
-    if (sub->type != SUB_TYPE_YANG_PUSH) {
+    if (sub->type != SUB_TYPE_DYN_YANG_PUSH) {
         return 0;
     }
 

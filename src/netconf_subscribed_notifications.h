@@ -27,8 +27,8 @@
  * @brief Type of a subscribed-notifications subscription.
  */
 enum sub_ntf_type {
-    SUB_TYPE_SUB_NTF,   /**< standard subscribed-notifications subscription */
-    SUB_TYPE_YANG_PUSH  /**< yang-push subscription */
+    SUB_TYPE_DYN_SUB,       /**< standard subscribed-notifications subscription */
+    SUB_TYPE_DYN_YANG_PUSH  /**< yang-push subscription */
 };
 
 /**

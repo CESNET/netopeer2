@@ -638,7 +638,7 @@ sub_ntf_stream_filter_match_cb(struct np2srv_sub_ntf *sub, const void *match_dat
     const char *stream_filter_name = match_data;
     struct sub_ntf_data *sn_data = sub->data;
 
-    if (sub->type != SUB_TYPE_SUB_NTF) {
+    if (sub->type != SUB_TYPE_DYN_SUB) {
         return 0;
     }
 
