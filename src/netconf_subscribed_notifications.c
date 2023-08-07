@@ -198,16 +198,13 @@ sub_ntf_cb_lock_clear(uint32_t sub_id)
  * @brief Add a prepared and valid subscription into internal subscriptions.
  *
  * @param[in] sub Subscription to add.
- * @param[out] sub_p Pointer to the stored subscription.
  * @return 0 on success.
  * @return -1 on error.
  */
 static int
-sub_ntf_add(const struct np2srv_sub_ntf *sub, struct np2srv_sub_ntf **sub_p)
+sub_ntf_add(const struct np2srv_sub_ntf *sub)
 {
     void *mem;
-
-    *sub_p = NULL;
 
     mem = realloc(info.subs, (info.count + 1) * sizeof *info.subs);
     if (!mem) {
@@ -216,7 +213,6 @@ sub_ntf_add(const struct np2srv_sub_ntf *sub, struct np2srv_sub_ntf **sub_p)
     info.subs = mem;
 
     info.subs[info.count] = *sub;
-    *sub_p = &info.subs[info.count];
     ++info.count;
 
     return 0;
@@ -362,9 +358,23 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     INFO_WLOCK;
 
     /* add into subscriptions, is not accessible before */
-    sub_ntf_add(&sub, &sub_p);
+    sub_ntf_add(&sub);
 
-    /* start even asynchronous tasks that may access subscriptions and require lock to be held now */
+    /* UNLOCK */
+    INFO_UNLOCK;
+
+    /* READ LOCK */
+    INFO_RLOCK;
+
+    /* find the subscription in case it moved when the lock was released */
+    sub_p = sub_ntf_find(nc_sub_id, 0, 0, 0);
+    if (!sub_p) {
+        EINT;
+        rc = SR_ERR_INTERNAL;
+        goto error_unlock;
+    }
+
+    /* start even asynchronous tasks that may access subscriptions and require read lock to be held now */
     switch (type) {
     case SUB_TYPE_SUB_NTF:
         rc = sub_ntf_rpc_establish_sub_start_async(session, sub_p);
