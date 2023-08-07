@@ -6139,8 +6139,7 @@ cmd_establishpush(const char *arg, char **tmp_config_file)
         if (!output) {
             output = stdout;
         }
-        nc_session_set_data(session, output);
-        ret = nc_recv_notif_dispatch(session, cli_ntf_clb);
+        ret = nc_recv_notif_dispatch_data(session, cli_ntf_clb, output, cli_ntf_free_data);
         if (ret) {
             ERROR(__func__, "Failed to create notification thread.");
             goto fail;
@@ -6391,8 +6390,7 @@ cmd_modifypush(const char *arg, char **tmp_config_file)
         if (!output) {
             output = stdout;
         }
-        nc_session_set_data(session, output);
-        ret = nc_recv_notif_dispatch(session, cli_ntf_clb);
+        ret = nc_recv_notif_dispatch_data(session, cli_ntf_clb, output, cli_ntf_free_data);
         if (ret) {
             ERROR(__func__, "Failed to create notification thread.");
             goto fail;
