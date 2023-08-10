@@ -135,7 +135,7 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
 {
     struct np_test *st;
     pid_t pid;
-    char str[256], server_dir[256], sock_param[128], extdata_path[128];
+    char str[256], server_dir[256], sock_param[128], extdata_path[256];
     int fd, pipefd[2], buf;
 
     if (!getcwd(str, 256)) {
