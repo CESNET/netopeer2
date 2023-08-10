@@ -18,6 +18,7 @@
 
 #include <setjmp.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -138,7 +139,7 @@ test_filter_pass(void **state)
     /* Send the notification */
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     RECV_NOTIF(st);
-    assert_string_equal(data, st->str);
+    np_assert_string_equal(data, st->str);
     FREE_TEST_VARS(st);
 }
 
@@ -186,7 +187,7 @@ test_modifysub_filter(void **state)
     NOTIF_PARSE(st, data);
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     RECV_NOTIF(st);
-    assert_string_equal(data, st->str);
+    np_assert_string_equal(data, st->str);
     FREE_TEST_VARS(st);
 
     /* Modify the filter so that notifications do no pass */
@@ -203,7 +204,7 @@ test_modifysub_filter(void **state)
             "  </stream-subtree-filter>\n"
             "</subscription-modified>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
+    np_assert_string_equal(st->str, ntf);
     free(ntf);
     FREE_TEST_VARS(st);
     st->rpc = nc_rpc_modifysub(st->ntf_id, NULL, NULL, NC_PARAMTYPE_CONST);
@@ -257,7 +258,7 @@ test_modifysub_stop_time(void **state)
             "  <reason>no-such-subscription</reason>\n"
             "</subscription-terminated>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
+    np_assert_string_equal(st->str, ntf);
     free(ntf);
     FREE_TEST_VARS(st);
 
@@ -281,9 +282,9 @@ test_modifysub_fail_no_such_sub(void **state)
     SEND_RPC_MODSUB(st, 1, "<n1 xmlns=\"n1\"/>", NULL);
     ASSERT_ERROR_REPLY(st);
     /* Check if correct error-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     /* Check if correct error-app-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
             "ietf-subscribed-notifications:no-such-subscription");
     FREE_TEST_VARS(st);
 }
@@ -308,7 +309,7 @@ test_deletesub(void **state)
             "  <reason>no-such-subscription</reason>\n"
             "</subscription-terminated>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
+    np_assert_string_equal(st->str, ntf);
     free(ntf);
     FREE_TEST_VARS(st);
     st->rpc = nc_rpc_deletesub(st->ntf_id);
@@ -334,9 +335,9 @@ test_deletesub_fail(void **state)
     SEND_RPC_DELSUB(st, 1);
     ASSERT_ERROR_REPLY(st);
     /* Check if correct error-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     /* Check if correct error-app-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
             "ietf-subscribed-notifications:no-such-subscription");
     FREE_TEST_VARS(st);
 }
@@ -362,7 +363,7 @@ test_deletesub_fail_diff_sess(void **state)
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
     RECV_NOTIF(st);
-    assert_string_equal(st->str, data);
+    np_assert_string_equal(st->str, data);
     FREE_TEST_VARS(st);
 
     /* Create a new session */
@@ -377,11 +378,11 @@ test_deletesub_fail_diff_sess(void **state)
     st->msgtype = nc_recv_reply(tmp, st->rpc, st->msgid, 2000, &st->envp, &st->op);
     assert_int_equal(st->msgtype, NC_MSG_REPLY);
     assert_null(st->op);
-    assert_string_equal(LYD_NAME(lyd_child(st->envp)), "rpc-error");
+    np_assert_string_equal(LYD_NAME(lyd_child(st->envp)), "rpc-error");
     /* Check if correct error-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     /* Check if correct error-app-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
             "ietf-subscribed-notifications:no-such-subscription");
     FREE_TEST_VARS(st);
 
@@ -420,7 +421,7 @@ test_ds_subscriptions(void **state)
 
     GET_FILTER(st, "/subscriptions");
     assert_int_not_equal(-1, asprintf(&expected, template, st->ntf_id, nc_session_get_id(st->nc_sess)));
-    assert_string_equal(st->str, expected);
+    np_assert_string_equal(st->str, expected);
     free(expected);
     FREE_TEST_VARS(st);
 }
@@ -468,7 +469,7 @@ test_ds_subscriptions_sent_event(void **state)
 
     GET_FILTER(st, "/subscriptions");
     assert_int_not_equal(-1, asprintf(&expected, template, st->ntf_id, nc_session_get_id(st->nc_sess)));
-    assert_string_equal(st->str, expected);
+    np_assert_string_equal(st->str, expected);
     free(expected);
     FREE_TEST_VARS(st);
 }
@@ -523,7 +524,7 @@ test_ds_subscriptions_excluded_event(void **state)
 
     GET_FILTER(st, "/subscriptions");
     assert_int_not_equal(-1, asprintf(&expected, template, st->ntf_id, nc_session_get_id(st->nc_sess)));
-    assert_string_equal(st->str, expected);
+    np_assert_string_equal(st->str, expected);
     free(expected);
     FREE_TEST_VARS(st);
 }
@@ -578,7 +579,7 @@ test_multiple_subscriptions(void **state)
     GET_FILTER(st, "/subscriptions");
     nc_sess_id = nc_session_get_id(st->nc_sess);
     assert_int_not_equal(-1, asprintf(&expected, template, tmp_id, nc_sess_id, st->ntf_id, nc_sess_id));
-    assert_string_equal(st->str, expected);
+    np_assert_string_equal(st->str, expected);
     free(expected);
     FREE_TEST_VARS(st);
 }
@@ -657,7 +658,7 @@ test_multiple_subscriptions_notif(void **state)
     nc_sess_id = nc_session_get_id(st->nc_sess);
     assert_int_not_equal(-1, asprintf(&expected, template, tmp_ids[0], nc_sess_id,
             tmp_ids[1], nc_sess_id, tmp_ids[2], nc_sess_id));
-    assert_string_equal(st->str, expected);
+    np_assert_string_equal(st->str, expected);
     free(expected);
     FREE_TEST_VARS(st);
 }
@@ -700,7 +701,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
     RECV_NOTIF(st);
-    assert_string_equal(st->str, data);
+    np_assert_string_equal(st->str, data);
     FREE_TEST_VARS(st);
 
     /* Send another notification to the first session */
@@ -717,7 +718,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
 
     /* Receive the notification sent before establishing another subscription and check it */
     RECV_NOTIF(st);
-    assert_string_equal(st->str, data);
+    np_assert_string_equal(st->str, data);
     FREE_TEST_VARS(st);
 
     /* Check for establishing the sub */
@@ -754,7 +755,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
             "<n1 xmlns=\"n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
-    assert_string_equal(st->str, data);
+    np_assert_string_equal(st->str, data);
     FREE_TEST_VARS(st);
 
     /* Receive the notification from second sub */
@@ -768,7 +769,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
             "    </power-on>\n"
             "  </device>\n"
             "</devices>\n";
-    assert_string_equal(st->str, data);
+    np_assert_string_equal(st->str, data);
     FREE_TEST_VARS(st);
 }
 
@@ -810,7 +811,7 @@ test_killsub_fail_nacm(void **state)
     /* Should fail on NACM */
     SEND_RPC_KILLSUB(st, 1);
     ASSERT_ERROR_REPLY(st);
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "access-denied");
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "access-denied");
     FREE_TEST_VARS(st);
 }
 
@@ -847,9 +848,9 @@ test_killsub_fail_no_such_sub(void **state)
     /* Should fail on no such sub */
     ASSERT_ERROR_REPLY(st);
     /* Check if correct error-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     /* Check if correct error-app-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
             "ietf-subscribed-notifications:no-such-subscription");
     FREE_TEST_VARS(st);
 }
@@ -875,7 +876,7 @@ test_killsub_same_sess(void **state)
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
     RECV_NOTIF(st);
-    assert_string_equal(st->str, data);
+    np_assert_string_equal(st->str, data);
     FREE_TEST_VARS(st);
 
     /* Kill it */
@@ -888,7 +889,7 @@ test_killsub_same_sess(void **state)
             "  <reason>no-such-subscription</reason>\n"
             "</subscription-terminated>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
+    np_assert_string_equal(st->str, ntf);
     free(ntf);
     FREE_TEST_VARS(st);
     st->rpc = nc_rpc_killsub(st->ntf_id);
@@ -929,7 +930,7 @@ test_killsub_diff_sess(void **state)
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
     RECV_NOTIF(st);
-    assert_string_equal(st->str, data);
+    np_assert_string_equal(st->str, data);
     FREE_TEST_VARS(st);
 
     /* Create a new session */
@@ -948,7 +949,7 @@ test_killsub_diff_sess(void **state)
             "  <reason>no-such-subscription</reason>\n"
             "</subscription-terminated>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
+    np_assert_string_equal(st->str, ntf);
     free(ntf);
     FREE_TEST_VARS(st);
     st->rpc = nc_rpc_killsub(st->ntf_id);
@@ -956,7 +957,7 @@ test_killsub_diff_sess(void **state)
     st->msgtype = nc_recv_reply(tmp, st->rpc, st->msgid, 2000, &st->envp, &st->op);
     assert_int_equal(st->msgtype, NC_MSG_REPLY);
     assert_null(st->op);
-    assert_string_equal(LYD_NAME(lyd_child(st->envp)), "ok");
+    np_assert_string_equal(LYD_NAME(lyd_child(st->envp)), "ok");
     FREE_TEST_VARS(st);
 
     /* Send notification, should NOT arrive */
@@ -995,7 +996,7 @@ main(int argc, char **argv)
         cmocka_unit_test_teardown(test_killsub_fail_nacm, teardown_nacm),
         cmocka_unit_test_setup_teardown(test_killsub_fail_no_such_sub, setup_test_killsub, teardown_nacm),
         cmocka_unit_test_setup_teardown(test_killsub_same_sess, setup_test_killsub, teardown_nacm),
-        cmocka_unit_test_setup_teardown(test_killsub_diff_sess, setup_test_killsub, teardown_nacm),
+        cmocka_unit_test_setup_teardown(test_killsub_diff_sess, setup_test_killsub, teardown_nacm)
     };
 
     nc_verbosity(NC_VERB_WARNING);

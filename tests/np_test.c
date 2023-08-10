@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pwd.h>
+#include <setjmp.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -33,12 +34,47 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <cmocka.h>
 #include <nc_client.h>
 #include <sysrepo/netconf_acm.h>
 
 #include "np_test_config.h"
 
 uint8_t debug = 0; /* Global variable to indicate if debugging */
+
+int
+np_is_string_equal(const char *str1, const char *str2)
+{
+    uint32_t i, line, line_idx;
+
+    if (!str1 && !str2) {
+        return 1;
+    } else if (!str1 && str2) {
+        print_error("[  ERROR   ] --- First string NULL, second non-NULL\n");
+        return 0;
+    } else if (str1 && !str2) {
+        print_error("[  ERROR   ] --- First string non-NULL, second NULL\n");
+        return 0;
+    }
+
+    line = 1;
+    for (i = 0, line_idx = 0; str1[i] && str2[i]; ++i, ++line_idx) {
+        if (str1[i] != str2[i]) {
+            break;
+        } else if (str1[i] == '\n') {
+            ++line;
+            line_idx = 0;
+        }
+    }
+
+    if (str1[i] != str2[i]) {
+        print_error("[  ERROR   ] --- Diff at index %u, line %u:%u \"%.20s\" != \"%.20s\"\n", i, line, line_idx,
+                str1 + i, str2 + i);
+        return 0;
+    }
+
+    return 1;
+}
 
 void
 parse_arg(int argc, char **argv)
