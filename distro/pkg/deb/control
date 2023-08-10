@@ -4,7 +4,7 @@ Maintainer: Michal Vaško <mvasko@cesnet.cz>
 Priority: optional
 Standards-Version: 4.5.1.0
 Build-Depends: cmake,
-               debhelper-compat (>= 12),
+               debhelper-compat (= 12),
                graphviz,
                libcmocka-dev,
                libsystemd-dev,
@@ -14,12 +14,11 @@ Build-Depends: cmake,
                libsysrepo-dev (>= 2.0.0),
                libyang2-dev (>= 2.0.0),
                pkg-config,
-               sysrepo-tools (>= 2.0.0) | sysrepo (>= 2.0.0)
+               sysrepo-tools (>= 2.0.0)
 Homepage: https://github.com/CESNET/netopeer2/
 
 Package: netopeer2
 Depends: openssl,
-         sysrepo (>= 2.2.95-1~),
          ${misc:Depends},
          ${shlibs:Depends}
 Section: admin

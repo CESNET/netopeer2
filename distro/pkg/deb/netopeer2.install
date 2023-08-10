@@ -1,9 +1,7 @@
-scripts/merge_config.sh /usr/share/netopeer2/
-scripts/merge_hostkey.sh /usr/share/netopeer2/
-scripts/remove.sh /usr/share/netopeer2/
-scripts/setup.sh /usr/share/netopeer2/
 usr/bin/netopeer2-cli
-usr/bin/netopeer2-server
+usr/sbin/netopeer2-server
 usr/share/man/man1/netopeer2-cli.1
 usr/share/man/man8/netopeer2-server.8
+usr/lib/systemd/system/netopeer2-server.service
 usr/share/yang/modules/netopeer2
+usr/share/netopeer2

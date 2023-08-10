@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=notify
-ExecStart=/usr/bin/netopeer2-server -d -v 1
+ExecStart=/usr/sbin/netopeer2-server -d -v 1
 PIDFile=/run/netopeer2-server.pid
 PrivateTmp=yes
 PrivateDevices=yes
