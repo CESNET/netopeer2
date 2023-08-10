@@ -1,20 +1,34 @@
 #!/usr/bin/make -f
-#export DH_VERBOSE=1
-export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+# -*- makefile -*-
+# Uncomment this to turn on verbose mode.
+# export DH_VERBOSE=1
 
+# Hardening
+DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/default.mk
 
+# needed for CMake that ignores CPPFLAGS
+CFLAGS+=$(CPPFLAGS)
+CXXFLAGS+=$(CPPFLAGS)
+
+# be strict when comparing symbols in netopeer2-1
+export DPKG_GENSYMBOLS_CHECK_LEVEL=4
+
+# use the executable from the system
+SYSREPOCFG_EXECUTABLE=/usr/bin/sysrepoctl
+
 %:
-	dh $@
+	dh $@ --buildsystem=cmake --builddir=build
 
 override_dh_auto_configure:
-	dh_auto_configure -- \
-		-DCMAKE_BUILD_TYPE:String="Release" \
-		-DGENERATE_HOSTKEY=OFF \
-		-DINSTALL_MODULES=OFF \
-		-DMERGE_LISTEN_CONFIG=OFF
+	dh_auto_configure --builddir=build -- -DBUILD_CLI=ON -DBUILD_TESTS=ON -DINSTALL_MODULES=OFF -DGENERATE_HOSTKEY=OFF -DMERGE_LISTEN_CONFIG=OFF -DPIDFILE_PREFIX=/run -DSERVER_DIR=/var/lib/netopeer2
 
-# to handle changed DESTDIR to debian/<package> instead of debian/tmp for a single binary package
-override_dh_install:
+override_dh_auto_install:
+	dh_auto_install --builddir=build --destdir=$(CURDIR)/debian/tmp
+
+override_dh_missing:
+	dh_missing --fail-missing
 
 override_dh_auto_test:
+	dh_auto_test --builddir=build || ( make -C build test_clean; exit 1; )
+	make -C build test_clean

@@ -66,6 +66,7 @@ a single established NETCONF session.
        -DINSTALL_MODULES=OFF \
        -DGENERATE_HOSTKEY=OFF \
        -DMERGE_LISTEN_CONFIG=OFF \
+       -DPIDFILE_PREFIX=/run \
        -DSERVER_DIR=%{_libdir}/netopeer2-server
 %cmake_build
 
@@ -100,7 +101,7 @@ set -e
 %{_datadir}/man/man8/netopeer2-server.8.gz
 %{_unitdir}/netopeer2-server.service
 %{_datadir}/yang/modules/netopeer2/*.yang
-%{_datadir}/netopeer2/*.sh
+%{_datadir}/netopeer2/scripts/*.sh
 %dir %{_datadir}/yang/modules/netopeer2/
 %dir %{_datadir}/netopeer2/
 %dir %{_libdir}/netopeer2-server/
@@ -111,5 +112,5 @@ set -e
 %{_datadir}/man/man1/netopeer2-cli.1.gz
 
 %changelog
-* {{ now }} Jakub Ružička <jakub.ruzicka@nic.cz> - {{ version }}-{{ release }}
+* {{ now }} Michal Vaško <mvasko@cesnet.cz> - {{ version }}-{{ release }}
 - upstream package
