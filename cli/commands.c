@@ -3874,7 +3874,6 @@ cmd_get(const char *arg, char **tmp_config_file)
         case 'o':
             if (output) {
                 ERROR(__func__, "Duplicated \"out\" option.");
-                cmd_get_help();
                 goto fail;
             }
             output = fopen(optarg, "w");
@@ -4062,7 +4061,6 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
         case 'o':
             if (output) {
                 ERROR(__func__, "Duplicated \"out\" option.");
-                cmd_getconfig_help();
                 goto fail;
             }
             output = fopen(optarg, "w");
@@ -4670,7 +4668,17 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
             filter = strdup(optarg);
             break;
         case 'b':
+            if (start) {
+                ERROR(__func__, "Duplicated \"begin\" option.");
+                goto fail;
+            }
+        /* fallthrough */
         case 'e':
+            if ((c == 'e') && stop) {
+                ERROR(__func__, "Duplicated \"end\" option.");
+                goto fail;
+            }
+
             if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
                 t += strtol(optarg, &ptr, 10);
@@ -4704,7 +4712,6 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
         case 'o':
             if (output) {
                 ERROR(__func__, "Duplicated \"out\" option.");
-                cmd_subscribe_help();
                 goto fail;
             }
             output = fopen(optarg, "w");
@@ -4836,7 +4843,6 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
         case 'o':
             if (output) {
                 ERROR(__func__, "Duplicated \"out\" option.");
-                cmd_getschema_help();
                 goto fail;
             }
             output = fopen(optarg, "w");
@@ -5063,7 +5069,6 @@ cmd_getdata(const char *arg, char **tmp_config_file)
         case 'o':
             if (output) {
                 ERROR(__func__, "Duplicated \"out\" option.");
-                cmd_getconfig_help();
                 goto fail;
             }
             output = fopen(optarg, "w");
@@ -5423,7 +5428,17 @@ cmd_establishsub(const char *arg, char **tmp_config_file)
             filter = strdup(optarg);
             break;
         case 'b':
+            if (start) {
+                ERROR(__func__, "Duplicated \"begin\" option.");
+                goto fail;
+            }
+        /* fallthrough */
         case 'e':
+            if ((c == 'e') && stop) {
+                ERROR(__func__, "Duplicated \"end\" option.");
+                goto fail;
+            }
+
             if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
                 t += strtol(optarg, &ptr, 10);
@@ -5457,7 +5472,6 @@ cmd_establishsub(const char *arg, char **tmp_config_file)
         case 'o':
             if (output) {
                 ERROR(__func__, "Duplicated \"out\" option.");
-                cmd_establishsub_help();
                 goto fail;
             }
             output = fopen(optarg, "w");
@@ -5633,6 +5647,11 @@ cmd_modifysub(const char *arg, char **tmp_config_file)
             filter = strdup(optarg);
             break;
         case 'e':
+            if (stop) {
+                ERROR(__func__, "Duplicated \"end\" option.");
+                goto fail;
+            }
+
             if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
                 t += strtol(optarg, &ptr, 10);
@@ -5650,7 +5669,6 @@ cmd_modifysub(const char *arg, char **tmp_config_file)
         case 'o':
             if (output) {
                 ERROR(__func__, "Duplicated \"out\" option.");
-                cmd_modifysub_help();
                 goto fail;
             }
             output = fopen(optarg, "w");
@@ -5761,7 +5779,6 @@ cmd_deletesub(const char *arg, char **UNUSED(tmp_config_file))
         case 'o':
             if (output) {
                 ERROR(__func__, "Duplicated \"out\" option.");
-                cmd_deletesub_help();
                 goto fail;
             }
             output = fopen(optarg, "w");
@@ -5860,7 +5877,6 @@ cmd_killsub(const char *arg, char **UNUSED(tmp_config_file))
         case 'o':
             if (output) {
                 ERROR(__func__, "Duplicated \"out\" option.");
-                cmd_killsub_help();
                 goto fail;
             }
             output = fopen(optarg, "w");
@@ -6038,6 +6054,11 @@ cmd_establishpush(const char *arg, char **tmp_config_file)
             filter = strdup(optarg);
             break;
         case 'e':
+            if (stop) {
+                ERROR(__func__, "Duplicated \"end\" option.");
+                goto fail;
+            }
+
             if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
                 t += strtol(optarg, &ptr, 10);
@@ -6067,6 +6088,11 @@ cmd_establishpush(const char *arg, char **tmp_config_file)
             period = atoi(optarg);
             break;
         case 'a':
+            if (anchor) {
+                ERROR(__func__, "Duplicated \"anchor\" option.");
+                goto fail;
+            }
+
             if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
                 t += strtol(optarg, &ptr, 10);
@@ -6108,7 +6134,6 @@ cmd_establishpush(const char *arg, char **tmp_config_file)
         case 'o':
             if (output) {
                 ERROR(__func__, "Duplicated \"out\" option.");
-                cmd_establishpush_help();
                 goto fail;
             }
             output = fopen(optarg, "w");
@@ -6318,6 +6343,11 @@ cmd_modifypush(const char *arg, char **tmp_config_file)
             filter = strdup(optarg);
             break;
         case 'e':
+            if (stop) {
+                ERROR(__func__, "Duplicated \"end\" option.");
+                goto fail;
+            }
+
             if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
                 t += strtol(optarg, &ptr, 10);
@@ -6344,6 +6374,11 @@ cmd_modifypush(const char *arg, char **tmp_config_file)
             period = atoi(optarg);
             break;
         case 'a':
+            if (anchor) {
+                ERROR(__func__, "Duplicated \"anchor\" option.");
+                goto fail;
+            }
+
             if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
                 t += strtol(optarg, &ptr, 10);
@@ -6372,7 +6407,6 @@ cmd_modifypush(const char *arg, char **tmp_config_file)
         case 'o':
             if (output) {
                 ERROR(__func__, "Duplicated \"out\" option.");
-                cmd_modifypush_help();
                 goto fail;
             }
             output = fopen(optarg, "w");
@@ -6501,7 +6535,6 @@ cmd_resyncsub(const char *arg, char **UNUSED(tmp_config_file))
         case 'o':
             if (output) {
                 ERROR(__func__, "Duplicated \"out\" option.");
-                cmd_resyncsub_help();
                 goto fail;
             }
             output = fopen(optarg, "w");
@@ -6598,7 +6631,6 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
         case 'c':
             if (content) {
                 ERROR(__func__, "Duplicated \"content\" option.");
-                cmd_userrpc_help();
                 goto fail;
             }
             /* open edit configuration data from the file */
@@ -6631,7 +6663,6 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
         case 'o':
             if (output) {
                 ERROR(__func__, "Duplicated \"out\" option.");
-                cmd_userrpc_help();
                 goto fail;
             }
             output = fopen(optarg, "w");
