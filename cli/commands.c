@@ -24,6 +24,7 @@
 #include <pwd.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -1039,7 +1040,7 @@ cmd_subscribe_help(void)
             " [--rpc-timeout <seconds>]\n", xpath);
     printf("\t<time> has following format:\n");
     printf("\t\t+<num>  - current time plus the given number of seconds.\n");
-    printf("\t\t<num>   - absolute time as number of seconds since 1970-01-01.\n");
+    printf("\t\t<num>   - date-and-time timestamp.\n");
     printf("\t\t-<num>  - current time minus the given number of seconds.\n");
 }
 
@@ -1133,7 +1134,7 @@ cmd_establishsub_help(void)
             " [--end <time>] [--encoding <encoding>] [--out <file>] [--rpc-timeout <seconds>]\n", xpath);
     printf("\t<time> has following format:\n\n");
     printf("\t\t+<num>  - current time plus the given number of seconds.\n");
-    printf("\t\t<num>   - absolute time as number of seconds since 1970-01-01.\n");
+    printf("\t\t<num>   - date-and-time timestamp.\n");
     printf("\t\t-<num>  - current time minus the given number of seconds.\n");
 }
 
@@ -1158,7 +1159,7 @@ cmd_modifysub_help(void)
             " [--out <file>] [--rpc-timeout <seconds>]\n", xpath);
     printf("\t<time> has following format:\n");
     printf("\t\t+<num>  - current time plus the given number of seconds.\n");
-    printf("\t\t<num>   - absolute time as number of seconds since 1970-01-01.\n");
+    printf("\t\t<num>   - date-and-time timestamp.\n");
     printf("\t\t-<num>  - current time minus the given number of seconds.\n");
 }
 
@@ -1212,7 +1213,7 @@ cmd_establishpush_help(void)
             " [--no-sync-on-start] [--excluded-change <change>]*) [--out <file>] [--rpc-timeout <seconds>]\n\n", xpath);
     printf("\t<time> has following format:\n");
     printf("\t\t+<num>  - current time plus the given number of seconds.\n");
-    printf("\t\t<num>   - absolute time as number of seconds since 1970-01-01.\n");
+    printf("\t\t<num>   - date-and-time timestamp.\n");
     printf("\t\t-<num>  - current time minus the given number of seconds.\n");
     printf("\t<period> is in centiseconds (0.01s).\n");
     printf("\t<change> can be create, delete, insert, move, or replace.\n");
@@ -1242,7 +1243,7 @@ cmd_modifypush_help(void)
             " [--out <file>] [--rpc-timeout <seconds>]\n\n", xpath);
     printf("\t<time> has following format:\n");
     printf("\t\t+<num>  - current time plus the given number of seconds.\n");
-    printf("\t\t<num>   - absolute time as number of seconds since 1970-01-01.\n");
+    printf("\t\t<num>   - date-and-time timestamp.\n");
     printf("\t\t-<num>  - current time minus the given number of seconds.\n");
     printf("\t<period> is in centiseconds (0.01s).\n");
 }
@@ -4586,7 +4587,7 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE, filter_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct stat config_stat;
-    char *filter = NULL, *config_m = NULL, *start = NULL, *stop = NULL;
+    char *filter = NULL, *config_m = NULL, *start = NULL, *stop = NULL, *ptr;
     const char *stream = NULL;
     struct nc_rpc *rpc = NULL;
     time_t t;
@@ -4672,20 +4673,29 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
         case 'e':
             if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
-                t += atol(optarg);
-            } else {
-                t = atol(optarg);
-            }
-
-            if (c == 'b') {
-                if (t > time(NULL)) {
-                    /* begin time is in future */
-                    ERROR(__func__, "Begin time cannot be set to future.");
+                t += strtol(optarg, &ptr, 10);
+                if (ptr[0]) {
+                    ERROR(__func__, "Invalid timestamp second shift \"%s\".", optarg);
                     goto fail;
                 }
-                ly_time_time2str(t, NULL, &start);
-            } else { /* c == 'e' */
-                ly_time_time2str(t, NULL, &stop);
+
+                if (c == 'b') {
+                    if (t > time(NULL)) {
+                        /* begin time is in future */
+                        ERROR(__func__, "Begin time cannot be set to future.");
+                        goto fail;
+                    }
+                    ly_time_time2str(t, NULL, &start);
+                } else { /* c == 'e' */
+                    ly_time_time2str(t, NULL, &stop);
+                }
+            } else {
+                /* date-and-time specified */
+                if (c == 'b') {
+                    start = strdup(optarg);
+                } else { /* c == 'e' */
+                    stop = strdup(optarg);
+                }
             }
             break;
         case 't':
@@ -5326,7 +5336,7 @@ cmd_establishsub(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE, filter_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct stat config_stat;
-    char *filter = NULL, *config_m = NULL, *start = NULL, *stop = NULL;
+    char *filter = NULL, *config_m = NULL, *start = NULL, *stop = NULL, *ptr;
     const char *stream = NULL, *encoding = NULL;
     struct nc_rpc *rpc = NULL;
     time_t t;
@@ -5416,20 +5426,29 @@ cmd_establishsub(const char *arg, char **tmp_config_file)
         case 'e':
             if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
-                t += atol(optarg);
-            } else {
-                t = atol(optarg);
-            }
-
-            if (c == 'b') {
-                if (t > time(NULL)) {
-                    /* begin time is in future */
-                    ERROR(__func__, "Begin time cannot be set to future.");
+                t += strtol(optarg, &ptr, 10);
+                if (ptr[0]) {
+                    ERROR(__func__, "Invalid timestamp second shift \"%s\".", optarg);
                     goto fail;
                 }
-                ly_time_time2str(t, NULL, &start);
-            } else { /* c == 'e' */
-                ly_time_time2str(t, NULL, &stop);
+
+                if (c == 'b') {
+                    if (t > time(NULL)) {
+                        /* begin time is in future */
+                        ERROR(__func__, "Begin time cannot be set to future.");
+                        goto fail;
+                    }
+                    ly_time_time2str(t, NULL, &start);
+                } else { /* c == 'e' */
+                    ly_time_time2str(t, NULL, &stop);
+                }
+            } else {
+                /* date-and-time specified */
+                if (c == 'b') {
+                    start = strdup(optarg);
+                } else { /* c == 'e' */
+                    stop = strdup(optarg);
+                }
             }
             break;
         case 'n':
@@ -5529,7 +5548,7 @@ cmd_modifysub(const char *arg, char **tmp_config_file)
 {
     int c, config_fd, ret = EXIT_FAILURE, filter_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
     struct stat config_stat;
-    char *filter = NULL, *config_m = NULL, *stop = NULL;
+    char *filter = NULL, *config_m = NULL, *stop = NULL, *ptr;
     struct nc_rpc *rpc = NULL;
     time_t t;
     uint32_t id = 0;
@@ -5616,12 +5635,17 @@ cmd_modifysub(const char *arg, char **tmp_config_file)
         case 'e':
             if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
-                t += atol(optarg);
-            } else {
-                t = atol(optarg);
-            }
+                t += strtol(optarg, &ptr, 10);
+                if (ptr[0]) {
+                    ERROR(__func__, "Invalid timestamp second shift \"%s\".", optarg);
+                    goto fail;
+                }
 
-            ly_time_time2str(t, NULL, &stop);
+                ly_time_time2str(t, NULL, &stop);
+            } else {
+                /* date-and-time specified */
+                stop = strdup(optarg);
+            }
             break;
         case 'o':
             if (output) {
@@ -5904,7 +5928,7 @@ cmd_establishpush(const char *arg, char **tmp_config_file)
     int c, config_fd, ret = EXIT_FAILURE, filter_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
     int periodic = -1, sync_on_start = 1;
     struct stat config_stat;
-    char *filter = NULL, *config_m = NULL, *stop = NULL, *anchor = NULL, **excluded_change = NULL;
+    char *filter = NULL, *config_m = NULL, *stop = NULL, *anchor = NULL, **excluded_change = NULL, *ptr;
     const char *encoding = NULL, *datastore = NULL;
     uint32_t i, period = 0, damp_period = 0;
     struct nc_rpc *rpc = NULL;
@@ -6016,11 +6040,17 @@ cmd_establishpush(const char *arg, char **tmp_config_file)
         case 'e':
             if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
-                t += atol(optarg);
+                t += strtol(optarg, &ptr, 10);
+                if (ptr[0]) {
+                    ERROR(__func__, "Invalid timestamp second shift \"%s\".", optarg);
+                    goto fail;
+                }
+
+                ly_time_time2str(t, NULL, &stop);
             } else {
-                t = atol(optarg);
+                /* date-and-time specified */
+                stop = strdup(optarg);
             }
-            ly_time_time2str(t, NULL, &stop);
             break;
         case 'n':
             encoding = optarg;
@@ -6039,11 +6069,17 @@ cmd_establishpush(const char *arg, char **tmp_config_file)
         case 'a':
             if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
-                t += atol(optarg);
+                t += strtol(optarg, &ptr, 10);
+                if (ptr[0]) {
+                    ERROR(__func__, "Invalid timestamp second shift \"%s\".", optarg);
+                    goto fail;
+                }
+
+                ly_time_time2str(t, NULL, &anchor);
             } else {
-                t = atol(optarg);
+                /* date-and-time specified */
+                anchor = strdup(optarg);
             }
-            ly_time_time2str(t, NULL, &anchor);
             break;
         case 'c':
             if (periodic != -1) {
@@ -6171,7 +6207,7 @@ cmd_modifypush(const char *arg, char **tmp_config_file)
     int c, config_fd, ret = EXIT_FAILURE, filter_param = 0, timeout = CLI_RPC_REPLY_TIMEOUT;
     int periodic = -1;
     struct stat config_stat;
-    char *filter = NULL, *config_m = NULL, *stop = NULL, *anchor = NULL, **excluded_change = NULL;
+    char *filter = NULL, *config_m = NULL, *stop = NULL, *anchor = NULL, **excluded_change = NULL, *ptr;
     const char *datastore = NULL;
     uint32_t id = 0, period = 0, damp_period = 0;
     struct nc_rpc *rpc = NULL;
@@ -6284,11 +6320,17 @@ cmd_modifypush(const char *arg, char **tmp_config_file)
         case 'e':
             if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
-                t += atol(optarg);
+                t += strtol(optarg, &ptr, 10);
+                if (ptr[0]) {
+                    ERROR(__func__, "Invalid timestamp second shift \"%s\".", optarg);
+                    goto fail;
+                }
+
+                ly_time_time2str(t, NULL, &stop);
             } else {
-                t = atol(optarg);
+                /* date-and-time specified */
+                stop = strdup(optarg);
             }
-            ly_time_time2str(t, NULL, &stop);
             break;
         case 'p':
             if (periodic != -1) {
@@ -6304,11 +6346,17 @@ cmd_modifypush(const char *arg, char **tmp_config_file)
         case 'a':
             if ((optarg[0] == '-') || (optarg[0] == '+')) {
                 t = time(NULL);
-                t += atol(optarg);
+                t += strtol(optarg, &ptr, 10);
+                if (ptr[0]) {
+                    ERROR(__func__, "Invalid timestamp second shift \"%s\".", optarg);
+                    goto fail;
+                }
+
+                ly_time_time2str(t, NULL, &anchor);
             } else {
-                t = atol(optarg);
+                /* date-and-time specified */
+                anchor = strdup(optarg);
             }
-            ly_time_time2str(t, NULL, &anchor);
             break;
         case 'c':
             if (periodic != -1) {
