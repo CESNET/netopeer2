@@ -796,6 +796,8 @@ server_rpc_subscribe(void)
 
     /* one more yang-push RPC */
     SR_RPC_SUBSCR("/ietf-yang-push:resync-subscription", np2srv_rpc_resync_sub_cb, &np2srv.sr_rpc_sub);
+    SR_RPC_SUBSCR("/ietf-subscribed-notifications:subscriptions/subscription/receivers/receiver/reset",
+            np2srv_rpc_reset_receiver_cb, &np2srv.sr_rpc_sub);
 
     return 0;
 
@@ -854,6 +856,15 @@ server_data_subscribe(void)
     mod_name = "ietf-subscribed-notifications";
     xpath = "/ietf-subscribed-notifications:filters";
     SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_config_sub_ntf_filters_cb);
+
+    SR_CONFIG_SUBSCR(mod_name, "/ietf-subscribed-notifications:subscriptions/receiver-instances/receiver-instance",
+            np2srv_config_receivers_cb);
+
+    SR_CONFIG_SUBSCR(mod_name, "/ietf-subscribed-notifications:subscriptions/subscription",
+            np2srv_config_subscriptions_cb);
+
+    SR_CONFIG_SUBSCR(mod_name, "/ietf-subscribed-notifications:subscriptions/subscription/receivers/receiver",
+            np2srv_config_subscriptions_receivers_cb);
 
     /* operational data */
     SR_OPER_SUBSCR(mod_name, "/ietf-subscribed-notifications:streams", np2srv_oper_sub_ntf_streams_cb);
