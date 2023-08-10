@@ -180,6 +180,11 @@
     "  <data/>\n" \
     "</get-config>\n"
 
+#define EMPTY_GET \
+    "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n" \
+    "  <data/>\n" \
+    "</get>\n"
+
 #define ASSERT_EMPTY_CONFIG(state) \
     GET_CONFIG(state); \
     assert_string_equal(state->str, EMPTY_GETCONFIG); \
