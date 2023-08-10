@@ -353,12 +353,15 @@ np2srv_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node, *child;
-    const char *endpt_name, *fingerprint, *name;
-    char *xpath2;
+    const char *endpt_name;
+    char *fingerprint, *name, *xpath2;
     int rc;
     uint32_t id;
     NC_TLS_CTN_MAPTYPE map_type;
 
+    /*
+     * #1 create/delete of CTN entries
+     */
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
         return SR_ERR_NO_MEMORY;
@@ -383,11 +386,11 @@ np2srv_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
             if (!strcmp(child->schema->name, "id")) {
                 id = ((struct lyd_node_term *)child)->value.uint32;
             } else if (!strcmp(child->schema->name, "fingerprint")) {
-                fingerprint = lyd_get_value(child);
+                fingerprint = (char *)lyd_get_value(child);
             } else if (!strcmp(child->schema->name, "map-type")) {
                 map_type = np2srv_tls_ctn_str2map_type(lyd_get_value(child));
             } else if (!strcmp(child->schema->name, "name")) {
-                name = lyd_get_value(child);
+                name = (char *)lyd_get_value(child);
             }
         }
         /* it was validated */
@@ -395,14 +398,71 @@ np2srv_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id
 
         if (op == SR_OP_CREATED) {
             rc = nc_server_tls_endpt_add_ctn(endpt_name, id, fingerprint, map_type, name);
-        } else if (op == SR_OP_DELETED) {
+        } else {
+            assert(op == SR_OP_DELETED);
             if (nc_server_is_endpt(endpt_name)) {
                 rc = nc_server_tls_endpt_del_ctn(endpt_name, id, fingerprint, map_type, name);
             }
-        } else if (op == SR_OP_MODIFIED) {
-            nc_server_tls_endpt_del_ctn(endpt_name, id, NULL, 0, NULL);
-            rc = nc_server_tls_endpt_add_ctn(endpt_name, id, fingerprint, map_type, name);
         }
+        if (rc) {
+            sr_free_change_iter(iter);
+            return SR_ERR_INTERNAL;
+        }
+    }
+    sr_free_change_iter(iter);
+    if (rc != SR_ERR_NOT_FOUND) {
+        ERR("Getting next change failed (%s).", sr_strerror(rc));
+        return rc;
+    }
+
+    /*
+     * #2 modification of existing CTN entries
+     */
+    if (asprintf(&xpath2, "%s/cert-to-name/*", xpath) == -1) {
+        EMEM;
+        return SR_ERR_NO_MEMORY;
+    }
+    rc = sr_get_changes_iter(session, xpath2, &iter);
+    free(xpath2);
+    if (rc != SR_ERR_OK) {
+        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
+        return rc;
+    }
+
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
+        if ((op != SR_OP_MODIFIED) && strcmp(LYD_NAME(node), "name")) {
+            /* all leaves mandatory (but "name" has when) so handled in parent, must have the same operation */
+            continue;
+        }
+
+        /* find name */
+        endpt_name = lyd_get_value(node->parent->parent->parent->parent->parent->parent->child);
+
+        /* get the current entry */
+        lyd_find_sibling_val(node, lyd_first_sibling(node)->schema, NULL, 0, (struct lyd_node **)&child);
+        assert(child && !strcmp(LYD_NAME(child), "id"));
+        id = ((struct lyd_node_term *)child)->value.uint32;
+        fingerprint = NULL;
+        map_type = 0;
+        name = NULL;
+        nc_server_tls_endpt_get_ctn(endpt_name, &id, &fingerprint, &map_type, &name);
+
+        /* update the leaf */
+        if (!strcmp(node->schema->name, "fingerprint")) {
+            free(fingerprint);
+            fingerprint = strdup(lyd_get_value(node));
+        } else if (!strcmp(node->schema->name, "map-type")) {
+            map_type = np2srv_tls_ctn_str2map_type(lyd_get_value(node));
+        } else if (!strcmp(node->schema->name, "name")) {
+            free(name);
+            name = (op == SR_OP_DELETED) ? NULL : strdup(lyd_get_value(node));
+        }
+
+        /* update the CTN entry */
+        nc_server_tls_endpt_del_ctn(endpt_name, id, NULL, 0, NULL);
+        rc = nc_server_tls_endpt_add_ctn(endpt_name, id, fingerprint, map_type, name);
+        free(fingerprint);
+        free(name);
         if (rc) {
             sr_free_change_iter(iter);
             return SR_ERR_INTERNAL;
@@ -586,12 +646,15 @@ np2srv_ch_client_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNU
     sr_change_iter_t *iter;
     sr_change_oper_t op;
     const struct lyd_node *node, *child;
-    const char *endpt_name, *client_name, *fingerprint, *name;
-    char *xpath2;
+    const char *endpt_name, *client_name;
+    char *xpath2, *fingerprint, *name;
     int rc;
     uint32_t id;
     NC_TLS_CTN_MAPTYPE map_type;
 
+    /*
+     * #1 create/delete of CTN entries
+     */
     if (asprintf(&xpath2, "%s/*", xpath) == -1) {
         EMEM;
         return SR_ERR_NO_MEMORY;
@@ -617,11 +680,11 @@ np2srv_ch_client_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNU
             if (!strcmp(child->schema->name, "id")) {
                 id = ((struct lyd_node_term *)child)->value.uint32;
             } else if (!strcmp(child->schema->name, "fingerprint")) {
-                fingerprint = lyd_get_value(child);
+                fingerprint = (char *)lyd_get_value(child);
             } else if (!strcmp(child->schema->name, "map-type")) {
                 map_type = np2srv_tls_ctn_str2map_type(lyd_get_value(child));
             } else if (!strcmp(child->schema->name, "name")) {
-                name = lyd_get_value(child);
+                name = (char *)lyd_get_value(child);
             }
         }
         /* it was validated */
@@ -629,14 +692,72 @@ np2srv_ch_client_endpt_tls_client_ctn_cb(sr_session_ctx_t *session, uint32_t UNU
 
         if (op == SR_OP_CREATED) {
             rc = nc_server_tls_ch_client_endpt_add_ctn(client_name, endpt_name, id, fingerprint, map_type, name);
-        } else if (op == SR_OP_DELETED) {
+        } else {
+            assert(op == SR_OP_DELETED);
             if (nc_server_ch_client_is_endpt(client_name, endpt_name)) {
                 rc = nc_server_tls_ch_client_endpt_del_ctn(client_name, endpt_name, id, fingerprint, map_type, name);
             }
-        } else if (op == SR_OP_MODIFIED) {
-            nc_server_tls_ch_client_endpt_del_ctn(client_name, endpt_name, id, NULL, 0, NULL);
-            rc = nc_server_tls_ch_client_endpt_add_ctn(client_name, endpt_name, id, fingerprint, map_type, name);
         }
+        if (rc) {
+            sr_free_change_iter(iter);
+            return SR_ERR_INTERNAL;
+        }
+    }
+    sr_free_change_iter(iter);
+    if (rc != SR_ERR_NOT_FOUND) {
+        ERR("Getting next change failed (%s).", sr_strerror(rc));
+        return rc;
+    }
+
+    /*
+     * #2 modification of existing CTN entries
+     */
+    if (asprintf(&xpath2, "%s/cert-to-name/*", xpath) == -1) {
+        EMEM;
+        return SR_ERR_NO_MEMORY;
+    }
+    rc = sr_get_changes_iter(session, xpath2, &iter);
+    free(xpath2);
+    if (rc != SR_ERR_OK) {
+        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
+        return rc;
+    }
+
+    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
+        if ((op != SR_OP_MODIFIED) && strcmp(LYD_NAME(node), "name")) {
+            /* all leaves mandatory (but "name" has when) so handled in parent, must have the same operation */
+            continue;
+        }
+
+        /* get names */
+        endpt_name = lyd_get_value(node->parent->parent->parent->parent->parent->parent->child);
+        client_name = lyd_get_value(node->parent->parent->parent->parent->parent->parent->parent->parent->child);
+
+        /* get the current entry */
+        lyd_find_sibling_val(node, lyd_first_sibling(node)->schema, NULL, 0, (struct lyd_node **)&child);
+        assert(child && !strcmp(LYD_NAME(child), "id"));
+        id = ((struct lyd_node_term *)child)->value.uint32;
+        fingerprint = NULL;
+        map_type = 0;
+        name = NULL;
+        nc_server_tls_ch_client_endpt_get_ctn(client_name, endpt_name, &id, &fingerprint, &map_type, &name);
+
+        /* update the leaf */
+        if (!strcmp(node->schema->name, "fingerprint")) {
+            free(fingerprint);
+            fingerprint = strdup(lyd_get_value(node));
+        } else if (!strcmp(node->schema->name, "map-type")) {
+            map_type = np2srv_tls_ctn_str2map_type(lyd_get_value(node));
+        } else if (!strcmp(node->schema->name, "name")) {
+            free(name);
+            name = (op == SR_OP_DELETED) ? NULL : strdup(lyd_get_value(node));
+        }
+
+        /* update the CTN entry */
+        nc_server_tls_ch_client_endpt_del_ctn(client_name, endpt_name, id, NULL, 0, NULL);
+        rc = nc_server_tls_ch_client_endpt_add_ctn(client_name, endpt_name, id, fingerprint, map_type, name);
+        free(fingerprint);
+        free(name);
         if (rc) {
             sr_free_change_iter(iter);
             return SR_ERR_INTERNAL;
