@@ -125,23 +125,29 @@ if(NOT SERVER_DIR)
     endif()
 endif()
 
-include(ExternalProject)
-set(UDP_NOTIF_BIN ${CMAKE_CURRENT_BINARY_DIR}/lib)
-set(UDP_NOTIF_STATIC_LIB ${UDP_NOTIF_BIN}/lib/libunyte-udp-notif.a)
-set(UDP_NOTIF_INCLUDES ${UDP_NOTIF_BIN}/include)
+if (NOT UDP_NOTIF_STATIC_LIB)
+    include(ExternalProject)
+    set(UDP_NOTIF_BIN ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR})
+    set(UDP_NOTIF_STATIC_LIB ${UDP_NOTIF_BIN}/${CMAKE_INSTALL_LIBDIR}/libunyte-udp-notif.a)
+    set(UDP_NOTIF_INCLUDES ${UDP_NOTIF_BIN}/${CMAKE_INSTALL_INCLUDEDIR})
 
-ExternalProject_Add(udp-notif-c-collector
-    PREFIX ${UDP_NOTIF_BIN}
-    GIT_REPOSITORY https://github.com/network-analytics/udp-notif-c-collector
-    GIT_TAG main
-    BUILD_IN_SOURCE 1
-    UPDATE_DISCONNECTED true
-    PATCH_COMMAND patch -p1 < ${CMAKE_CURRENT_SOURCE_DIR}/patches/0001-feat-add-local-address-to-sender.patch
-    CONFIGURE_COMMAND ./bootstrap && ./configure --prefix=${UDP_NOTIF_BIN}
-    BUILD_COMMAND make
-    INSTALL_COMMAND make install
-    BUILD_BYPRODUCTS ${UDP_NOTIF_STATIC_LIB}
-)
+    ExternalProject_Add(udp-notif-c-collector
+        PREFIX ${UDP_NOTIF_BIN}
+        GIT_REPOSITORY https://github.com/network-analytics/udp-notif-c-collector
+        GIT_TAG main
+        BUILD_IN_SOURCE 1
+        UPDATE_DISCONNECTED true
+        PATCH_COMMAND patch -p1 < ${CMAKE_CURRENT_SOURCE_DIR}/patches/0001-feat-add-local-address-to-sender.patch
+        CONFIGURE_COMMAND ./bootstrap && ./configure --prefix=${UDP_NOTIF_BIN}
+        BUILD_COMMAND make
+        INSTALL_COMMAND make install
+        BUILD_BYPRODUCTS ${UDP_NOTIF_STATIC_LIB}
+    )
+else()
+    if (NOT UDP_NOTIF_INCLUDES)
+        message(FATAL_ERROR "Missing UDP_NOTIF_INCLUDES")
+    endif()
+endif()
 
 #
 # sources
@@ -267,7 +273,9 @@ use_compat()
 
 # netopeer2-server
 add_library(serverobj OBJECT ${SERVER_SRC})
-add_dependencies(serverobj udp-notif-c-collector)
+if(UDP_NOTIF_BIN)
+    add_dependencies(serverobj udp-notif-c-collector)
+endif()
 add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> src/main.c ${compatsrc})
 
 #
@@ -286,7 +294,9 @@ set_target_properties(netopeer2-server PROPERTIES IMPORTED_LOCATION ${UDP_NOTIF_
 set_target_properties(netopeer2-server PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${UDP_NOTIF_INCLUDES})
 target_link_libraries(netopeer2-server ${UDP_NOTIF_STATIC_LIB})
 include_directories(${UDP_NOTIF_INCLUDES})
-add_dependencies(netopeer2-server udp-notif-c-collector)
+if(UDP_NOTIF_BIN)
+    add_dependencies(netopeer2-server udp-notif-c-collector)
+endif()
 
 # libssh (was already found, if exists)
 if(LIBSSH_FOUND AND LIBNETCONF2_ENABLED_SSH)
