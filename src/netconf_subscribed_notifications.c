@@ -2353,21 +2353,17 @@ np2srv_oper_sub_ntf_receivers_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_
 {
     const struct ly_ctx *ly_ctx;
     struct lyd_node *root;
-    int r;
 
     /* context is locked while the callback is executing */
     ly_ctx = sr_session_acquire_context(session);
     sr_session_release_context(session);
 
     if (lyd_new_path(NULL, ly_ctx, request_xpath, NULL, 0, &root)) {
-        r = SR_ERR_LY;
+        lyd_free_tree(root);
+        return SR_ERR_LY;
     }
 
-    if (r) {
-        lyd_free_tree(root);
-    } else {
-        *parent = root;
-    }
+    *parent = root;
 
     return SR_ERR_OK;
 }
