@@ -212,7 +212,7 @@ int np2srv_rpc_reset_receiver_cb(sr_session_ctx_t *session, uint32_t sub_id, con
  */
 
 /**
- * @brief Send a notification.
+ * @brief Send a notification to all receivers of this subscription.
  *
  * @param[in] receivers reference to receivers to use.
  * @param[in] receivers_count the number of receivers.
