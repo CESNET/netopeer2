@@ -180,6 +180,11 @@
     "  <data/>\n" \
     "</get-config>\n"
 
+#define EMPTY_GET \
+    "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n" \
+    "  <data/>\n" \
+    "</get>\n"
+
 #define ASSERT_EMPTY_CONFIG(state) \
     GET_CONFIG(state); \
     assert_string_equal(state->str, EMPTY_GETCONFIG); \
@@ -261,6 +266,11 @@
         fail(); \
     }
 
+#define np_assert_strstr(haystack, needle) \
+    if (!np_strstr(haystack, needle)) { \
+        fail(); \
+    }
+
 /* test state structure */
 struct np_test {
     pid_t server_pid;
@@ -285,6 +295,8 @@ struct np_test {
 };
 
 int np_is_string_equal(const char *str1, const char *str2);
+
+char *np_strstr(const char *haystack, const char *needle);
 
 void np_glob_setup_test_name(char *buf);
 

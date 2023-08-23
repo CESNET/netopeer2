@@ -76,6 +76,17 @@ np_is_string_equal(const char *str1, const char *str2)
     return 1;
 }
 
+char *
+np_strstr(const char *haystack, const char *needle)
+{
+    char *where = strstr(haystack, needle);
+    if (!where) {
+        print_error("[  ERROR   ] --- '%s' does not contain '%s'\n", haystack, needle);
+    }
+
+    return where;
+}
+
 void
 parse_arg(int argc, char **argv)
 {
