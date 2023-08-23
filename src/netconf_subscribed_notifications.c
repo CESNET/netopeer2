@@ -2104,8 +2104,8 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
     char *name = NULL;
     uint32_t id;
 
-    if (strstr(request_xpath,"subscriptions/subscription[")
-		    && strstr(request_xpath,"/receivers/receiver[")) {
+    if (strstr(request_xpath, "subscriptions/subscription[") &&
+            strstr(request_xpath, "/receivers/receiver[")) {
         return np2srv_oper_sub_ntf_receivers_cb(session, 0, NULL, NULL, request_xpath, 0, parent, NULL);
     }
 
