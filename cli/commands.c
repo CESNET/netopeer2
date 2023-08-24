@@ -2018,6 +2018,7 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
     char *args = strdupa(arg);
     char *cmd = NULL, *ptr = NULL, *path, *path2, *dest = NULL;
     char *trusted_dir = NULL, *netconf_dir = NULL, *rehash_cmd = NULL;
+    const char *file_name;
     DIR *dir = NULL;
     struct dirent *d;
 
@@ -2072,7 +2073,12 @@ cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
             goto error;
         }
 
-        if ((asprintf(&dest, "%s/%s", trusted_dir, strrchr(path, '/') + 1) == -1) ||
+        if ((file_name = strrchr(path, '/'))) {
+            ++file_name;
+        } else {
+            file_name = path;
+        }
+        if ((asprintf(&dest, "%s/%s", trusted_dir, file_name) == -1) ||
                 (asprintf(&rehash_cmd, "openssl rehash %s &> /dev/null", trusted_dir) == -1)) {
             ERROR("cert add", "Memory allocation failed");
             goto error;
