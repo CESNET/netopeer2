@@ -860,15 +860,24 @@ server_data_subscribe(void)
     SR_CONFIG_SUBSCR(mod_name, "/ietf-subscribed-notifications:subscriptions/receiver-instances/receiver-instance",
             np2srv_config_receivers_cb);
 
-    SR_CONFIG_SUBSCR(mod_name, "/ietf-subscribed-notifications:subscriptions/subscription",
-            np2srv_config_subscriptions_cb);
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, "/ietf-subscribed-notifications:subscriptions/subscription",
+            np2srv_config_subscriptions_cb, NULL, 0, SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
 
     SR_CONFIG_SUBSCR(mod_name, "/ietf-subscribed-notifications:subscriptions/subscription/receivers/receiver",
             np2srv_config_subscriptions_receivers_cb);
 
     /* operational data */
     SR_OPER_SUBSCR(mod_name, "/ietf-subscribed-notifications:streams", np2srv_oper_sub_ntf_streams_cb);
-    SR_OPER_SUBSCR(mod_name, "/ietf-subscribed-notifications:subscriptions", np2srv_oper_sub_ntf_subscriptions_cb);
+    rc = sr_oper_get_subscribe(np2srv.sr_sess, mod_name, "/ietf-subscribed-notifications:subscriptions",
+            np2srv_oper_sub_ntf_subscriptions_cb, NULL, SR_SUBSCR_OPER_MERGE, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
 
     /*
      * ietf-netconf-server

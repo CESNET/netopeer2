@@ -562,6 +562,7 @@ cleanup:
  * @param[in] ev_sess Event sysrepo session for errors.
  * @param[in,out] sub_ids Array of SR sub IDs to add to.
  * @param[in,out] sub_id_count Number of items in @p sub_ids.
+ * @param[in] sr_sub_ctx is the sysrepo context.
  * @return Sysrepo error value.
  */
 static int
@@ -669,6 +670,7 @@ cleanup:
  * @param[in] ev_sess Event session for reporting errors.
  * @param[out] sub_ids Generated sysrepo subscription IDs, the first one is used as sub-ntf subscription ID.
  * @param[out] sub_id_count Number of @p sub_ids.
+ * @param[in] sr_sub_ctx is the sysrepo context.
  * @return Sysrepo error value.
  */
 static int
@@ -879,17 +881,18 @@ yang_push_notif_update_send(struct nc_session *ncs, sr_session_ctx_t *sr_sess, s
     const struct ly_ctx *ly_ctx;
     sr_data_t *data = NULL;
     char buf[11];
-    int rc = SR_ERR_OK;
+    int rc = SR_ERR_OK, r;
 
     /* switch to the datastore */
     sr_session_switch_ds(sr_sess, yp_data->datastore);
 
     /* get the data from sysrepo */
-    rc = sr_get_data(sr_sess, yp_data->xpath ? yp_data->xpath : "/*", 0, np2srv.sr_timeout, 0, &data);
-    if (rc != SR_ERR_OK) {
-        if (ncs) {
-            goto cleanup;
-        }
+    r = sr_get_data(sr_sess, yp_data->xpath ? yp_data->xpath : "/*", 0, np2srv.sr_timeout, 0, &data);
+    if (r == SR_ERR_NOT_FOUND) {
+        WRN("XPath \"%s\" does not match any schema or data nodes.");
+    } else if (r) {
+        rc = r;
+        goto cleanup;
     }
 
     /* context lock is already held by data */

@@ -232,38 +232,4 @@ int csn_send_notif(struct csn_receiver_info *recv_info, uint32_t nc_sub_id,
  */
 void csn_receiver_info_destroy(struct csn_receiver_info *recv_info);
 
-/**
- * @brief Destroy content of receiver in a subscription
- *
- * @param[in] receiver in the subscription in the receiver_info.
- */
-void csn_receiver_destroy(struct csn_receiver *receiver, int keep_ref);
-
-/**
- * @brief start a receiver
- *
- * @param[in] receiver in the subscription in the receiver_info.
- * @param[in] receiver_config is the global receiver config
- * @param[in] receiver_info in the subscription.
- * @return Sysrepo error value.
- */
-int csn_receiver_start(struct csn_receiver *receiver, struct csn_receiver_config *recv_config,
-        struct csn_receiver_info *recv_info);
-/**
- * @brief add a receiver in the receiver_info list
- *
- * @param[in] receiver in the subscription in the receiver_info.
- * @param[in] receiver_info in the subscription.
- * @return Sysrepo error value.
- */
-int csn_receiver_add(struct csn_receiver_info *recv_info, struct csn_receiver *receiver);
-
-/**
- * @brief get a receiver configration from the list
- *
- * @param[in] name of a receiver configuration.
- * @return a config containing receiver connection parameters
- */
-struct csn_receiver_config *csn_receiver_config_get_by_name(const char *name);
-
 #endif /* NP2SRV_NETCONF_SUBSCRIBED_NOTIFICATIONS_H_ */

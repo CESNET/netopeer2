@@ -193,6 +193,7 @@ np2srv_rpc_establish_sub_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t sub_
  * @param[in] ev_sess Event session for reporting errors.
  * @param[out] sub_ids Generated sysrepo subscription IDs, the first one is used as sub-ntf subscription ID.
  * @param[out] sub_id_count Number of @p sub_ids.
+ * @param[in] sr_sub_ctx is the sysrepo context.
  * @return Sysrepo error value.
  */
 static int
