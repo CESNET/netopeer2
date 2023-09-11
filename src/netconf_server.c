@@ -19,6 +19,9 @@
 #include "netconf_server.h"
 
 #include <assert.h>
+#include <ctype.h>
+#include <errno.h>
+#include <pwd.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -32,517 +35,153 @@
 #include "log.h"
 
 int
-np2srv_sr_get_privkey(const struct lyd_node *asym_key, char **privkey_data, NC_SSH_KEY_TYPE *privkey_type)
+np2srv_libnetconf2_config_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
+        const char *UNUSED(xpath), sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
 {
-    struct lyd_node_term *alg = NULL;
-    struct lyd_node *node, *privkey = NULL;
+    int rc = 0;
+    const struct lyd_node *diff = NULL;
 
-    /* find the nodes */
-    LY_LIST_FOR(lyd_child(asym_key), node) {
-        if (!strcmp(node->schema->name, "algorithm")) {
-            alg = (struct lyd_node_term *)node;
-        } else if (!strcmp(node->schema->name, "private-key")) {
-            privkey = node;
+    /* get diff and apply it */
+    diff = sr_get_change_diff(session);
+    rc = nc_server_config_setup_diff(diff);
+    if (rc) {
+        ERR("Configuring NETCONF server failed.");
+        return rc;
+    }
+
+    return SR_ERR_OK;
+}
+
+#ifdef NC_ENABLED_SSH_TLS
+
+static int
+np2srv_validate_posix_username(const char *username)
+{
+    /* use POSIX username definition
+     * https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap03.html#tag_03_437 */
+
+    /* not empty */
+    if (strlen(username) == 0) {
+        return -1;
+    }
+
+    /* no hyphen as first char */
+    if (username[0] == '-') {
+        return -1;
+    }
+
+    /* check for Portable Filename Character Set */
+    for (unsigned long i = 0; i < strlen(username); i++) {
+        if (!(isalnum(username[i]) || (username[i] == '.') || (username[i] == '_') || (username[i] == '-'))) {
+            return -1;
         }
-    }
-    if (!alg || !privkey) {
-        ERR("Failed to find asymmetric key information.");
-        return -1;
-    }
-
-    /* set algorithm */
-    if (!strncmp(alg->value.ident->name, "rsa", 3)) {
-        *privkey_type = NC_SSH_KEY_RSA;
-    } else if (!strncmp(alg->value.ident->name, "secp", 4)) {
-        *privkey_type = NC_SSH_KEY_ECDSA;
-    } else {
-        ERR("Unknown private key algorithm \"%s\".", lyd_get_value(&alg->node));
-        return -1;
-    }
-
-    /* set data */
-    *privkey_data = strdup(lyd_get_value(privkey));
-    if (!*privkey_data) {
-        EMEM;
-        return -1;
     }
 
     return 0;
 }
 
-/* /ietf-netconf-server:netconf-server/listen/idle-timeout */
 int
-np2srv_idle_timeout_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
-        const char *xpath, sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+np2srv_pubkey_auth_cb(const struct nc_session *session, ssh_key key, void *UNUSED(user_data))
 {
-    sr_change_iter_t *iter;
-    sr_change_oper_t op;
-    const struct lyd_node *node;
-    int rc;
+    FILE *f = NULL;
+    struct passwd *pwd;
+    ssh_key pub_key = NULL;
+    enum ssh_keytypes_e ktype;
+    const char *username;
+    char *line = NULL, *ptr, *ptr2;
+    size_t n;
+    int r, ret = 1, line_num = 0;
 
-    rc = sr_get_changes_iter(session, xpath, &iter);
-    if (rc != SR_ERR_OK) {
-        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
-        return rc;
+    username = nc_session_get_username(session);
+
+    errno = 0;
+    pwd = getpwnam(username);
+
+    if (!NP2SRV_SSH_AUTHORIZED_KEYS_ARG_IS_USERNAME && !pwd) {
+        ERR("Failed to find user entry for \"%s\" (%s).", username, errno ? strerror(errno) : "User not found");
+        goto cleanup;
     }
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
-        /* ignore other operations */
-        if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-            nc_server_set_idle_timeout(((struct lyd_node_term *)node)->value.uint16);
-        }
-    }
-    sr_free_change_iter(iter);
-    if (rc != SR_ERR_NOT_FOUND) {
-        ERR("Getting next change failed (%s).", sr_strerror(rc));
-        return rc;
+    if (!pwd && np2srv_validate_posix_username(username)) {
+        ERR("The username \"%s\" is not a valid posix username.", username);
+        goto cleanup;
     }
 
-    return SR_ERR_OK;
-}
-
-static int
-np2srv_tcp_keepalives(const char *client_name, const char *endpt_name, sr_session_ctx_t *session, const char *xpath)
-{
-    sr_change_iter_t *iter;
-    sr_change_oper_t op;
-    const struct lyd_node *node;
-    int rc, idle_time = -1, max_probes = -1, probe_interval = -1;
-
-    rc = sr_get_changes_iter(session, xpath, &iter);
-    if (rc != SR_ERR_OK) {
-        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
-        return rc;
-    }
-
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
-        if (!strcmp(node->schema->name, "idle-time")) {
-            if (op == SR_OP_DELETED) {
-                idle_time = 1;
-            } else {
-                idle_time = ((struct lyd_node_term *)node)->value.uint16;
-            }
-        } else if (!strcmp(node->schema->name, "max-probes")) {
-            if (op == SR_OP_DELETED) {
-                max_probes = 10;
-            } else {
-                max_probes = ((struct lyd_node_term *)node)->value.uint16;
-            }
-        } else if (!strcmp(node->schema->name, "probe-interval")) {
-            if (op == SR_OP_DELETED) {
-                probe_interval = 5;
-            } else {
-                probe_interval = ((struct lyd_node_term *)node)->value.uint16;
-            }
-        }
-    }
-    sr_free_change_iter(iter);
-    if (rc != SR_ERR_NOT_FOUND) {
-        ERR("Getting next change failed (%s).", sr_strerror(rc));
-        return rc;
-    }
-
-    rc = 0;
-
-    /* set new keepalive parameters */
-    if (!client_name) {
-        if (nc_server_is_endpt(endpt_name)) {
-            rc = nc_server_endpt_set_keepalives(endpt_name, idle_time, max_probes, probe_interval);
-        }
-    } else {
-        if (nc_server_ch_client_is_endpt(client_name, endpt_name)) {
-            rc = nc_server_ch_client_endpt_set_keepalives(client_name, endpt_name, idle_time, max_probes, probe_interval);
-        }
-    }
-    if (rc) {
-        ERR("Keepalives configuration failed (%d).", rc);
-        return SR_ERR_INTERNAL;
-    }
-
-    return SR_ERR_OK;
-}
-
-/* /ietf-netconf-server:netconf-server/listen/endpoint/ * /tcp-server-parameters */
-int
-np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
-        const char *xpath, sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
-{
-    sr_change_iter_t *iter;
-    sr_change_oper_t op;
-    const struct lyd_node *node;
-    const char *endpt_name;
-    char *xpath2;
-    int rc, failed = 0;
-
-    if (asprintf(&xpath2, "%s/*", xpath) == -1) {
+    /* check any authorized keys */
+    r = asprintf(&line, NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN, NP2SRV_SSH_AUTHORIZED_KEYS_ARG_IS_USERNAME ? username : pwd->pw_dir);
+    if (r == -1) {
         EMEM;
-        return SR_ERR_NO_MEMORY;
+        line = NULL;
+        goto cleanup;
     }
-    rc = sr_get_changes_iter(session, xpath2, &iter);
-    free(xpath2);
-    if (rc != SR_ERR_OK) {
-        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
-        return rc;
-    }
+    n = r;
 
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
-        /* find name */
-        endpt_name = lyd_get_value(node->parent->parent->parent->child);
-
-        if (!strcmp(node->schema->name, "local-address")) {
-            if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-                if (nc_server_endpt_set_address(endpt_name, lyd_get_value(node))) {
-                    failed = 1;
-                }
-            }
-        } else if (!strcmp(node->schema->name, "local-port")) {
-            if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-                if (nc_server_endpt_set_port(endpt_name, ((struct lyd_node_term *)node)->value.uint16)) {
-                    failed = 1;
-                }
-            }
-        } else if (!strcmp(node->schema->name, "keepalives")) {
-            if (op == SR_OP_CREATED) {
-                if (nc_server_endpt_enable_keepalives(endpt_name, 1)) {
-                    failed = 1;
-                }
-            } else if (op == SR_OP_DELETED) {
-                if (nc_server_is_endpt(endpt_name)) {
-                    if (nc_server_endpt_enable_keepalives(endpt_name, 0)) {
-                        failed = 1;
-                    }
-                }
-            }
-
-            /* set specific parameters */
-            if (asprintf(&xpath2, "%s/keepalives/*", xpath) == -1) {
-                EMEM;
-                return SR_ERR_NO_MEMORY;
-            }
-            if (np2srv_tcp_keepalives(NULL, endpt_name, session, xpath2)) {
-                failed = 1;
-            }
-            free(xpath2);
+    f = fopen(line, "r");
+    if (!f) {
+        if (errno == ENOENT) {
+            VRB("User \"%s\" has no authorized_keys file.", username);
+        } else {
+            ERR("Failed to open \"%s\" authorized_keys file (%s).", line, strerror(errno));
         }
-    }
-    sr_free_change_iter(iter);
-    if (rc != SR_ERR_NOT_FOUND) {
-        ERR("Getting next change failed (%s).", sr_strerror(rc));
-        return rc;
+        goto cleanup;
     }
 
-    return failed ? SR_ERR_CALLBACK_FAILED : SR_ERR_OK;
+    while (getline(&line, &n, f) > -1) {
+        ++line_num;
+
+        /* separate key type */
+        ptr = line;
+        for (ptr2 = ptr; !isspace(ptr2[0]); ++ptr2) {}
+        if (ptr2[0] == '\0') {
+            WRN("Invalid authorized key format of \"%s\" (line %d).", username, line_num);
+            continue;
+        }
+        ptr2[0] = '\0';
+
+        /* detect key type */
+        ktype = ssh_key_type_from_name(ptr);
+        if (ktype == SSH_KEYTYPE_UNKNOWN) {
+            WRN("Unknown key type \"%s\" (line %d).", ptr, line_num);
+            continue;
+        }
+
+        /* separate key data */
+        ptr = ptr2 + 1;
+        for (ptr2 = ptr; !isspace(ptr2[0]); ++ptr2) {}
+        ptr2[0] = '\0';
+
+        r = ssh_pki_import_pubkey_base64(ptr, ktype, &pub_key);
+        if (r != SSH_OK) {
+            WRN("Failed to import authorized key of \"%s\" (%s, line %d).",
+                    username, r == SSH_EOF ? "Unexpected end-of-file" : "SSH error", line_num);
+            continue;
+        }
+
+        /* compare public keys */
+        if (!ssh_key_cmp(key, pub_key, SSH_KEY_CMP_PUBLIC)) {
+            /* key matches */
+            ret = 0;
+            goto cleanup;
+        }
+
+        /* not a match, next key */
+        ssh_key_free(pub_key);
+        pub_key = NULL;
+    }
+    if (!feof(f)) {
+        WRN("Failed reading from authorized_keys file of \"%s\".", username);
+        goto cleanup;
+    }
+
+    /* no match */
+
+cleanup:
+    if (f) {
+        fclose(f);
+    }
+    free(line);
+    ssh_key_free(pub_key);
+    return ret;
 }
 
-/* /ietf-netconf-server:netconf-server/call-home/netconf-client */
-int
-np2srv_ch_client_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name), const char *xpath,
-        sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
-{
-    sr_change_iter_t *iter;
-    sr_change_oper_t op;
-    const struct lyd_node *node;
-    const char *client_name;
-    int rc;
-
-    rc = sr_get_changes_iter(session, xpath, &iter);
-    if (rc != SR_ERR_OK) {
-        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
-        return rc;
-    }
-
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
-        /* get name */
-        client_name = lyd_get_value(lyd_child(node));
-
-        /* ignore other operations */
-        if (op == SR_OP_CREATED) {
-            rc = nc_server_ch_add_client(client_name);
-            if (!rc) {
-                rc = nc_connect_ch_client_dispatch(client_name, np2srv_acquire_ctx_cb, np2srv_release_ctx_cb,
-                        np2srv.sr_conn, np2srv_new_session_cb);
-            }
-        } else if (op == SR_OP_DELETED) {
-            rc = nc_server_ch_del_client(client_name);
-        }
-        if (rc) {
-            sr_free_change_iter(iter);
-            return SR_ERR_INTERNAL;
-        }
-    }
-    sr_free_change_iter(iter);
-    if (rc != SR_ERR_NOT_FOUND) {
-        ERR("Getting next change failed (%s).", sr_strerror(rc));
-        return rc;
-    }
-
-    return SR_ERR_OK;
-}
-
-/* /ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ * /tcp-client-parameters */
-int
-np2srv_ch_client_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
-        const char *xpath, sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
-{
-    sr_change_iter_t *iter;
-    sr_change_oper_t op;
-    const struct lyd_node *node;
-    const char *endpt_name, *client_name;
-    char *xpath2;
-    int rc;
-
-    if (asprintf(&xpath2, "%s/*", xpath) == -1) {
-        EMEM;
-        return SR_ERR_NO_MEMORY;
-    }
-    rc = sr_get_changes_iter(session, xpath2, &iter);
-    free(xpath2);
-    if (rc != SR_ERR_OK) {
-        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
-        return rc;
-    }
-
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
-        /* find names */
-        endpt_name = lyd_get_value(node->parent->parent->parent->child);
-        client_name = lyd_get_value(node->parent->parent->parent->parent->parent->child);
-
-        if (!strcmp(node->schema->name, "remote-address")) {
-            if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-                if (nc_server_ch_client_endpt_set_address(client_name, endpt_name, lyd_get_value(node))) {
-                    sr_free_change_iter(iter);
-                    return SR_ERR_INTERNAL;
-                }
-            }
-        } else if (!strcmp(node->schema->name, "remote-port")) {
-            if ((op == SR_OP_CREATED) || (op == SR_OP_MODIFIED)) {
-                if (nc_server_ch_client_endpt_set_port(client_name, endpt_name, ((struct lyd_node_term *)node)->value.uint16)) {
-                    sr_free_change_iter(iter);
-                    return SR_ERR_INTERNAL;
-                }
-            }
-        } else if (!strcmp(node->schema->name, "keepalives")) {
-            if (op == SR_OP_CREATED) {
-                rc = nc_server_ch_client_endpt_enable_keepalives(client_name, endpt_name, 1);
-            } else if (op == SR_OP_DELETED) {
-                if (nc_server_ch_client_is_endpt(client_name, endpt_name)) {
-                    rc = nc_server_ch_client_endpt_enable_keepalives(client_name, endpt_name, 0);
-                }
-            }
-            if (rc) {
-                sr_free_change_iter(iter);
-                return SR_ERR_INTERNAL;
-            }
-
-            /* set specific parameters */
-            if (asprintf(&xpath2, "%s/keepalives/*", xpath) == -1) {
-                EMEM;
-                return SR_ERR_NO_MEMORY;
-            }
-            rc = np2srv_tcp_keepalives(client_name, endpt_name, session, xpath2);
-            free(xpath2);
-            if (rc != SR_ERR_OK) {
-                sr_free_change_iter(iter);
-                return rc;
-            }
-        }
-    }
-    sr_free_change_iter(iter);
-    if (rc != SR_ERR_NOT_FOUND) {
-        ERR("Getting next change failed (%s).", sr_strerror(rc));
-        return rc;
-    }
-
-    return SR_ERR_OK;
-}
-
-/* /ietf-netconf-server:netconf-server/call-home/netconf-client/connection-type */
-int
-np2srv_ch_connection_type_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
-        const char *xpath, sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
-{
-    sr_change_iter_t *iter;
-    sr_change_oper_t op;
-    const struct lyd_node *node;
-    const char *client_name;
-    char *xpath2;
-    int rc;
-
-    if (asprintf(&xpath2, "%s/*", xpath) == -1) {
-        EMEM;
-        return SR_ERR_NO_MEMORY;
-    }
-    rc = sr_get_changes_iter(session, xpath2, &iter);
-    free(xpath2);
-    if (rc != SR_ERR_OK) {
-        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
-        return rc;
-    }
-
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
-        /* find names */
-        client_name = lyd_get_value(node->parent->parent->child);
-
-        /* connection type */
-        if (op == SR_OP_CREATED) {
-            if (!strcmp(node->schema->name, "persistent")) {
-                if (nc_server_ch_client_set_conn_type(client_name, NC_CH_PERSIST)) {
-                    sr_free_change_iter(iter);
-                    return SR_ERR_INTERNAL;
-                }
-            } else if (!strcmp(node->schema->name, "periodic")) {
-                if (nc_server_ch_client_set_conn_type(client_name, NC_CH_PERIOD)) {
-                    sr_free_change_iter(iter);
-                    return SR_ERR_INTERNAL;
-                }
-            }
-        }
-    }
-    sr_free_change_iter(iter);
-    if (rc != SR_ERR_NOT_FOUND) {
-        ERR("Getting next change failed (%s).", sr_strerror(rc));
-        return rc;
-    }
-
-    return SR_ERR_OK;
-}
-
-/* /ietf-netconf-server:netconf-server/call-home/netconf-client/connection-type/periodic */
-int
-np2srv_ch_periodic_params_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
-        const char *xpath, sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
-{
-    sr_change_iter_t *iter;
-    sr_change_oper_t op;
-    const struct lyd_node *node;
-    const char *client_name;
-    char *xpath2;
-    int rc;
-    time_t t;
-
-    if (asprintf(&xpath2, "%s/*", xpath) == -1) {
-        EMEM;
-        return SR_ERR_NO_MEMORY;
-    }
-    rc = sr_get_changes_iter(session, xpath2, &iter);
-    free(xpath2);
-    if (rc != SR_ERR_OK) {
-        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
-        return rc;
-    }
-
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
-        /* find names */
-        client_name = lyd_get_value(node->parent->parent->parent->child);
-
-        if (!strcmp(node->schema->name, "period")) {
-            if (op == SR_OP_DELETED) {
-                if (nc_server_ch_is_client(client_name)) {
-                    /* set default */
-                    rc = nc_server_ch_client_periodic_set_period(client_name, 60);
-                }
-            } else {
-                rc = nc_server_ch_client_periodic_set_period(client_name, ((struct lyd_node_term *)node)->value.uint16);
-            }
-        } else if (!strcmp(node->schema->name, "anchor-time")) {
-            if (op == SR_OP_DELETED) {
-                if (nc_server_ch_is_client(client_name)) {
-                    /* set default */
-                    rc = nc_server_ch_client_periodic_set_anchor_time(client_name, 0);
-                }
-            } else {
-                ly_time_str2time(lyd_get_value(node), &t, NULL);
-                rc = nc_server_ch_client_periodic_set_anchor_time(client_name, t);
-            }
-        } else if (!strcmp(node->schema->name, "idle-timeout")) {
-            if (op == SR_OP_DELETED) {
-                if (nc_server_ch_is_client(client_name)) {
-                    /* set default */
-                    rc = nc_server_ch_client_periodic_set_idle_timeout(client_name, 120);
-                }
-            } else {
-                rc = nc_server_ch_client_periodic_set_idle_timeout(client_name,
-                        ((struct lyd_node_term *)node)->value.uint16);
-            }
-        }
-        if (rc) {
-            sr_free_change_iter(iter);
-            return SR_ERR_INTERNAL;
-        }
-    }
-    sr_free_change_iter(iter);
-    if (rc != SR_ERR_NOT_FOUND) {
-        ERR("Getting next change failed (%s).", sr_strerror(rc));
-        return rc;
-    }
-
-    return SR_ERR_OK;
-}
-
-/* /ietf-netconf-server:netconf-server/call-home/netconf-client/reconnect-strategy */
-int
-np2srv_ch_reconnect_strategy_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
-        const char *xpath, sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
-{
-    sr_change_iter_t *iter;
-    sr_change_oper_t op;
-    const struct lyd_node *node;
-    const char *client_name, *str;
-    char *xpath2;
-    int rc;
-
-    if (asprintf(&xpath2, "%s/*", xpath) == -1) {
-        EMEM;
-        return SR_ERR_NO_MEMORY;
-    }
-    rc = sr_get_changes_iter(session, xpath2, &iter);
-    free(xpath2);
-    if (rc != SR_ERR_OK) {
-        ERR("Getting changes iter failed (%s).", sr_strerror(rc));
-        return rc;
-    }
-
-    while ((rc = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
-        /* find name */
-        client_name = lyd_get_value(node->parent->parent->child);
-
-        if (!strcmp(node->schema->name, "start-with")) {
-            if (op == SR_OP_DELETED) {
-                if (nc_server_ch_is_client(client_name)) {
-                    /* set default */
-                    rc = nc_server_ch_client_set_start_with(client_name, NC_CH_FIRST_LISTED);
-                }
-            } else {
-                str = lyd_get_value(node);
-                if (!strcmp(str, "first-listed")) {
-                    rc = nc_server_ch_client_set_start_with(client_name, NC_CH_FIRST_LISTED);
-                } else if (!strcmp(str, "last-connected")) {
-                    rc = nc_server_ch_client_set_start_with(client_name, NC_CH_LAST_CONNECTED);
-                } else if (!strcmp(str, "random-selection")) {
-                    rc = nc_server_ch_client_set_start_with(client_name, NC_CH_RANDOM);
-                }
-            }
-        } else if (!strcmp(node->schema->name, "max-attempts")) {
-            if (op == SR_OP_DELETED) {
-                if (nc_server_ch_is_client(client_name)) {
-                    /* set default */
-                    rc = nc_server_ch_client_set_max_attempts(client_name, 3);
-                }
-            } else {
-                rc = nc_server_ch_client_set_max_attempts(client_name, ((struct lyd_node_term *)node)->value.uint8);
-            }
-        }
-
-        if (rc) {
-            sr_free_change_iter(iter);
-            return SR_ERR_INTERNAL;
-        }
-    }
-    sr_free_change_iter(iter);
-    if (rc != SR_ERR_NOT_FOUND) {
-        ERR("Getting next change failed (%s).", sr_strerror(rc));
-        return rc;
-    }
-
-    return SR_ERR_OK;
-}
+#endif /* NC_ENABLED_SSH_TLS */

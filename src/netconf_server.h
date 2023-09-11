@@ -20,27 +20,28 @@
 #include <nc_server.h>
 #include <sysrepo.h>
 
-int np2srv_sr_get_privkey(const struct lyd_node *asym_key, char **privkey_data, NC_SSH_KEY_TYPE *privkey_type);
-
-int np2srv_idle_timeout_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
+/**
+ * @brief Callback for handling netconf-server, ietf-keystore and ietf-truststore data changes.
+ *
+ * The diff is given to libnetconf2, which then handles the changes.
+ *
+ * @param session sysrepo session.
+ * @param[in] sub_id Subscription identifier.
+ * @param[in] module_name Module's name.
+ * @param[in] xpath XPath.
+ * @param[in] event Event.
+ * @param[in] request_id Request identifier.
+ * @param private_data Private data.
+ *
+ * @return SR_ERR_OK on success, on error any other value.
+ */
+int np2srv_libnetconf2_config_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
         sr_event_t event, uint32_t request_id, void *private_data);
 
-int np2srv_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
-        sr_event_t event, uint32_t request_id, void *private_data);
+#ifdef NC_ENABLED_SSH_TLS
 
-int np2srv_ch_client_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
-        sr_event_t event, uint32_t request_id, void *private_data);
+int np2srv_pubkey_auth_cb(const struct nc_session *session, ssh_key key, void *user_data);
 
-int np2srv_ch_client_endpt_tcp_params_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
-        const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
-
-int np2srv_ch_connection_type_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
-        sr_event_t event, uint32_t request_id, void *private_data);
-
-int np2srv_ch_periodic_params_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *xpath,
-        sr_event_t event, uint32_t request_id, void *private_data);
-
-int np2srv_ch_reconnect_strategy_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
-        const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
+#endif /* NC_ENABLED_SSH_TLS */
 
 #endif /* NP2SRV_NETCONF_SERVER_H_ */
