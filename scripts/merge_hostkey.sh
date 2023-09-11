@@ -29,19 +29,14 @@ PRIVPEM=`$OPENSSL genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform 
 # remove header/footer and newlines
 PRIVKEY=`echo "$PRIVPEM" | grep -v -- "-----" | tr -d "\n"`
 
-# get public key
-PUBPEM=`echo "$PRIVPEM" | $OPENSSL rsa -pubout 2>/dev/null`
-# remove header/footer and newlines
-PUBKEY=`echo "$PUBPEM" | grep -v -- "-----" | tr -d "\n"`
-
 # generate edit config
 CONFIG="<keystore xmlns=\"urn:ietf:params:xml:ns:yang:ietf-keystore\">
     <asymmetric-keys>
         <asymmetric-key>
             <name>genkey</name>
-            <algorithm>rsa2048</algorithm>
-            <public-key>$PUBKEY</public-key>
-            <private-key>$PRIVKEY</private-key>
+            <public-key-format xmlns:ct=\"urn:ietf:params:xml:ns:yang:ietf-crypto-types\">ct:ssh-public-key-format</public-key-format>
+            <private-key-format xmlns:ct=\"urn:ietf:params:xml:ns:yang:ietf-crypto-types\">ct:rsa-private-key-format</private-key-format>
+            <cleartext-private-key>$PRIVKEY</cleartext-private-key>
         </asymmetric-key>
     </asymmetric-keys>
 </keystore>"
