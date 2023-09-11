@@ -17,6 +17,10 @@ KS_KEY_NAME=genkey
 SERVER_CONFIG=`$SYSREPOCFG -X -x "/ietf-netconf-server:netconf-server/listen/endpoint[1]/name | /ietf-netconf-server:netconf-server/call-home/netconf-client[1]/name"`
 if [ -z "$SERVER_CONFIG" ]; then
 
+# get the user who invoked the script and his password, use it to create an SSH user in the default config
+CURRENT_USER="$SUDO_USER"
+CURRENT_USER_PASSWORD=$(awk -v user="$CURRENT_USER" -F':' '$1 == user {print $2}' /etc/shadow)
+
 # import default config
 CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\">
     <listen>
@@ -41,11 +45,12 @@ CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\
                         </host-key>
                     </server-identity>
                     <client-authentication>
-                        <supported-authentication-methods>
-                            <publickey/>
-                            <passsword/>
-                        </supported-authentication-methods>
-                        <users/>
+                        <users>
+                            <user>
+                                <name>$CURRENT_USER</name>
+                                <password>$CURRENT_USER_PASSWORD</password>
+                            </user>
+                        </users>
                     </client-authentication>
                 </ssh-server-parameters>
             </ssh>
