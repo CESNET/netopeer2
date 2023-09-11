@@ -40,18 +40,10 @@
 #include "err_netconf.h"
 #include "log.h"
 #include "netconf.h"
-#if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
-# include "netconf_server.h"
-#endif
-#ifdef NC_ENABLED_SSH
-# include "netconf_server_ssh.h"
-#endif
-#ifdef NC_ENABLED_TLS
-# include "netconf_server_tls.h"
-#endif
 #include "netconf_confirmed_commit.h"
 #include "netconf_monitoring.h"
 #include "netconf_nmda.h"
+#include "netconf_server.h"
 #include "netconf_subscribed_notifications.h"
 #include "yang_push.h"
 
@@ -189,7 +181,6 @@ np2srv_del_session_cb(struct nc_session *session)
         }
         free(event_data);
     }
-
     /* stop monitoring and free NC session */
     ncm_session_del(session);
     nc_session_free(session, NULL);
@@ -620,37 +611,10 @@ server_init(void)
     /* set libnetconf2 global PRC callback */
     nc_set_global_rpc_clb(np2srv_rpc_cb);
 
-#ifdef NC_ENABLED_SSH
-    /* set libnetconf2 SSH callbacks */
-    nc_server_ssh_set_hostkey_clb(np2srv_hostkey_cb, NULL, NULL);
+#ifdef NC_ENABLED_SSH_TLS
+    /* set libnetconf2 SSH pubkey auth callback */
     nc_server_ssh_set_pubkey_auth_clb(np2srv_pubkey_auth_cb, NULL, NULL);
-
-    /* configure netconf2 PAM module */
-    if (np2srv.pam_config_name) {
-        nc_server_ssh_set_pam_conf_path(np2srv.pam_config_name, np2srv.pam_config_dir);
-    }
 #endif
-
-#ifdef NC_ENABLED_TLS
-    /* set libnetconf2 TLS callbacks */
-    nc_server_tls_set_server_cert_clb(np2srv_cert_cb, NULL, NULL);
-    nc_server_tls_set_trusted_cert_list_clb(np2srv_cert_list_cb, NULL, NULL);
-#endif
-
-    /* UNIX socket */
-    if (np2srv.unix_path) {
-        if (nc_server_add_endpt("unix", NC_TI_UNIX)) {
-            goto error;
-        }
-
-        if (nc_server_endpt_set_perms("unix", np2srv.unix_mode, np2srv.unix_uid, np2srv.unix_gid)) {
-            goto error;
-        }
-
-        if (nc_server_endpt_set_address("unix", np2srv.unix_path)) {
-            goto error;
-        }
-    }
 
     /* restore a previous confirmed commit if restore file exists */
     ncc_try_restore();
@@ -670,9 +634,18 @@ server_destroy(void)
 {
     struct nc_session *sess;
 
-#if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
+#ifdef NC_ENABLED_SSH_TLS
+    struct lyd_node *data = NULL, *node = NULL;
+    const struct ly_ctx *ly_ctx;
+
     /* remove all CH clients so they do not reconnect */
-    nc_server_ch_del_client(NULL);
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
+    lyd_new_path2(NULL, ly_ctx, "/ietf-netconf-server:netconf-server/call-home", NULL, 0, 0, 0, &data, &node);
+    lyd_new_meta(ly_ctx, data, NULL, "yang:operation", "none", 0, NULL);
+    lyd_new_meta(ly_ctx, node, NULL, "yang:operation", "delete", 0, NULL);
+    nc_server_config_setup_diff(data);
+    lyd_free_tree(data);
+    sr_release_context(np2srv.sr_conn);
 #endif
 
     /* close all open sessions */
@@ -696,11 +669,6 @@ server_destroy(void)
     /* libnetconf2 cleanup */
     nc_server_destroy();
 
-    /* UNIX socket can now be removed */
-    if (np2srv.unix_path) {
-        unlink(np2srv.unix_path);
-    }
-
     /* monitoring cleanup */
     ncm_destroy();
 
@@ -717,16 +685,45 @@ server_destroy(void)
     sr_disconnect(np2srv.sr_conn);
 }
 
-#if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
-
 static int
-np2srv_dummy_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
-        const char *UNUSED(xpath), sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+server_open_pidfile(const char *pidfile)
 {
-    return SR_ERR_OK;
-}
+    int pidfd, len;
+    char pid[8];
 
-#endif
+    /* make sure we are the only instance - lock the PID file and write the PID */
+    pidfd = open(pidfile, O_RDWR | O_CREAT, 00644);
+    if (pidfd < 0) {
+        ERR("Unable to open the PID file \"%s\" (%s).", pidfile, strerror(errno));
+        return -1;
+    }
+
+    if (lockf(pidfd, F_TLOCK, 0) < 0) {
+        close(pidfd);
+        if ((errno == EACCES) || (errno == EAGAIN)) {
+            ERR("Another instance of the Netopeer2 server is running.");
+        } else {
+            ERR("Unable to lock the PID file \"%s\" (%s).", pidfile, strerror(errno));
+        }
+        return -1;
+    }
+
+    if (ftruncate(pidfd, 0)) {
+        ERR("Failed to truncate PID file (%s).", strerror(errno));
+        close(pidfd);
+        return -1;
+    }
+
+    len = snprintf(pid, sizeof(pid), "%d\n", getpid());
+    if ((len < 0) || (write(pidfd, pid, len) < len)) {
+        ERR("Failed to write into PID file.");
+        close(pidfd);
+        return -1;
+    }
+
+    close(pidfd);
+    return 0;
+}
 
 /**
  * @brief Subscribe to all the handled RPCs of the server.
@@ -847,122 +844,11 @@ server_data_subscribe(void)
     SR_OPER_SUBSCR(mod_name, "/ietf-subscribed-notifications:subscriptions", np2srv_oper_sub_ntf_subscriptions_cb);
 
     /*
-     * ietf-netconf-server
+     * ietf-netconf-server, ietf-keystore and ietf-trustore handled by ln2
      */
-    mod_name = "ietf-netconf-server";
-
-#if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
-    xpath = "/ietf-netconf-server:netconf-server/listen/idle-timeout";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_idle_timeout_cb);
-#endif
-
-#ifdef NC_ENABLED_SSH
-    /* subscribe for server SSH listen configuration changes */
-    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_ssh_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/tcp-server-parameters";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_tcp_params_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/server-identity/host-key/"
-            "public-key/keystore-reference";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_ssh_hostkey_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/client-authentication/"
-            "supported-authentication-methods";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_ssh_auth_methods_cb);
-
-    /* subscribe for providing SSH operational data */
-    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/ssh/ssh-server-parameters/client-authentication/users";
-    SR_OPER_SUBSCR(mod_name, xpath, np2srv_endpt_ssh_auth_users_oper_cb);
-#endif
-
-#ifdef NC_ENABLED_TLS
-    /* subscribe for server TLS listen configuration changes */
-    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_tls_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls/tcp-server-parameters";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_tcp_params_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls/tls-server-parameters/server-identity/keystore-reference";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_tls_servercert_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls/tls-server-parameters/client-authentication";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_tls_client_auth_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/listen/endpoint/tls/tls-server-parameters/client-authentication/cert-maps";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_endpt_tls_client_ctn_cb);
-#endif
-
-#if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
-    /* subscribe for generic Call Home configuration changes */
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/connection-type";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_connection_type_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/connection-type/periodic";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_periodic_params_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/reconnect-strategy";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_reconnect_strategy_cb);
-#endif
-
-#ifdef NC_ENABLED_SSH
-    /* subscribe for server SSH Call Home configuration changes */
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_ssh_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh/tcp-client-parameters";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_tcp_params_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh/ssh-server-parameters/"
-            "server-identity/host-key/public-key/keystore-reference";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_endpt_ssh_hostkey_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh/ssh-server-parameters/"
-            "client-authentication/supported-authentication-methods";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_endpt_ssh_auth_methods_cb);
-#endif
-
-#ifdef NC_ENABLED_TLS
-    /* subscribe for TLS Call Home configuration changes */
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_tls_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls/tcp-client-parameters";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_tcp_params_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls/tls-server-parameters/"
-            "server-identity/keystore-reference";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_tls_servercert_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls/tls-server-parameters/"
-            "client-authentication";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_tls_client_auth_cb);
-
-    xpath = "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/tls/tls-server-parameters/"
-            "client-authentication/cert-maps";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_ch_client_endpt_tls_client_ctn_cb);
-#endif
-
-#if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
-    /*
-     * ietf-keystore (just for in-use operational data)
-     */
-    mod_name = "ietf-keystore";
-    xpath = "/ietf-keystore:keystore/asymmetric-keys";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_dummy_cb);
-
-    /*
-     * ietf-truststore (just for in-use operational data)
-     */
-    mod_name = "ietf-truststore";
-    xpath = "/ietf-truststore:truststore/certificates";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_dummy_cb);
-#endif
+    SR_CONFIG_SUBSCR("ietf-netconf-server", NULL, np2srv_libnetconf2_config_cb);
+    SR_CONFIG_SUBSCR("ietf-keystore", NULL, np2srv_libnetconf2_config_cb);
+    SR_CONFIG_SUBSCR("ietf-truststore", NULL, np2srv_libnetconf2_config_cb);
 
     /*
      * ietf-netconf-acm
@@ -1023,11 +909,13 @@ server_accept_session(void)
 static void *
 worker_thread(void *arg)
 {
+#ifdef NC_ENABLED_SSH_TLS
     NC_MSG_TYPE msgtype;
+#endif /* NC_ENABLED_SSH_TLS */
     int rc, idx = *((int *)arg);
     struct nc_session *ncs;
 
-#ifdef NC_ENABLED_SSH
+#ifdef NC_ENABLED_SSH_TLS
     nc_libssh_thread_verbosity(np2_libssh_verbose_level);
 #endif
 
@@ -1062,7 +950,7 @@ worker_thread(void *arg)
             np2srv_del_session_cb(ncs);
             sr_release_context(np2srv.sr_conn);
         }
-#ifdef NC_ENABLED_SSH
+#ifdef NC_ENABLED_SSH_TLS
         else if (rc & NC_PSPOLL_SSH_CHANNEL) {
             /* a new SSH channel on existing session was created */
             VRB("Session %d: thread %d event new SSH channel.", nc_session_get_id(ncs), idx);
@@ -1083,9 +971,6 @@ worker_thread(void *arg)
     }
 
     /* cleanup */
-#if defined (NC_ENABLED_SSH) || defined (NC_ENABLED_TLS)
-    nc_thread_destroy();
-#endif
     free(arg);
     return NULL;
 }
@@ -1125,7 +1010,7 @@ print_usage(char *progname)
     fprintf(stdout, " -c CATEGORY[,CATEGORY...]\n");
 #ifndef NDEBUG
     fprintf(stdout, "            Verbose debug level, print only these debug message categories.\n");
-# ifdef NC_ENABLED_SSH
+# ifdef NC_ENABLED_SSH_TLS
     fprintf(stdout, "            Categories: DICT, YANG, YIN, XPATH, DIFF, MSG, LN2DBG, SSH, SYSREPO\n");
 # else
     fprintf(stdout, "            Categories: DICT, YANG, YIN, XPATH, DIFF, MSG, LN2DBG, SYSREPO\n");
@@ -1142,12 +1027,8 @@ main(int argc, char *argv[])
     int ret = EXIT_SUCCESS;
     int c, *idx, i;
     int daemonize = 1, verb = 0;
-    int pidfd;
     const char *pidfile = NP2SRV_PID_FILE_PATH;
-    char pid[8];
     char *ptr;
-    struct passwd *pwd;
-    struct group *grp;
     struct sigaction action;
     sigset_t block_mask;
 
@@ -1174,7 +1055,7 @@ main(int argc, char *argv[])
     np2srv.server_dir = SERVER_DIR;
 
     /* process command line options */
-    while ((c = getopt(argc, argv, "dFhVp:f:U::m:u:g:n:i:t:x:v:c:")) != -1) {
+    while ((c = getopt(argc, argv, "dFhVp:f:t:x:v:c:")) != -1) {
         switch (c) {
         case 'd':
             daemonize = 0;
@@ -1212,7 +1093,7 @@ main(int argc, char *argv[])
             }
 
             nc_verbosity(np2_verbose_level);
-#ifdef NC_ENABLED_SSH
+#ifdef NC_ENABLED_SSH_TLS
             nc_libssh_thread_verbosity(np2_libssh_verbose_level);
 #endif
             break;
@@ -1224,44 +1105,6 @@ main(int argc, char *argv[])
             break;
         case 'f':
             np2srv.server_dir = optarg;
-            break;
-        case 'U':
-            np2srv.unix_path = optarg ? optarg : NP2SRV_UNIX_SOCK_PATH;
-            break;
-        case 'm':
-            np2srv.unix_mode = strtoul(optarg, &ptr, 8);
-            if (*ptr || (np2srv.unix_mode > 0777)) {
-                ERR("Invalid UNIX socket mode \"%s\".", optarg);
-                return EXIT_FAILURE;
-            }
-            break;
-        case 'u':
-            np2srv.unix_uid = strtoul(optarg, &ptr, 10);
-            if (*ptr) {
-                pwd = getpwnam(optarg);
-                if (!pwd) {
-                    ERR("Invalid UNIX socket UID/user \"%s\".", optarg);
-                    return EXIT_FAILURE;
-                }
-                np2srv.unix_uid = pwd->pw_uid;
-            }
-            break;
-        case 'g':
-            np2srv.unix_gid = strtoul(optarg, &ptr, 10);
-            if (*ptr) {
-                grp = getgrnam(optarg);
-                if (!grp) {
-                    ERR("Invalid UNIX socket GID/group \"%s\".", optarg);
-                    return EXIT_FAILURE;
-                }
-                np2srv.unix_gid = grp->gr_gid;
-            }
-            break;
-        case 'n':
-            np2srv.pam_config_name = optarg;
-            break;
-        case 'i':
-            np2srv.pam_config_dir = optarg;
             break;
         case 't':
             np2srv.sr_timeout = strtoul(optarg, &ptr, 10);
@@ -1295,11 +1138,11 @@ main(int argc, char *argv[])
                 } else if (!strcmp(ptr, "XPATH")) {
                     verb |= LY_LDGXPATH;
                 } else if (!strcmp(ptr, "MSG")) {
-                    /* NETCONF messages - only lnc2 debug verbosity */
+                    /* NETCONF messages - only ln2 debug verbosity */
                     np2_verbose_level = NC_VERB_DEBUG;
                 } else if (!strcmp(ptr, "LN2DBG")) {
                     np2_verbose_level = NC_VERB_DEBUG_LOWLVL;
-# ifdef NC_ENABLED_SSH
+# ifdef NC_ENABLED_SSH_TLS
                 } else if (!strcmp(ptr, "SSH")) {
                     /* 2 should be always enough, 3 is too much useless info */
                     np2_libssh_verbose_level = 2;
@@ -1313,7 +1156,7 @@ main(int argc, char *argv[])
             } while ((ptr = strtok(NULL, ",")));
             /* set final verbosity */
             nc_verbosity(np2_verbose_level);
-# ifdef NC_ENABLED_SSH
+# ifdef NC_ENABLED_SSH_TLS
             nc_libssh_thread_verbosity(np2_libssh_verbose_level);
 # endif
             if (verb) {
@@ -1345,34 +1188,6 @@ main(int argc, char *argv[])
         np2_stderr_log = 0;
     }
 
-    /* make sure we are the only instance - lock the PID file and write the PID */
-    pidfd = open(pidfile, O_RDWR | O_CREAT, 00644);
-    if (pidfd < 0) {
-        ERR("Unable to open the PID file \"%s\" (%s).", pidfile, strerror(errno));
-        return EXIT_FAILURE;
-    }
-    if (lockf(pidfd, F_TLOCK, 0) < 0) {
-        close(pidfd);
-        if ((errno == EACCES) || (errno == EAGAIN)) {
-            ERR("Another instance of the Netopeer2 server is running.");
-        } else {
-            ERR("Unable to lock the PID file \"%s\" (%s).", pidfile, strerror(errno));
-        }
-        return EXIT_FAILURE;
-    }
-    if (ftruncate(pidfd, 0)) {
-        ERR("Failed to truncate PID file (%s).", strerror(errno));
-        close(pidfd);
-        return EXIT_FAILURE;
-    }
-    c = snprintf(pid, sizeof(pid), "%d\n", getpid());
-    if (write(pidfd, pid, c) < c) {
-        ERR("Failed to write into PID file.");
-        close(pidfd);
-        return EXIT_FAILURE;
-    }
-    close(pidfd);
-
     /* set printer callbacks for the used libraries and set proper log levels */
     nc_set_print_clb_session(np2log_cb_nc2); /* libnetconf2 */
     ly_set_log_clb(np2log_cb_ly, 1); /* libyang */
@@ -1390,6 +1205,12 @@ main(int argc, char *argv[])
         goto cleanup;
     }
     if (server_data_subscribe()) {
+        ret = EXIT_FAILURE;
+        goto cleanup;
+    }
+
+    /* open/create pidfile */
+    if (server_open_pidfile(pidfile)) {
         ret = EXIT_FAILURE;
         goto cleanup;
     }
