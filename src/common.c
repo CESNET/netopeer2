@@ -49,7 +49,7 @@
 #include "log.h"
 #include "netconf_monitoring.h"
 
-struct np2srv np2srv = {.unix_mode = -1, .unix_uid = -1, .unix_gid = -1, .pam_config_name = NULL, .pam_config_dir = NULL};
+struct np2srv np2srv = {0};
 
 int
 np_ignore_rpc(sr_session_ctx_t *ev_sess, sr_event_t event, int *rc)
