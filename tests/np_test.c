@@ -54,15 +54,15 @@ parse_arg(int argc, char **argv)
 }
 
 static int
-setup_server_socket_wait(const char *socket_path)
+setup_server_file_exists_wait(const char *path)
 {
     /* max sleep 10s */
-    const uint32_t sleep_count = 400;
-    const struct timespec ts = {.tv_sec = 0, .tv_nsec = 25000000};
+    const uint32_t sleep_count = 200;
+    const struct timespec ts = {.tv_sec = 0, .tv_nsec = 50000000};
     uint32_t count = 0;
 
     while (count < sleep_count) {
-        if (!access(socket_path, F_OK)) {
+        if (!access(path, F_OK)) {
             break;
         }
 
@@ -135,7 +135,7 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
 {
     struct np_test *st;
     pid_t pid;
-    char str[256], server_dir[256], sock_param[128], extdata_path[256];
+    char str[256], server_dir[256], extdata_path[256], sock_path[256], pidfile_path[256];
     int fd, pipefd[2], buf;
 
     if (!getcwd(str, 256)) {
@@ -155,6 +155,10 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
         SETUP_FAIL_LOG;
         return 1;
     }
+    if (setenv("LN2_MODULE_DIR", LN2_YANG_MODULE_DIR, 1)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
     if (setenv("NP2_MODULE_PERMS", "600", 1)) {
         SETUP_FAIL_LOG;
         return 1;
@@ -164,6 +168,10 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
         return 1;
     }
     if (unsetenv("NP2_MODULE_DIR")) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (unsetenv("LN2_MODULE_DIR")) {
         SETUP_FAIL_LOG;
         return 1;
     }
@@ -185,13 +193,16 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
     }
 
     /* generate path to socket */
-    sprintf(sock_param, "-U%s/%s/%s", NP_TEST_DIR, test_name, NP_SOCKET_FILE);
+    sprintf(sock_path, "%s/%s/%s", NP_TEST_DIR, test_name, NP_SOCKET_FILE);
 
     /* generate path to server-files */
     sprintf(server_dir, "%s/%s", NP_TEST_DIR, test_name);
 
     /* generate path to the schema-mount ext data */
     sprintf(extdata_path, "%s/%s", NP_TEST_MODULE_DIR, NP_EXT_DATA_FILE);
+
+    /* generate path to the server's pidfile */
+    sprintf(pidfile_path, "%s/%s/%s", NP_TEST_DIR, test_name, NP_PID_FILE);
 
     /* fork and start the server */
     if (!(pid = fork())) {
@@ -221,9 +232,7 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
         close(fd);
 
         /* exec server listening on a unix socket */
-        sprintf(str, "-p%s/%s/%s", NP_TEST_DIR, test_name, NP_PID_FILE);
-        execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", str, sock_param,
-                "-m 600", "-f", server_dir, "-x", extdata_path, NULL);
+        execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", "-p", pidfile_path, "-f", server_dir, "-x", extdata_path, NULL);
 
 child_error:
         printf("Child execution failed\n");
@@ -241,8 +250,8 @@ child_error:
         close(pipefd[0]);
     }
 
-    /* wait for the server, until it creates its socket */
-    if (setup_server_socket_wait(sock_param + 2)) {
+    /* wait until the server creates a pidfile */
+    if (setup_server_file_exists_wait(pidfile_path)) {
         SETUP_FAIL_LOG;
         return 1;
     }
@@ -255,7 +264,7 @@ child_error:
     }
     *state = st;
     st->server_pid = pid;
-    strncpy(st->socket_path, sock_param + 2, sizeof st->socket_path - 1);
+    strncpy(st->socket_path, sock_path, sizeof st->socket_path - 1);
     strncpy(st->test_name, test_name, sizeof st->test_name - 1);
 
     /* create connection and install modules */
@@ -268,18 +277,39 @@ child_error:
         return 1;
     }
 
-    /* start session and acquire context */
+    /* start session */
     if (sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess)) {
         SETUP_FAIL_LOG;
         return 1;
     }
+
+    /* prepare UNIX socket data for server configuration in the data store */
+    if (sr_set_item_str(st->sr_sess, "/ietf-netconf-server:netconf-server/listen/endpoint[name='unix']/libnetconf2-netconf-server:unix-socket/path", sock_path, NULL, 0) != SR_ERR_OK) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (sr_set_item_str(st->sr_sess, "/ietf-netconf-server:netconf-server/listen/endpoint[name='unix']/libnetconf2-netconf-server:unix-socket/mode", "600", NULL, 0) != SR_ERR_OK) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+
+    /* apply the configuration */
+    if (sr_apply_changes(st->sr_sess, 0)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+
+    /* acquire context */
     if (!(st->ctx = sr_acquire_context(st->conn))) {
         SETUP_FAIL_LOG;
         return 1;
     }
 
     /* init LNC2 */
-    nc_client_init();
+    if (nc_client_init()) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
     nc_client_set_schema_searchpath(NP_TEST_MODULE_DIR);
 
     /* create NETCONF sessions */
@@ -320,7 +350,7 @@ np_glob_teardown(void **state, const char **modules)
 
     /* uninstall modules */
     if (modules && (rc = sr_remove_modules(st->conn, modules, 0))) {
-        printf("sr_remove_module() failed (%s)\n", sr_strerror(rc));
+        printf("sr_remove_modules() failed (%s)\n", sr_strerror(rc));
         ret = 1;
     }
 
