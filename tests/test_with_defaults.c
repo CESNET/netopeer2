@@ -71,7 +71,7 @@ test_all_nothing_set(void **state)
     const char *expected;
 
     /* Send RPC  trying to get all including default values */
-    st->rpc = nc_rpc_getconfig(NC_DATASTORE_RUNNING, NULL, NC_WD_ALL, NC_PARAMTYPE_CONST);
+    st->rpc = nc_rpc_getconfig(NC_DATASTORE_RUNNING, "/defaults1:*", NC_WD_ALL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
     st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 2000, &st->envp, &st->op);
@@ -163,7 +163,7 @@ test_all_non_default_set(void **state)
     struct np_test *st = *state;
     const char *expected;
 
-    GET_CONFIG_WD(st, NC_WD_ALL);
+    GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_ALL, "/defaults1:*");
 
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -186,7 +186,7 @@ test_all_tag_non_default_set(void **state)
     struct np_test *st = *state;
     const char *expected;
 
-    GET_CONFIG_WD(st, NC_WD_ALL_TAG);
+    GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_ALL_TAG, "/defaults1:*");
 
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -210,7 +210,7 @@ test_trim_non_default_set(void **state)
     struct np_test *st = *state;
     const char *expected;
 
-    GET_CONFIG_WD(st, NC_WD_TRIM);
+    GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_TRIM, "/defaults1:*");
 
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -232,7 +232,7 @@ test_explicit_non_default_set(void **state)
     struct np_test *st = *state;
     const char *expected;
 
-    GET_CONFIG_WD(st, NC_WD_TRIM);
+    GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_TRIM, "/defaults1:*");
 
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -254,7 +254,7 @@ test_all_set_all(void **state)
     struct np_test *st = *state;
     const char *expected;
 
-    GET_CONFIG_WD(st, NC_WD_ALL);
+    GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_ALL, "/defaults1:*");
 
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -277,7 +277,7 @@ test_all_tag_set_all(void **state)
     struct np_test *st = *state;
     const char *expected;
 
-    GET_CONFIG_WD(st, NC_WD_ALL_TAG);
+    GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_ALL_TAG, "/defaults1:*");
 
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -300,7 +300,7 @@ test_trim_set_all(void **state)
     struct np_test *st = *state;
     const char *expected;
 
-    GET_CONFIG_WD(st, NC_WD_TRIM);
+    GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_TRIM, "/defaults1:*");
 
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -323,7 +323,7 @@ test_explicit_all_set(void **state)
     struct np_test *st = *state;
     const char *expected;
 
-    GET_CONFIG_WD(st, NC_WD_EXPLICIT);
+    GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_EXPLICIT, "/defaults1:*");
 
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -346,7 +346,7 @@ test_explicit_all_set_default(void **state)
     struct np_test *st = *state;
     const char *expected;
 
-    GET_CONFIG_WD(st, NC_WD_EXPLICIT);
+    GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_EXPLICIT, "/defaults1:*");
 
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
