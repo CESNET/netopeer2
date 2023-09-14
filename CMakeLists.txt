@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.5)
 
 project(netopeer2 C)
 set(NETOPEER2_DESC "NETCONF tools suite including a server and command-line client")
@@ -155,26 +155,36 @@ set(FORMAT_SRC
 # checks
 #
 
-find_package(PkgConfig)
-if(PKG_CONFIG_FOUND)
-    # lnc2 support for np2srv thread count
-    execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} "--variable=LNC2_MAX_THREAD_COUNT" "libnetconf2" OUTPUT_VARIABLE LNC2_THREAD_COUNT)
-    if(LNC2_THREAD_COUNT)
-        string(STRIP ${LNC2_THREAD_COUNT} LNC2_THREAD_COUNT)
-        if(LNC2_THREAD_COUNT LESS THREAD_COUNT)
-            message(FATAL_ERROR "libnetconf2 was compiled with support up to ${LNC2_THREAD_COUNT} threads, server is configured with ${THREAD_COUNT}.")
-        else()
-            message(STATUS "libnetconf2 was compiled with support of up to ${LNC2_THREAD_COUNT} threads")
-        endif()
-    else()
-        message(STATUS "Unable to learn libnetconf2 thread support, check skipped")
-    endif()
+# PKGCONFIG {
 
-    # sysrepo group
-    execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} "--variable=SR_GROUP" "sysrepo" OUTPUT_VARIABLE SR_GROUP OUTPUT_STRIP_TRAILING_WHITESPACE)
+find_package(PkgConfig REQUIRED)
+
+# find libnetconf2 pkg
+pkg_check_modules(PKG_LN2 REQUIRED libnetconf2)
+
+# libnetconf2 thread count check
+pkg_get_variable(LN2_THREAD_COUNT libnetconf2 LN2_MAX_THREAD_COUNT)
+if(LN2_THREAD_COUNT)
+    if(LN2_THREAD_COUNT LESS THREAD_COUNT)
+        message(FATAL_ERROR "libnetconf2 was compiled with support up to ${LN2_THREAD_COUNT} threads, server is configured with ${THREAD_COUNT}.")
+    else()
+        message(STATUS "libnetconf2 was compiled with support of up to ${LN2_THREAD_COUNT} threads")
+    endif()
 else()
-    message(STATUS "pkg-config not found, so it was not possible to check if libnetconf2 supports ${THREAD_COUNT} threads")
+    message(STATUS "Unable to learn libnetconf2 thread support, check skipped")
 endif()
+
+# get libnetconf2 module directory, use it later when installing modules
+pkg_get_variable(LN2_YANG_MODULE_DIR libnetconf2 LN2_SCHEMAS_DIR)
+if(NOT LN2_YANG_MODULE_DIR)
+    message(FATAL_ERROR "Unable to learn libnetconf2 module search directory.")
+endif()
+
+# find sysrepo pkg and get sysrepo group
+pkg_check_modules(PKG_SR REQUIRED sysrepo)
+pkg_get_variable(SR_GROUP sysrepo SR_GROUP)
+
+# } PKGCONFIG
 
 if(ENABLE_VALGRIND_TESTS)
     find_program(VALGRIND_FOUND valgrind)
@@ -229,19 +239,9 @@ include_directories(${LIBNETCONF2_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBNETCONF2_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBNETCONF2_LIBRARIES})
 
-# at least some remote transport is enabled
-if(LIBNETCONF2_ENABLED_SSH OR LIBNETCONF2_ENABLED_TLS)
+# SSH and TLS enabled
+if(LIBNETCONF2_ENABLED_SSH_TLS)
     list(APPEND SERVER_SRC src/netconf_server.c)
-endif()
-
-# SSH is enabled
-if(LIBNETCONF2_ENABLED_SSH)
-    list(APPEND SERVER_SRC src/netconf_server_ssh.c)
-endif()
-
-# TLS is enabled
-if(LIBNETCONF2_ENABLED_TLS)
-    list(APPEND SERVER_SRC src/netconf_server_tls.c)
 endif()
 
 # link compat
@@ -265,7 +265,7 @@ endif()
 target_link_libraries(netopeer2-server ${LIBNETCONF2_LIBRARIES})
 
 # libssh (was already found, if exists)
-if(LIBSSH_FOUND AND LIBNETCONF2_ENABLED_SSH)
+if(LIBSSH_FOUND AND LIBNETCONF2_ENABLED_SSH_TLS)
     target_link_libraries(netopeer2-server ${LIBSSH_LIBRARIES})
     include_directories(${LIBSSH_INCLUDE_DIRS})
 endif()
@@ -361,6 +361,7 @@ if(INSTALL_MODULES)
         set(ENV{NP2_MODULE_PERMS} \"${MODULES_PERMS}\")
         set(ENV{NP2_MODULE_OWNER} \"${MODULES_OWNER}\")
         set(ENV{NP2_MODULE_GROUP} \"${MODULES_GROUP}\")
+        set(ENV{LN2_MODULE_DIR} \"${LN2_YANG_MODULE_DIR}\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
         set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
         execute_process(COMMAND \"\$ENV{DESTDIR}${SCRIPT_DIR}/setup.sh\" RESULT_VARIABLE SETUP_RES)
