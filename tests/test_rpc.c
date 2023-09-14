@@ -376,7 +376,7 @@ test_getconfig(void **state)
     }
 
     /* get-config */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit1:*");
     assert_string_equal(st->str,
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data/>\n"

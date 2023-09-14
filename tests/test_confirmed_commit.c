@@ -125,8 +125,8 @@ test_sameas_commit(void **state)
     struct np_test *st = *state;
     const char *expected;
 
-    /* Prior to the test running should be empty */
-    ASSERT_EMPTY_CONFIG(st);
+    /* Prior to the test running of edit1 should be empty */
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*")
 
     /* Send a confirmed-commit rpc */
     st->rpc = nc_rpc_commit(1, 0, NULL, NULL, NC_PARAMTYPE_CONST);
@@ -138,7 +138,7 @@ test_sameas_commit(void **state)
     FREE_TEST_VARS(st);
 
     /* Running should now be same as candidate, same as basic commit */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -164,8 +164,8 @@ test_timeout_runout(void **state)
     struct np_test *st = *state;
     const char *expected;
 
-    /* Prior to the test running should be empty */
-    ASSERT_EMPTY_CONFIG(st);
+    /* Prior to the test running of edit1 should be empty */
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*")
 
     /* running lock RPC */
     st->rpc = nc_rpc_lock(NC_DATASTORE_RUNNING);
@@ -202,7 +202,7 @@ test_timeout_runout(void **state)
     sleep(2);
 
     /* Running should have reverted back to it's original value */
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 
     /* running unlock RPC */
     st->rpc = nc_rpc_unlock(NC_DATASTORE_RUNNING);
@@ -221,7 +221,7 @@ test_timeout_confirm(void **state)
     const char *expected;
 
     /* Prior to the test running should be empty */
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 
     /* Send a confirmed-commit rpc with 1s timeout */
     st->rpc = nc_rpc_commit(1, 1, NULL, NULL, NC_PARAMTYPE_CONST);
@@ -233,7 +233,7 @@ test_timeout_confirm(void **state)
     FREE_TEST_VARS(st);
 
     /* Running should now be same as candidate */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -255,7 +255,7 @@ test_timeout_confirm(void **state)
     sleep(2);
 
     /* Data should remain unchanged */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit1:*");
     assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
 }
@@ -268,7 +268,7 @@ test_timeout_confirm_modify(void **state)
     const char *data;
 
     /* Prior to the test running should be empty */
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 
     /* Send a confirmed-commit rpc with 1s timeout */
     st->rpc = nc_rpc_commit(1, 1, NULL, NULL, NC_PARAMTYPE_CONST);
@@ -280,7 +280,7 @@ test_timeout_confirm_modify(void **state)
     FREE_TEST_VARS(st);
 
     /* Running should now be same as candidate */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -307,7 +307,7 @@ test_timeout_confirm_modify(void **state)
     sleep(2);
 
     /* Data should change */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -325,7 +325,7 @@ test_timeout_followup(void **state)
     const char *data, *expected;
 
     /* prior to the test running should be empty */
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 
     /* send a confirmed-commit rpc with 60s timeout */
     st->rpc = nc_rpc_commit(1, 60, NULL, NULL, NC_PARAMTYPE_CONST);
@@ -347,7 +347,7 @@ test_timeout_followup(void **state)
     FREE_TEST_VARS(st);
 
     /* running should now be same as candidate */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -361,7 +361,7 @@ test_timeout_followup(void **state)
     sleep(2);
 
     /* data should remain unchanged, empty */
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 }
 
 static void
@@ -371,7 +371,7 @@ test_cancel(void **state)
     const char *expected, *data;
 
     /* prior to the test running should be empty */
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 
     /* send cancel-commit rpc, should fail as there is no commit */
     st->rpc = nc_rpc_cancel(NULL, NC_PARAMTYPE_CONST);
@@ -397,7 +397,7 @@ test_cancel(void **state)
     FREE_TEST_VARS(st);
 
     /* running should now be same as candidate */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -417,7 +417,7 @@ test_cancel(void **state)
     FREE_TEST_VARS(st);
 
     /* running should now be back how it was */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -440,7 +440,7 @@ test_rollback_disconnect(void **state)
     const char *expected;
 
     /* prior to the test running should be empty */
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 
     /* create a new session */
     ncs = nc_connect_unix(st->socket_path, NULL);
@@ -458,7 +458,7 @@ test_rollback_disconnect(void **state)
     FREE_TEST_VARS(st);
 
     /* running should now be same as candidate */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -475,7 +475,7 @@ test_rollback_disconnect(void **state)
     usleep(100000);
 
     /* data should remain unchanged, empty */
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 }
 
 static void
@@ -485,7 +485,7 @@ test_rollback_locked(void **state)
     const char *expected;
 
     /* prior to the test running should be empty */
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 
     /* running lock RPC */
     st->rpc = nc_rpc_lock(NC_DATASTORE_RUNNING);
@@ -502,7 +502,7 @@ test_rollback_locked(void **state)
     FREE_TEST_VARS(st);
 
     /* running should now be the same as candidate */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -527,7 +527,7 @@ test_rollback_locked(void **state)
     FREE_TEST_VARS(st);
 
     /* data should remain unchanged, empty */
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 
     /* running unlock RPC */
     st->rpc = nc_rpc_unlock(NC_DATASTORE_RUNNING);
@@ -544,7 +544,7 @@ test_confirm_persist(void **state)
     const char *expected, *persist = "test-persist-1";
 
     /* Prior to the test running should be empty */
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 
     /* Send a confirmed-commit rpc with persist */
     st->rpc = nc_rpc_commit(1, 0, persist, NULL, NC_PARAMTYPE_CONST);
@@ -556,7 +556,7 @@ test_confirm_persist(void **state)
     FREE_TEST_VARS(st);
 
     /* Running should now be same as candidate */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -576,7 +576,7 @@ test_confirm_persist(void **state)
     FREE_TEST_VARS(st);
 
     /* Data should remain unchanged */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit1:*");
     assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
 }
@@ -589,7 +589,7 @@ test_cancel_persist(void **state)
     struct nc_session *nc_sess;
 
     /* prior to the test running should be empty */
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 
     /* start a new NC session */
     nc_sess = nc_connect_unix(st->socket_path, NULL);
@@ -605,7 +605,7 @@ test_cancel_persist(void **state)
     FREE_TEST_VARS(st);
 
     /* running should now be same as candidate */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -628,7 +628,7 @@ test_cancel_persist(void **state)
     FREE_TEST_VARS(st);
 
     /* running should now be empty */
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 }
 
 static void
@@ -739,7 +739,7 @@ test_failed_file(void **state)
     DIR *dir = NULL;
 
     /* Prior to the test running should be empty */
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 
     /* Send a confirmed-commit rpc with 1s timeout */
     st->rpc = nc_rpc_commit(1, 1, NULL, NULL, NC_PARAMTYPE_CONST);

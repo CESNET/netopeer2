@@ -180,8 +180,8 @@
     "  <data/>\n" \
     "</get-config>\n"
 
-#define ASSERT_EMPTY_CONFIG(state) \
-    GET_CONFIG(state); \
+#define ASSERT_EMPTY_CONFIG_FILTER(state, filter) \
+    GET_CONFIG_FILTER(state, filter); \
     assert_string_equal(state->str, EMPTY_GETCONFIG); \
     FREE_TEST_VARS(state);
 

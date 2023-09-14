@@ -155,6 +155,10 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
         SETUP_FAIL_LOG;
         return 1;
     }
+    if (setenv("NP2_SCRIPTS_DIR", NP_ROOT_DIR "/scripts", 1)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
     if (setenv("LN2_MODULE_DIR", LN2_YANG_MODULE_DIR, 1)) {
         SETUP_FAIL_LOG;
         return 1;
@@ -168,6 +172,10 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
         return 1;
     }
     if (unsetenv("NP2_MODULE_DIR")) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (unsetenv("NP2_SCRIPTS_DIR")) {
         SETUP_FAIL_LOG;
         return 1;
     }
@@ -231,7 +239,7 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
 
         close(fd);
 
-        /* exec server listening on a unix socket */
+        /* exec the server */
         execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", "-p", pidfile_path, "-f", server_dir, "-x", extdata_path, NULL);
 
 child_error:
