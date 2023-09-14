@@ -55,4 +55,7 @@
 /** @brief diretory for server backup files for confirmed commit */
 #define NCC_TEST_DIR NP2SRV_TEST_DIR "/confirmed_commit"
 
+/** @brief directory for libnetconf2 YANG modules */
+#define LN2_YANG_MODULE_DIR "@LN2_YANG_MODULE_DIR@"
+
 #endif /* _NP_TEST_CONFIG_H_ */
