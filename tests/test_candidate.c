@@ -138,7 +138,7 @@ test_edit_basic(void **state)
     FREE_TEST_VARS(st);
 
     /* Check if it was merged */
-    GET_DS_CONFIG(st, NC_DATASTORE_CANDIDATE);
+    GET_CONFIG_DS_FILTER(st, NC_DATASTORE_CANDIDATE, "/edit1:*");
 
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -172,8 +172,8 @@ test_commit(void **state)
 
     SR_EDIT_SESSION(st, st->sr_sess2, data);
 
-    /* Check if running is empty */
-    GET_DS_CONFIG(st, NC_DATASTORE_RUNNING);
+    /* Check if running of edit1 is empty */
+    GET_CONFIG_DS_FILTER(st, NC_DATASTORE_RUNNING, "/edit1:*");
 
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -193,8 +193,8 @@ test_commit(void **state)
 
     FREE_TEST_VARS(st);
 
-    /* Check if running is now same as candidate */
-    GET_DS_CONFIG(st, NC_DATASTORE_CANDIDATE);
+    /* Check if running is now same as candidate of edit1 */
+    GET_CONFIG_DS_FILTER(st, NC_DATASTORE_CANDIDATE, "/edit1:*");
 
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -215,7 +215,7 @@ test_discard_changes(void **state)
     char *expected;
 
     /* check if Running is empty */
-    GET_DS_CONFIG(st, NC_DATASTORE_RUNNING);
+    GET_CONFIG_DS_FILTER(st, NC_DATASTORE_RUNNING, "/edit1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data/>\n"
@@ -250,7 +250,7 @@ test_discard_changes(void **state)
     FREE_TEST_VARS(st);
 
     /* check if Candidate is now empty too */
-    GET_DS_CONFIG(st, NC_DATASTORE_CANDIDATE);
+    GET_CONFIG_DS_FILTER(st, NC_DATASTORE_CANDIDATE, "/edit1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data/>\n"
@@ -462,7 +462,7 @@ test_discard_changes_advanced(void **state)
     const char *expected;
 
     /* Check if running has correct data */
-    GET_DS_CONFIG(st, NC_DATASTORE_RUNNING);
+    GET_CONFIG_DS_FILTER(st, NC_DATASTORE_RUNNING, "/edit2:*");
 
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -478,7 +478,7 @@ test_discard_changes_advanced(void **state)
     FREE_TEST_VARS(st);
 
     /* Check if candidate has correct dada */
-    GET_DS_CONFIG(st, NC_DATASTORE_CANDIDATE);
+    GET_CONFIG_DS_FILTER(st, NC_DATASTORE_CANDIDATE, "/edit2:*");
 
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -504,7 +504,7 @@ test_discard_changes_advanced(void **state)
     FREE_TEST_VARS(st);
 
     /* Check if candidate is now same as running */
-    GET_DS_CONFIG(st, NC_DATASTORE_RUNNING);
+    GET_CONFIG_DS_FILTER(st, NC_DATASTORE_RUNNING, "/edit2:*");
 
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -570,7 +570,7 @@ test_locked_discard_changes(void **state)
     FREE_TEST_VARS(st);
 
     /* check candidate */
-    GET_DS_CONFIG(st, NC_DATASTORE_CANDIDATE);
+    GET_CONFIG_DS_FILTER(st, NC_DATASTORE_CANDIDATE, "/edit2:*");
     data =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"

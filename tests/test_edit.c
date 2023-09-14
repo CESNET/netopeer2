@@ -175,7 +175,7 @@ test_delete_edit1(void **state)
     FREE_TEST_VARS(st);
 
     /* Check if the config was deleted */
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 }
 
 static int
@@ -209,7 +209,7 @@ test_delete_edit2(void **state)
     FREE_TEST_VARS(st);
 
     /* Check if the config was deleted */
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit2:*");
 }
 
 static int
@@ -345,7 +345,7 @@ test_merge_partial(void **state)
     FREE_TEST_VARS(st);
 
     /* Check if merged successfully */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit2:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -387,7 +387,7 @@ test_merge_into_existing(void **state)
     FREE_TEST_VARS(st);
 
     /* Check if correctly merged */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit2:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -431,7 +431,7 @@ test_merge_overwrite(void **state)
     FREE_TEST_VARS(st);
 
     /* Check if config was correctly overwritten */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit2:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -476,7 +476,7 @@ test_replace(void **state)
     FREE_TEST_VARS(st);
 
     /* Check if replaced correctly */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit3:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -505,7 +505,7 @@ test_replace_create(void **state)
     FREE_TEST_VARS(st);
 
     /* Check if created correctly */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit3:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -533,7 +533,7 @@ test_create(void **state)
     FREE_TEST_VARS(st);
 
     /* Check if config config now contains edit1 */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -594,7 +594,7 @@ test_remove(void **state)
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 }
 
 static void
@@ -606,7 +606,7 @@ test_remove_empty(void **state)
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
-    ASSERT_EMPTY_CONFIG(st);
+    ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 }
 
 static int
@@ -650,7 +650,7 @@ test_ex1(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/example1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -724,7 +724,7 @@ test_ex2(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/example2:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -765,7 +765,7 @@ test_autodel_case(void **state)
     FREE_TEST_VARS(st);
 
     /* check data */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit4:*");
     assert_non_null(strstr(st->str, "l1"));
     assert_non_null(strstr(st->str, "l2"));
     FREE_TEST_VARS(st);
@@ -780,7 +780,7 @@ test_autodel_case(void **state)
     FREE_TEST_VARS(st);
 
     /* check data */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit4:*");
     assert_null(strstr(st->str, "l1"));
     assert_null(strstr(st->str, "l2"));
     assert_non_null(strstr(st->str, "c2"));
@@ -798,7 +798,7 @@ test_autodel_case(void **state)
     FREE_TEST_VARS(st);
 
     /* check data */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit4:*");
     assert_null(strstr(st->str, "c2"));
     assert_non_null(strstr(st->str, "l3"));
     FREE_TEST_VARS(st);
@@ -814,7 +814,7 @@ test_autodel_case(void **state)
     FREE_TEST_VARS(st);
 
     /* check data */
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit4:*");
     assert_null(strstr(st->str, "l3"));
     assert_non_null(strstr(st->str, "l4"));
     assert_non_null(strstr(st->str, "l5"));

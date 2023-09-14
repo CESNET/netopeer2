@@ -123,7 +123,7 @@ test_periodic_basic(void **state)
     char *ntf;
 
     /* establish periodic push */
-    st->rpc = nc_rpc_establishpush_periodic("ietf-datastores:running", NULL, NULL, NULL, 10, NULL, NC_PARAMTYPE_CONST);
+    st->rpc = nc_rpc_establishpush_periodic("ietf-datastores:running", "/edit1:*", NULL, NULL, 10, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_SUB_NTF(st);
@@ -336,7 +336,7 @@ test_periodic_anchor_time(void **state)
     char *ntf;
 
     /* Establish periodic push with anchor-time */
-    st->rpc = nc_rpc_establishpush_periodic("ietf-datastores:running", NULL, NULL, NULL, 10,
+    st->rpc = nc_rpc_establishpush_periodic("ietf-datastores:running", "/edit1:*", NULL, NULL, 10,
             "1970-01-01T01:00:00+01:00", NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
@@ -686,7 +686,7 @@ test_sync_on_start(void **state)
     char *ntf;
 
     /* Establish on-change push with sync on start */
-    st->rpc = nc_rpc_establishpush_onchange("ietf-datastores:running", NULL, NULL, NULL, 0, 1,
+    st->rpc = nc_rpc_establishpush_onchange("ietf-datastores:running", "/edit1:*", NULL, NULL, 0, 1,
             NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
@@ -728,7 +728,7 @@ test_sync_on_start_non_empty(void **state)
     char *ntf;
 
     /* Establish on-change push with sync on start */
-    st->rpc = nc_rpc_establishpush_onchange("ietf-datastores:running", NULL, NULL, NULL, 0, 1,
+    st->rpc = nc_rpc_establishpush_onchange("ietf-datastores:running", "/edit1:*", NULL, NULL, 0, 1,
             NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
@@ -758,7 +758,7 @@ test_resync(void **state)
     char *ntf;
 
     /* Establish on-change push */
-    st->rpc = nc_rpc_establishpush_onchange("ietf-datastores:running", NULL, NULL, NULL, 0, 0,
+    st->rpc = nc_rpc_establishpush_onchange("ietf-datastores:running", "/edit1:*", NULL, NULL, 0, 0,
             NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
@@ -796,7 +796,7 @@ test_resync_id_reset(void **state)
     char *ntf;
 
     /* Establish on-change push */
-    st->rpc = nc_rpc_establishpush_onchange("ietf-datastores:running", NULL, NULL, NULL, 0, 0,
+    st->rpc = nc_rpc_establishpush_onchange("ietf-datastores:running", "/edit1:*", NULL, NULL, 0, 0,
             NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);

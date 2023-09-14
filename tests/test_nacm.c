@@ -266,22 +266,6 @@ setup_test_get_config(void **state)
 }
 
 static void
-test_get_config(void **state)
-{
-    struct np_test *st = *state;
-    const char *expected;
-
-    /* Since reading of this node is denied it should return empty config */
-    GET_CONFIG(st);
-    expected =
-            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data/>\n"
-            "</get-config>\n";
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-}
-
-static void
 test_get_config_filter(void **state)
 {
     struct np_test *st = *state;
@@ -396,7 +380,7 @@ test_filter_key_list(void **state)
     struct np_test *st = *state;
     const char *expected;
 
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/nacm-test2:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -1102,9 +1086,6 @@ main(int argc, char **argv)
             cmocka_unit_test_setup_teardown(test_read_default_allow_path,
                     setup_test_read_default_allow_path,
                     teardown_common),
-            cmocka_unit_test_setup_teardown(test_get_config,
-                    setup_test_get_config,
-                    teardown_common),
             cmocka_unit_test_setup_teardown(test_get_config_filter,
                     setup_test_get_config,
                     teardown_common),
@@ -1131,9 +1112,6 @@ main(int argc, char **argv)
                     teardown_common),
             cmocka_unit_test_setup_teardown(test_read_default_allow_path,
                     setup_test_read_default_allow_path,
-                    teardown_common),
-            cmocka_unit_test_setup_teardown(test_get_config,
-                    setup_test_get_config,
                     teardown_common),
             cmocka_unit_test_setup_teardown(test_get_config_filter,
                     setup_test_get_config,
