@@ -27,17 +27,16 @@ target_link_libraries(netopeer2-cli ${CMAKE_THREAD_LIBS_INIT})
 target_link_libraries(netopeer2-cli ${LIBYANG_LIBRARIES})
 target_link_libraries(netopeer2-cli ${LIBNETCONF2_LIBRARIES})
 
-# dependencies - libssh
-if(LIBNETCONF2_ENABLED_SSH)
+# dependencies
+if(LIBNETCONF2_ENABLED_SSH_TLS)
+    # - libssh
     if(NOT LIBSSH_FOUND)
         message(FATAL_ERROR "libnetconf2 supports SSH but libssh was not found, CLI compilation failed!")
     endif()
     target_link_libraries(netopeer2-cli ${LIBSSH_LIBRARIES})
     include_directories(${LIBSSH_INCLUDE_DIRS})
-endif()
 
-# dependencies - libssl (and openssl)
-if(LIBNETCONF2_ENABLED_TLS)
+    # - openssl
     if(NOT OPENSSL_FOUND)
         message(FATAL_ERROR "libnetconf2 supports TLS but OpenSSL was not found, CLI compilation failed!")
     endif()

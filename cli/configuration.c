@@ -303,7 +303,7 @@ load_config(void)
     struct lyd_node *config = NULL, *child;
     struct ly_ctx *ctx = NULL;
 
-#ifdef NC_ENABLED_SSH
+#ifdef NC_ENABLED_SSH_TLS
     const char *key_pub, *key_priv;
     struct lyd_node *auth_child, *pref_child, *key_child, *pair_child;
 #endif
@@ -367,7 +367,7 @@ load_config(void)
                 opts.output_flag = LYD_PRINT_SHRINK;
             } /* else default (formatted XML) */
         }
-#ifdef NC_ENABLED_SSH
+#ifdef NC_ENABLED_SSH_TLS
         else if (!strcmp(LYD_NAME(child), "authentication")) {
             /* <netconf-client> -> <authentication> */
             LY_LIST_FOR(lyd_child(child), auth_child) {
@@ -402,7 +402,7 @@ load_config(void)
                 }
             }
         }
-#endif /* ENABLE_SSH */
+#endif /* NC_ENABLED_SSH_TLS */
     }
 
 cleanup:
@@ -415,9 +415,13 @@ cleanup:
 void
 store_config(void)
 {
-    char *netconf_dir = NULL, *history_file = NULL, *config_file = NULL, buf[23];
+#ifdef NC_ENABLED_SSH_TLS
+    char buf[23];
+    struct lyd_node *auth, *pref, *keys, *pair;
+#endif /* NC_ENABLED_SSH_TLS */
+    char *netconf_dir = NULL, *history_file = NULL, *config_file = NULL;
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *root = NULL, *auth, *pref, *keys, *pair;
+    struct lyd_node *root = NULL;
     const char *str, *ns = "urn:cesnet:netconf-client";
 
     if (ly_ctx_new(NULL, 0, &ctx)) {
@@ -452,7 +456,7 @@ store_config(void)
         goto cleanup;
     }
 
-#ifdef NC_ENABLED_SSH
+#ifdef NC_ENABLED_SSH_TLS
     /* SSH authentication */
     if (lyd_new_opaq2(root, NULL, "authentication", NULL, NULL, ns, &auth)) {
         goto cleanup;
@@ -498,7 +502,7 @@ store_config(void)
             }
         }
     }
-#endif
+#endif /* NC_ENABLED_SSH_TLS */
 
     /* get netconf dir */
     if ((netconf_dir = get_netconf_dir()) == NULL) {
