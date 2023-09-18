@@ -52,12 +52,9 @@ CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\
         </endpoint>
     </listen>
 </netconf-server>"
-TMPFILE=`mktemp -u`
-printf -- "$CONFIG" > $TMPFILE
+
 # apply it to startup and running
-$SYSREPOCFG --edit=$TMPFILE -d startup -f xml -m ietf-netconf-server -v2
+echo "$CONFIG" | $SYSREPOCFG --edit -d startup -f xml -m ietf-netconf-server -v2
 $SYSREPOCFG -C startup -m ietf-netconf-server -v2
-# remove the tmp file
-rm $TMPFILE
 
 fi

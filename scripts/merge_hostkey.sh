@@ -45,12 +45,9 @@ CONFIG="<keystore xmlns=\"urn:ietf:params:xml:ns:yang:ietf-keystore\">
         </asymmetric-key>
     </asymmetric-keys>
 </keystore>"
-TMPFILE=`mktemp -u`
-printf -- "$CONFIG" > $TMPFILE
+
 # apply it to startup and running
-$SYSREPOCFG --edit=$TMPFILE -d startup -f xml -m ietf-keystore -v2
+echo "$CONFIG" | $SYSREPOCFG --edit -d startup -f xml -m ietf-keystore -v2
 $SYSREPOCFG -C startup -m ietf-keystore -v2
-# remove the tmp file
-rm $TMPFILE
 
 fi
