@@ -261,6 +261,16 @@
     ASSERT_OK_REPLY(st); \
     FREE_TEST_VARS(st); \
 
+#define np_assert_string_equal(str1, str2) \
+    if (!np_is_string_equal(str1, str2)) { \
+        fail(); \
+    }
+
+#define np_assert_strstr(haystack, needle) \
+    if (!np_strstr(haystack, needle)) { \
+        fail(); \
+    }
+
 /* test state structure */
 struct np_test {
     pid_t server_pid;
@@ -283,6 +293,10 @@ struct np_test {
     char *path;
     uint32_t ntf_id;
 };
+
+int np_is_string_equal(const char *str1, const char *str2);
+
+char *np_strstr(const char *haystack, const char *needle);
 
 void np_glob_setup_test_name(char *buf);
 

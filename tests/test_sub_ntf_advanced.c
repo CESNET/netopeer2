@@ -139,7 +139,7 @@ test_filter_pass(void **state)
     /* Send the notification */
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     RECV_NOTIF(st);
-    assert_string_equal(data, st->str);
+    np_assert_string_equal(data, st->str);
     FREE_TEST_VARS(st);
 }
 
@@ -187,7 +187,7 @@ test_modifysub_filter(void **state)
     NOTIF_PARSE(st, data);
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     RECV_NOTIF(st);
-    assert_string_equal(data, st->str);
+    np_assert_string_equal(data, st->str);
     FREE_TEST_VARS(st);
 
     /* Modify the filter so that notifications do no pass */
@@ -204,7 +204,7 @@ test_modifysub_filter(void **state)
             "  </stream-subtree-filter>\n"
             "</subscription-modified>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
+    np_assert_string_equal(st->str, ntf);
     free(ntf);
     FREE_TEST_VARS(st);
     st->rpc = nc_rpc_modifysub(st->ntf_id, NULL, NULL, NC_PARAMTYPE_CONST);
@@ -258,7 +258,7 @@ test_modifysub_stop_time(void **state)
             "  <reason>no-such-subscription</reason>\n"
             "</subscription-terminated>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
+    np_assert_string_equal(st->str, ntf);
     free(ntf);
     FREE_TEST_VARS(st);
 
@@ -282,9 +282,9 @@ test_modifysub_fail_no_such_sub(void **state)
     SEND_RPC_MODSUB(st, 1, "<n1 xmlns=\"n1\"/>", NULL);
     ASSERT_ERROR_REPLY(st);
     /* Check if correct error-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     /* Check if correct error-app-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
             "ietf-subscribed-notifications:no-such-subscription");
     FREE_TEST_VARS(st);
 }
@@ -309,7 +309,7 @@ test_deletesub(void **state)
             "  <reason>no-such-subscription</reason>\n"
             "</subscription-terminated>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
+    np_assert_string_equal(st->str, ntf);
     free(ntf);
     FREE_TEST_VARS(st);
     st->rpc = nc_rpc_deletesub(st->ntf_id);
@@ -335,9 +335,9 @@ test_deletesub_fail(void **state)
     SEND_RPC_DELSUB(st, 1);
     ASSERT_ERROR_REPLY(st);
     /* Check if correct error-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     /* Check if correct error-app-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
             "ietf-subscribed-notifications:no-such-subscription");
     FREE_TEST_VARS(st);
 }
@@ -363,7 +363,7 @@ test_deletesub_fail_diff_sess(void **state)
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
     RECV_NOTIF(st);
-    assert_string_equal(st->str, data);
+    np_assert_string_equal(st->str, data);
     FREE_TEST_VARS(st);
 
     /* Create a new session */
@@ -378,11 +378,11 @@ test_deletesub_fail_diff_sess(void **state)
     st->msgtype = nc_recv_reply(tmp, st->rpc, st->msgid, 2000, &st->envp, &st->op);
     assert_int_equal(st->msgtype, NC_MSG_REPLY);
     assert_null(st->op);
-    assert_string_equal(LYD_NAME(lyd_child(st->envp)), "rpc-error");
+    np_assert_string_equal(LYD_NAME(lyd_child(st->envp)), "rpc-error");
     /* Check if correct error-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     /* Check if correct error-app-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
             "ietf-subscribed-notifications:no-such-subscription");
     FREE_TEST_VARS(st);
 
@@ -421,7 +421,7 @@ test_ds_subscriptions(void **state)
 
     GET_FILTER(st, "/subscriptions");
     assert_int_not_equal(-1, asprintf(&expected, template, st->ntf_id, nc_session_get_id(st->nc_sess)));
-    assert_string_equal(st->str, expected);
+    np_assert_string_equal(st->str, expected);
     free(expected);
     FREE_TEST_VARS(st);
 }
@@ -469,7 +469,7 @@ test_ds_subscriptions_sent_event(void **state)
 
     GET_FILTER(st, "/subscriptions");
     assert_int_not_equal(-1, asprintf(&expected, template, st->ntf_id, nc_session_get_id(st->nc_sess)));
-    assert_string_equal(st->str, expected);
+    np_assert_string_equal(st->str, expected);
     free(expected);
     FREE_TEST_VARS(st);
 }
@@ -524,7 +524,7 @@ test_ds_subscriptions_excluded_event(void **state)
 
     GET_FILTER(st, "/subscriptions");
     assert_int_not_equal(-1, asprintf(&expected, template, st->ntf_id, nc_session_get_id(st->nc_sess)));
-    assert_string_equal(st->str, expected);
+    np_assert_string_equal(st->str, expected);
     free(expected);
     FREE_TEST_VARS(st);
 }
@@ -579,7 +579,7 @@ test_multiple_subscriptions(void **state)
     GET_FILTER(st, "/subscriptions");
     nc_sess_id = nc_session_get_id(st->nc_sess);
     assert_int_not_equal(-1, asprintf(&expected, template, tmp_id, nc_sess_id, st->ntf_id, nc_sess_id));
-    assert_string_equal(st->str, expected);
+    np_assert_string_equal(st->str, expected);
     free(expected);
     FREE_TEST_VARS(st);
 }
@@ -658,7 +658,7 @@ test_multiple_subscriptions_notif(void **state)
     nc_sess_id = nc_session_get_id(st->nc_sess);
     assert_int_not_equal(-1, asprintf(&expected, template, tmp_ids[0], nc_sess_id,
             tmp_ids[1], nc_sess_id, tmp_ids[2], nc_sess_id));
-    assert_string_equal(st->str, expected);
+    np_assert_string_equal(st->str, expected);
     free(expected);
     FREE_TEST_VARS(st);
 }
@@ -701,7 +701,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
     RECV_NOTIF(st);
-    assert_string_equal(st->str, data);
+    np_assert_string_equal(st->str, data);
     FREE_TEST_VARS(st);
 
     /* Send another notification to the first session */
@@ -718,7 +718,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
 
     /* Receive the notification sent before establishing another subscription and check it */
     RECV_NOTIF(st);
-    assert_string_equal(st->str, data);
+    np_assert_string_equal(st->str, data);
     FREE_TEST_VARS(st);
 
     /* Check for establishing the sub */
@@ -755,7 +755,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
             "<n1 xmlns=\"n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
-    assert_string_equal(st->str, data);
+    np_assert_string_equal(st->str, data);
     FREE_TEST_VARS(st);
 
     /* Receive the notification from second sub */
@@ -769,7 +769,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
             "    </power-on>\n"
             "  </device>\n"
             "</devices>\n";
-    assert_string_equal(st->str, data);
+    np_assert_string_equal(st->str, data);
     FREE_TEST_VARS(st);
 }
 
@@ -811,7 +811,7 @@ test_killsub_fail_nacm(void **state)
     /* Should fail on NACM */
     SEND_RPC_KILLSUB(st, 1);
     ASSERT_ERROR_REPLY(st);
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "access-denied");
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "access-denied");
     FREE_TEST_VARS(st);
 }
 
@@ -848,9 +848,9 @@ test_killsub_fail_no_such_sub(void **state)
     /* Should fail on no such sub */
     ASSERT_ERROR_REPLY(st);
     /* Check if correct error-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     /* Check if correct error-app-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
+    np_assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
             "ietf-subscribed-notifications:no-such-subscription");
     FREE_TEST_VARS(st);
 }
@@ -876,7 +876,7 @@ test_killsub_same_sess(void **state)
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
     RECV_NOTIF(st);
-    assert_string_equal(st->str, data);
+    np_assert_string_equal(st->str, data);
     FREE_TEST_VARS(st);
 
     /* Kill it */
@@ -889,7 +889,7 @@ test_killsub_same_sess(void **state)
             "  <reason>no-such-subscription</reason>\n"
             "</subscription-terminated>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
+    np_assert_string_equal(st->str, ntf);
     free(ntf);
     FREE_TEST_VARS(st);
     st->rpc = nc_rpc_killsub(st->ntf_id);
@@ -930,7 +930,7 @@ test_killsub_diff_sess(void **state)
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
     RECV_NOTIF(st);
-    assert_string_equal(st->str, data);
+    np_assert_string_equal(st->str, data);
     FREE_TEST_VARS(st);
 
     /* Create a new session */
@@ -949,7 +949,7 @@ test_killsub_diff_sess(void **state)
             "  <reason>no-such-subscription</reason>\n"
             "</subscription-terminated>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
+    np_assert_string_equal(st->str, ntf);
     free(ntf);
     FREE_TEST_VARS(st);
     st->rpc = nc_rpc_killsub(st->ntf_id);
@@ -957,7 +957,7 @@ test_killsub_diff_sess(void **state)
     st->msgtype = nc_recv_reply(tmp, st->rpc, st->msgid, 2000, &st->envp, &st->op);
     assert_int_equal(st->msgtype, NC_MSG_REPLY);
     assert_null(st->op);
-    assert_string_equal(LYD_NAME(lyd_child(st->envp)), "ok");
+    np_assert_string_equal(LYD_NAME(lyd_child(st->envp)), "ok");
     FREE_TEST_VARS(st);
 
     /* Send notification, should NOT arrive */
@@ -973,1766 +973,6 @@ test_killsub_diff_sess(void **state)
 
     /* Close the new session */
     nc_session_free(tmp, NULL);
-}
-
-static void
-test_configured_subscriptions(void **state)
-{
-    struct np_test *st = *state;
-    const char *expected;
-
-    /* end : remove subscriptions */
-    const char *config =
-            "<subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\" nc:operation=\"replace\" xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "</subscriptions>\n";
-
-    SEND_EDIT_RPC(st, config);
-    ASSERT_OK_REPLY(st);
-    FREE_TEST_VARS(st);
-
-    /* end : remove receivers */
-    config =
-            "<subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "  <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\" nc:operation=\"replace\" xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  </receiver-instances>\n"
-            "</subscriptions>\n";
-    SEND_EDIT_RPC(st, config);
-    ASSERT_OK_REPLY(st);
-    FREE_TEST_VARS(st);
-
-    /* Check config merged successfully */
-    GET_CONFIG_FILTER(st, "/subscriptions");
-    assert_string_equal(st->str, EMPTY_GETCONFIG);
-    FREE_TEST_VARS(st);
-
-    GET_FILTER(st, "/subscriptions");
-    assert_string_equal(st->str, EMPTY_GET);
-    FREE_TEST_VARS(st);
-
-    config =
-            "<subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "  <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "    <receiver-instance>\n"
-            "      <name>receiver1</name>\n"
-            "      <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "        <remote-address>127.0.0.1</remote-address>\n"
-            "        <remote-port>12345</remote-port>\n"
-            "      </udp-notif-receiver>\n"
-            "    </receiver-instance>\n"
-            "    <receiver-instance>\n"
-            "      <name>receiver2</name>\n"
-            "      <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "        <remote-address>127.0.0.1</remote-address>\n"
-            "        <remote-port>12346</remote-port>\n"
-            "      </udp-notif-receiver>\n"
-            "    </receiver-instance>\n"
-            "    <receiver-instance>\n"
-            "      <name>receiver3</name>\n"
-            "      <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "        <remote-address>127.0.0.1</remote-address>\n"
-            "        <remote-port>12347</remote-port>\n"
-            "      </udp-notif-receiver>\n"
-            "    </receiver-instance>\n"
-            "  </receiver-instances>\n"
-            "</subscriptions>\n";
-
-    SEND_EDIT_RPC(st, config);
-    ASSERT_OK_REPLY(st);
-    FREE_TEST_VARS(st);
-
-    /* Check if merged successfully */
-    GET_CONFIG_FILTER(st, "/subscriptions/receiver-instances");
-    expected =
-            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12346</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get-config>\n";
-
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    /* merge without 3rd receiver and modify 2nd receiver port */
-    config =
-            "<subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "  <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "    <receiver-instance>\n"
-            "      <name>receiver1</name>\n"
-            "      <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "        <remote-address>127.0.0.1</remote-address>\n"
-            "        <remote-port>12345</remote-port>\n"
-            "      </udp-notif-receiver>\n"
-            "    </receiver-instance>\n"
-            "    <receiver-instance>\n"
-            "      <name>receiver2</name>\n"
-            "      <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "        <remote-address>127.0.0.1</remote-address>\n"
-            "        <remote-port>12347</remote-port>\n"
-            "      </udp-notif-receiver>\n"
-            "    </receiver-instance>\n"
-            "  </receiver-instances>\n"
-            "</subscriptions>\n";
-
-    SEND_EDIT_RPC(st, config);
-    ASSERT_OK_REPLY(st);
-    FREE_TEST_VARS(st);
-
-    /* Check config merged successfully */
-    GET_CONFIG_FILTER(st, "/subscriptions/receiver-instances");
-    expected =
-            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get-config>\n";
-
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    /* Check state merged successfully */
-    GET_FILTER(st, "/subscriptions/receiver-instances");
-    expected =
-            "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get>\n";
-
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    /* add 3 subscriptions, first subscription has 2 receivers */
-    config =
-            "<subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "  <subscription>\n"
-            "    <id>1</id>\n"
-            "    <stream>notif1</stream>\n"
-            "    <encoding>encode-xml</encoding>\n"
-            "    <receivers>\n"
-            "      <receiver>\n"
-            "        <name>name1</name>\n"
-            "        <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "      </receiver>\n"
-            "      <receiver>\n"
-            "        <name>name4</name>\n"
-            "        <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "      </receiver>\n"
-            "    </receivers>\n"
-            "    <purpose>send notifications</purpose>\n"
-            "    <source-address>127.0.0.1</source-address>\n"
-            "  </subscription>\n"
-            "  <subscription>\n"
-            "    <id>3</id>\n"
-            "    <stream>notif1</stream>\n"
-            "    <encoding>encode-xml</encoding>\n"
-            "    <receivers>\n"
-            "      <receiver>\n"
-            "        <name>name2</name>\n"
-            "        <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "      </receiver>\n"
-            "    </receivers>\n"
-            "    <purpose>send notifications</purpose>\n"
-            "    <source-address>127.0.0.1</source-address>\n"
-            "  </subscription>\n"
-            "  <subscription>\n"
-            "    <id>4</id>\n"
-            "    <stream>notif1</stream>\n"
-            "    <encoding>encode-xml</encoding>\n"
-            "    <receivers>\n"
-            "      <receiver>\n"
-            "        <name>name4</name>\n"
-            "        <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "      </receiver>\n"
-            "    </receivers>\n"
-            "    <purpose>send notifications</purpose>\n"
-            "    <source-address>127.0.0.1</source-address>\n"
-            "  </subscription>\n"
-            "</subscriptions>\n";
-
-    SEND_EDIT_RPC(st, config);
-    ASSERT_OK_REPLY(st);
-    FREE_TEST_VARS(st);
-
-    /* Check config merged successfully */
-    GET_CONFIG_FILTER(st, "/subscriptions");
-    expected =
-            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <subscription>\n"
-            "        <id>1</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name1</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>3</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name2</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>4</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get-config>\n";
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    GET_FILTER(st, "/subscriptions");
-    expected =
-            "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <subscription>\n"
-            "        <id>1</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name1</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 1</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>3</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name2</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 3</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>4</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 4</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get>\n";
-
-    /* comment for now */
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    /* reset a receiver in a subscription */
-    config =
-            "<action xmlns=\"urn:ietf:params:xml:ns:yang:1\">\n"
-            "  <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "    <subscription>\n"
-            "      <id>3</id>\n"
-            "      <receivers> \n"
-            "        <receiver>\n"
-            "          <name>name2</name>\n"
-            "          <reset></reset>\n"
-            "        </receiver>\n"
-            "      </receivers>\n"
-            "    </subscription>\n"
-            "  </subscriptions>\n"
-            "</action>\n";
-
-    st->rpc = nc_rpc_act_generic_xml(config, NC_PARAMTYPE_CONST);
-    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
-    assert_int_equal(NC_MSG_RPC, st->msgtype);
-    st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op);
-    FREE_TEST_VARS(st);
-
-    /* replace port of receiver 2 , should restart the 3 subscriptions because they use receiver2 */
-    config =
-            "<subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "  <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "    <receiver-instance>\n"
-            "      <name>receiver1</name>\n"
-            "      <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "        <remote-address>127.0.0.1</remote-address>\n"
-            "        <remote-port>12345</remote-port>\n"
-            "      </udp-notif-receiver>\n"
-            "    </receiver-instance>\n"
-            "    <receiver-instance>\n"
-            "      <name>receiver2</name>\n"
-            "      <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "        <remote-address>127.0.0.1</remote-address>\n"
-            "        <remote-port>12346</remote-port>\n"
-            "      </udp-notif-receiver>\n"
-            "    </receiver-instance>\n"
-            "  </receiver-instances>\n"
-            "</subscriptions>\n";
-
-    SEND_EDIT_RPC(st, config);
-    ASSERT_OK_REPLY(st);
-    FREE_TEST_VARS(st);
-
-    /* Check config merged successfully */
-    GET_CONFIG_FILTER(st, "/subscriptions");
-    expected =
-            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <subscription>\n"
-            "        <id>1</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name1</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>3</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name2</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>4</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12346</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get-config>\n";
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    GET_FILTER(st, "/subscriptions");
-    expected =
-            "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <subscription>\n"
-            "        <id>1</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name1</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 1</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>3</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name2</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 3</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>4</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 4</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12346</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get>\n";
-
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    /* change source address of subscription 1 also change the name of receiver used use receiver2 instead of receiver1 */
-    config =
-            "<subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "  <subscription>\n"
-            "    <id>1</id>\n"
-            "    <stream>notif1</stream>\n"
-            "    <encoding>encode-xml</encoding>\n"
-            "    <receivers>\n"
-            "      <receiver>\n"
-            "        <name>name1</name>\n"
-            "        <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "      </receiver>\n"
-            "    </receivers>\n"
-            "    <purpose>send notifications</purpose>\n"
-            "    <source-address>127.0.0.2</source-address>\n"
-            "  </subscription>\n"
-            "  <subscription>\n"
-            "    <id>3</id>\n"
-            "    <stream>notif1</stream>\n"
-            "    <encoding>encode-xml</encoding>\n"
-            "    <receivers>\n"
-            "      <receiver>\n"
-            "        <name>name2</name>\n"
-            "        <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "      </receiver>\n"
-            "    </receivers>\n"
-            "    <purpose>send notifications</purpose>\n"
-            "    <source-address>127.0.0.1</source-address>\n"
-            "  </subscription>\n"
-            "</subscriptions>\n";
-
-    SEND_EDIT_RPC(st, config);
-    ASSERT_OK_REPLY(st);
-    FREE_TEST_VARS(st);
-
-    /* Check config merged successfully */
-    GET_CONFIG_FILTER(st, "/subscriptions");
-    expected =
-            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <subscription>\n"
-            "        <id>1</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.2</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name1</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>3</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name2</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>4</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12346</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get-config>\n";
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    GET_FILTER(st, "/subscriptions");
-    expected =
-            "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <subscription>\n"
-            "        <id>1</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.2</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name1</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 1</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>3</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name2</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 3</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>4</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 4</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12346</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get>\n";
-
-    /* comment for now */
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    /* change source address of subscription 1 also change the name of receiver used use receiver2 instead of receiver1 */
-    config =
-            "<subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "  <subscription>\n"
-            "    <id>1</id>\n"
-            "    <stream>notif1</stream>\n"
-            "    <encoding>encode-xml</encoding>\n"
-            "    <receivers>\n"
-            "      <receiver>\n"
-            "        <name>name1</name>\n"
-            "        <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "      </receiver>\n"
-            "      <receiver>\n"
-            "        <name>name3</name>\n"
-            "        <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "      </receiver>\n"
-            "    </receivers>\n"
-            "    <purpose>send notifications</purpose>\n"
-            "    <source-address>127.0.0.1</source-address>\n"
-            "  </subscription>\n"
-            "  <subscription>\n"
-            "    <id>3</id>\n"
-            "    <stream>notif1</stream>\n"
-            "    <encoding>encode-xml</encoding>\n"
-            "    <receivers>\n"
-            "      <receiver>\n"
-            "        <name>name2</name>\n"
-            "        <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "      </receiver>\n"
-            "    </receivers>\n"
-            "    <purpose>send notifications</purpose>\n"
-            "    <source-address>127.0.0.1</source-address>\n"
-            "  </subscription>\n"
-            "</subscriptions>\n";
-
-    SEND_EDIT_RPC(st, config);
-    ASSERT_OK_REPLY(st);
-    FREE_TEST_VARS(st);
-
-    /* Check config merged successfully */
-    GET_CONFIG_FILTER(st, "/subscriptions");
-    expected =
-            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <subscription>\n"
-            "        <id>1</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name1</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name3</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>3</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name2</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>4</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12346</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get-config>\n";
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    GET_FILTER(st, "/subscriptions");
-    expected =
-            "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <subscription>\n"
-            "        <id>1</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name1</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name3</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 1</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>3</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name2</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 3</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>4</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 4</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12346</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get>\n";
-
-    /* comment for now */
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    config =
-            "<subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "  <subscription>\n"
-            "    <id>1</id>\n"
-            "    <datastore xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\" xmlns:ds=\"urn:ietf:params:xml:ns:yang:ietf-datastores\">ds:operational</datastore>\n"
-            "    <datastore-xpath-filter xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">/state/vrf/interface/physical/enabled</datastore-xpath-filter>\n"
-            "    <on-change xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\"/>\n"
-            "  </subscription>\n"
-            "</subscriptions>\n";
-
-    SEND_EDIT_RPC(st, config);
-    ASSERT_OK_REPLY(st);
-    FREE_TEST_VARS(st);
-
-    /* Check config merged successfully */
-    GET_CONFIG_FILTER(st, "/subscriptions");
-    expected =
-            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <subscription>\n"
-            "        <id>1</id>\n"
-            "        <datastore xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\" xmlns:ds=\"urn:ietf:params:xml:ns:yang:ietf-datastores\">ds:operational</datastore>\n"
-            "        <datastore-xpath-filter xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">/state/vrf/interface/physical/enabled</datastore-xpath-filter>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name1</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name3</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "        <on-change xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
-            "          <dampening-period>0</dampening-period>\n"
-            "          <sync-on-start>true</sync-on-start>\n"
-            "        </on-change>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>3</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name2</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>4</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12346</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get-config>\n";
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    GET_FILTER(st, "/subscriptions");
-    expected =
-            "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <subscription>\n"
-            "        <id>1</id>\n"
-            "        <datastore xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\" xmlns:ds=\"urn:ietf:params:xml:ns:yang:ietf-datastores\">ds:operational</datastore>\n"
-            "        <datastore-xpath-filter xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">/state/vrf/interface/physical/enabled</datastore-xpath-filter>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name1</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name3</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 1</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "        <on-change xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
-            "          <dampening-period>0</dampening-period>\n"
-            "          <sync-on-start>true</sync-on-start>\n"
-            "        </on-change>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>3</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name2</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 3</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>4</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 4</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12346</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get>\n";
-
-    /* comment for now */
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    /* modify from on_change to periodic */
-    config =
-            "<subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "  <subscription>\n"
-            "    <id>1</id>\n"
-            "    <datastore xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\" xmlns:ds=\"urn:ietf:params:xml:ns:yang:ietf-datastores\">ds:operational</datastore>\n"
-            "    <datastore-xpath-filter xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">/state/vrf/interface/physical/enabled</datastore-xpath-filter>\n"
-            "    <periodic xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
-            "      <period>3000</period>\n"
-            "    </periodic>\n"
-            "  </subscription>\n"
-            "</subscriptions>\n";
-
-    SEND_EDIT_RPC(st, config);
-    ASSERT_OK_REPLY(st);
-    FREE_TEST_VARS(st);
-
-    /* Check config merged successfully */
-    GET_CONFIG_FILTER(st, "/subscriptions");
-    expected =
-            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <subscription>\n"
-            "        <id>1</id>\n"
-            "        <datastore xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\" xmlns:ds=\"urn:ietf:params:xml:ns:yang:ietf-datastores\">ds:operational</datastore>\n"
-            "        <datastore-xpath-filter xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">/state/vrf/interface/physical/enabled</datastore-xpath-filter>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name1</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name3</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "        <periodic xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
-            "          <period>3000</period>\n"
-            "        </periodic>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>3</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name2</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>4</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12346</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get-config>\n";
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    GET_FILTER(st, "/subscriptions");
-    expected =
-            "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <subscription>\n"
-            "        <id>1</id>\n"
-            "        <datastore xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\" xmlns:ds=\"urn:ietf:params:xml:ns:yang:ietf-datastores\">ds:operational</datastore>\n"
-            "        <datastore-xpath-filter xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">/state/vrf/interface/physical/enabled</datastore-xpath-filter>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name1</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name3</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 1</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "        <periodic xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
-            "          <period>3000</period>\n"
-            "        </periodic>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>3</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name2</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 3</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>4</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 4</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12346</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get>\n";
-
-    /* comment for now */
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    /* switch back to stream NETCONF for sub 1 */
-    config =
-            "<subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "  <subscription>\n"
-            "    <id>1</id>\n"
-            "    <stream>notif1</stream>\n"
-            "    <encoding>encode-xml</encoding>\n"
-            "    <receivers>\n"
-            "      <receiver>\n"
-            "        <name>name1</name>\n"
-            "        <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "      </receiver>\n"
-            "      <receiver>\n"
-            "        <name>name3</name>\n"
-            "        <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "      </receiver>\n"
-            "    </receivers>\n"
-            "    <purpose>send notifications</purpose>\n"
-            "    <source-address>127.0.0.1</source-address>\n"
-            "  </subscription>\n"
-            "</subscriptions>\n";
-
-    SEND_EDIT_RPC(st, config);
-    ASSERT_OK_REPLY(st);
-    FREE_TEST_VARS(st);
-
-    /* Check config merged successfully */
-    GET_CONFIG_FILTER(st, "/subscriptions");
-    expected =
-            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <subscription>\n"
-            "        <id>1</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name1</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name3</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>3</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name2</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>4</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12346</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get-config>\n";
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    GET_FILTER(st, "/subscriptions");
-    expected =
-            "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "      <subscription>\n"
-            "        <id>1</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name1</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>name3</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver1</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 1</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>3</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name2</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 3</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <subscription>\n"
-            "        <id>4</id>\n"
-            "        <stream>notif1</stream>\n"
-            "        <encoding>encode-xml</encoding>\n"
-            "        <purpose>send notifications</purpose>\n"
-            "        <source-address>127.0.0.1</source-address>\n"
-            "        <configured-subscription-state>valid</configured-subscription-state>\n"
-            "        <receivers>\n"
-            "          <receiver>\n"
-            "            <name>name4</name>\n"
-            "            <receiver-instance-ref xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">receiver2</receiver-instance-ref>\n"
-            "          </receiver>\n"
-            "          <receiver>\n"
-            "            <name>CONFIG notif 4</name>\n"
-            "            <sent-event-records>0</sent-event-records>\n"
-            "            <excluded-event-records>0</excluded-event-records>\n"
-            "            <state>active</state>\n"
-            "          </receiver>\n"
-            "        </receivers>\n"
-            "      </subscription>\n"
-            "      <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\">\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver1</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12345</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver2</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12346</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "        <receiver-instance>\n"
-            "          <name>receiver3</name>\n"
-            "          <udp-notif-receiver xmlns=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">\n"
-            "            <remote-address>127.0.0.1</remote-address>\n"
-            "            <remote-port>12347</remote-port>\n"
-            "          </udp-notif-receiver>\n"
-            "        </receiver-instance>\n"
-            "      </receiver-instances>\n"
-            "    </subscriptions>\n"
-            "  </data>\n"
-            "</get>\n";
-
-    assert_string_equal(st->str, expected);
-    FREE_TEST_VARS(st);
-
-    /* end : remove subscriptions */
-    config =
-            "<subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "    <subscription nc:operation=\"delete\" xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "        '/ietf-subscribed-notifications:subscriptions/subscription[id=1]'\n"
-            "    </subscription>\n"
-            "    <subscription nc:operation=\"delete\" xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "        '/ietf-subscribed-notifications:subscriptions/subscription[id=3]'\n"
-            "    </subscription>\n"
-            "    <subscription nc:operation=\"delete\" xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "        '/ietf-subscribed-notifications:subscriptions/subscription[id=4]'\n"
-            "    </subscription>\n"
-            "</subscriptions>\n";
-
-    SEND_EDIT_RPC(st, config);
-    ASSERT_OK_REPLY(st);
-    FREE_TEST_VARS(st);
-
-    /* end : remove receivers */
-    config =
-            "<subscriptions xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
-            "  <receiver-instances xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notif-receivers\" nc:operation=\"replace\" xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  </receiver-instances>\n"
-            "</subscriptions>\n";
-    SEND_EDIT_RPC(st, config);
-    ASSERT_OK_REPLY(st);
-    FREE_TEST_VARS(st);
-
-    /* Check config merged successfully */
-    GET_CONFIG_FILTER(st, "/subscriptions");
-    assert_string_equal(st->str, EMPTY_GETCONFIG);
-    FREE_TEST_VARS(st);
-
-    GET_FILTER(st, "/subscriptions");
-    assert_string_equal(st->str, EMPTY_GET);
-    FREE_TEST_VARS(st);
 }
 
 int
@@ -2756,8 +996,7 @@ main(int argc, char **argv)
         cmocka_unit_test_teardown(test_killsub_fail_nacm, teardown_nacm),
         cmocka_unit_test_setup_teardown(test_killsub_fail_no_such_sub, setup_test_killsub, teardown_nacm),
         cmocka_unit_test_setup_teardown(test_killsub_same_sess, setup_test_killsub, teardown_nacm),
-        cmocka_unit_test_setup_teardown(test_killsub_diff_sess, setup_test_killsub, teardown_nacm),
-        cmocka_unit_test_teardown(test_configured_subscriptions, teardown_common)
+        cmocka_unit_test_setup_teardown(test_killsub_diff_sess, setup_test_killsub, teardown_nacm)
     };
 
     nc_verbosity(NC_VERB_WARNING);
