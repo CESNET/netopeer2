@@ -2,24 +2,27 @@
 
 set -e
 
-# optional env variable override
-if [ -n "$SYSREPOCFG_EXECUTABLE" ]; then
-    SYSREPOCFG="$SYSREPOCFG_EXECUTABLE"
-# avoid problems with sudo PATH
-elif [ `id -u` -eq 0 ] && [ -n "$USER" ] && [ `command -v su` ]; then
-    SYSREPOCFG=`su -c 'command -v sysrepocfg' -l $USER`
-else
-    SYSREPOCFG=`command -v sysrepocfg`
+if [ -z "$NP2_SCRIPTS_DIR" ]; then
+    echo "$0: Required environment variable NP2_SCRIPTS_DIR not set." >&2
+    exit 1
 fi
-KS_KEY_NAME=genkey
+
+# import functions
+source "${NP2_SCRIPTS_DIR}/common.sh"
+
+# get path to sysrepocfg executable, this will be stored in $SYSREPOCFG
+SYSREPOCFG_GET_PATH
 
 # check that there is no listen/Call Home configuration yet
-SERVER_CONFIG=`$SYSREPOCFG -X -x "/ietf-netconf-server:netconf-server/listen/endpoint[1]/name | /ietf-netconf-server:netconf-server/call-home/netconf-client[1]/name"`
-if [ -z "$SERVER_CONFIG" ]; then
+SERVER_CONFIG=$($SYSREPOCFG -X -x "/ietf-netconf-server:netconf-server/listen/endpoint | /ietf-netconf-server:netconf-server/call-home/netconf-client")
+if [ -n "$SERVER_CONFIG" ]; then
+    # the server is configured, just exit
+    exit 0
+fi
 
-# get the user who invoked the script and his password, use it to create an SSH user in the default config
+# get the user who invoked the script and his password hash, use it to create an SSH user in the default config
 CURRENT_USER="$SUDO_USER"
-CURRENT_USER_PASSWORD=$(awk -v user="$CURRENT_USER" -F':' '$1 == user {print $2}' /etc/shadow)
+CURRENT_USER_PW_HASH=$(awk -v user="$CURRENT_USER" -F':' '$1 == user {print $2}' /etc/shadow)
 
 # import default config
 CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\">
@@ -40,15 +43,15 @@ CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\
                         <host-key>
                             <name>default-key</name>
                             <public-key>
-                                <keystore-reference>$KS_KEY_NAME</keystore-reference>
+                                <keystore-reference>genkey</keystore-reference>
                             </public-key>
                         </host-key>
                     </server-identity>
                     <client-authentication>
                         <users>
                             <user>
-                                <name>$CURRENT_USER</name>
-                                <password>$CURRENT_USER_PASSWORD</password>
+                                <name>${CURRENT_USER}</name>
+                                <password>${CURRENT_USER_PW_HASH}</password>
                             </user>
                         </users>
                     </client-authentication>
@@ -59,7 +62,5 @@ CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\
 </netconf-server>"
 
 # apply it to startup and running
-echo "$CONFIG" | $SYSREPOCFG --edit -d startup -f xml -m ietf-netconf-server -v2
-$SYSREPOCFG -C startup -m ietf-netconf-server -v2
-
-fi
+echo "$CONFIG" | "$SYSREPOCFG" --edit -d startup -f xml -m ietf-netconf-server -v2
+"$SYSREPOCFG" -C startup -m ietf-netconf-server -v2

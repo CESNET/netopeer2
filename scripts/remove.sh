@@ -1,46 +1,22 @@
 #!/usr/bin/env bash
-# {% raw %} - jinja2 command to not process "{#" in the script
 
-# optional env variable override
-if [ -n "$SYSREPOCTL_EXECUTABLE" ]; then
-    SYSREPOCTL="$SYSREPOCTL_EXECUTABLE"
-# avoid problems with sudo PATH
-elif [ `id -u` -eq 0 ] && [ -n "$USER" ] && [ `command -v su` ]; then
-    SYSREPOCTL=`su -c 'command -v sysrepoctl' -l $USER`
-else
-    SYSREPOCTL=`command -v sysrepoctl`
+if [ -z "$NP2_SCRIPTS_DIR" ]; then
+    echo "$0: Required environment variable NP2_SCRIPTS_DIR not set." >&2
+    exit 1
 fi
 
-# array of modules to remove, exact same as setup.sh
-MODULES=(
-"ietf-netconf@2013-09-29.yang -e writable-running -e candidate -e rollback-on-error -e validate -e startup -e url -e xpath -e confirmed-commit"
-"ietf-netconf-monitoring@2010-10-04.yang"
-"ietf-netconf-nmda@2019-01-07.yang -e origin -e with-defaults"
-"nc-notifications@2008-07-14.yang"
-"notifications@2008-07-14.yang"
-"ietf-x509-cert-to-name@2014-12-10.yang"
-"ietf-crypto-types@2019-07-02.yang"
-"ietf-keystore@2019-07-02.yang -e keystore-supported"
-"ietf-truststore@2019-07-02.yang -e truststore-supported -e x509-certificates"
-"ietf-tcp-common@2019-07-02.yang -e keepalives-supported"
-"ietf-ssh-server@2019-07-02.yang -e local-client-auth-supported"
-"ietf-tls-server@2019-07-02.yang -e local-client-auth-supported"
-"ietf-netconf-server@2019-07-02.yang -e ssh-listen -e tls-listen -e ssh-call-home -e tls-call-home"
-"ietf-interfaces@2018-02-20.yang"
-"ietf-ip@2018-02-22.yang"
-"ietf-network-instance@2019-01-21.yang"
-"ietf-subscribed-notifications@2019-09-09.yang -e encode-xml -e replay -e subtree -e xpath"
-"ietf-yang-push@2019-09-09.yang -e on-change"
-)
+# import functions and modules arrays
+source "${NP2_SCRIPTS_DIR}/common.sh"
 
-CMD_UNINSTALL=
+# get path to sysrepoctl executable, this will be stored in $SYSREPOCTL
+SYSREPOCTL_GET_PATH
 
 # functions
-UNINSTALL_MODULE_QUIET() {
+function UNINSTALL_MODULE_QUIET() {
     "$SYSREPOCTL" -u $1 &> /dev/null
 }
 
-DISABLE_FEATURE() {
+function DISABLE_FEATURE() {
     "$SYSREPOCTL" -c $1 -d $2 -v2
     local rc=$?
     if [ $rc -ne 0 ]; then
@@ -48,7 +24,7 @@ DISABLE_FEATURE() {
     fi
 }
 
-DISABLE_MODULE_FEATURES() {
+function DISABLE_MODULE_FEATURES() {
     name=$1
     sctl_module=$2
     module=$3
@@ -70,26 +46,31 @@ DISABLE_MODULE_FEATURES() {
     done
 }
 
+
+function UNINSTALL_CMD() {
+    modules=("$@")
+    nmodules=${#modules[@]}
+    for (( i = 0; i < $nmodules; i++ )); do
+        module=${modules[$nmodules - ($i + 1)]}
+        name=$(echo "$module" | sed 's/\([^@]*\).*/\1/')
+
+        sctl_module=$(echo "$SCTL_MODULES" | grep "^$name \+|[^|]*| I")
+        if [ -n "$sctl_module" ]; then
+            if [ "$name" = "ietf-netconf" ]; then
+                # internal module, we can only disable features
+                DISABLE_MODULE_FEATURES $name "$sctl_module" "$module"
+            else
+                # uninstall module and ignore the result, there may be new modules depending on this one
+                UNINSTALL_MODULE_QUIET "$name"
+            fi
+            continue
+        fi
+    done
+}
+
 # get current modules
 SCTL_MODULES=`$SYSREPOCTL -l`
 
-MODULES_LEN=${#MODULES[@]}
-for (( i = 0; i < $MODULES_LEN; i++ )); do
-    # backwards iteration to avoid module dependencies
-    module=${MODULES[$MODULES_LEN - ($i + 1)]}
-    name=`echo "$module" | sed 's/\([^@]*\).*/\1/'`
-
-    SCTL_MODULE=`echo "$SCTL_MODULES" | grep "^$name \+|[^|]*| I"`
-    if [ -n "$SCTL_MODULE" ]; then
-        if [ "$name" = "ietf-netconf" ]; then
-            # internal module, we can only disable features
-            DISABLE_MODULE_FEATURES $name "$SCTL_MODULE" "$module"
-        else
-            # uninstall module and ignore the result, there may be new modules depending on this one
-            UNINSTALL_MODULE_QUIET "$name"
-        fi
-        continue
-    fi
-done
-
-# {% endraw %}
+# uninstall np2 and ln2 modules
+UNINSTALL_CMD "${NP2_MODULES[@]}"
+UNINSTALL_CMD "${LN2_MODULES[@]}"
