@@ -86,7 +86,6 @@ set(SCRIPT_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/netopeer2" CACH
 option(INSTALL_MODULES "Install required modules into sysrepo" ON)
 option(GENERATE_HOSTKEY "Generate a new RSA host key in the keystore named \"genkey\"" ON)
 option(MERGE_LISTEN_CONFIG "Merge default server configuration for listening on all IPv4 interfaces" ON)
-option(MERGE_AUTH_CONFIG "Merge public keys from authorized_keys into the server configuration" OFF)
 set(MODULES_PERMS 600 CACHE STRING "File access permissions set for all the server modules")
 if(NOT MODULES_OWNER)
     execute_process(COMMAND id -un RESULT_VARIABLE RET
@@ -164,7 +163,7 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(PKG_LN2 REQUIRED libnetconf2)
 
 # libnetconf2 thread count check
-pkg_get_variable(LN2_THREAD_COUNT libnetconf2 LN2_MAX_THREAD_COUNT)
+pkg_get_variable(LN2_THREAD_COUNT libnetconf2 "LN2_MAX_THREAD_COUNT")
 if(LN2_THREAD_COUNT)
     if(LN2_THREAD_COUNT LESS THREAD_COUNT)
         message(FATAL_ERROR "libnetconf2 was compiled with support up to ${LN2_THREAD_COUNT} threads, server is configured with ${THREAD_COUNT}.")
@@ -176,14 +175,14 @@ else()
 endif()
 
 # get libnetconf2 module directory, use it later when installing modules
-pkg_get_variable(LN2_YANG_MODULE_DIR libnetconf2 LN2_SCHEMAS_DIR)
+pkg_get_variable(LN2_YANG_MODULE_DIR libnetconf2 "LN2_SCHEMAS_DIR")
 if(NOT LN2_YANG_MODULE_DIR)
     message(FATAL_ERROR "Unable to learn libnetconf2 module search directory.")
 endif()
 
 # find sysrepo pkg and get sysrepo group
 pkg_check_modules(PKG_SR REQUIRED sysrepo)
-pkg_get_variable(SR_GROUP sysrepo SR_GROUP)
+pkg_get_variable(SR_GROUP sysrepo "SR_GROUP")
 
 # } PKGCONFIG
 
@@ -396,18 +395,6 @@ if(MERGE_LISTEN_CONFIG)
         execute_process(COMMAND \"\$ENV{DESTDIR}${SCRIPT_DIR}/merge_config.sh\" RESULT_VARIABLE MERGE_CONFIG_RES)
         if(NOT MERGE_CONFIG_RES EQUAL \"0\")
             message(FATAL_ERROR \" scripts/merge_config.sh failed: \${MERGE_CONFIG_RES}\")
-        endif()
-    ")
-endif()
-if(MERGE_AUTH_CONFIG)
-    install(CODE "
-        message(STATUS \"Merging authorized keys into the server configuration...\")
-        set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
-        set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
-        set(ENV{NP2_SCRIPTS_DIR} \"${SCRIPT_DIR}\")
-        execute_process(COMMAND \"\$ENV{DESTDIR}${SCRIPT_DIR}/merge_auth_config.sh\" RESULT_VARIABLE MERGE_AUTH_CONFIG_RES)
-        if(NOT MERGE_AUTH_CONFIG_RES EQUAL \"0\")
-            message(FATAL_ERROR \" scripts/merge_auth_config.sh failed: \${MERGE_AUTH_CONFIG_RES}\")
         endif()
     ")
 endif()
