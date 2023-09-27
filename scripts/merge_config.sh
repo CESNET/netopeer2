@@ -20,9 +20,51 @@ if [ -n "$SERVER_CONFIG" ]; then
     exit 0
 fi
 
-# get the user who invoked the script and his password hash, use it to create an SSH user in the default config
+# get the user who invoked the script
 CURRENT_USER="$SUDO_USER"
-CURRENT_USER_PW_HASH=$(awk -v user="$CURRENT_USER" -F':' '$1 == user {print $2}' /etc/shadow)
+# get his home dir
+CURRENT_USER_HOME=$(eval echo "~$CURRENT_USER")
+# try to get his authorized_keys file
+AUTHORIZED_KEYS_FILE="$CURRENT_USER_HOME/.ssh/authorized_keys"
+# check if the authorized keys file exists
+if [ -f "$AUTHORIZED_KEYS_FILE" ]; then
+    # it exists, create public keys that are authorized in the server's configuration
+    AUTH_CONFIG="
+                        <public-keys>
+                            <inline-definition>"
+
+    IDX=0
+# read lines from authorized_keys
+    while IFS= read -r LINE; do
+        # check if the line is empty or starts with a comment (#)
+        if [[ -n "$LINE" && ! "$LINE" =~ ^\s*# ]]; then
+            # extract the base64 public key
+            PUB_BASE64=$(echo "$LINE" | awk '{print $2}')
+
+            NEW_PUBKEY_ENTRY="  <public-key>
+                                    <name>authorized_key_${IDX}</name>
+                                    <public-key-format xmlns:ct=\"urn:ietf:params:xml:ns:yang:ietf-crypto-types\">ct:ssh-public-key-format</public-key-format>
+                                    <public-key>${PUB_BASE64}</public-key>
+                                </public-key>"
+            # append
+            AUTH_CONFIG="${AUTH_CONFIG}${NEW_PUBKEY_ENTRY}"
+            IDX=$((IDX + 1))
+        fi
+    done < "$AUTHORIZED_KEYS_FILE"
+
+    # append the ending tags
+    AUTH_CONFIG="${AUTH_CONFIG}
+                            </inline-definition>
+                        </public-keys>"
+
+    echo "Added user \"${CURRENT_USER}\" that can authenticate with a key pair from his authorized_keys to the server configuration..."
+else
+    # authorized_keys doesn't exist, get the user's pw hash from /etc/shadow and use that for authentication
+    CURRENT_USER_PW_HASH=$(awk -v user="$CURRENT_USER" -F':' '$1 == user {print $2}' /etc/shadow)
+    AUTH_CONFIG="<password>${CURRENT_USER_PW_HASH}</password>"
+
+    echo "Added user \"${CURRENT_USER}\" that can authenticate with his password to the server configuration..."
+fi
 
 # import default config
 CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\">
@@ -51,7 +93,7 @@ CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\
                         <users>
                             <user>
                                 <name>${CURRENT_USER}</name>
-                                <password>${CURRENT_USER_PW_HASH}</password>
+                                ${AUTH_CONFIG}
                             </user>
                         </users>
                     </client-authentication>
