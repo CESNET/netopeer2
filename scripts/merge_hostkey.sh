@@ -2,32 +2,28 @@
 
 set -e
 
-# optional env variable override
-if [ -n "$SYSREPOCFG_EXECUTABLE" ]; then
-    SYSREPOCFG="$SYSREPOCFG_EXECUTABLE"
-# avoid problems with sudo PATH
-elif [ `id -u` -eq 0 ] && [ -n "$USER" ] && [ `command -v su` ]; then
-    SYSREPOCFG=`su -c 'command -v sysrepocfg' -l $USER`
-else
-    SYSREPOCFG=`command -v sysrepocfg`
+if [ -z "$NP2_SCRIPTS_DIR" ]; then
+    echo "$0: Required environment variable NP2_SCRIPTS_DIR not set." >&2
+    exit 1
 fi
 
-if [ -n "$OPENSSL_EXECUTABLE" ]; then
-    OPENSSL="$OPENSSL_EXECUTABLE"
-elif [ `id -u` -eq 0 ] && [ -n "$USER" ] && [ `command -v su` ]; then
-    OPENSSL=`su -c 'command -v openssl' -l $USER`
-else
-    OPENSSL=`command -v openssl`
-fi
+# import functions
+source "${NP2_SCRIPTS_DIR}/common.sh"
 
-# check that there is no SSH key with this name yet
-KEYSTORE_KEY=`$SYSREPOCFG -X -x "/ietf-keystore:keystore/asymmetric-keys/asymmetric-key[name='genkey']/name"`
-if [ -z "$KEYSTORE_KEY" ]; then
+# get path to sysrepocfg and openssl executables, these will be stored in $SYSREPOCFG and $OPENSSL, respectively
+SYSREPOCFG_GET_PATH
+OPENSSL_GET_PATH
+
+# check that there is no SSH key with this name yet, if so just exit
+KEYSTORE_KEY=$($SYSREPOCFG -X -x "/ietf-keystore:keystore/asymmetric-keys/asymmetric-key[name='genkey']")
+if [ -n "$KEYSTORE_KEY" ]; then
+    exit 0
+fi
 
 # generate a new key
-PRIVPEM=`$OPENSSL genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform PEM 2>/dev/null`
+PRIVPEM=$($OPENSSL genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform PEM 2>/dev/null)
 # remove header/footer and newlines
-PRIVKEY=`echo "$PRIVPEM" | grep -v -- "-----" | tr -d "\n"`
+PRIVKEY=$(echo "$PRIVPEM" | grep -v -- "-----" | tr -d "\n")
 
 # generate edit config
 CONFIG="<keystore xmlns=\"urn:ietf:params:xml:ns:yang:ietf-keystore\">
@@ -36,13 +32,11 @@ CONFIG="<keystore xmlns=\"urn:ietf:params:xml:ns:yang:ietf-keystore\">
             <name>genkey</name>
             <public-key-format xmlns:ct=\"urn:ietf:params:xml:ns:yang:ietf-crypto-types\">ct:ssh-public-key-format</public-key-format>
             <private-key-format xmlns:ct=\"urn:ietf:params:xml:ns:yang:ietf-crypto-types\">ct:rsa-private-key-format</private-key-format>
-            <cleartext-private-key>$PRIVKEY</cleartext-private-key>
+            <cleartext-private-key>${PRIVKEY}</cleartext-private-key>
         </asymmetric-key>
     </asymmetric-keys>
 </keystore>"
 
 # apply it to startup and running
-echo "$CONFIG" | $SYSREPOCFG --edit -d startup -f xml -m ietf-keystore -v2
-$SYSREPOCFG -C startup -m ietf-keystore -v2
-
-fi
+echo "$CONFIG" | "$SYSREPOCFG" --edit -d startup -f xml -m ietf-keystore -v2
+"$SYSREPOCFG" -C startup -m ietf-keystore -v2
