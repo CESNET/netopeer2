@@ -86,6 +86,7 @@ set(SCRIPT_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/netopeer2" CACH
 option(INSTALL_MODULES "Install required modules into sysrepo" ON)
 option(GENERATE_HOSTKEY "Generate a new RSA host key in the keystore named \"genkey\"" ON)
 option(MERGE_LISTEN_CONFIG "Merge default server configuration for listening on all IPv4 interfaces" ON)
+option(MERGE_AUTH_CONFIG "Merge public keys from authorized_keys into the server configuration" OFF)
 set(MODULES_PERMS 600 CACHE STRING "File access permissions set for all the server modules")
 if(NOT MODULES_OWNER)
     execute_process(COMMAND id -un RESULT_VARIABLE RET
@@ -361,6 +362,7 @@ if(INSTALL_MODULES)
         set(ENV{NP2_MODULE_PERMS} \"${MODULES_PERMS}\")
         set(ENV{NP2_MODULE_OWNER} \"${MODULES_OWNER}\")
         set(ENV{NP2_MODULE_GROUP} \"${MODULES_GROUP}\")
+        set(ENV{NP2_SCRIPTS_DIR} \"${SCRIPT_DIR}\")
         set(ENV{LN2_MODULE_DIR} \"${LN2_YANG_MODULE_DIR}\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
         set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
@@ -372,11 +374,13 @@ if(INSTALL_MODULES)
 else()
     message(WARNING "Server will refuse to start if the modules are not installed!")
 endif()
+
 if(GENERATE_HOSTKEY)
     install(CODE "
         message(STATUS \"Generating a new RSA host key \\\"genkey\\\" if not already added...\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
         set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
+        set(ENV{NP2_SCRIPTS_DIR} \"${SCRIPT_DIR}\")
         execute_process(COMMAND \"\$ENV{DESTDIR}${SCRIPT_DIR}/merge_hostkey.sh\" RESULT_VARIABLE MERGE_HOSTKEY_RES)
         if(NOT MERGE_HOSTKEY_RES EQUAL \"0\")
             message(FATAL_ERROR \" scripts/merge_hostkey.sh failed: \${MERGE_HOSTKEY_RES}\")
@@ -388,9 +392,22 @@ if(MERGE_LISTEN_CONFIG)
         message(STATUS \"Merging default server listen configuration if there is none...\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
         set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
+        set(ENV{NP2_SCRIPTS_DIR} \"${SCRIPT_DIR}\")
         execute_process(COMMAND \"\$ENV{DESTDIR}${SCRIPT_DIR}/merge_config.sh\" RESULT_VARIABLE MERGE_CONFIG_RES)
         if(NOT MERGE_CONFIG_RES EQUAL \"0\")
             message(FATAL_ERROR \" scripts/merge_config.sh failed: \${MERGE_CONFIG_RES}\")
+        endif()
+    ")
+endif()
+if(MERGE_AUTH_CONFIG)
+    install(CODE "
+        message(STATUS \"Merging authorized keys into the server configuration...\")
+        set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
+        set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
+        set(ENV{NP2_SCRIPTS_DIR} \"${SCRIPT_DIR}\")
+        execute_process(COMMAND \"\$ENV{DESTDIR}${SCRIPT_DIR}/merge_auth_config.sh\" RESULT_VARIABLE MERGE_AUTH_CONFIG_RES)
+        if(NOT MERGE_AUTH_CONFIG_RES EQUAL \"0\")
+            message(FATAL_ERROR \" scripts/merge_auth_config.sh failed: \${MERGE_AUTH_CONFIG_RES}\")
         endif()
     ")
 endif()
@@ -421,6 +438,8 @@ add_custom_target(cleancache
 )
 
 # uninstall
-add_custom_target(uninstall ${SCRIPT_DIR}/remove.sh
-    COMMAND "${CMAKE_COMMAND}" -P "${CMAKE_MODULE_PATH}/uninstall.cmake"
-    COMMENT "Removing netopeer2 modules from sysrepo...")
+add_custom_target(uninstall
+    COMMAND ${CMAKE_COMMAND} -E env "NP2_SCRIPTS_DIR=${SCRIPT_DIR}" ${SCRIPT_DIR}/remove.sh
+    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_MODULE_PATH}/uninstall.cmake
+    COMMENT "Removing netopeer2 modules from sysrepo..."
+)
