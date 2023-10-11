@@ -43,7 +43,6 @@
 #include "netconf_confirmed_commit.h"
 #include "netconf_monitoring.h"
 #include "netconf_nmda.h"
-#include "netconf_server.h"
 #include "netconf_subscribed_notifications.h"
 #include "yang_push.h"
 
@@ -611,11 +610,6 @@ server_init(void)
     /* set libnetconf2 global PRC callback */
     nc_set_global_rpc_clb(np2srv_rpc_cb);
 
-#ifdef NC_ENABLED_SSH_TLS
-    /* set libnetconf2 SSH pubkey auth callback */
-    nc_server_ssh_set_pubkey_auth_clb(np2srv_pubkey_auth_cb, NULL, NULL);
-#endif
-
     /* restore a previous confirmed commit if restore file exists */
     ncc_try_restore();
 
@@ -723,6 +717,39 @@ server_open_pidfile(const char *pidfile)
 
     close(pidfd);
     return 0;
+}
+
+/**
+ * @brief Callback for handling netconf-server, ietf-keystore and ietf-truststore data changes.
+ *
+ * The diff is given to libnetconf2, which then handles the changes.
+ *
+ * @param session sysrepo session.
+ * @param[in] sub_id Subscription identifier.
+ * @param[in] module_name Module's name.
+ * @param[in] xpath XPath.
+ * @param[in] event Event.
+ * @param[in] request_id Request identifier.
+ * @param private_data Private data.
+ *
+ * @return SR_ERR_OK on success, on error any other value.
+ */
+static int
+np2srv_libnetconf2_config_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
+        const char *UNUSED(xpath), sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+{
+    int rc = 0;
+    const struct lyd_node *diff = NULL;
+
+    /* get diff and apply it */
+    diff = sr_get_change_diff(session);
+    rc = nc_server_config_setup_diff(diff);
+    if (rc) {
+        ERR("Configuring NETCONF server failed.");
+        return rc;
+    }
+
+    return SR_ERR_OK;
 }
 
 /**
