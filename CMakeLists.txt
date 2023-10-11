@@ -239,11 +239,6 @@ include_directories(${LIBNETCONF2_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBNETCONF2_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBNETCONF2_LIBRARIES})
 
-# SSH and TLS enabled
-if(LIBNETCONF2_ENABLED_SSH_TLS)
-    list(APPEND SERVER_SRC src/netconf_server.c)
-endif()
-
 # link compat
 use_compat()
 
