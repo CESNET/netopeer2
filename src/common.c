@@ -384,7 +384,7 @@ np2srv_release_ctx_cb(void *cb_data)
 }
 
 int
-np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_session)
+np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_session, void *UNUSED(user_data))
 {
     int c;
     sr_val_t *event_data;

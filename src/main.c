@@ -598,6 +598,9 @@ server_init(void)
     /* set with-defaults capability basic-mode */
     nc_server_set_capab_withdefaults(NC_WD_EXPLICIT, NC_WD_ALL | NC_WD_ALL_TAG | NC_WD_TRIM | NC_WD_EXPLICIT);
 
+    /* set ln2 call home call backs and data */
+    nc_server_ch_set_dispatch_data(np2srv_acquire_ctx_cb, np2srv_release_ctx_cb, np2srv.sr_conn, np2srv_new_session_cb, NULL);
+
     /* set capabilities for the NETCONF Notifications */
     nc_server_set_capability("urn:ietf:params:netconf:capability:notification:1.0");
     nc_server_set_capability("urn:ietf:params:netconf:capability:interleave:1.0");
@@ -917,7 +920,7 @@ server_accept_session(void)
 
     /* accept session */
     msgtype = nc_accept(0, ly_ctx, &ncs);
-    if ((msgtype == NC_MSG_HELLO) && !np2srv_new_session_cb(NULL, ncs)) {
+    if ((msgtype == NC_MSG_HELLO) && !np2srv_new_session_cb(NULL, ncs, NULL)) {
         /* callback success, keep the session with the context lock */
         return;
     }
@@ -983,7 +986,7 @@ worker_thread(void *arg)
             VRB("Session %d: thread %d event new SSH channel.", nc_session_get_id(ncs), idx);
             msgtype = nc_session_accept_ssh_channel(ncs, &ncs);
             if (msgtype == NC_MSG_HELLO) {
-                if (np2srv_new_session_cb(NULL, ncs)) {
+                if (np2srv_new_session_cb(NULL, ncs, NULL)) {
                     nc_session_free(ncs, NULL);
                     continue;
                 }

@@ -24,11 +24,7 @@
                                 </host-key>
                             </server-identity>
                             <client-authentication>
-                                <supported-authentication-methods>
-                                    <publickey/>
-                                    <passsword/>
-                                </supported-authentication-methods>
-                                <users/>
+                                <endpoint-reference xmlns="urn:cesnet:libnetconf2-netconf-server">default-ssh</endpoint-reference>
                             </client-authentication>
                         </ssh-server-parameters>
                     </ssh>
