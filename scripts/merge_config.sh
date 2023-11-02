@@ -57,13 +57,17 @@ if [ -f "$AUTHORIZED_KEYS_FILE" ]; then
                             </inline-definition>
                         </public-keys>"
 
-    echo "Added user \"${CURRENT_USER}\" that can authenticate with a key pair from his authorized_keys to the server configuration..."
+    echo "--"
+    echo "-- Added user \"${CURRENT_USER}\" that can authenticate with a key pair from his authorized_keys to the server configuration..."
+    echo "--"
 else
     # authorized_keys doesn't exist, get the user's pw hash from /etc/shadow and use that for authentication
     CURRENT_USER_PW_HASH=$(awk -v user="$CURRENT_USER" -F':' '$1 == user {print $2}' /etc/shadow)
     AUTH_CONFIG="<password>${CURRENT_USER_PW_HASH}</password>"
 
-    echo "Added user \"${CURRENT_USER}\" that can authenticate with his password to the server configuration..."
+    echo "--"
+    echo "-- Added user \"${CURRENT_USER}\" that can authenticate with his password to the server configuration..."
+    echo "--"
 fi
 
 # import default config
