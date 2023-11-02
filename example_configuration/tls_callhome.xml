@@ -16,25 +16,32 @@
                         </tcp-client-parameters>
                         <tls-server-parameters>
                             <server-identity>
-                                <keystore-reference>
-                                    <asymmetric-key>serverkey</asymmetric-key>
-                                    <certificate>servercert</certificate>
-                                </keystore-reference>
+                                <certificate>
+                                    <keystore-reference>
+                                        <asymmetric-key>serverkey</asymmetric-key>
+                                        <certificate>servercert</certificate>
+                                    </keystore-reference>
+                                </certificate>
                             </server-identity>
                             <client-authentication>
-                                <required/>
-                                <ca-certs>cacerts</ca-certs>
-                                <client-certs>clientcerts</client-certs>
-                                <cert-maps>
-                                    <cert-to-name>
-                                        <id>1</id>
-                                        <fingerprint>02:20:E1:AD:CC:92:71:E9:EA:6A:85:DF:A7:FF:8C:BB:B9:D5:E4:EE:74</fingerprint>
-                                        <map-type xmlns:x509c2n="urn:ietf:params:xml:ns:yang:ietf-x509-cert-to-name">x509c2n:specified</map-type>
-                                        <name>tls-test</name>
-                                    </cert-to-name>
-                                </cert-maps>
+                                <ca-certs>
+                                    <truststore-reference>cacerts</truststore-reference>
+                                </ca-certs>
+                                <ee-certs>
+                                    <truststore-reference>eecerts</truststore-reference>
+                                </ee-certs>
                             </client-authentication>
                         </tls-server-parameters>
+                        <netconf-server-parameters>
+                            <client-identity-mappings>
+                                <cert-to-name>
+                                    <id>1</id>
+                                    <fingerprint>02:20:E1:AD:CC:92:71:E9:EA:6A:85:DF:A7:FF:8C:BB:B9:D5:E4:EE:74</fingerprint>
+                                    <map-type xmlns:x509c2n="urn:ietf:params:xml:ns:yang:ietf-x509-cert-to-name">x509c2n:specified</map-type>
+                                    <name>tls-test</name>
+                                </cert-to-name>
+                            </client-identity-mappings>
+                        </netconf-server-parameters>
                     </tls>
                 </endpoint>
             </endpoints>

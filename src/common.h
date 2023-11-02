@@ -235,10 +235,11 @@ void np2srv_release_ctx_cb(void *cb_data);
  *
  * @param[in] client_name CH client name, unused.
  * @param[in] new_session Created NC session.
+ * @param[in] user_data Arbitrary data, unused.
  * @return 0 on success;
  * @return -1 on error.
  */
-int np2srv_new_session_cb(const char *client_name, struct nc_session *new_session);
+int np2srv_new_session_cb(const char *client_name, struct nc_session *new_session, void *user_data);
 
 /**
  * @brief Set URL capability to be advertised for new NETCONF sessions.
