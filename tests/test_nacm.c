@@ -573,7 +573,7 @@ test_edit_config_update(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -745,7 +745,7 @@ test_edit_config_when(void **state)
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/nacm-test1:*");
     expected = "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n  <data/>\n</get-config>\n";
     assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
@@ -957,7 +957,7 @@ test_commit(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
-    GET_CONFIG(st);
+    GET_CONFIG_FILTER(st, "/nacm-test1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -1013,7 +1013,7 @@ test_discard_changes(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
-    GET_CONFIG_DS_FILTER(st, NC_DATASTORE_CANDIDATE, NULL);
+    GET_CONFIG_DS_FILTER(st, NC_DATASTORE_CANDIDATE, "/edit1:*");
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data/>\n"
