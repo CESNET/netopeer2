@@ -7,7 +7,7 @@ on:
     branches: [ "devel" ]
 
 env:
-  DEFAULT_PACKAGES: libcmocka-dev zlib1g-dev libssh-dev libssl-dev libpam0g-dev
+  DEFAULT_PACKAGES: libcmocka-dev zlib1g-dev libssh-dev libssl-dev libpam0g-dev libcurl4-openssl-dev
 
 jobs:
   git-branch:
