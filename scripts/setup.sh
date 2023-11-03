@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 
-# env variables NP2_MODULE_DIR, NP2_MODULE_PERMS, LN2_MODULE_DIR and NP2_SCRIPTS_DIR must be defined
+# env variables NP2_MODULE_DIR, NP2_MODULE_PERMS and LN2_MODULE_DIR must be defined
 # and NP2_MODULE_OWNER, NP2_MODULE_GROUP will be used if defined when executing this script!
-if [ -z "$NP2_MODULE_DIR" -o -z "$NP2_MODULE_PERMS" -o -z "$LN2_MODULE_DIR" -o -z "$NP2_SCRIPTS_DIR" ]; then
+
+if [ -z "$NP2_MODULE_DIR" -o -z "$NP2_MODULE_PERMS" -o -z "$LN2_MODULE_DIR" ]; then
     echo "Required environment variables not defined!"
     exit 1
 fi
 
 # import functions and modules arrays
-source "${NP2_SCRIPTS_DIR}/common.sh"
+script_directory=$(dirname "$0")
+source "${script_directory}/common.sh"
 
 # get path to sysrepoctl executable, this will be stored in $SYSREPOCTL
 SYSREPOCTL_GET_PATH
