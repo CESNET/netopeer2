@@ -276,6 +276,7 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
     char **cpblts;
     char *time_str, buf[11];
     uint32_t i;
+    struct timespec ts;
 
     /* context is locked while the callback is executed */
     conn = sr_session_get_connection(session);
@@ -346,7 +347,8 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
             }
             lyd_new_term(list, NULL, "username", nc_session_get_username(stats.sessions[i]), 0, NULL);
             lyd_new_term(list, NULL, "source-host", nc_session_get_host(stats.sessions[i]), 0, NULL);
-            ly_time_time2str(nc_session_get_start_time(stats.sessions[i]), NULL, &time_str);
+            ts = nc_session_get_start_time(stats.sessions[i]);
+            ly_time_ts2str(&ts, &time_str);
             lyd_new_term(list, NULL, "login-time", time_str, 0, NULL);
             free(time_str);
 
