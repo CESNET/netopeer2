@@ -8,13 +8,14 @@ Build-Depends: cmake,
                graphviz,
                libcmocka-dev,
                libsystemd-dev,
-               libnetconf2-dev (>= 2.0.0),
+               libnetconf2-dev (>= 3.0.0),
                libssh-dev,
                libssl-dev,
                libsysrepo-dev (>= 2.0.0),
                libyang2-dev (>= 2.0.0),
                pkg-config,
-               sysrepo-tools (>= 2.0.0)
+               sysrepo-tools (>= 2.0.0),
+               libcurl4-openssl-dev (>= 7.30.0)
 Homepage: https://github.com/CESNET/netopeer2/
 
 Package: netopeer2

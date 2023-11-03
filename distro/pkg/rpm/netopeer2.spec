@@ -9,9 +9,9 @@ License: BSD-3-Clause
 
 BuildRequires: gcc
 BuildRequires: cmake
-BuildRequires: pkgconfig(libyang) >= 2.0.194
-BuildRequires: pkgconfig(libnetconf2) >= 2.1.11
-BuildRequires: pkgconfig(sysrepo) >= 2.1.64
+BuildRequires: pkgconfig(libyang) >= 2.1.87
+BuildRequires: pkgconfig(libnetconf2) >= 3.0.0
+BuildRequires: pkgconfig(sysrepo) >= 2.2.111
 BuildRequires: sysrepo-tools
 BuildRequires: libcurl-devel
 BuildRequires: libssh-devel
@@ -80,6 +80,7 @@ set -e
 export NP2_MODULE_DIR=%{_datadir}/yang/modules/netopeer2
 export NP2_MODULE_PERMS=600
 export NP2_MODULE_OWNER=root
+export LN2_MODULE_DIR=%{_datadir}/yang/modules/libnetconf2
 
 %{_datadir}/netopeer2/setup.sh
 %{_datadir}/netopeer2/merge_hostkey.sh
