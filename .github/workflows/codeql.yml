@@ -77,7 +77,6 @@ jobs:
           cd libnetconf2
           mkdir build
           cd build
-          PKG_CONFIG_PATH=$RUNNER_TEMP/lib
           cmake -DCMAKE_INSTALL_PREFIX=$RUNNER_TEMP -DCMAKE_INCLUDE_PATH=$RUNNER_TEMP/include -DCMAKE_LIBRARY_PATH=$RUNNER_TEMP/lib -DENABLE_TESTS=OFF ..
           make -j2
           sudo make install
@@ -89,7 +88,7 @@ jobs:
       - name: Configure
         run: |
           mkdir build; cd build
-          cmake -DCMAKE_INCLUDE_PATH=$RUNNER_TEMP/include -DCMAKE_LIBRARY_PATH=$RUNNER_TEMP/lib -DCMAKE_PROGRAM_PATH=$RUNNER_TEMP/bin ..
+          cmake -DCMAKE_PREFIX_PATH=$RUNNER_TEMP -DCMAKE_INCLUDE_PATH=$RUNNER_TEMP/include -DCMAKE_LIBRARY_PATH=$RUNNER_TEMP/lib -DCMAKE_PROGRAM_PATH=$RUNNER_TEMP/bin ..
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
