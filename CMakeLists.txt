@@ -356,7 +356,6 @@ if(INSTALL_MODULES)
         set(ENV{NP2_MODULE_PERMS} \"${MODULES_PERMS}\")
         set(ENV{NP2_MODULE_OWNER} \"${MODULES_OWNER}\")
         set(ENV{NP2_MODULE_GROUP} \"${MODULES_GROUP}\")
-        set(ENV{NP2_SCRIPTS_DIR} \"${SCRIPT_DIR}\")
         set(ENV{LN2_MODULE_DIR} \"${LN2_YANG_MODULE_DIR}\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
         set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
@@ -374,7 +373,6 @@ if(GENERATE_HOSTKEY)
         message(STATUS \"Generating a new RSA host key \\\"genkey\\\" if not already added...\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
         set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
-        set(ENV{NP2_SCRIPTS_DIR} \"${SCRIPT_DIR}\")
         execute_process(COMMAND \"\$ENV{DESTDIR}${SCRIPT_DIR}/merge_hostkey.sh\" RESULT_VARIABLE MERGE_HOSTKEY_RES)
         if(NOT MERGE_HOSTKEY_RES EQUAL \"0\")
             message(FATAL_ERROR \" scripts/merge_hostkey.sh failed: \${MERGE_HOSTKEY_RES}\")
@@ -386,7 +384,6 @@ if(MERGE_LISTEN_CONFIG)
         message(STATUS \"Merging default server listen configuration if there is none...\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
         set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
-        set(ENV{NP2_SCRIPTS_DIR} \"${SCRIPT_DIR}\")
         execute_process(COMMAND \"\$ENV{DESTDIR}${SCRIPT_DIR}/merge_config.sh\" RESULT_VARIABLE MERGE_CONFIG_RES)
         if(NOT MERGE_CONFIG_RES EQUAL \"0\")
             message(FATAL_ERROR \" scripts/merge_config.sh failed: \${MERGE_CONFIG_RES}\")
@@ -420,8 +417,7 @@ add_custom_target(cleancache
 )
 
 # uninstall
-add_custom_target(uninstall
-    COMMAND ${CMAKE_COMMAND} -E env "NP2_SCRIPTS_DIR=${SCRIPT_DIR}" ${SCRIPT_DIR}/remove.sh
-    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_MODULE_PATH}/uninstall.cmake
+add_custom_target(uninstall ${SCRIPT_DIR}/remove.sh
+    COMMAND "${CMAKE_COMMAND}" -P "${CMAKE_MODULE_PATH}/uninstall.cmake"
     COMMENT "Removing netopeer2 modules from sysrepo..."
 )

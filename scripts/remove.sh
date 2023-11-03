@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
 
-if [ -z "$NP2_SCRIPTS_DIR" ]; then
-    echo "$0: Required environment variable NP2_SCRIPTS_DIR not set." >&2
-    exit 1
-fi
-
 # import functions and modules arrays
-source "${NP2_SCRIPTS_DIR}/common.sh"
+script_directory=$(dirname "$0")
+source "${script_directory}/common.sh"
 
 # get path to sysrepoctl executable, this will be stored in $SYSREPOCTL
 SYSREPOCTL_GET_PATH
