@@ -41,7 +41,7 @@ int done;
 extern struct nc_session *session;
 
 void
-lnc2_print_clb(NC_VERB_LEVEL level, const char *msg)
+lnc2_print_clb(const struct nc_session *UNUSED(session), NC_VERB_LEVEL level, const char *msg)
 {
     int was_rawmode = 0;
 
@@ -138,7 +138,7 @@ main(void)
     action.sa_handler = SIG_IGN;
     sigaction(SIGPIPE, &action, NULL);
 
-    nc_set_print_clb(lnc2_print_clb);
+    nc_set_print_clb_session(lnc2_print_clb);
     ly_set_log_clb(ly_print_clb, 1);
     linenoiseSetCompletionCallback(complete_cmd);
     linenoiseHistoryDataFree(free);
