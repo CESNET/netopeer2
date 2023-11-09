@@ -598,8 +598,10 @@ server_init(void)
     /* set with-defaults capability basic-mode */
     nc_server_set_capab_withdefaults(NC_WD_EXPLICIT, NC_WD_ALL | NC_WD_ALL_TAG | NC_WD_TRIM | NC_WD_EXPLICIT);
 
+#ifdef NC_ENABLED_SSH_TLS
     /* set ln2 call home call backs and data */
     nc_server_ch_set_dispatch_data(np2srv_acquire_ctx_cb, np2srv_release_ctx_cb, np2srv.sr_conn, np2srv_new_session_cb, NULL);
+#endif /* NC_ENABLED_SSH_TLS */
 
     /* set capabilities for the NETCONF Notifications */
     nc_server_set_capability("urn:ietf:params:netconf:capability:notification:1.0");
