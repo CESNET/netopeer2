@@ -741,6 +741,9 @@ ncc_running_backup(void)
         if (!np_ly_mod_has_data(module, LYS_CONFIG_W)) {
             continue;
         }
+        if (!strcmp(module->name, "sysrepo")) {
+            continue;
+        }
 
         /* Check if has both read and write permission for module in sysrepo */
         if ((rc = sr_check_module_ds_access(np2srv.sr_conn, module->name, SR_DS_RUNNING, &read, &write))) {
