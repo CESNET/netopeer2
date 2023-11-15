@@ -18,6 +18,17 @@ fi
 
 # get the user who invoked the script
 CURRENT_USER="$SUDO_USER"
+if [ -z "$CURRENT_USER" ]; then
+    # the script was not invoked with sudo
+    if [ "$(id -u)" -eq 0 ] && [ -n "$USER" ]; then
+        # the script was invoked with su, get the target user
+        CURRENT_USER="$USER"
+    else
+        # the script was not invoked with sudo or su, get the current user
+        CURRENT_USER=$(whoami)
+    fi
+fi
+
 # get his home dir
 CURRENT_USER_HOME=$(eval echo "~$CURRENT_USER")
 # try to get his authorized_keys file
@@ -59,11 +70,27 @@ if [ -f "$AUTHORIZED_KEYS_FILE" ]; then
 else
     # authorized_keys doesn't exist, get the user's pw hash from /etc/shadow and use that for authentication
     CURRENT_USER_PW_HASH=$(awk -v user="$CURRENT_USER" -F':' '$1 == user {print $2}' /etc/shadow)
-    AUTH_CONFIG="<password>${CURRENT_USER_PW_HASH}</password>"
+    if [ -n "$CURRENT_USER_PW_HASH" ]; then
+        # only add the user if his password hash is not empty
+        AUTH_CONFIG="<password>${CURRENT_USER_PW_HASH}</password>"
+        echo "--"
+        echo "-- Added user \"${CURRENT_USER}\" that can authenticate with his password to the server configuration..."
+        echo "--"
+    else
+        echo "--"
+        echo "-- No user was added to the server configuration, you will need to add one manually..."
+        echo "--"
+    fi
+fi
 
-    echo "--"
-    echo "-- Added user \"${CURRENT_USER}\" that can authenticate with his password to the server configuration..."
-    echo "--"
+if [ -n "$AUTH_CONFIG" ]; then
+    # if we have some authentication configuration, add it to the users config
+    USERS_CONFIG="<users>
+                    <user>
+                        <name>${CURRENT_USER}</name>
+                        ${AUTH_CONFIG}
+                    </user>
+                </users>"
 fi
 
 # import default config
@@ -90,12 +117,7 @@ CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\
                         </host-key>
                     </server-identity>
                     <client-authentication>
-                        <users>
-                            <user>
-                                <name>${CURRENT_USER}</name>
-                                ${AUTH_CONFIG}
-                            </user>
-                        </users>
+                        ${USERS_CONFIG}
                     </client-authentication>
                 </ssh-server-parameters>
             </ssh>
