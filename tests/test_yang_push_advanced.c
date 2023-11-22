@@ -317,7 +317,7 @@ test_periodic_modify_filter(void **state)
     char *ntf;
 
     /* Establish periodic push */
-    st->rpc = nc_rpc_establishpush_periodic("ietf-datastores:running", "/edit2:*", NULL, NULL, 25, NULL, NC_PARAMTYPE_CONST);
+    st->rpc = nc_rpc_establishpush_periodic("ietf-datastores:running", "/edit2:*", NULL, NULL, 50, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_SUB_NTF(st);
@@ -340,7 +340,7 @@ test_periodic_modify_filter(void **state)
     FREE_TEST_VARS(st);
 
     /* Modify the filter */
-    st->rpc = nc_rpc_modifypush_periodic(st->ntf_id, "ietf-datastores:running", "<first xmlns=\"ed1\"/>", NULL, 25,
+    st->rpc = nc_rpc_modifypush_periodic(st->ntf_id, "ietf-datastores:running", "<first xmlns=\"ed1\"/>", NULL, 50,
             NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
