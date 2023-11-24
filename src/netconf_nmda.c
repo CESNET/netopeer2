@@ -128,6 +128,8 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         ds = SR_DS_CANDIDATE;
     } else if (!strcmp(leaf->value.ident->name, "operational")) {
         ds = SR_DS_OPERATIONAL;
+    } else if (!strcmp(leaf->value.ident->name, "factory-default")) {
+        ds = SR_DS_FACTORY_DEFAULT;
     } else {
         rc = SR_ERR_INVAL_ARG;
         sr_session_set_error_message(session, "Datastore \"%s\" is not supported.", lyd_get_value(&leaf->node));
