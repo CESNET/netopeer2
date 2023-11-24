@@ -1076,7 +1076,7 @@ cmd_getdata_help(void)
         origin = 1;
     }
 
-    fprintf(stdout, "get-data [--help] --datastore running|startup|candidate|operational [--filter-subtree[=<file>]%s]"
+    fprintf(stdout, "get-data [--help] --datastore running|startup|candidate|operational|factory-default [--filter-subtree[=<file>]%s]"
             " [--config true|false]%s [--depth <subtree-depth>]%s%s [--out <file>] [--rpc-timeout <seconds>]\n",
             xpath, origin ? " [--origin <origin>]* [--negated-origin]" : "", origin ? " [--with-origin]" : "", defaults);
 }
@@ -4936,6 +4936,8 @@ cmd_getdata(const char *arg, char **tmp_config_file)
                 datastore = "ietf-datastores:candidate";
             } else if (!strcmp(optarg, "operational")) {
                 datastore = "ietf-datastores:operational";
+            } else if (!strcmp(optarg, "factory-default")) {
+                datastore = "ietf-factory-default:factory-default";
             } else {
                 ERROR(__func__, "Invalid datastore specified (%s).", optarg);
                 goto fail;
