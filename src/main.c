@@ -615,6 +615,14 @@ server_init(void)
     /* set libnetconf2 global PRC callback */
     nc_set_global_rpc_clb(np2srv_rpc_cb);
 
+    /* UNIX socket */
+    if (np2srv.unix_path) {
+        if (nc_server_add_endpt_unix_socket_listen("unix", np2srv.unix_path, np2srv.unix_mode,
+                np2srv.unix_uid, np2srv.unix_gid)) {
+            goto error;
+        }
+    }
+
     /* restore a previous confirmed commit if restore file exists */
     ncc_try_restore();
 
@@ -1061,6 +1069,8 @@ main(int argc, char *argv[])
     int daemonize = 1, verb = 0;
     const char *pidfile = NP2SRV_PID_FILE_PATH;
     char *ptr;
+    struct passwd *pwd;
+    struct group *grp;
     struct sigaction action;
     sigset_t block_mask;
 
@@ -1087,7 +1097,7 @@ main(int argc, char *argv[])
     np2srv.server_dir = SERVER_DIR;
 
     /* process command line options */
-    while ((c = getopt(argc, argv, "dFhVp:f:t:x:v:c:")) != -1) {
+    while ((c = getopt(argc, argv, "dFhVp:f:U::m:u:g:t:x:v:c:")) != -1) {
         switch (c) {
         case 'd':
             daemonize = 0;
@@ -1137,6 +1147,43 @@ main(int argc, char *argv[])
             break;
         case 'f':
             np2srv.server_dir = optarg;
+            break;
+        case 'U':
+            /* optional argument */
+            if (!optarg && (optind < argc) && (argv[optind][0] != '-')) {
+                /* assume the parameter is the optional argument */
+                optarg = argv[optind++];
+            }
+            np2srv.unix_path = optarg ? optarg : NP2SRV_UNIX_SOCK_PATH;
+            break;
+        case 'm':
+            np2srv.unix_mode = strtoul(optarg, &ptr, 8);
+            if (*ptr || (np2srv.unix_mode > 0777)) {
+                ERR("Invalid UNIX socket mode \"%s\".", optarg);
+                return EXIT_FAILURE;
+            }
+            break;
+        case 'u':
+            np2srv.unix_uid = strtoul(optarg, &ptr, 10);
+            if (*ptr) {
+                pwd = getpwnam(optarg);
+                if (!pwd) {
+                    ERR("Invalid UNIX socket UID/user \"%s\".", optarg);
+                    return EXIT_FAILURE;
+                }
+                np2srv.unix_uid = pwd->pw_uid;
+            }
+            break;
+        case 'g':
+            np2srv.unix_gid = strtoul(optarg, &ptr, 10);
+            if (*ptr) {
+                grp = getgrnam(optarg);
+                if (!grp) {
+                    ERR("Invalid UNIX socket GID/group \"%s\".", optarg);
+                    return EXIT_FAILURE;
+                }
+                np2srv.unix_gid = grp->gr_gid;
+            }
             break;
         case 't':
             np2srv.sr_timeout = strtoul(optarg, &ptr, 10);
