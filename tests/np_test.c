@@ -232,7 +232,8 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
         close(fd);
 
         /* exec the server */
-        execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", "-p", pidfile_path, "-f", server_dir, "-x", extdata_path, NULL);
+        execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", "-p", pidfile_path,
+                "-U", sock_path, "-m 600", "-f", server_dir, "-x", extdata_path, NULL);
 
 child_error:
         printf("Child execution failed\n");
@@ -279,22 +280,6 @@ child_error:
 
     /* start session */
     if (sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess)) {
-        SETUP_FAIL_LOG;
-        return 1;
-    }
-
-    /* prepare UNIX socket data for server configuration in the data store */
-    if (sr_set_item_str(st->sr_sess, "/ietf-netconf-server:netconf-server/listen/endpoint[name='unix']/libnetconf2-netconf-server:unix-socket/path", sock_path, NULL, 0) != SR_ERR_OK) {
-        SETUP_FAIL_LOG;
-        return 1;
-    }
-    if (sr_set_item_str(st->sr_sess, "/ietf-netconf-server:netconf-server/listen/endpoint[name='unix']/libnetconf2-netconf-server:unix-socket/mode", "600", NULL, 0) != SR_ERR_OK) {
-        SETUP_FAIL_LOG;
-        return 1;
-    }
-
-    /* apply the configuration */
-    if (sr_apply_changes(st->sr_sess, 0)) {
         SETUP_FAIL_LOG;
         return 1;
     }
