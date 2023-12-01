@@ -394,7 +394,7 @@ test_filter_change(void **state)
             "<filters xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
             "  <stream-filter>\n"
             "    <name>xpath-pass</name>\n"
-            "    <stream-xpath-filter>/n1/first[.=Alt]</stream-xpath-filter>\n"
+            "    <stream-xpath-filter>/n1/first[.='Alt']</stream-xpath-filter>\n"
             "  </stream-filter>\n"
             "</filters>\n";
     SR_EDIT(st, data);

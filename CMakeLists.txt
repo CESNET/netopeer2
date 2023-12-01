@@ -59,8 +59,8 @@ set(LIBNETCONF2_DEP_SOVERSION 4.1.3)
 set(LIBNETCONF2_DEP_SOVERSION_MAJOR 4)
 
 # sysrepo required version
-set(SYSREPO_DEP_VERSION 2.2.111)
-set(SYSREPO_DEP_SOVERSION 7.19.7)
+set(SYSREPO_DEP_VERSION 2.2.139)
+set(SYSREPO_DEP_SOVERSION 7.20.0)
 set(SYSREPO_DEP_SOVERSION_MAJOR 7)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -std=c99")
@@ -133,8 +133,6 @@ set(SERVER_SRC
     src/netconf_nmda.c
     src/netconf_subscribed_notifications.c
     src/netconf_confirmed_commit.c
-    src/subscribed_notifications.c
-    src/yang_push.c
     src/log.c
     src/err_netconf.c)
 

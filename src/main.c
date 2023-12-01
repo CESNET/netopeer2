@@ -4,8 +4,8 @@
  * @brief netopeer2-server - NETCONF server
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2023 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2023 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@
 #include <sysrepo.h>
 #include <sysrepo/error_format.h>
 #include <sysrepo/netconf_acm.h>
+#include <sysrepo/subscribed_notifications.h>
 
 #include "common.h"
 #include "compat.h"
@@ -44,7 +45,6 @@
 #include "netconf_monitoring.h"
 #include "netconf_nmda.h"
 #include "netconf_subscribed_notifications.h"
-#include "yang_push.h"
 
 #ifdef NP2SRV_HAVE_SYSTEMD
 # include <systemd/sd-daemon.h>
@@ -563,8 +563,7 @@ server_init(void)
     int rc;
 
     /* connect to sysrepo */
-    rc = sr_connect(SR_CONN_CACHE_RUNNING, &np2srv.sr_conn);
-    if (rc != SR_ERR_OK) {
+    if ((rc = sr_connect(SR_CONN_CACHE_RUNNING, &np2srv.sr_conn))) {
         ERR("Connecting to sysrepo failed (%s).", sr_strerror(rc));
         goto error;
     }
@@ -573,8 +572,7 @@ server_init(void)
     nc_server_set_content_id_clb(np2srv_content_id_cb, NULL, NULL);
 
     /* server session */
-    rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &np2srv.sr_sess);
-    if (rc != SR_ERR_OK) {
+    if ((rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &np2srv.sr_sess))) {
         ERR("Creating sysrepo session failed (%s).", sr_strerror(rc));
         goto error;
     }
@@ -687,9 +685,6 @@ server_destroy(void)
 
     /* confirmed commit cleanup */
     ncc_commit_ctx_destroy();
-
-    /* ietf-subscribed-notifications cleanup */
-    np2srv_sub_ntf_destroy();
 
     /* disconnects and clears all the sessions */
     sr_disconnect(np2srv.sr_conn);
@@ -880,10 +875,15 @@ server_data_subscribe(void)
      */
     mod_name = "ietf-subscribed-notifications";
     xpath = "/ietf-subscribed-notifications:filters";
-    SR_CONFIG_SUBSCR(mod_name, xpath, np2srv_config_sub_ntf_filters_cb);
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_config_sub_ntf_filters_cb, NULL, 0,
+            SR_SUBSCR_DONE_ONLY, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
 
     /* operational data */
-    SR_OPER_SUBSCR(mod_name, "/ietf-subscribed-notifications:streams", np2srv_oper_sub_ntf_streams_cb);
+    SR_OPER_SUBSCR(mod_name, "/ietf-subscribed-notifications:streams", srsn_oper_data_streams_cb);
     SR_OPER_SUBSCR(mod_name, "/ietf-subscribed-notifications:subscriptions", np2srv_oper_sub_ntf_subscriptions_cb);
 
     /*

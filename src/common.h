@@ -117,7 +117,7 @@ struct timespec np_gettimespec(int force_real);
  *
  * @param[in] ts1 First timestamp.
  * @param[in] ts2 Second timestamp.
- * @return Difference in milliseconds, positivne if @p ts1 < @p ts2, negative if @p ts1 > @p ts2.
+ * @return Difference in milliseconds, positive if @p ts1 < @p ts2, negative if @p ts1 > @p ts2.
  */
 int64_t np_difftimespec(const struct timespec *ts1, const struct timespec *ts2);
 
