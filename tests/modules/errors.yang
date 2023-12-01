@@ -83,7 +83,7 @@ module errors {
     }
 
     leaf num {
-        type uint32 {
+        type uint16 {
             range "10..100";
         }
     }

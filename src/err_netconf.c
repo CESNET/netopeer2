@@ -271,7 +271,7 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
         /* data-missing */
         sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", NULL, NULL, err->message, 0);
     } else if (!strncmp(err->message, "Invalid type", 12) || !strncmp(err->message, "Unsatisfied range", 17) ||
-            !strncmp(err->message, "Unsatisfied pattern", 19)) {
+            !strncmp(err->message, "Unsatisfied pattern", 19) || strstr(err->message, "min/max bounds")) {
         /* create error message */
         str = strndup(err->message, (strchr(err->message, '.') + 1) - err->message);
 

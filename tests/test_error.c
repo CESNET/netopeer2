@@ -387,7 +387,7 @@ test_bad_element(void **state)
             "  <error-type>application</error-type>\n"
             "  <error-tag>bad-element</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
-            "  <error-message xml:lang=\"en\">Invalid type uint32 value \"string\".</error-message>\n"
+            "  <error-message xml:lang=\"en\">Invalid type uint16 value \"string\".</error-message>\n"
             "  <error-info>\n"
             "    <bad-element>/errors:num</bad-element>\n"
             "  </error-info>\n"
@@ -404,6 +404,22 @@ test_bad_element(void **state)
             "  <error-tag>bad-element</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
             "  <error-message xml:lang=\"en\">Unsatisfied range - value \"5\" is out of the allowed range.</error-message>\n"
+            "  <error-info>\n"
+            "    <bad-element>/errors:num</bad-element>\n"
+            "  </error-info>\n"
+            "</rpc-error>\n");
+    FREE_TEST_VARS(st);
+
+    /* out of type range */
+    data = "<num xmlns=\"urn:errors\">100000</num>";
+    SEND_EDIT_RPC(st, data);
+    ASSERT_ERROR_REPLY(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>application</error-type>\n"
+            "  <error-tag>bad-element</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">Value \"100000\" is out of type uint16 min/max bounds.</error-message>\n"
             "  <error-info>\n"
             "    <bad-element>/errors:num</bad-element>\n"
             "  </error-info>\n"
