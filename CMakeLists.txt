@@ -80,7 +80,7 @@ option(ENABLE_URL "Enable URL capability" ON)
 set(THREAD_COUNT 3 CACHE STRING "Number of threads accepting new sessions and handling requests")
 set(POLL_IO_TIMEOUT 10 CACHE STRING "Timeout in milliseconds of polling sessions for new data. It is also used for synchronization of low level IO such as sending a reply while a notification is being sent")
 set(YANG_MODULE_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/yang/modules/netopeer2" CACHE STRING "Directory where to copy the YANG modules to")
-set(SCRIPT_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/netopeer2" CACHE STRING "Directory where to copy the install scripts to")
+set(DATA_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/netopeer2" CACHE STRING "Directory with shared netopeer2 data")
 
 # script options
 option(INSTALL_MODULES "Install required modules into sysrepo" ON)
@@ -341,7 +341,8 @@ include_directories(${PROJECT_BINARY_DIR})
 
 # install the modules and scripts
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/modules/" DESTINATION ${YANG_MODULE_DIR})
-install(DIRECTORY "${PROJECT_SOURCE_DIR}/scripts/" DESTINATION ${SCRIPT_DIR} USE_SOURCE_PERMISSIONS)
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/scripts/" DESTINATION ${DATA_DIR}/scripts USE_SOURCE_PERMISSIONS)
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/pam/" DESTINATION ${DATA_DIR}/pam USE_SOURCE_PERMISSIONS)
 
 # install the binary, required modules, and default configuration
 install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_SBINDIR})
@@ -359,7 +360,7 @@ if(INSTALL_MODULES)
         set(ENV{LN2_MODULE_DIR} \"${LN2_YANG_MODULE_DIR}\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
         set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
-        execute_process(COMMAND \"\$ENV{DESTDIR}${SCRIPT_DIR}/setup.sh\" RESULT_VARIABLE SETUP_RES)
+        execute_process(COMMAND \"\$ENV{DESTDIR}${DATA_DIR}/scripts/setup.sh\" RESULT_VARIABLE SETUP_RES)
         if(NOT SETUP_RES EQUAL \"0\")
             message(FATAL_ERROR \" scripts/setup.sh failed: \${SETUP_RES}\")
         endif()
@@ -373,7 +374,7 @@ if(GENERATE_HOSTKEY)
         message(STATUS \"Generating a new RSA host key \\\"genkey\\\" if not already added...\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
         set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
-        execute_process(COMMAND \"\$ENV{DESTDIR}${SCRIPT_DIR}/merge_hostkey.sh\" RESULT_VARIABLE MERGE_HOSTKEY_RES)
+        execute_process(COMMAND \"\$ENV{DESTDIR}${DATA_DIR}/scripts/merge_hostkey.sh\" RESULT_VARIABLE MERGE_HOSTKEY_RES)
         if(NOT MERGE_HOSTKEY_RES EQUAL \"0\")
             message(FATAL_ERROR \" scripts/merge_hostkey.sh failed: \${MERGE_HOSTKEY_RES}\")
         endif()
@@ -384,7 +385,7 @@ if(MERGE_LISTEN_CONFIG)
         message(STATUS \"Merging default server listen configuration if there is none...\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
         set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
-        execute_process(COMMAND \"\$ENV{DESTDIR}${SCRIPT_DIR}/merge_config.sh\" RESULT_VARIABLE MERGE_CONFIG_RES)
+        execute_process(COMMAND \"\$ENV{DESTDIR}${DATA_DIR}/scripts/merge_config.sh\" RESULT_VARIABLE MERGE_CONFIG_RES)
         if(NOT MERGE_CONFIG_RES EQUAL \"0\")
             message(FATAL_ERROR \" scripts/merge_config.sh failed: \${MERGE_CONFIG_RES}\")
         endif()
@@ -417,7 +418,7 @@ add_custom_target(cleancache
 )
 
 # uninstall
-add_custom_target(uninstall ${SCRIPT_DIR}/remove.sh
+add_custom_target(uninstall ${DATA_DIR}/scripts/remove.sh
     COMMAND "${CMAKE_COMMAND}" -P "${CMAKE_MODULE_PATH}/uninstall.cmake"
     COMMENT "Removing netopeer2 modules from sysrepo..."
 )
