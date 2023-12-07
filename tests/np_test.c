@@ -163,7 +163,7 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
         SETUP_FAIL_LOG;
         return 1;
     }
-    if (system(NP_ROOT_DIR "/scripts/setup.sh &> setup.log")) {
+    if (system(NP_ROOT_DIR "/scripts/setup.sh")) {
         SETUP_FAIL_LOG;
         return 1;
     }
