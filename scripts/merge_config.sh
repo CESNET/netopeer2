@@ -68,19 +68,13 @@ if [ -f "$AUTHORIZED_KEYS_FILE" ]; then
     echo "-- Added user \"${CURRENT_USER}\" that can authenticate with a key pair from his authorized_keys to the server configuration..."
     echo "--"
 else
-    # authorized_keys doesn't exist, get the user's pw hash from /etc/shadow and use that for authentication
-    CURRENT_USER_PW_HASH=$(awk -v user="$CURRENT_USER" -F':' '$1 == user {print $2}' /etc/shadow)
-    if [ -n "$CURRENT_USER_PW_HASH" ]; then
-        # only add the user if his password hash is not empty
-        AUTH_CONFIG="<password>${CURRENT_USER_PW_HASH}</password>"
-        echo "--"
-        echo "-- Added user \"${CURRENT_USER}\" that can authenticate with his password to the server configuration..."
-        echo "--"
-    else
-        echo "--"
-        echo "-- No user was added to the server configuration, you will need to add one manually..."
-        echo "--"
-    fi
+    # authorized_keys file doesn't exist, leave the authentication to the system
+    AUTH_CONFIG="<keyboard-interactive xmlns=\"urn:cesnet:libnetconf2-netconf-server\">
+                    <use-system-auth/>
+                 </keyboard-interactive>"
+    echo "--"
+    echo "-- Added user \"${CURRENT_USER}\" that can authenticate with his password to the server configuration..."
+    echo "--"
 fi
 
 if [ -n "$AUTH_CONFIG" ]; then
