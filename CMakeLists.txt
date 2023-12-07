@@ -83,9 +83,7 @@ set(YANG_MODULE_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/yang/modul
 set(DATA_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/netopeer2" CACHE STRING "Directory with shared netopeer2 data")
 
 # script options
-option(INSTALL_MODULES "Install required modules into sysrepo" ON)
-option(GENERATE_HOSTKEY "Generate a new RSA host key in the keystore named \"genkey\"" ON)
-option(MERGE_LISTEN_CONFIG "Merge default server configuration for listening on all IPv4 interfaces" ON)
+option(SYSREPO_SETUP "Install required modules with their default configuration into sysrepo" ON)
 set(MODULES_PERMS 600 CACHE STRING "File access permissions set for all the server modules")
 if(NOT MODULES_OWNER)
     execute_process(COMMAND id -un RESULT_VARIABLE RET
@@ -220,14 +218,14 @@ endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 
 # dependencies - OpenSSL (required by later libnetconf2 checks and not really the server itself)
-find_package(OpenSSL)
+find_package(OpenSSL 3.0.0)
 if(OPENSSL_FOUND)
     list(APPEND CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
     list(APPEND CMAKE_REQUIRED_LIBRARIES ${OPENSSL_LIBRARIES})
 endif()
 
 # dependencies - libssh (also required by libnetconf2 checks)
-find_package(LibSSH 0.7.1)
+find_package(LibSSH 0.9.5)
 if(LIBSSH_FOUND)
     list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBSSH_INCLUDE_DIRS})
     list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBSSH_LIBRARIES})
@@ -316,7 +314,7 @@ include_directories(${SYSREPO_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${SYSREPO_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${SYSREPO_LIBRARIES})
 
-if(INSTALL_MODULES OR GENERATE_HOSTKEY OR MERGE_LISTEN_CONFIG)
+if(SYSREPO_SETUP)
     # find sysrepoctl to be used for installation and tests
     if (NOT SYSREPOCTL_EXECUTABLE)
         find_program(SYSREPOCTL_EXECUTABLE sysrepoctl)
@@ -342,7 +340,6 @@ include_directories(${PROJECT_BINARY_DIR})
 # install the modules and scripts
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/modules/" DESTINATION ${YANG_MODULE_DIR})
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/scripts/" DESTINATION ${DATA_DIR}/scripts USE_SOURCE_PERMISSIONS)
-install(DIRECTORY "${PROJECT_SOURCE_DIR}/pam/" DESTINATION ${DATA_DIR}/pam USE_SOURCE_PERMISSIONS)
 
 # install the binary, required modules, and default configuration
 install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_SBINDIR})
@@ -350,7 +347,13 @@ install(FILES ${PROJECT_SOURCE_DIR}/doc/netopeer2-server.8 DESTINATION ${CMAKE_I
 if(NP2SRV_HAVE_SYSTEMD)
     install(FILES ${PROJECT_BINARY_DIR}/netopeer2-server.service DESTINATION ${SYSTEMD_UNIT_DIR})
 endif()
-if(INSTALL_MODULES)
+
+# copy pam service to /etc/pam.d
+if(EXISTS "/etc/pam.d")
+    install(FILES "${CMAKE_SOURCE_DIR}/pam/netopeer2.conf" DESTINATION "/etc/pam.d")
+endif()
+
+if(SYSREPO_SETUP)
     install(CODE "
         message(STATUS \"Installing missing sysrepo modules...\")
         set(ENV{NP2_MODULE_DIR} \"${YANG_MODULE_DIR}\")
@@ -365,11 +368,8 @@ if(INSTALL_MODULES)
             message(FATAL_ERROR \" scripts/setup.sh failed: \${SETUP_RES}\")
         endif()
     ")
-else()
-    message(WARNING "Server will refuse to start if the modules are not installed!")
-endif()
 
-if(GENERATE_HOSTKEY)
+    # generate hostkey
     install(CODE "
         message(STATUS \"Generating a new RSA host key \\\"genkey\\\" if not already added...\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
@@ -379,8 +379,8 @@ if(GENERATE_HOSTKEY)
             message(FATAL_ERROR \" scripts/merge_hostkey.sh failed: \${MERGE_HOSTKEY_RES}\")
         endif()
     ")
-endif()
-if(MERGE_LISTEN_CONFIG)
+
+    # merge listen config
     install(CODE "
         message(STATUS \"Merging default server listen configuration if there is none...\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
@@ -390,6 +390,8 @@ if(MERGE_LISTEN_CONFIG)
             message(FATAL_ERROR \" scripts/merge_config.sh failed: \${MERGE_CONFIG_RES}\")
         endif()
     ")
+else()
+    message(WARNING "Server will refuse to start if the modules are not installed!")
 endif()
 
 # tests

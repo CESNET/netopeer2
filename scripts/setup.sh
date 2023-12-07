@@ -140,15 +140,3 @@ if [ ! -z "${CMD_INSTALL}" ]; then
         exit $rc
     fi
 fi
-
-# copy the PAM service file to /etc/pam.d
-if [ ! -d "/etc/pam.d" ]; then
-    echo "-- Skipping PAM service file /etc/pam.d/netopeer2.conf, because directory /etc/pam.d not found"
-elif [ -f "/etc/pam.d/netopeer2.conf" ]; then
-    echo "-- Skipping PAM service file /etc/pam.d/netopeer2.conf, because it already exists"
-elif [ ! -w "/etc/pam.d" ]; then
-    echo "-- Skipping PAM service file /etc/pam.d/netopeer2.conf, because of no write permission"
-else
-    echo "-- Installing PAM service file to /etc/pam.d/netopeer2.conf"
-    cp ../pam/netopeer2.conf /etc/pam.d/
-fi

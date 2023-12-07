@@ -70,9 +70,3 @@ SCTL_MODULES=`$SYSREPOCTL -l`
 # uninstall np2 and ln2 modules
 UNINSTALL_CMD "${NP2_MODULES[@]}"
 UNINSTALL_CMD "${LN2_MODULES[@]}"
-
-# remove PAM service file if it exists
-if [ -f "/etc/pam.d/netopeer2.conf" ]; then
-    echo "-- Removing PAM service file /etc/pam.d/netopeer2.conf"
-    rm /etc/pam.d/netopeer2.conf
-fi
