@@ -63,9 +63,7 @@ a single established NETCONF session.
 
 %build
 %cmake -DCMAKE_BUILD_TYPE=RELWITHDEBINFO \
-       -DINSTALL_MODULES=OFF \
-       -DGENERATE_HOSTKEY=OFF \
-       -DMERGE_LISTEN_CONFIG=OFF \
+       -DSYSREPO_SETUP=OFF \
        -DPIDFILE_PREFIX=/run \
        -DSERVER_DIR=%{_libdir}/netopeer2-server
 %cmake_build

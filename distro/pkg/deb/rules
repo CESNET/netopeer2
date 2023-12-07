@@ -21,7 +21,7 @@ SYSREPOCFG_EXECUTABLE=/usr/bin/sysrepoctl
 	dh $@ --buildsystem=cmake --builddir=build
 
 override_dh_auto_configure:
-	dh_auto_configure --builddir=build -- -DBUILD_CLI=ON -DBUILD_TESTS=ON -DINSTALL_MODULES=OFF -DGENERATE_HOSTKEY=OFF -DMERGE_LISTEN_CONFIG=OFF -DPIDFILE_PREFIX=/run -DSERVER_DIR=/var/lib/netopeer2
+	dh_auto_configure --builddir=build -- -DBUILD_CLI=ON -DBUILD_TESTS=ON -DSYSREPO_SETUP=OFF -DPIDFILE_PREFIX=/run -DSERVER_DIR=/var/lib/netopeer2
 
 override_dh_auto_install:
 	dh_auto_install --builddir=build --destdir=$(CURDIR)/debian/tmp

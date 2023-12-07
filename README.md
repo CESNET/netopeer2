@@ -84,14 +84,12 @@ so that it can be connected to the server out-of-the-box. However, it may not al
 to perform all these steps even though the executed scripts check whether the modules/some configuration
 already exist and do not repeat/overwrite any modules/configuration.
 
-These are the options that affect the initial setup:
+This is the option that affects the initial setup:
 ```
-INSTALL_MODULES:ON
-GENERATE_HOSTKEY:ON
-MERGE_LISTEN_CONFIG:ON
+SYSREPO_SETUP:ON
 ```
 
-If cross-compiling for a different architecture, you will likey want to turn all these options off
+If cross-compiling for a different architecture, you will likely want to turn all these options off
 and then run the scripts `setup.sh`, `merge_hostkey.sh`, and `merge_config.sh` manually.
 
 ### Sysrepo callbacks
