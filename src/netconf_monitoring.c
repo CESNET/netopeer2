@@ -271,11 +271,13 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
 {
     struct lyd_node *root = NULL, *cont, *list;
     const struct lys_module *mod;
+    const struct lysp_submodule *submod;
     sr_conn_ctx_t *conn;
     struct ly_ctx *ly_ctx;
     char **cpblts;
     char *time_str, buf[11];
     uint32_t i;
+    LY_ARRAY_COUNT_TYPE u;
     struct timespec ts;
 
     /* context is locked while the callback is executed */
@@ -319,6 +321,18 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
         lyd_new_list(cont, NULL, "schema", 0, &list, mod->name, mod->revision ? mod->revision : "", "yin");
         lyd_new_term(list, NULL, "namespace", mod->ns, 0, NULL);
         lyd_new_term(list, NULL, "location", "NETCONF", 0, NULL);
+
+        LY_ARRAY_FOR(mod->parsed->includes, u) {
+            submod = mod->parsed->includes[u].submodule;
+
+            lyd_new_list(cont, NULL, "schema", 0, &list, submod->name, submod->revs ? submod->revs[0].date : "", "yang");
+            lyd_new_term(list, NULL, "namespace", mod->ns, 0, NULL);
+            lyd_new_term(list, NULL, "location", "NETCONF", 0, NULL);
+
+            lyd_new_list(cont, NULL, "schema", 0, &list, submod->name, submod->revs ? submod->revs[0].date : "", "yin");
+            lyd_new_term(list, NULL, "namespace", mod->ns, 0, NULL);
+            lyd_new_term(list, NULL, "location", "NETCONF", 0, NULL);
+        }
     }
 
     /* sessions */
