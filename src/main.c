@@ -602,11 +602,8 @@ server_init(void)
     /* set ln2 call home call backs and data */
     nc_server_ch_set_dispatch_data(np2srv_acquire_ctx_cb, np2srv_release_ctx_cb, np2srv.sr_conn, np2srv_new_session_cb, NULL);
 
-    /* set PAM service name */
-    if (nc_server_ssh_set_pam_conf_filename("netopeer2.conf")) {
-        ERR("Setting PAM configuration filename failed.");
-        goto error;
-    }
+    /* if PAM is not supported, the function will return an error, but don't check it, because PAM is not required */
+    nc_server_ssh_set_pam_conf_filename("netopeer2.conf");
 #endif /* NC_ENABLED_SSH_TLS */
 
     /* set capabilities for the NETCONF Notifications */
