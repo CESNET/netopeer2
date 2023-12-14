@@ -1,0 +1,88 @@
+module oper-data {
+    namespace "urn:oper-data";
+    prefix o;
+
+    typedef SUBSINFO_TYPE {
+      type enumeration {
+        enum "LOCAL_AGGR_EVT" {
+          value 4;
+        }
+        enum "LOCAL_FLT_EVT" {
+          value 3;
+        }
+        enum "LOCAL_RPT_EVT" {
+          value 2;
+        }
+        enum "LOCAL_TOPN_EVT" {
+          value 5;
+        }
+        enum "SUBS_CONFIG" {
+          value 1;
+        }
+        enum "SUBS_POLICY" {
+          value 0;
+        }
+      }
+    }
+
+    typedef SUBS_CONFIG_TYPE {
+      type enumeration {
+        enum "CONFIG_TYPE_FILTERGROUP" {
+          value 1;
+        }
+        enum "CONFIG_TYPE_HIGHBAND" {
+          value 3;
+        }
+        enum "CONFIG_TYPE_QOSMONITOR" {
+          value 2;
+        }
+        enum "CONFIG_TYPE_REALRPT" {
+          value 0;
+        }
+        enum "CONFIG_TYPE_USRTATS" {
+          value 5;
+        }
+        enum "CONFIG_TYPE_VVIP" {
+          value 4;
+        }
+        enum "CONFIG_TYPE_CCO_ABRVIDEO" {
+          value 7;
+        }
+        enum "CONFIG_TYPE_CCO_CELLLEVEL" {
+          value 8;
+        }
+        enum "CONFIG_TYPE_CCO_CELLSPEC" {
+          value 6;
+        }
+        enum "CONFIG_TYPE_CCO_CTRL" {
+          value 9;
+        }
+      }
+    }
+    container RptSubsInfos {
+      list RptSubsInfo {
+        key "Result";
+        config false;
+        leaf Type {
+          type SUBSINFO_TYPE;
+          mandatory false;
+        }
+        leaf SubsPolicyId {
+          type uint32 {
+            range "0..4294967295";
+          }
+          mandatory false;
+        }
+        leaf Result {
+          type string {
+            length "0..29000";
+          }
+          mandatory false;
+        }
+        leaf SubsConfigType {
+          type SUBS_CONFIG_TYPE;
+          mandatory false;
+        }
+      }
+    }
+}

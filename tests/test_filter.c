@@ -304,7 +304,7 @@ local_setup(void **state)
         NP_TEST_MODULE_DIR "/example2.yang", NP_TEST_MODULE_DIR "/filter1-imp.yang", NP_TEST_MODULE_DIR "/filter1.yang",
         NP_TEST_MODULE_DIR "/xpath.yang", NP_TEST_MODULE_DIR "/issue1.yang", NP_TEST_MODULE_DIR "/edit1.yang",
         NP_TEST_MODULE_DIR "/ietf-routing@2018-03-13.yang", NP_TEST_MODULE_DIR "/ietf-ipv4-unicast-routing@2018-03-13.yang",
-        NULL
+        NP_TEST_MODULE_DIR "/oper-data.yang", NULL
     };
     int rc;
 
@@ -339,7 +339,7 @@ local_teardown(void **state)
     struct np_test *st = *state;
     const char *modules[] = {
         "example2", "filter1-imp", "filter1", "xpath", "issue1", "edit1", "ietf-routing",
-        "ietf-ipv4-unicast-routing", NULL
+        "ietf-ipv4-unicast-routing", "oper-data", NULL
     };
 
     if (!st) {
@@ -1169,7 +1169,7 @@ test_get_content_match_node(void **state)
 }
 
 static void
-test_get_operational_data(void **state)
+test_get_oper_data(void **state)
 {
     struct np_test *st = *state;
     char *filter, *expected;
@@ -1209,7 +1209,35 @@ test_get_operational_data(void **state)
 }
 
 static void
-test_getdata_operational_data(void **state)
+test_get_oper_data2(void **state)
+{
+    struct np_test *st = *state;
+    char *filter, *expected;
+
+    filter =
+            "<RptSubsInfos xmlns=\"urn:oper-data\">\n"
+            "  <RptSubsInfo>\n"
+            "    <Type>SUBS_CONFIG</Type>\n"
+            "    <SubsPolicyId/>\n"
+            "    <Result/>\n"
+            "    <SubsConfigType>CONFIG_TYPE_FILTERGROUP</SubsConfigType>\n"
+            "  </RptSubsInfo>\n"
+            "</RptSubsInfos>\n";
+
+    GET_FILTER(st, filter);
+
+    expected =
+            "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data/>\n"
+            "</get>\n";
+
+    assert_string_equal(st->str, expected);
+
+    FREE_TEST_VARS(st);
+}
+
+static void
+test_getdata_oper_data(void **state)
 {
     struct np_test *st = *state;
     char *filter, *expected;
@@ -1408,8 +1436,9 @@ main(int argc, char **argv)
         cmocka_unit_test(test_get_selection_node),
         cmocka_unit_test(test_get_containment_node),
         cmocka_unit_test(test_get_content_match_node),
-        cmocka_unit_test(test_get_operational_data),
-        cmocka_unit_test(test_getdata_operational_data),
+        cmocka_unit_test(test_get_oper_data),
+        cmocka_unit_test(test_get_oper_data2),
+        cmocka_unit_test(test_getdata_oper_data),
         cmocka_unit_test(test_keyless_list),
     };
 
