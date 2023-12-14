@@ -365,8 +365,8 @@ test_on_change_dampening_time(void **state)
     const char *template, *data;
     char *ntf;
 
-    /* Establish on-change push with 0.1s dampening time */
-    st->rpc = nc_rpc_establishpush_onchange("ietf-datastores:running", NULL, NULL, NULL, 10, 0,
+    /* Establish on-change push with 0.2s dampening time */
+    st->rpc = nc_rpc_establishpush_onchange("ietf-datastores:running", NULL, NULL, NULL, 20, 0,
             NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
