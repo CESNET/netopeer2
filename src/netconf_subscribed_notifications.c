@@ -996,6 +996,8 @@ sub_ntf_send_notif_modified(sr_session_ctx_t *ev_sess, struct nc_session *ncs, c
             rc = sub_ntf_error_ly(ev_sess, ly_ctx);
             goto cleanup;
         }
+        free(datetime);
+        datetime = NULL;
     }
 
     /* filter parameters */
