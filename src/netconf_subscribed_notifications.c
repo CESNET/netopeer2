@@ -161,11 +161,10 @@ sub_ntf_del(uint32_t sub_id)
     free(sub->cb_arg);
 
     /* adjust the global array */
-    if (i < state.count - 1) {
-        memmove(sub, sub + 1, (state.count - i) * sizeof *state.subs);
-    }
     --state.count;
-    if (!state.count) {
+    if (i < state.count) {
+        memmove(sub, sub + 1, (state.count - i) * sizeof *state.subs);
+    } else if (!state.count) {
         free(state.subs);
         state.subs = NULL;
     }
