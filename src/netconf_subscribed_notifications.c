@@ -533,7 +533,7 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     struct np2_user_sess *user_sess = NULL;
     struct ly_set *set;
     char id_str[11], *xp = NULL, *replay_start_str = NULL;
-    srsn_yp_change_t excluded_change[5] = {0};
+    srsn_yp_change_t excluded_change[SRSN_COUNT_YP_CHANGE] = {0}, chg;
     struct timespec cur_ts, stop = {0}, start = {0}, replay_start = {0}, anchor_time = {0};
     sr_datastore_t datastore;
     uint32_t i, sub_id, period, dampening_period;
@@ -662,7 +662,10 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
                 goto cleanup;
             }
             for (i = 0; i < set->count; ++i) {
-                excluded_change[sub_ntf_str2op(lyd_get_value(set->dnodes[i]))] = 1;
+                chg = sub_ntf_str2op(lyd_get_value(set->dnodes[i]));
+                if (chg > SRSN_YP_CHANGE_INVALID) {
+                    excluded_change[chg] = 1;
+                }
             }
             ly_set_free(set, NULL);
 
