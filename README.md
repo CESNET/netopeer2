@@ -92,80 +92,17 @@ SYSREPO_SETUP:ON
 If cross-compiling for a different architecture, you will likely want to turn all these options off
 and then run the scripts `setup.sh`, `merge_hostkey.sh`, and `merge_config.sh` manually.
 
-### Sysrepo callbacks
-
-When implementing a *sysrepo* application with some callbacks, in case the particular event will be generated
-by *netopeer2*, there will be the NETCONF session ID and NETCONF username of the originator NETCONF session provided.
-It can be retrieved from the event *sysrepo* session and the originator name will be `netopeer2`. Following is
-a table with the exact data format.
-
-| Index | Type | Meaning |
-|:----- |:----:|:-------:|
-| 0 | `uint32_t` | NETCONF session ID |
-| 1 | `char *` | NETCONF username |
-
-It is also possible to communicate a specific `NETCONF` error back to the server, use *sysrepo* utility functions
-to create it.
-
-### CLI
-
-A simple command-line NETCONF client `netopeer2-cli` is included and build/installed by default. This can be
-adjusted by an option:
-```
-BUILD_CLI:ON
-```
-
-There is also a separate [netconf-cli](https://github.com/CESNET/netconf-cli) project that you may want to
-give a try if you need an advanced and more user-friendly command-line NETCONF client.
-
-### Tests
-
-There are several tests included and built with [cmocka](https://cmocka.org/). The tests
-can be found in `tests` subdirectory and they are designed for checking library
-functionality after code changes.
-
-The tests are by default built in the `Debug` build mode by running
-```
-$ make
-```
-
-In case of the `Release` mode, the tests are not built by default (it requires
-additional dependency), but they can be enabled via cmake option:
-```
-$ cmake -DENABLE_TESTS=ON ..
-```
-
-Note that if the necessary [cmocka](https://cmocka.org/) headers are not present
-in the system include paths, tests are not available despite the build mode or
-cmake's options.
-
-Tests can be run by the make's `test` target:
-```
-$ make test
-```
-
-### Code Coverage
-
-Based on the tests run, it is possible to generate code coverage report. But
-it must be enabled and these commands are needed to generate the report:
-```
-$ cmake -DENABLE_COVERAGE=ON ..
-$ make
-$ make coverage
-```
-
-## NACM
-
-This NETCONF server uses *ietf-netconf-acm* access control of *sysrepo*. NACM is enabled by default,
-so except for the recovery user, no others will be allowed to *write* any data but should be granted
-*read* and *execute* permissions unless the access was modified by a NACM extension. When deploying
-this server, it is strongly advised to configure NACM properly.
-
 ## Server configuration
 
-Right after installation SSH listen and Call Home and TLS listen and Call Home are supported.
 By default, only SSH listen configuration is imported so to enable any other connection methods,
-they need to be configured manually. Example configuration XML files can be found in the `example_configuration`
+they need to be configured manually. The default SSH listen configuration will define one of
+the following two means of authentication only for the user that executed the script to install `netopeer2`.
+The first is via the SSH **public key** authentication method, which will be set if `authorized_keys` file
+is found and the keys from this file will be used. If `authorized_keys` file is not found,
+the second method is via the SSH **keyboard-interactive**, which leaves the authentication up to the
+system (and depends on how *libnetconf2* was compiled).
+
+Example configuration XML files can be found in the `example_configuration`
 directory. These files can be easily modified to create configuration specific for a particular
 environment and configured authentication.
 
@@ -191,3 +128,72 @@ server domain if left empty. Once connected, the client will be identified with 
 Using the same certificates and authorization options, a TLS client can be connected to using
 Call Home when `tls_callhome.xml` file is imported. But `tls_keystore.xml` and `tls_truststore.xml`
 need to be imported first.
+
+## NACM
+
+This NETCONF server uses *ietf-netconf-acm* access control of *sysrepo*. NACM is enabled by default,
+so except for the recovery user, no others will be allowed to *write* any data but should be granted
+*read* and *execute* permissions unless the access was modified by a NACM extension. When deploying
+this server, it is strongly advised to configure NACM properly.
+
+## Sysrepo callbacks
+
+When implementing a *sysrepo* application with some callbacks, in case the particular event will be generated
+by *netopeer2*, there will be the NETCONF session ID and NETCONF username of the originator NETCONF session provided.
+It can be retrieved from the event *sysrepo* session and the originator name will be `netopeer2`. Following is
+a table with the exact data format.
+
+| Index | Type | Meaning |
+|:----- |:----:|:-------:|
+| 0 | `uint32_t` | NETCONF session ID |
+| 1 | `char *` | NETCONF username |
+
+It is also possible to communicate a specific `NETCONF` error back to the server, use *sysrepo* utility functions
+to create it.
+
+## CLI
+
+A simple command-line NETCONF client `netopeer2-cli` is included and build/installed by default. This can be
+adjusted by an option:
+```
+BUILD_CLI:ON
+```
+
+There is also a separate [netconf-cli](https://github.com/CESNET/netconf-cli) project that you may want to
+give a try if you need an advanced and more user-friendly command-line NETCONF client.
+
+## Tests
+
+There are several tests included and built with [cmocka](https://cmocka.org/). The tests
+can be found in `tests` subdirectory and they are designed for checking library
+functionality after code changes.
+
+The tests are by default built in the `Debug` build mode by running
+```
+$ make
+```
+
+In case of the `Release` mode, the tests are not built by default (it requires
+additional dependency), but they can be enabled via cmake option:
+```
+$ cmake -DENABLE_TESTS=ON ..
+```
+
+Note that if the necessary [cmocka](https://cmocka.org/) headers are not present
+in the system include paths, tests are not available despite the build mode or
+cmake's options.
+
+Tests can be run by the make's `test` target:
+```
+$ make test
+```
+
+## Code Coverage
+
+Based on the tests run, it is possible to generate code coverage report. But
+it must be enabled and these commands are needed to generate the report:
+```
+$ cmake -DENABLE_COVERAGE=ON ..
+$ make
+$ make coverage
+```
