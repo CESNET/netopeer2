@@ -35,35 +35,10 @@ CURRENT_USER_HOME=$(eval echo "~$CURRENT_USER")
 AUTHORIZED_KEYS_FILE="$CURRENT_USER_HOME/.ssh/authorized_keys"
 # check if the authorized keys file exists
 if [ -f "$AUTHORIZED_KEYS_FILE" ]; then
-    # it exists, create public keys that are authorized in the server's configuration
-    AUTH_CONFIG="
-                        <public-keys>
-                            <inline-definition>"
-
-    IDX=0
-# read lines from authorized_keys
-    while IFS= read -r LINE; do
-        # check if the line is empty or starts with a comment (#)
-        if [[ -n "$LINE" && ! "$LINE" =~ ^\s*# ]]; then
-            # extract the base64 public key
-            PUB_BASE64=$(echo "$LINE" | awk '{print $2}')
-
-            NEW_PUBKEY_ENTRY="  <public-key>
-                                    <name>authorized_key_${IDX}</name>
-                                    <public-key-format xmlns:ct=\"urn:ietf:params:xml:ns:yang:ietf-crypto-types\">ct:ssh-public-key-format</public-key-format>
-                                    <public-key>${PUB_BASE64}</public-key>
-                                </public-key>"
-            # append
-            AUTH_CONFIG="${AUTH_CONFIG}${NEW_PUBKEY_ENTRY}"
-            IDX=$((IDX + 1))
-        fi
-    done < "$AUTHORIZED_KEYS_FILE"
-
-    # append the ending tags
-    AUTH_CONFIG="${AUTH_CONFIG}
-                            </inline-definition>
-                        </public-keys>"
-
+    # it exists, use the keys in the file
+    AUTH_CONFIG="<public-keys>
+                    <use-system-keys xmlns=\"urn:cesnet:libnetconf2-netconf-server\"/>
+                 </public-keys>"
     echo "--"
     echo "-- Added user \"${CURRENT_USER}\" that can authenticate with a key pair from his authorized_keys to the server configuration..."
     echo "--"
