@@ -77,10 +77,8 @@
  */
 #cmakedefine NP2SRV_HAVE_SYSTEMD
 
-/** @brief printf-like pattern for path to the authorized_keys file */
-#define NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN "@NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN@"
-/** @brief Replace %s in NP2SRV_SSH_AUTHORIZED_KEYS_PATTERN by username (1), or by the home dir (0) */
-#cmakedefine01 NP2SRV_SSH_AUTHORIZED_KEYS_ARG_IS_USERNAME
+/** @brief sshd-like pattern for path to the authorized_keys file */
+#define NP2SRV_SSH_AUTHORIZED_KEYS_FORMAT "@SSH_AUTHORIZED_KEYS_FORMAT@"
 
 /** @brief directory for server files (only confirmed-commit backups at the moment) */
 #define SERVER_DIR "@SERVER_DIR@"
