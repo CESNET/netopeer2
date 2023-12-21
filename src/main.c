@@ -603,8 +603,8 @@ server_init(void)
     /* if PAM is not supported, the function will return an error, but don't check it, because PAM is not required */
     nc_server_ssh_set_pam_conf_filename("netopeer2.conf");
 
-    /* set authorized_keys path format to {client_home}/.ssh/authorized_keys */
-    if (nc_server_ssh_set_authkey_path_format("%h/.ssh/authorized_keys")) {
+    /* set authorized_keys path format to by default {client_home}/.ssh/authorized_keys */
+    if (nc_server_ssh_set_authkey_path_format(NP2SRV_SSH_AUTHORIZED_KEYS_FORMAT)) {
         ERR("Setting authorized_keys path format failed.");
         goto error;
     }
