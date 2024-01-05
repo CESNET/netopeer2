@@ -293,73 +293,18 @@ int op_export_url(const char *url, struct lyd_node *data, uint32_t print_options
  */
 struct lyd_node *op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr_session_ctx_t *sr_sess);
 
-struct np2_filter {
-    struct {
-        char *str;      /**< filter string */
-        int selection;  /**< selection or content filter */
-    } *filters;
-    uint32_t count;
-};
-
-/**
- * @brief Create NP2 filter structure from a subtree filter.
- *
- * @param[in] node Subtree filter.
- * @param[in,out] ev_sess SR event session to set the error on.
- * @param[in,out] filter Generated NP2 filter.
- * @return SR error value.
- */
-int op_filter_create_subtree(const struct lyd_node *node, sr_session_ctx_t *ev_sess, struct np2_filter *filter);
-
-/**
- * @brief Create NP2 filter structure from an XPath filter.
- *
- * @param[in] xpath XPath filter.
- * @param[out] filter Generated NP2 filter.
- * @return SR error value.
- */
-int op_filter_create_xpath(const char *xpath, struct np2_filter *filter);
-
-/**
- * @brief Erase all members of an NP2 filter structure.
- *
- * @param[in] filter NP2 filter to erase.
- */
-void op_filter_erase(struct np2_filter *filter);
-
-/**
- * @brief Transform NP2 filter structure into XPath filter.
- *
- * @param[in] filter NP2 filter structure.
- * @param[out] xpath Generated XPath filter.
- * @return SR error value.
- */
-int op_filter_filter2xpath(const struct np2_filter *filter, char **xpath);
-
 /**
  * @brief Get all data matching the NP2 filter.
  *
  * @param[in] session SR session to get the data on.
  * @param[in] max_depth Max depth fo the retrieved data.
  * @param[in] get_opts SR get options to use.
- * @param[in] filter NP2 filter to use.
+ * @param[in] xp_filter XPath filter to use.
  * @param[in,out] ev_sess SR event session to set the error on.
  * @param[out] data Retrieved data.
  * @return SR error value.
  */
 int op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_options_t get_opts,
-        const struct np2_filter *filter, sr_session_ctx_t *ev_sess, struct lyd_node **data);
-
-/**
- * @brief Filter out only the data matching the NP2 filter.
- *
- * @param[in,out] data Input data to filter. May be used and set to NULL.
- * @param[in] filter NP2 filter to use.
- * @param[in] with_selection Whether to apply even selection filters in @p filter.
- * @param[out] filtered_data Data from @p data selected by @p filter.
- * @return SR error value.
- */
-int op_filter_data_filter(struct lyd_node **data, const struct np2_filter *filter, int with_selection,
-        struct lyd_node **filtered_data);
+        const char *xp_filter, sr_session_ctx_t *ev_sess, struct lyd_node **data);
 
 #endif /* NP2SRV_COMMON_H_ */

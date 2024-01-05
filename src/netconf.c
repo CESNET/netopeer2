@@ -32,6 +32,7 @@
 #include <libyang/libyang.h>
 #include <sysrepo.h>
 #include <sysrepo/netconf_acm.h>
+#include <sysrepo/subscribed_notifications.h>
 
 #include "common.h"
 #include "compat.h"
@@ -44,38 +45,68 @@
  * @brief Get data for a get RPC.
  *
  * @param[in] session User SR session.
- * @param[in] filter NP2 filter to use.
+ * @param[in] xp_filter XPath filter to use.
  * @param[in,out] ev_sess Event SR session to use for errors.
  * @param[out] data Retrieved data.
  * @return SR error value.
  */
 static int
-np2srv_get_rpc_data(sr_session_ctx_t *session, const struct np2_filter *filter, sr_session_ctx_t *ev_sess,
+np2srv_get_rpc_data(sr_session_ctx_t *session, const char *xp_filter, sr_session_ctx_t *ev_sess,
         struct lyd_node **data)
 {
     int rc = SR_ERR_OK;
-    struct lyd_node *base_data = NULL;
+    struct lyd_node *node, *base_data = NULL;
+    struct ly_set *set = NULL;
+    uint32_t i;
 
     *data = NULL;
 
     /* get base data from running */
     sr_session_switch_ds(session, SR_DS_RUNNING);
-    if ((rc = op_filter_data_get(session, 0, SR_GET_NO_FILTER, filter, ev_sess, &base_data))) {
+    if ((rc = op_filter_data_get(session, 0, SR_GET_NO_FILTER, xp_filter, ev_sess, &base_data))) {
         goto cleanup;
     }
 
     /* then append base operational data */
     sr_session_switch_ds(session, SR_DS_OPERATIONAL);
-    if ((rc = op_filter_data_get(session, 0, SR_OPER_NO_CONFIG | SR_GET_NO_FILTER, filter, ev_sess, &base_data))) {
+    if ((rc = op_filter_data_get(session, 0, SR_OPER_NO_CONFIG | SR_GET_NO_FILTER, xp_filter, ev_sess, &base_data))) {
+        goto cleanup;
+    }
+
+    if (!strcmp(xp_filter, "/*")) {
+        /* no filter, use all the data */
+        *data = base_data;
+        base_data = NULL;
         goto cleanup;
     }
 
     /* now filter only the requested data from the created running data + state data */
-    if ((rc = op_filter_data_filter(&base_data, filter, 1, data))) {
+    if (lyd_find_xpath3(NULL, base_data, xp_filter, NULL, &set)) {
+        rc = SR_ERR_LY;
         goto cleanup;
     }
 
+    for (i = 0; i < set->count; ++i) {
+        if (lyd_dup_single(set->dnodes[i], NULL, LYD_DUP_RECURSIVE | LYD_DUP_WITH_PARENTS | LYD_DUP_WITH_FLAGS, &node)) {
+            rc = SR_ERR_LY;
+            goto cleanup;
+        }
+
+        /* always find parent */
+        while (node->parent) {
+            node = lyd_parent(node);
+        }
+
+        /* merge */
+        if (lyd_merge_tree(data, node, LYD_MERGE_DESTRUCT)) {
+            lyd_free_tree(node);
+            rc = SR_ERR_LY;
+            goto cleanup;
+        }
+    }
+
 cleanup:
+    ly_set_free(set, NULL);
     lyd_free_siblings(base_data);
     return rc;
 }
@@ -84,18 +115,22 @@ int
 np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *op_path, const struct lyd_node *input,
         sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *output, void *UNUSED(private_data))
 {
+    int rc = SR_ERR_OK;
     struct lyd_node *node, *data_get = NULL;
     struct lyd_meta *meta;
-    struct np2_filter filter = {0};
-    int rc = SR_ERR_OK;
     struct np2_user_sess *user_sess = NULL;
     struct ly_set *nodeset = NULL;
     sr_datastore_t ds = 0;
-    const char *single_filter;
+    char *xp_filter = NULL;
 
     if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
         return rc;
+    }
+
+    /* get the user session */
+    if ((rc = np_find_user_sess(session, __func__, NULL, &user_sess))) {
+        goto cleanup;
     }
 
     /* get know which datastore is being affected for get-config */
@@ -131,32 +166,20 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
         if (!meta) {
             /* subtree */
             if (((struct lyd_node_any *)node)->value_type == LYD_ANYDATA_DATATREE) {
-                if ((rc = op_filter_create_subtree(((struct lyd_node_any *)node)->value.tree, session, &filter))) {
+                if ((rc = srsn_filter_subtree2xpath(((struct lyd_node_any *)node)->value.tree, user_sess->sess, &xp_filter))) {
+                    sr_session_dup_error(user_sess->sess, session);
                     goto cleanup;
                 }
             }
-            single_filter = NULL;
         } else {
             /* xpath */
-            single_filter = lyd_get_meta_value(meta);
+            xp_filter = strdup(lyd_get_meta_value(meta));
         }
     } else {
-        single_filter = "/*";
-    }
-
-    if (single_filter) {
-        /* create a single filter */
-        if ((rc = op_filter_create_xpath(single_filter, &filter))) {
-            goto cleanup;
-        }
+        xp_filter = strdup("/*");
     }
 
     /* we do not care here about with-defaults mode, it does not change anything */
-
-    /* get the user session */
-    if ((rc = np_find_user_sess(session, __func__, NULL, &user_sess))) {
-        goto cleanup;
-    }
 
     /* get filtered data */
     if (!strcmp(op_path, "/ietf-netconf:get-config")) {
@@ -164,12 +187,14 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
         sr_session_switch_ds(user_sess->sess, ds);
 
         /* create the data tree for the data reply */
-        rc = op_filter_data_get(user_sess->sess, 0, 0, &filter, session, &data_get);
+        if ((rc = op_filter_data_get(user_sess->sess, 0, 0, xp_filter, session, &data_get))) {
+            goto cleanup;
+        }
     } else {
-        rc = np2srv_get_rpc_data(user_sess->sess, &filter, session, &data_get);
-    }
-    if (rc) {
-        goto cleanup;
+        /* get properly merged data */
+        if ((rc = np2srv_get_rpc_data(user_sess->sess, xp_filter, session, &data_get))) {
+            goto cleanup;
+        }
     }
 
     /* add output */
@@ -180,7 +205,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     data_get = NULL;
 
 cleanup:
-    op_filter_erase(&filter);
+    free(xp_filter);
     lyd_free_siblings(data_get);
     np_release_user_sess(user_sess);
     return rc;
@@ -873,8 +898,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     struct nc_session *ncs;
     struct np2_user_sess *user_sess = NULL;
     const char *stream;
-    struct np2_filter filter = {0};
-    char *xp = NULL;
+    char *xp_filter = NULL;
     struct timespec start = {0}, stop = {0}, cur_ts;
     int rc = SR_ERR_OK, has_nc_ntf_status = 0;
     const sr_error_info_t *err_info;
@@ -921,18 +945,16 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         if (!meta) {
             /* subtree */
             if (((struct lyd_node_any *)node)->value_type == LYD_ANYDATA_DATATREE) {
-                if ((rc = op_filter_create_subtree(((struct lyd_node_any *)node)->value.tree, session, &filter))) {
-                    goto cleanup;
-                }
-                if ((rc = op_filter_filter2xpath(&filter, &xp))) {
+                if ((rc = srsn_filter_subtree2xpath(((struct lyd_node_any *)node)->value.tree, user_sess->sess, &xp_filter))) {
+                    sr_session_dup_error(user_sess->sess, session);
                     goto cleanup;
                 }
             }
         } else {
             /* xpath */
             if (strlen(lyd_get_meta_value(meta))) {
-                xp = strdup(lyd_get_meta_value(meta));
-                if (!xp) {
+                xp_filter = strdup(lyd_get_meta_value(meta));
+                if (!xp_filter) {
                     EMEM;
                     rc = SR_ERR_NO_MEMORY;
                     goto cleanup;
@@ -998,7 +1020,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         ntf_arg->sr_ntf_replay_complete_count = start.tv_sec ? 0 : ntf_arg->sr_sub_count;
         for (idx = 0; idx < mod_set.count; ++idx) {
             ly_mod = mod_set.objs[idx];
-            rc = sr_notif_subscribe_tree(user_sess->sess, ly_mod->name, xp, start.tv_sec ? &start : NULL,
+            rc = sr_notif_subscribe_tree(user_sess->sess, ly_mod->name, xp_filter, start.tv_sec ? &start : NULL,
                     stop.tv_sec ? &stop : NULL, np2srv_rpc_subscribe_ntf_cb, ntf_arg, 0, &np2srv.sr_notif_sub);
             if (rc != SR_ERR_OK) {
                 sr_session_get_error(user_sess->sess, &err_info);
@@ -1010,7 +1032,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         /* subscribe to the specific module (stream) */
         ntf_arg->sr_sub_count = 1;
         ntf_arg->sr_ntf_replay_complete_count = start.tv_sec ? 0 : 1;
-        rc = sr_notif_subscribe_tree(user_sess->sess, stream, xp, start.tv_sec ? &start : NULL, stop.tv_sec ? &stop : NULL,
+        rc = sr_notif_subscribe_tree(user_sess->sess, stream, xp_filter, start.tv_sec ? &start : NULL, stop.tv_sec ? &stop : NULL,
                 np2srv_rpc_subscribe_ntf_cb, ntf_arg, 0, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {
             sr_session_get_error(user_sess->sess, &err_info);
@@ -1024,8 +1046,7 @@ cleanup:
         nc_session_dec_notif_status(ncs);
     }
     ly_set_erase(&mod_set, NULL);
-    op_filter_erase(&filter);
-    free(xp);
+    free(xp_filter);
     np_release_user_sess(user_sess);
     return rc;
 }

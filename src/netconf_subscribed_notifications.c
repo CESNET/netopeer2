@@ -408,7 +408,6 @@ sub_ntf_filter2xpath(sr_session_ctx_t *user_sess, sr_session_ctx_t *ev_sess, con
     int rc = SR_ERR_OK;
     sr_data_t *subtree = NULL;
     const sr_error_info_t *err_info;
-    struct np2_filter filter = {0};
     char *str;
 
     if (filter_name) {
@@ -444,7 +443,8 @@ sub_ntf_filter2xpath(sr_session_ctx_t *user_sess, sr_session_ctx_t *ev_sess, con
     if (subtree_filter) {
         /* subtree */
         if (((struct lyd_node_any *)subtree_filter)->value_type == LYD_ANYDATA_DATATREE) {
-            if ((rc = srsn_filter_subtree2xpath(((struct lyd_node_any *)subtree_filter)->value.tree, xpath))) {
+            if ((rc = srsn_filter_subtree2xpath(((struct lyd_node_any *)subtree_filter)->value.tree, user_sess, xpath))) {
+                sr_session_dup_error(user_sess, ev_sess);
                 goto cleanup;
             }
         }
@@ -461,7 +461,6 @@ sub_ntf_filter2xpath(sr_session_ctx_t *user_sess, sr_session_ctx_t *ev_sess, con
 
 cleanup:
     sr_release_data(subtree);
-    op_filter_erase(&filter);
     return rc;
 }
 

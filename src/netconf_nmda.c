@@ -26,6 +26,7 @@
 
 #include <libyang/libyang.h>
 #include <sysrepo.h>
+#include <sysrepo/subscribed_notifications.h>
 
 #include "common.h"
 #include "compat.h"
@@ -101,7 +102,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
 {
     struct lyd_node_term *leaf;
     struct lyd_node *node, *data = NULL;
-    struct np2_filter filter = {0};
+    char *xp_filter = NULL;
     int rc = SR_ERR_OK;
     struct np2_user_sess *user_sess = NULL;
     uint32_t i, max_depth = 0;
@@ -113,6 +114,11 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
         return rc;
+    }
+
+    /* get the user session */
+    if ((rc = np_find_user_sess(session, __func__, NULL, &user_sess))) {
+        goto cleanup;
     }
 
     /* get default value for with-defaults */
@@ -141,13 +147,12 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     node = nodeset->count ? nodeset->dnodes[0] : NULL;
     ly_set_free(nodeset, NULL);
     if (node && !strcmp(node->schema->name, "subtree-filter")) {
-        if ((rc = op_filter_create_subtree(((struct lyd_node_any *)node)->value.tree, session, &filter))) {
+        if ((rc = srsn_filter_subtree2xpath(((struct lyd_node_any *)node)->value.tree, user_sess->sess, &xp_filter))) {
+            sr_session_dup_error(user_sess->sess, session);
             goto cleanup;
         }
     } else {
-        if ((rc = op_filter_create_xpath(node ? lyd_get_value(node) : "/*", &filter))) {
-            goto cleanup;
-        }
+        xp_filter = strdup(node ? lyd_get_value(node) : "/*");
     }
 
     /* config filter */
@@ -183,16 +188,11 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         }
     }
 
-    /* get the user session */
-    if ((rc = np_find_user_sess(session, __func__, NULL, &user_sess))) {
-        goto cleanup;
-    }
-
     /* update sysrepo session datastore */
     sr_session_switch_ds(user_sess->sess, ds);
 
     /* create the data tree for the data reply */
-    if ((rc = op_filter_data_get(user_sess->sess, max_depth, get_opts, &filter, session, &data))) {
+    if ((rc = op_filter_data_get(user_sess->sess, max_depth, get_opts, xp_filter, session, &data))) {
         goto cleanup;
     }
 
@@ -212,7 +212,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     data = NULL;
 
 cleanup:
-    op_filter_erase(&filter);
+    free(xp_filter);
     lyd_free_siblings(data);
     np_release_user_sess(user_sess);
     return rc;
