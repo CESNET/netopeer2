@@ -89,7 +89,7 @@ This is the option that affects the initial setup:
 SYSREPO_SETUP:ON
 ```
 
-If cross-compiling for a different architecture, you will likely want to turn all these options off
+If cross-compiling for a different architecture, you will likely want to turn this option off
 and then run the scripts `setup.sh`, `merge_hostkey.sh`, and `merge_config.sh` manually.
 
 ## Server configuration
@@ -102,7 +102,7 @@ is found and the keys from this file will be used. If `authorized_keys` file is 
 the second method is via the SSH **keyboard-interactive**, which leaves the authentication up to the
 system (and depends on how *libnetconf2* was compiled).
 
-Example configuration XML files can be found in the `example_configuration`
+**Example configuration** XML files can be found in the `example_configuration`
 directory. These files can be easily modified to create configuration specific for a particular
 environment and configured authentication.
 
