@@ -288,10 +288,6 @@ test_copy_config_into_file(void **state)
             "      </rule>\n"
             "    </rule-list>\n"
             "  </nacm>\n"
-            "  <netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\">\n"
-            "    <hello-timeout xmlns=\"urn:cesnet:libnetconf2-netconf-server\">60</hello-timeout>\n"
-            "    <idle-timeout xmlns=\"urn:cesnet:libnetconf2-netconf-server\">0</idle-timeout>\n"
-            "  </netconf-server>\n"
             "</config>\n";
 
     assert_int_not_equal(-1, asprintf(&expected, template, np_get_user()) == -1);
@@ -419,10 +415,6 @@ test_edit_config(void **state)
             "        </rule>\n"
             "      </rule-list>\n"
             "    </nacm>\n"
-            "    <netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\">\n"
-            "      <hello-timeout xmlns=\"urn:cesnet:libnetconf2-netconf-server\">60</hello-timeout>\n"
-            "      <idle-timeout xmlns=\"urn:cesnet:libnetconf2-netconf-server\">0</idle-timeout>\n"
-            "    </netconf-server>\n"
             "  </data>\n"
             "</get-config>\n";
 

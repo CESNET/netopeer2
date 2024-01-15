@@ -65,32 +65,29 @@ fi
 # import default config
 CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\">
     <listen>
-        <endpoint>
-            <name>default-ssh</name>
-            <ssh>
-                <tcp-server-parameters>
-                    <local-address>0.0.0.0</local-address>
-                    <keepalives>
-                        <idle-time>1</idle-time>
-                        <max-probes>10</max-probes>
-                        <probe-interval>5</probe-interval>
-                    </keepalives>
-                </tcp-server-parameters>
-                <ssh-server-parameters>
-                    <server-identity>
-                        <host-key>
-                            <name>default-key</name>
-                            <public-key>
-                                <keystore-reference>genkey</keystore-reference>
-                            </public-key>
-                        </host-key>
-                    </server-identity>
-                    <client-authentication>
-                        ${USERS_CONFIG}
-                    </client-authentication>
-                </ssh-server-parameters>
-            </ssh>
-        </endpoint>
+        <endpoints>
+            <endpoint>
+                <name>default-ssh</name>
+                <ssh>
+                    <tcp-server-parameters>
+                        <local-address>0.0.0.0</local-address>
+                    </tcp-server-parameters>
+                    <ssh-server-parameters>
+                        <server-identity>
+                            <host-key>
+                                <name>default-key</name>
+                                <public-key>
+                                    <central-keystore-reference>genkey</central-keystore-reference>
+                                </public-key>
+                            </host-key>
+                        </server-identity>
+                        <client-authentication>
+                            ${USERS_CONFIG}
+                        </client-authentication>
+                    </ssh-server-parameters>
+                </ssh>
+            </endpoint>
+        </endpoints>
     </listen>
 </netconf-server>"
 

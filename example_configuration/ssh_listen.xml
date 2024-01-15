@@ -1,55 +1,53 @@
 <netconf-server xmlns="urn:ietf:params:xml:ns:yang:ietf-netconf-server">
   <listen>
-    <endpoint>
-      <name>default-ssh</name>
-      <ssh>
-        <tcp-server-parameters>
-          <local-address>0.0.0.0</local-address>
-          <keepalives>
-            <idle-time>1</idle-time>
-            <max-probes>10</max-probes>
-            <probe-interval>5</probe-interval>
-          </keepalives>
-        </tcp-server-parameters>
-        <ssh-server-parameters>
-          <server-identity>
-            <host-key>
-              <name>default-key</name>
-              <public-key>
-                <keystore-reference>genkey</keystore-reference>
-              </public-key>
-            </host-key>
-          </server-identity>
-          <client-authentication>
-            <users>
-              <user>
-                <name>user</name> <!-- User name that can use this authorized key(s) to authenticate itself -->
-                <public-keys>
-                  <use-system-keys xmlns="urn:cesnet:libnetconf2-netconf-server"/> <!-- Uses system authorized keys of the user automatically -->
-                  <!-- Specific inline definition of an authorized key can be used INSTEAD of system authorized keys (select one method)
-                  <inline-definition>
-                    <public-key>
-                      <name>my-authorized-key</name>
-                      <public-key-format xmlns:ct="urn:ietf:params:xml:ns:yang:ietf-crypto-types">ct:ssh-public-key-format</public-key-format>
-                      <public-key>base64==</public-key> - Copy here one line (key) from the authorized_keys of the user
-                    </public-key>
-                  </inline-definition>
+    <endpoints>
+      <endpoint>
+        <name>default-ssh</name>
+        <ssh>
+          <tcp-server-parameters>
+            <local-address>0.0.0.0</local-address>
+          </tcp-server-parameters>
+          <ssh-server-parameters>
+            <server-identity>
+              <host-key>
+                <name>default-key</name>
+                <public-key>
+                  <central-keystore-reference>genkey</central-keystore-reference>
+                </public-key>
+              </host-key>
+            </server-identity>
+            <client-authentication>
+              <users>
+                <user>
+                  <name>user</name> <!-- User name that can use this authorized key(s) to authenticate itself -->
+                  <public-keys>
+                    <use-system-keys xmlns="urn:cesnet:libnetconf2-netconf-server"/> <!-- Uses system authorized keys of the user automatically -->
+                    <!-- Specific inline definition of an authorized key can be used INSTEAD of system authorized keys (select one method)
+                    <inline-definition>
+                      <public-key>
+                        <name>my-authorized-key</name>
+                        <public-key-format xmlns:ct="urn:ietf:params:xml:ns:yang:ietf-crypto-types">ct:ssh-public-key-format</public-key-format>
+                        <public-key>base64==</public-key> - Copy here one line (key) from the authorized_keys of the user
+                      </public-key>
+                    </inline-definition>
+                    -->
+                  </public-keys>
+                  <!-- Use password authentication INSTEAD of public keys (select one method)
+                  <password>$0$pass</password> - Replace "pass" with a clear-text password of the user or use a hashed
+                        password (details in iana-crypt-hash YANG module)
                   -->
-                </public-keys>
-                <!-- Use password authentication INSTEAD of public keys (select one method)
-                <password>pass</password> - Replace "pass" with the password of the user
-                -->
 
-                <!-- Use keyboard-interactive authentication INSTEAD of public keys (select one method)
-                <keyboard-interactive xmlns="urn:cesnet:libnetconf2-netconf-server">
-                  <use-system-auth/> - Will use system mechanisms for authentication the user, usually asking for their password
-                </keyboard-interactive>
-                -->
-              </user>
-            </users>
-          </client-authentication>
-        </ssh-server-parameters>
-      </ssh>
-    </endpoint>
+                  <!-- Use keyboard-interactive authentication INSTEAD of public keys (select one method)
+                  <keyboard-interactive xmlns="urn:cesnet:libnetconf2-netconf-server">
+                    <use-system-auth/> - Will use system mechanisms for authentication the user, usually asking for their password
+                  </keyboard-interactive>
+                  -->
+                </user>
+              </users>
+            </client-authentication>
+          </ssh-server-parameters>
+        </ssh>
+      </endpoint>
+    </endpoints>
   </listen>
 </netconf-server>
