@@ -80,15 +80,15 @@ export NP2_MODULE_PERMS=600
 export NP2_MODULE_OWNER=root
 export LN2_MODULE_DIR=%{_datadir}/yang/modules/libnetconf2
 
-%{_datadir}/netopeer2/setup.sh
-%{_datadir}/netopeer2/merge_hostkey.sh
-%{_datadir}/netopeer2/merge_config.sh
+%{_datadir}/netopeer2/scripts/setup.sh
+%{_datadir}/netopeer2/scripts/merge_hostkey.sh
+%{_datadir}/netopeer2/scripts/merge_config.sh
 
 %systemd_post netopeer2-server.service
 
 %preun server
 set -e
-%{_datadir}/netopeer2/remove.sh
+%{_datadir}/netopeer2/scripts/remove.sh
 
 
 %files
@@ -100,7 +100,8 @@ set -e
 %{_datadir}/man/man8/netopeer2-server.8.gz
 %{_unitdir}/netopeer2-server.service
 %{_datadir}/yang/modules/netopeer2/*.yang
-%{_datadir}/netopeer2/*.sh
+%{_datadir}/netopeer2/scripts/*.sh
+%{_sysconfdir}/pam.d/netopeer2.conf
 %dir %{_datadir}/yang/modules/netopeer2/
 %dir %{_datadir}/netopeer2/
 %dir %{_libdir}/netopeer2-server/

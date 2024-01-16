@@ -29,14 +29,14 @@ case "$1" in
 	    NP2_MODULE_PERMS=660 \
 	    NP2_MODULE_OWNER=root \
 	    NP2_MODULE_GROUP=netconf \
-	    bash /usr/share/netopeer2/setup.sh
+	    bash /usr/share/netopeer2/scripts/setup.sh
 	env - \
 	    SYSREPOCFG_EXECUTABLE=sysrepocfg \
 	    OPENSSL_EXECUTABLE=openssl \
-	bash /usr/share/netopeer2/merge_hostkey.sh
+	bash /usr/share/netopeer2/scripts/merge_hostkey.sh
 	env - \
 	    SYSREPOCFG_EXECUTABLE=sysrepocfg \
-	bash /usr/share/netopeer2/merge_config.sh
+	bash /usr/share/netopeer2/scripts/merge_config.sh
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

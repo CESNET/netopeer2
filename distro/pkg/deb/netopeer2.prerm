@@ -34,7 +34,7 @@ case "$1" in
 	    NP2_MODULE_PERMS=660 \
 	    NP2_MODULE_OWNER=root \
 	    NP2_MODULE_GROUP=netconf \
-	    bash /usr/share/netopeer2/remove.sh
+	    bash /usr/share/netopeer2/scripts/remove.sh
     ;;
     upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
     ;;
