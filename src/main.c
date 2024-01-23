@@ -16,6 +16,7 @@
 
 #define _GNU_SOURCE
 
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
@@ -769,6 +770,49 @@ np2srv_libnetconf2_config_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id),
     return SR_ERR_OK;
 }
 
+#ifdef NC_ENABLED_SSH_TLS
+
+static int
+np2srv_ssh_algs_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *module_name,
+        const char *path, const char *UNUSED(request_xpath), uint32_t UNUSED(request_id),
+        struct lyd_node **parent, void *UNUSED(private_data))
+{
+    int ret = 0;
+    const struct ly_ctx *ly_ctx;
+
+    (void) path;
+
+    /* context is locked by the callback anyway */
+    ly_ctx = sr_session_acquire_context(session);
+    sr_session_release_context(session);
+
+    /* get oper data based on the module */
+    if (!strcmp(module_name, "iana-ssh-public-key-algs")) {
+        assert(!strcmp(path, "/iana-ssh-public-key-algs:supported-algorithms"));
+        ret = nc_server_config_oper_get_hostkey_algs(ly_ctx, parent);
+    } else if (!strcmp(module_name, "iana-ssh-key-exchange-algs")) {
+        assert(!strcmp(path, "/iana-ssh-key-exchange-algs:supported-algorithms"));
+        ret = nc_server_config_oper_get_kex_algs(ly_ctx, parent);
+    } else if (!strcmp(module_name, "iana-ssh-encryption-algs")) {
+        assert(!strcmp(path, "/iana-ssh-encryption-algs:supported-algorithms"));
+        ret = nc_server_config_oper_get_encryption_algs(ly_ctx, parent);
+    } else if (!strcmp(module_name, "iana-ssh-mac-algs")) {
+        assert(!strcmp(path, "/iana-ssh-mac-algs:supported-algorithms"));
+        ret = nc_server_config_oper_get_mac_algs(ly_ctx, parent);
+    } else {
+        ERR("Unable to get supported SSH algorithms (module %s not supported).", module_name);
+        return SR_ERR_INTERNAL;
+    }
+    if (ret) {
+        ERR("Getting supported SSH algorithms failed.");
+        return SR_ERR_INTERNAL;
+    }
+
+    return SR_ERR_OK;
+}
+
+#endif /* NC_ENABLED_SSH_TLS */
+
 /**
  * @brief Subscribe to all the handled RPCs of the server.
  *
@@ -875,6 +919,21 @@ server_data_subscribe(void)
 
     mod_name = "nc-notifications";
     SR_OPER_SUBSCR(mod_name, "/nc-notifications:netconf", np2srv_nc_ntf_oper_cb);
+
+#ifdef NC_ENABLED_SSH_TLS
+    /* set callbacks for supported algorithms oper data */
+    mod_name = "iana-ssh-public-key-algs";
+    SR_OPER_SUBSCR(mod_name, "/iana-ssh-public-key-algs:supported-algorithms", np2srv_ssh_algs_oper_cb);
+
+    mod_name = "iana-ssh-key-exchange-algs";
+    SR_OPER_SUBSCR(mod_name, "/iana-ssh-key-exchange-algs:supported-algorithms", np2srv_ssh_algs_oper_cb);
+
+    mod_name = "iana-ssh-encryption-algs";
+    SR_OPER_SUBSCR(mod_name, "/iana-ssh-encryption-algs:supported-algorithms", np2srv_ssh_algs_oper_cb);
+
+    mod_name = "iana-ssh-mac-algs";
+    SR_OPER_SUBSCR(mod_name, "/iana-ssh-mac-algs:supported-algorithms", np2srv_ssh_algs_oper_cb);
+#endif /* NC_ENABLED_SSH_TLS */
 
     /*
      * ietf-subscribed-notifications
