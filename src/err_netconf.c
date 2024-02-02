@@ -273,7 +273,7 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
     } else if (!strncmp(err->message, "Invalid type", 12) || !strncmp(err->message, "Unsatisfied range", 17) ||
             !strncmp(err->message, "Unsatisfied pattern", 19) || strstr(err->message, "min/max bounds")) {
         /* create error message */
-        str = strndup(err->message, (strchr(err->message, '.') + 1) - err->message);
+        str = strndup(err->message, (strrchr(err->message, '(') - 1) - err->message);
 
         /* bad-element */
         assert(path);
