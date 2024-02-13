@@ -66,7 +66,8 @@
  */
 #define NP2SRV_SUB_NTF_TERMINATE_YIELD_SLEEP 50
 
-/** @brief Timeout for locking a user session structure (ms). */
+/** @brief Timeout for locking a user session structure (ms).
+ */
 #define NP2SRV_USER_SESS_LOCK_TIMEOUT 5000
 
 /** @brief URL capability support
@@ -77,10 +78,12 @@
  */
 #cmakedefine NP2SRV_HAVE_SYSTEMD
 
-/** @brief sshd-like pattern for path to the authorized_keys file */
+/** @brief sshd-like pattern for path to the authorized_keys file
+ */
 #define NP2SRV_SSH_AUTHORIZED_KEYS_FORMAT "@SSH_AUTHORIZED_KEYS_FORMAT@"
 
-/** @brief directory for server files (only confirmed-commit backups at the moment) */
+/** @brief directory for server files (only confirmed-commit backups at the moment)
+ */
 #define SERVER_DIR "@SERVER_DIR@"
 
 #endif /* NP2SRV_CONFIG_H_ */
