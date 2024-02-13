@@ -78,6 +78,7 @@ struct np2srv {
     const char *ext_data_path;      /**< path to the data file with data for LY ext data callback */
 
     const char *server_dir;         /**< path to server files (just confirmed commit for the moment) */
+    char *url_protocols;           /**< list of supported URL protocols */
 
     struct nc_pollsession *nc_ps;   /**< libnetconf2 pollsession structure */
     pthread_t workers[NP2SRV_THREAD_COUNT]; /**< worker threads handling sessions */
@@ -262,10 +263,10 @@ int np2srv_url_setcap(void);
  * @param[in] url URL to access.
  * @param[in] validate Whether to validate nested data.
  * @param[out] rc SR error value.
- * @param[in,out] sr_sess SR session to set error on.
+ * @param[in] ev_sess SR session for errors.
  * @return Parsed data.
  */
-struct lyd_node *op_parse_url(const char *url, int validate, int *rc, sr_session_ctx_t *sr_sess);
+struct lyd_node *op_parse_url(const char *url, int validate, int *rc, sr_session_ctx_t *ev_sess);
 
 /**
  * @brief Upload YANG data to an URL (encapsulated in `config` element).
@@ -274,11 +275,11 @@ struct lyd_node *op_parse_url(const char *url, int validate, int *rc, sr_session
  * @param[in] data Data to upload.
  * @param[in] print_options Options for printing the data.
  * @param[out] rc SR error value.
- * @param[in,out] sr_sess SR session to set error on.
+ * @param[in] ev_sess SR session for errors.
  * @return 0 on success;
  * @return -1 on error.
  */
-int op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, int *rc, sr_session_ctx_t *sr_sess);
+int op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, int *rc, sr_session_ctx_t *ev_sess);
 
 #endif
 
@@ -288,10 +289,10 @@ int op_export_url(const char *url, struct lyd_node *data, uint32_t print_options
  * @param[in] config Config node with the data.
  * @param[in] parse_options Options for parsing the data.
  * @param[out] rc SR error value.
- * @param[in,out] sr_sess SR session to set error on.
+ * @param[in] ev_sess SR session for errors.
  * @return Parsed data.
  */
-struct lyd_node *op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr_session_ctx_t *sr_sess);
+struct lyd_node *op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr_session_ctx_t *ev_sess);
 
 /**
  * @brief Get all data matching the NP2 filter.
@@ -300,7 +301,7 @@ struct lyd_node *op_parse_config(struct lyd_node_any *config, uint32_t parse_opt
  * @param[in] max_depth Max depth fo the retrieved data.
  * @param[in] get_opts SR get options to use.
  * @param[in] xp_filter XPath filter to use.
- * @param[in,out] ev_sess SR event session to set the error on.
+ * @param[in] ev_sess SR session for errors.
  * @param[out] data Retrieved data.
  * @return SR error value.
  */

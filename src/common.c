@@ -486,50 +486,42 @@ int
 np2srv_url_setcap(void)
 {
     uint32_t i, j;
-    char *cpblt;
-    int first = 1, cur_prot, sup_prot = 0;
+    char *cpblt, *url_protocols = NULL;
+    int len = 0;
     curl_version_info_data *curl_data;
-    const char *url_protocol_str[] = {"scp", "http", "https", "ftp", "sftp", "ftps", "file", NULL};
     const char *main_cpblt = "urn:ietf:params:netconf:capability:url:1.0?scheme=";
+
+# ifdef NP2SRV_URL_FILE_PROTO
+    const char *url_protocols_all[] = {"file", "ftp", "ftps", "http", "https", "scp", "sftp"};
+# else
+    const char *url_protocols_all[] = {"ftp", "ftps", "http", "https", "scp", "sftp"};
+# endif
+
+    assert(!np2srv.url_protocols);
 
     curl_data = curl_version_info(CURLVERSION_NOW);
     for (i = 0; curl_data->protocols[i]; ++i) {
-        for (j = 0; url_protocol_str[j]; ++j) {
-            if (!strcmp(curl_data->protocols[i], url_protocol_str[j])) {
-                sup_prot |= (1 << j);
+        for (j = 0; j < (sizeof url_protocols_all / sizeof *url_protocols_all); ++j) {
+            if (!strcmp(curl_data->protocols[i], url_protocols_all[j])) {
+                /* add supported protocol */
+                url_protocols = realloc(url_protocols, len + (len ? 1 : 0) + strlen(url_protocols_all[j]) + 1);
+                len += sprintf(url_protocols + len, "%s%s", len ? "," : "", url_protocols_all[j]);
                 break;
             }
         }
     }
-    if (!sup_prot) {
+    if (!url_protocols) {
         /* no protocols supported */
         return 0;
     }
 
-    /* get max capab string size and allocate it */
-    j = strlen(main_cpblt) + 1;
-    for (i = 0; url_protocol_str[i]; ++i) {
-        j += strlen(url_protocol_str[i]) + 1;
-    }
-    cpblt = malloc(j);
-    if (!cpblt) {
-        EMEM;
-        return -1;
-    }
-
-    /* main capability */
-    strcpy(cpblt, main_cpblt);
-
-    /* supported protocols */
-    for (i = 0, cur_prot = 1; i < (sizeof url_protocol_str / sizeof *url_protocol_str); ++i, cur_prot <<= 1) {
-        if (cur_prot & sup_prot) {
-            sprintf(cpblt + strlen(cpblt), "%s%s", first ? "" : ",", url_protocol_str[i]);
-            first = 0;
-        }
-    }
-
+    /* generate the capability string and set it */
+    asprintf(&cpblt, "%s%s", main_cpblt, url_protocols);
     nc_server_set_capability(cpblt);
     free(cpblt);
+
+    /* store the supported URL protocols for libcurl */
+    np2srv.url_protocols = url_protocols;
     return 0;
 }
 
@@ -541,16 +533,20 @@ struct np2srv_url_mem {
 static size_t
 url_writedata(char *ptr, size_t size, size_t nmemb, void *userdata)
 {
-    int *fd = (int *)userdata;
+    struct np2srv_url_mem *data = userdata;
 
-    return write(*fd, ptr, size * nmemb);
+    data->memory = realloc(data->memory, data->size + (size * nmemb) + 1);
+    memcpy(data->memory + data->size, ptr, size * nmemb);
+    data->size += size * nmemb;
+
+    return size * nmemb;
 }
 
 static size_t
 url_readdata(void *ptr, size_t size, size_t nmemb, void *userdata)
 {
     size_t copied = 0, aux_size = size * nmemb;
-    struct np2srv_url_mem *data = (struct np2srv_url_mem *)userdata;
+    struct np2srv_url_mem *data = userdata;
 
     if ((aux_size < 1) || (data->size == 0)) {
         /* no space or nothing left */
@@ -565,90 +561,89 @@ url_readdata(void *ptr, size_t size, size_t nmemb, void *userdata)
 }
 
 /**
- * @brief Open specific URL using curl.
+ * @brief Get a specific URL using curl.
  *
  * @param[in] url URL to open.
- * @return FD with the URL contents;
- * @return -1 on error.
+ * @param[in] ev_sess Event session for errors.
+ * @return Data downloaded from the URL, NULL on error.
  */
-static int
-url_open(const char *url)
+static char *
+url_get(const char *url, sr_session_ctx_t *ev_sess)
 {
     CURL *curl;
     CURLcode res;
     char curl_buffer[CURL_ERROR_SIZE];
-    char url_tmp_name[(sizeof P_tmpdir / sizeof(char)) + 15] = P_tmpdir "/np2srv-XXXXXX";
-    int url_tmpfile;
+    struct np2srv_url_mem mem_data = {0};
 
-    /* prepare temporary file ... */
-    if ((url_tmpfile = mkstemp(url_tmp_name)) < 0) {
-        ERR("Failed to create a temporary file (%s).", strerror(errno));
-        return -1;
+    if (!np2srv.url_protocols) {
+        ERR("No URL protocols enabled.");
+        sr_session_set_error_message(ev_sess, "No URL protocols enabled.");
+        return NULL;
     }
-
-    /* and hide it from the file system */
-    unlink(url_tmp_name);
 
     DBG("Getting file from URL: %s (via curl)", url);
 
     /* set up libcurl */
     curl_global_init(URL_INIT_FLAGS);
     curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, np2srv.url_protocols);
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, url_writedata);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &url_tmpfile);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &mem_data);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
+
+    /* download data */
     res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         ERR("Failed to download data (curl: %s).", curl_buffer);
-        close(url_tmpfile);
-        url_tmpfile = -1;
-    } else {
-        /* move back to the beginning of the output file */
-        lseek(url_tmpfile, 0, SEEK_SET);
+        sr_session_set_error_message(ev_sess, curl_buffer);
+        goto cleanup;
     }
 
-    /* cleanup */
+    if (mem_data.memory) {
+        /* add terminating zero */
+        mem_data.memory[mem_data.size] = '\0';
+    }
+
+cleanup:
     curl_easy_cleanup(curl);
     curl_global_cleanup();
-
-    return url_tmpfile;
+    return mem_data.memory;
 }
 
 struct lyd_node *
-op_parse_url(const char *url, int validate, int *rc, sr_session_ctx_t *sr_sess)
+op_parse_url(const char *url, int validate, int *rc, sr_session_ctx_t *ev_sess)
 {
     struct lyd_node *config, *data = NULL;
     struct ly_ctx *ly_ctx;
     struct lyd_node_opaq *opaq;
-    int fd;
+    char *url_data = NULL;
 
     ly_ctx = (struct ly_ctx *)sr_acquire_context(np2srv.sr_conn);
 
-    fd = url_open(url);
-    if (fd == -1) {
+    url_data = url_get(url, ev_sess);
+    if (!url_data) {
         *rc = SR_ERR_INVAL_ARG;
-        sr_session_set_error_message(sr_sess, "Could not open URL.");
         goto cleanup;
     }
 
     /* load the whole config element */
-    if (lyd_parse_data_fd(ly_ctx, fd, LYD_XML, LYD_PARSE_OPAQ | LYD_PARSE_ONLY | LYD_PARSE_NO_STATE, 0, &config)) {
+    if (lyd_parse_data_mem(ly_ctx, url_data, LYD_XML, LYD_PARSE_OPAQ | LYD_PARSE_ONLY | LYD_PARSE_NO_STATE, 0, &config)) {
         *rc = SR_ERR_LY;
-        sr_session_set_error_message(sr_sess, ly_errmsg(ly_ctx));
+        sr_session_set_error_message(ev_sess, ly_errmsg(ly_ctx));
         goto cleanup;
     }
 
     if (!config || config->schema) {
         *rc = SR_ERR_UNSUPPORTED;
-        sr_session_set_error_message(sr_sess, "Missing top-level \"config\" element in URL data.");
+        sr_session_set_error_message(ev_sess, "Missing top-level \"config\" element in URL data.");
         goto cleanup;
     }
 
     opaq = (struct lyd_node_opaq *)config;
     if (strcmp(opaq->name.name, "config") || strcmp(opaq->name.module_ns, "urn:ietf:params:xml:ns:netconf:base:1.0")) {
         *rc = SR_ERR_UNSUPPORTED;
-        sr_session_set_error_message(sr_sess, "Invalid top-level element in URL data, expected \"config\" with "
+        sr_session_set_error_message(ev_sess, "Invalid top-level element in URL data, expected \"config\" with "
                 "namespace \"urn:ietf:params:xml:ns:netconf:base:1.0\".");
         goto cleanup;
     }
@@ -661,18 +656,19 @@ op_parse_url(const char *url, int validate, int *rc, sr_session_ctx_t *sr_sess)
         /* separate validation if requested */
         if (lyd_validate_all(&data, NULL, LYD_VALIDATE_NO_STATE, NULL)) {
             *rc = SR_ERR_LY;
-            sr_session_set_error_message(sr_sess, ly_errmsg(ly_ctx));
+            sr_session_set_error_message(ev_sess, ly_errmsg(ly_ctx));
             goto cleanup;
         }
     }
 
 cleanup:
     sr_release_context(np2srv.sr_conn);
+    free(url_data);
     return data;
 }
 
 int
-op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, int *rc, sr_session_ctx_t *sr_sess)
+op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, int *rc, sr_session_ctx_t *ev_sess)
 {
     CURL *curl;
     CURLcode res;
@@ -682,12 +678,17 @@ op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, in
     struct ly_ctx *ly_ctx;
     int ret = 0;
 
+    if (!np2srv.url_protocols) {
+        ERR("No URL protocols enabled.");
+        return -1;
+    }
+
     ly_ctx = (struct ly_ctx *)sr_acquire_context(np2srv.sr_conn);
 
     /* print the config as expected by the other end */
     if (lyd_new_opaq2(NULL, ly_ctx, "config", NULL, NULL, "urn:ietf:params:xml:ns:netconf:base:1.0", &config)) {
         *rc = SR_ERR_LY;
-        sr_session_set_error_message(sr_sess, ly_errmsg(ly_ctx));
+        sr_session_set_error_message(ev_sess, ly_errmsg(ly_ctx));
         ret = -1;
         goto cleanup;
     }
@@ -709,10 +710,11 @@ op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, in
     /* set up libcurl */
     curl_global_init(URL_INIT_FLAGS);
     curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, np2srv.url_protocols);
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-    curl_easy_setopt(curl, CURLOPT_READDATA, &mem_data);
     curl_easy_setopt(curl, CURLOPT_READFUNCTION, url_readdata);
+    curl_easy_setopt(curl, CURLOPT_READDATA, &mem_data);
     curl_easy_setopt(curl, CURLOPT_INFILESIZE, (long)mem_data.size);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
     res = curl_easy_perform(curl);
@@ -721,7 +723,7 @@ op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, in
     if (res != CURLE_OK) {
         ERR("Failed to upload data (curl: %s).", curl_buffer);
         *rc = SR_ERR_SYS;
-        sr_session_set_error_message(sr_sess, curl_buffer);
+        sr_session_set_error_message(ev_sess, curl_buffer);
         ret = -1;
         goto curl_cleanup;
     }
@@ -746,7 +748,7 @@ np2srv_url_setcap(void)
 #endif
 
 struct lyd_node *
-op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr_session_ctx_t *sr_sess)
+op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr_session_ctx_t *ev_sess)
 {
     const struct ly_ctx *ly_ctx;
     struct lyd_node *root = NULL;
@@ -783,7 +785,7 @@ op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr
     }
     if (lyrc) {
         *rc = SR_ERR_LY;
-        sr_session_set_error_message(sr_sess, ly_errmsg(ly_ctx));
+        sr_session_set_error_message(ev_sess, ly_errmsg(ly_ctx));
     }
 
     return root;

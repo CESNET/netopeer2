@@ -442,6 +442,11 @@ main(int argc, char **argv)
         return 0;
     }
 
+#ifndef NP2SRV_URL_FILE_PROTO
+    puts("File protocol disabled, no tests to run. Skipping.");
+    return 0;
+#endif
+
     nc_verbosity(NC_VERB_WARNING);
     parse_arg(argc, argv);
     return cmocka_run_group_tests(tests, local_setup, local_teardown);

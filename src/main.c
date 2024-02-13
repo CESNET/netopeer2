@@ -695,6 +695,9 @@ server_destroy(void)
 
     /* disconnects and clears all the sessions */
     sr_disconnect(np2srv.sr_conn);
+
+    /* free dynamic members */
+    free(np2srv.url_protocols);
 }
 
 static int

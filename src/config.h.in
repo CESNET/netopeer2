@@ -74,6 +74,10 @@
  */
 #cmakedefine NP2SRV_URL_CAPAB
 
+/** @brief URL capability file: protocol support
+ */
+#cmakedefine NP2SRV_URL_FILE_PROTO
+
 /** @brief Whether libsystemd is installed, decides general support for systemd
  */
 #cmakedefine NP2SRV_HAVE_SYSTEMD
