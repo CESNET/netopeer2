@@ -27,6 +27,7 @@
 #include <nc_client.h>
 #include <sysrepo/netconf_acm.h>
 
+#include "config.h"
 #include "np_test.h"
 #include "np_test_config.h"
 

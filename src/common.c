@@ -561,6 +561,50 @@ url_readdata(void *ptr, size_t size, size_t nmemb, void *userdata)
 }
 
 /**
+ * @brief Set supported protocols for libcurl.
+ *
+ * @param[in] curl CURL struct to modify.
+ */
+static void
+url_set_protocols(CURL *curl)
+{
+#if CURL_AT_LEAST_VERSION(7,85,0)
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, np2srv.url_protocols);
+#else
+    long proto = 0;
+    char *ptr, *ptr2;
+
+    ptr = np2srv.url_protocols;
+    do {
+        ptr2 = strchr(ptr, ',');
+        if (!ptr2) {
+            ptr2 = ptr + strlen(ptr);
+        }
+
+        if (!strncmp(ptr, "file", ptr2 - ptr)) {
+            proto |= CURLPROTO_FILE;
+        } else if (!strncmp(ptr, "ftp", ptr2 - ptr)) {
+            proto |= CURLPROTO_FTP;
+        } else if (!strncmp(ptr, "ftps", ptr2 - ptr)) {
+            proto |= CURLPROTO_FTPS;
+        } else if (!strncmp(ptr, "http", ptr2 - ptr)) {
+            proto |= CURLPROTO_HTTP;
+        } else if (!strncmp(ptr, "https", ptr2 - ptr)) {
+            proto |= CURLPROTO_HTTPS;
+        } else if (!strncmp(ptr, "scp", ptr2 - ptr)) {
+            proto |= CURLPROTO_SCP;
+        } else if (!strncmp(ptr, "sftp", ptr2 - ptr)) {
+            proto |= CURLPROTO_SFTP;
+        }
+
+        ptr = ptr2 + 1;
+    } while (ptr2[0]);
+
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS, proto);
+#endif
+}
+
+/**
  * @brief Get a specific URL using curl.
  *
  * @param[in] url URL to open.
@@ -586,7 +630,7 @@ url_get(const char *url, sr_session_ctx_t *ev_sess)
     /* set up libcurl */
     curl_global_init(URL_INIT_FLAGS);
     curl = curl_easy_init();
-    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, np2srv.url_protocols);
+    url_set_protocols(curl);
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, url_writedata);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &mem_data);
@@ -710,7 +754,7 @@ op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, in
     /* set up libcurl */
     curl_global_init(URL_INIT_FLAGS);
     curl = curl_easy_init();
-    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, np2srv.url_protocols);
+    url_set_protocols(curl);
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
     curl_easy_setopt(curl, CURLOPT_READFUNCTION, url_readdata);
