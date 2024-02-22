@@ -1107,8 +1107,6 @@ print_usage(char *progname)
     fprintf(stdout, " -m MODE    Set mode for the listening UNIX socket.\n");
     fprintf(stdout, " -u UID     Set UID/user for the listening UNIX socket.\n");
     fprintf(stdout, " -g GID     Set GID/group for the listening UNIX socket.\n");
-    fprintf(stdout, " -n NAME    Set PAM Module config name for interactive ssh authentication.\n");
-    fprintf(stdout, " -i PATH    Set PAM Module config dir for interactive ssh authentication.\n");
     fprintf(stdout, " -t TIMEOUT Timeout in seconds of all sysrepo functions (applying edit-config, reading data, ...),\n");
     fprintf(stdout, "            if 0 (default), the default sysrepo timeouts are used.\n");
     fprintf(stdout, " -x PATH    Path to a data file with data for libyang ext data callback. They are required for\n");
