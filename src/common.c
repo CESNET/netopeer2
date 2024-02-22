@@ -568,7 +568,7 @@ url_readdata(void *ptr, size_t size, size_t nmemb, void *userdata)
 static void
 url_set_protocols(CURL *curl)
 {
-#if CURL_AT_LEAST_VERSION(7,85,0)
+#if CURL_AT_LEAST_VERSION(7, 85, 0)
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, np2srv.url_protocols);
 #else
     long proto = 0;
