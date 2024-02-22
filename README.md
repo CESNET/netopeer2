@@ -100,7 +100,8 @@ the following two means of authentication only for the user that executed the sc
 The first is via the SSH **public key** authentication method, which will be set if `authorized_keys` file
 is found and the keys from this file will be used. If `authorized_keys` file is not found,
 the second method is via the SSH **keyboard-interactive**, which leaves the authentication up to the
-system (and depends on how *libnetconf2* was compiled).
+system (and depends on how *libnetconf2* was compiled but if it supports PAM, `netopeer2.conf` PAM
+configuration file will be used, which can be customized manually).
 
 **Example configuration** XML files can be found in the `example_configuration`
 directory. These files can be easily modified to create configuration specific for a particular
