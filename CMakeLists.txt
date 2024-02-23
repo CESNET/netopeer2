@@ -354,7 +354,7 @@ endif()
 
 if(SYSREPO_SETUP)
     install(CODE "
-        message(STATUS \"Installing missing sysrepo modules...\")
+        message(STATUS \"Installing missing sysrepo modules (setup.sh)...\")
         set(ENV{NP2_MODULE_DIR} \"${YANG_MODULE_DIR}\")
         set(ENV{NP2_MODULE_PERMS} \"${MODULES_PERMS}\")
         set(ENV{NP2_MODULE_OWNER} \"${MODULES_OWNER}\")
@@ -362,31 +362,52 @@ if(SYSREPO_SETUP)
         set(ENV{LN2_MODULE_DIR} \"${LN2_YANG_MODULE_DIR}\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
         set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
-        execute_process(COMMAND \"\$ENV{DESTDIR}${DATA_DIR}/scripts/setup.sh\" RESULT_VARIABLE SETUP_RES)
-        if(NOT SETUP_RES EQUAL \"0\")
-            message(FATAL_ERROR \" scripts/setup.sh failed: \${SETUP_RES}\")
+        execute_process(COMMAND \"\$ENV{DESTDIR}${DATA_DIR}/scripts/setup.sh\"
+                RESULT_VARIABLE CMD_RES
+                OUTPUT_VARIABLE CMD_OUT
+                ERROR_VARIABLE CMD_ERR
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_STRIP_TRAILING_WHITESPACE)
+        if(NOT CMD_RES EQUAL 0)
+            string(REPLACE \"\\n\" \"\\n \" CMD_OUT_F \"\${CMD_OUT}\")
+            string(REPLACE \"\\n\" \"\\n \" CMD_ERR_F \"\${CMD_ERR}\")
+            message(FATAL_ERROR \" OUTPUT:\\n \${CMD_OUT_F}\\n ERROR:\\n \${CMD_ERR_F}\")
         endif()
     ")
 
     # generate hostkey
     install(CODE "
-        message(STATUS \"Generating a new RSA host key \\\"genkey\\\" if not already added...\")
+        message(STATUS \"Generating a new RSA host key \\\"genkey\\\" if not already added (merge_hostkey.sh)...\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
         set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
-        execute_process(COMMAND \"\$ENV{DESTDIR}${DATA_DIR}/scripts/merge_hostkey.sh\" RESULT_VARIABLE MERGE_HOSTKEY_RES)
-        if(NOT MERGE_HOSTKEY_RES EQUAL \"0\")
-            message(FATAL_ERROR \" scripts/merge_hostkey.sh failed: \${MERGE_HOSTKEY_RES}\")
+        execute_process(COMMAND \"\$ENV{DESTDIR}${DATA_DIR}/scripts/merge_hostkey.sh\"
+                RESULT_VARIABLE CMD_RES
+                OUTPUT_VARIABLE CMD_OUT
+                ERROR_VARIABLE CMD_ERR
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_STRIP_TRAILING_WHITESPACE)
+        if(NOT CMD_RES EQUAL 0)
+            string(REPLACE \"\\n\" \"\\n \" CMD_OUT_F \"\${CMD_OUT}\")
+            string(REPLACE \"\\n\" \"\\n \" CMD_ERR_F \"\${CMD_ERR}\")
+            message(FATAL_ERROR \" OUTPUT:\\n \${CMD_OUT_F}\\n ERROR:\\n \${CMD_ERR_F}\")
         endif()
     ")
 
     # merge listen config
     install(CODE "
-        message(STATUS \"Merging default server listen configuration if there is none...\")
+        message(STATUS \"Merging default server listen configuration if there is none (merge_config.sh)...\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
         set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
-        execute_process(COMMAND \"\$ENV{DESTDIR}${DATA_DIR}/scripts/merge_config.sh\" RESULT_VARIABLE MERGE_CONFIG_RES)
-        if(NOT MERGE_CONFIG_RES EQUAL \"0\")
-            message(FATAL_ERROR \" scripts/merge_config.sh failed: \${MERGE_CONFIG_RES}\")
+        execute_process(COMMAND \"\$ENV{DESTDIR}${DATA_DIR}/scripts/merge_config.sh\"
+                RESULT_VARIABLE CMD_RES
+                OUTPUT_VARIABLE CMD_OUT
+                ERROR_VARIABLE CMD_ERR
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_STRIP_TRAILING_WHITESPACE)
+        if(NOT CMD_RES EQUAL 0)
+            string(REPLACE \"\\n\" \"\\n \" CMD_OUT_F \"\${CMD_OUT}\")
+            string(REPLACE \"\\n\" \"\\n \" CMD_ERR_F \"\${CMD_ERR}\")
+            message(FATAL_ERROR \" OUTPUT:\\n \${CMD_OUT_F}\\n ERROR:\\n \${CMD_ERR_F}\")
         endif()
     ")
 else()
