@@ -98,7 +98,7 @@ sub_ntf_error_ly(sr_session_ctx_t *ev_sess, const struct ly_ctx *ly_ctx)
 {
     const char *msg;
 
-    msg = ly_errmsg(ly_ctx);
+    msg = ly_err_last(ly_ctx)->msg;
 
     ERR("%s", msg);
     sr_session_set_error_message(ev_sess, "%s", msg);
@@ -747,7 +747,7 @@ sub_ntf_append_params_filter(sr_session_ctx_t *ev_sess, struct lyd_node *parent,
         } else if (sub->subtree_filter) {
             /* stream-subtree-filter */
             any = (struct lyd_node_any *)sub->subtree_filter;
-            if (lyd_new_any(parent, NULL, "stream-subtree-filter", any->value.tree, 0, any->value_type, 0, NULL)) {
+            if (lyd_new_any(parent, NULL, "stream-subtree-filter", any->value.tree, any->value_type, 0, NULL)) {
                 rc = sub_ntf_error_ly(ev_sess, LYD_CTX(parent));
                 goto cleanup;
             }
@@ -768,7 +768,7 @@ sub_ntf_append_params_filter(sr_session_ctx_t *ev_sess, struct lyd_node *parent,
         } else if (sub->subtree_filter) {
             /* datastore-subtree-filter */
             any = (struct lyd_node_any *)sub->subtree_filter;
-            if (lyd_new_any(parent, yp_mod, "datastore-subtree-filter", any->value.tree, 0, any->value_type, 0, NULL)) {
+            if (lyd_new_any(parent, yp_mod, "datastore-subtree-filter", any->value.tree, any->value_type, 0, NULL)) {
                 rc = sub_ntf_error_ly(ev_sess, LYD_CTX(parent));
                 goto cleanup;
             }

@@ -68,7 +68,7 @@ void np2log_cb_nc2(const struct nc_session *session, NC_VERB_LEVEL level, const 
 /**
  * @brief printer callback for libyang
  */
-void np2log_cb_ly(LY_LOG_LEVEL level, const char *msg, const char *path);
+void np2log_cb_ly(LY_LOG_LEVEL level, const char *msg, const char *data_path, const char *schema_path, uint64_t line);
 
 /**
  * @brief printer callback for sysrepo

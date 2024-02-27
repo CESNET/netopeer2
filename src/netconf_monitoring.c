@@ -507,7 +507,7 @@ np2srv_rpc_getschema_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     }
 
     /* add output */
-    if (lyd_new_any(output, NULL, "data", model_data, 1, LYD_ANYDATA_STRING, 1, NULL)) {
+    if (lyd_new_any(output, NULL, "data", model_data, LYD_ANYDATA_STRING, LYD_NEW_ANY_USE_VALUE | LYD_NEW_VAL_OUTPUT, NULL)) {
         rc = SR_ERR_LY;
         goto cleanup;
     }

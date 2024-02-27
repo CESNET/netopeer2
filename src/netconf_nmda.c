@@ -205,7 +205,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     ly_set_free(nodeset, NULL);
 
     /* add output */
-    if (lyd_new_any(output, NULL, "data", data, 1, LYD_ANYDATA_DATATREE, 1, NULL)) {
+    if (lyd_new_any(output, NULL, "data", data, LYD_ANYDATA_DATATREE, LYD_NEW_ANY_USE_VALUE | LYD_NEW_VAL_OUTPUT, NULL)) {
         rc = SR_ERR_LY;
         goto cleanup;
     }

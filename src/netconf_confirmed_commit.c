@@ -187,7 +187,7 @@ ncc_get_running_backup(const struct ly_ctx *ctx, const char *path, struct lyd_no
     int ret = SR_ERR_OK;
 
     if (lyd_parse_data_path(ctx, path, LYD_JSON, LYD_PARSE_ORDERED | LYD_PARSE_STRICT | LYD_PARSE_ONLY, 0, node)) {
-        ERR("Failed parsing confirmed commit backup of running for file \"%s\" (%s).", path, ly_errmsg(ctx));
+        ERR("Failed parsing confirmed commit backup of running for file \"%s\" (%s).", path, ly_err_last(ctx)->msg);
         ret = SR_ERR_LY;
         goto cleanup;
     }

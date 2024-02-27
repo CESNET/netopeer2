@@ -674,7 +674,7 @@ op_parse_url(const char *url, int validate, int *rc, sr_session_ctx_t *ev_sess)
     /* load the whole config element */
     if (lyd_parse_data_mem(ly_ctx, url_data, LYD_XML, LYD_PARSE_OPAQ | LYD_PARSE_ONLY | LYD_PARSE_NO_STATE, 0, &config)) {
         *rc = SR_ERR_LY;
-        sr_session_set_error_message(ev_sess, ly_errmsg(ly_ctx));
+        sr_session_set_error_message(ev_sess, ly_err_last(ly_ctx)->msg);
         goto cleanup;
     }
 
@@ -700,7 +700,7 @@ op_parse_url(const char *url, int validate, int *rc, sr_session_ctx_t *ev_sess)
         /* separate validation if requested */
         if (lyd_validate_all(&data, NULL, LYD_VALIDATE_NO_STATE, NULL)) {
             *rc = SR_ERR_LY;
-            sr_session_set_error_message(ev_sess, ly_errmsg(ly_ctx));
+            sr_session_set_error_message(ev_sess, ly_err_last(ly_ctx)->msg);
             goto cleanup;
         }
     }
@@ -732,7 +732,7 @@ op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, in
     /* print the config as expected by the other end */
     if (lyd_new_opaq2(NULL, ly_ctx, "config", NULL, NULL, "urn:ietf:params:xml:ns:netconf:base:1.0", &config)) {
         *rc = SR_ERR_LY;
-        sr_session_set_error_message(ev_sess, ly_errmsg(ly_ctx));
+        sr_session_set_error_message(ev_sess, ly_err_last(ly_ctx)->msg);
         ret = -1;
         goto cleanup;
     }
@@ -829,7 +829,7 @@ op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr
     }
     if (lyrc) {
         *rc = SR_ERR_LY;
-        sr_session_set_error_message(ev_sess, ly_errmsg(ly_ctx));
+        sr_session_set_error_message(ev_sess, ly_err_last(ly_ctx)->msg);
     }
 
     return root;

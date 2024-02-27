@@ -81,7 +81,7 @@ np2srv_get_rpc_data(sr_session_ctx_t *session, const char *xp_filter, sr_session
     }
 
     /* now filter only the requested data from the created running data + state data */
-    if (lyd_find_xpath3(NULL, base_data, xp_filter, NULL, &set)) {
+    if (lyd_find_xpath3(NULL, base_data, xp_filter, LY_VALUE_JSON, NULL, NULL, &set)) {
         rc = SR_ERR_LY;
         goto cleanup;
     }
@@ -198,7 +198,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
     }
 
     /* add output */
-    if (lyd_new_any(output, NULL, "data", data_get, 1, LYD_ANYDATA_DATATREE, 1, &node)) {
+    if (lyd_new_any(output, NULL, "data", data_get, LYD_ANYDATA_DATATREE, LYD_NEW_ANY_USE_VALUE | LYD_NEW_VAL_OUTPUT, &node)) {
         rc = SR_ERR_LY;
         goto cleanup;
     }

@@ -40,7 +40,7 @@
 int done;
 extern struct nc_session *session;
 
-void
+static void
 lnc2_print_clb(const struct nc_session *UNUSED(session), NC_VERB_LEVEL level, const char *msg)
 {
     int was_rawmode = 0;
@@ -73,8 +73,8 @@ lnc2_print_clb(const struct nc_session *UNUSED(session), NC_VERB_LEVEL level, co
     }
 }
 
-void
-ly_print_clb(LY_LOG_LEVEL level, const char *msg, const char *path)
+static void
+ly_print_clb(LY_LOG_LEVEL level, const char *msg, const char *data_path, const char *schema_path, uint64_t UNUSED(line))
 {
     int was_rawmode = 0;
 
@@ -86,29 +86,29 @@ ly_print_clb(LY_LOG_LEVEL level, const char *msg, const char *path)
 
     switch (level) {
     case LY_LLERR:
-        if (path) {
-            fprintf(stderr, "ly ERROR: %s (%s)\n", msg, path);
+        if (data_path || schema_path) {
+            fprintf(stderr, "ly ERROR: %s (%s)\n", msg, data_path ? data_path : schema_path);
         } else {
             fprintf(stderr, "ly ERROR: %s\n", msg);
         }
         break;
     case LY_LLWRN:
-        if (path) {
-            fprintf(stderr, "ly WARNING: %s (%s)\n", msg, path);
+        if (data_path || schema_path) {
+            fprintf(stderr, "ly WARNING: %s (%s)\n", msg, data_path ? data_path : schema_path);
         } else {
             fprintf(stderr, "ly WARNING: %s\n", msg);
         }
         break;
     case LY_LLVRB:
-        if (path) {
-            fprintf(stderr, "ly VERBOSE: %s (%s)\n", msg, path);
+        if (data_path || schema_path) {
+            fprintf(stderr, "ly VERBOSE: %s (%s)\n", msg, data_path ? data_path : schema_path);
         } else {
             fprintf(stderr, "ly VERBOSE: %s\n", msg);
         }
         break;
     case LY_LLDBG:
-        if (path) {
-            fprintf(stderr, "ly DEBUG: %s (%s)\n", msg, path);
+        if (data_path || schema_path) {
+            fprintf(stderr, "ly DEBUG: %s (%s)\n", msg, data_path ? data_path : schema_path);
         } else {
             fprintf(stderr, "ly DEBUG: %s\n", msg);
         }
@@ -139,7 +139,7 @@ main(void)
     sigaction(SIGPIPE, &action, NULL);
 
     nc_set_print_clb_session(lnc2_print_clb);
-    ly_set_log_clb(ly_print_clb, 1);
+    ly_set_log_clb(ly_print_clb);
     linenoiseSetCompletionCallback(complete_cmd);
     linenoiseHistoryDataFree(free);
 

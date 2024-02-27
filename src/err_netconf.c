@@ -171,13 +171,8 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
     err = &err_info->err[0];
 
     /* get path */
-    if ((ptr = strstr(err->message, "Data location \""))) {
-        ptr += 15;
-    }
-    if (!ptr) {
-        if ((ptr = strstr(err->message, "Schema location \""))) {
-            ptr += 17;
-        }
+    if ((ptr = strstr(err->message, "(path \""))) {
+        ptr += 7;
     }
     if (ptr) {
         path = strndup(ptr, strchr(ptr, '\"') - ptr);

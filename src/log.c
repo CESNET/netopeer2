@@ -123,7 +123,7 @@ np2log_cb_nc2(const struct nc_session *session, NC_VERB_LEVEL level, const char 
  * @brief printer callback for libyang
  */
 void
-np2log_cb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
+np2log_cb_ly(LY_LOG_LEVEL level, const char *msg, const char *data_path, const char *schema_path, uint64_t UNUSED(line))
 {
     int priority;
 
@@ -149,8 +149,8 @@ np2log_cb_ly(LY_LOG_LEVEL level, const char *msg, const char *path)
         return;
     }
 
-    if (path) {
-        np2log(priority, "LY", "%s (%s)", msg, path);
+    if (data_path || schema_path) {
+        np2log(priority, "LY", "%s (path \"%s\")", msg, data_path ? data_path : schema_path);
     } else {
         np2log(priority, "LY", "%s", msg);
     }
