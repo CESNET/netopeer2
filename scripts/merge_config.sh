@@ -10,7 +10,7 @@ source "${script_directory}/common.sh"
 SYSREPOCFG_GET_PATH
 
 # check that there is no listen/Call Home configuration yet
-SERVER_CONFIG=$($SYSREPOCFG -X -x "/ietf-netconf-server:netconf-server/listen/endpoint | /ietf-netconf-server:netconf-server/call-home/netconf-client")
+SERVER_CONFIG=$($SYSREPOCFG -X -x "/ietf-netconf-server:netconf-server/listen/endpoints/endpoint | /ietf-netconf-server:netconf-server/call-home/netconf-client")
 if [ -n "$SERVER_CONFIG" ]; then
     # the server is configured, just exit
     exit 0
