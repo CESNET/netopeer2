@@ -62,8 +62,8 @@ np_ignore_rpc(sr_session_ctx_t *ev_sess, sr_event_t event, int *rc)
 
     if (sr_session_get_orig_name(ev_sess) && strcmp(sr_session_get_orig_name(ev_sess), "netopeer2")) {
         /* forbidden */
-        sr_session_set_error_message(ev_sess, "Non-NETCONF originating RPC will not be executed.");
         *rc = SR_ERR_UNSUPPORTED;
+        sr_session_set_error(ev_sess, NULL, *rc, "Non-NETCONF originating RPC will not be executed.");
         return 1;
     }
 
@@ -621,7 +621,7 @@ url_get(const char *url, sr_session_ctx_t *ev_sess)
 
     if (!np2srv.url_protocols) {
         ERR("No URL protocols enabled.");
-        sr_session_set_error_message(ev_sess, "No URL protocols enabled.");
+        sr_session_set_error(ev_sess, NULL, SR_ERR_UNSUPPORTED, "No URL protocols enabled.");
         return NULL;
     }
 
@@ -640,7 +640,7 @@ url_get(const char *url, sr_session_ctx_t *ev_sess)
     res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         ERR("Failed to download data (curl: %s).", curl_buffer);
-        sr_session_set_error_message(ev_sess, curl_buffer);
+        sr_session_set_error(ev_sess, NULL, SR_ERR_OPERATION_FAILED, curl_buffer);
         goto cleanup;
     }
 
@@ -674,20 +674,20 @@ op_parse_url(const char *url, int validate, int *rc, sr_session_ctx_t *ev_sess)
     /* load the whole config element */
     if (lyd_parse_data_mem(ly_ctx, url_data, LYD_XML, LYD_PARSE_OPAQ | LYD_PARSE_ONLY | LYD_PARSE_NO_STATE, 0, &config)) {
         *rc = SR_ERR_LY;
-        sr_session_set_error_message(ev_sess, ly_err_last(ly_ctx)->msg);
+        sr_session_set_error(ev_sess, NULL, *rc, ly_err_last(ly_ctx)->msg);
         goto cleanup;
     }
 
     if (!config || config->schema) {
         *rc = SR_ERR_UNSUPPORTED;
-        sr_session_set_error_message(ev_sess, "Missing top-level \"config\" element in URL data.");
+        sr_session_set_error(ev_sess, NULL, *rc, "Missing top-level \"config\" element in URL data.");
         goto cleanup;
     }
 
     opaq = (struct lyd_node_opaq *)config;
     if (strcmp(opaq->name.name, "config") || strcmp(opaq->name.module_ns, "urn:ietf:params:xml:ns:netconf:base:1.0")) {
         *rc = SR_ERR_UNSUPPORTED;
-        sr_session_set_error_message(ev_sess, "Invalid top-level element in URL data, expected \"config\" with "
+        sr_session_set_error(ev_sess, NULL, *rc, "Invalid top-level element in URL data, expected \"config\" with "
                 "namespace \"urn:ietf:params:xml:ns:netconf:base:1.0\".");
         goto cleanup;
     }
@@ -700,7 +700,7 @@ op_parse_url(const char *url, int validate, int *rc, sr_session_ctx_t *ev_sess)
         /* separate validation if requested */
         if (lyd_validate_all(&data, NULL, LYD_VALIDATE_NO_STATE, NULL)) {
             *rc = SR_ERR_LY;
-            sr_session_set_error_message(ev_sess, ly_err_last(ly_ctx)->msg);
+            sr_session_set_error(ev_sess, NULL, *rc, ly_err_last(ly_ctx)->msg);
             goto cleanup;
         }
     }
@@ -732,7 +732,7 @@ op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, in
     /* print the config as expected by the other end */
     if (lyd_new_opaq2(NULL, ly_ctx, "config", NULL, NULL, "urn:ietf:params:xml:ns:netconf:base:1.0", &config)) {
         *rc = SR_ERR_LY;
-        sr_session_set_error_message(ev_sess, ly_err_last(ly_ctx)->msg);
+        sr_session_set_error(ev_sess, NULL, *rc, ly_err_last(ly_ctx)->msg);
         ret = -1;
         goto cleanup;
     }
@@ -767,7 +767,7 @@ op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, in
     if (res != CURLE_OK) {
         ERR("Failed to upload data (curl: %s).", curl_buffer);
         *rc = SR_ERR_SYS;
-        sr_session_set_error_message(ev_sess, curl_buffer);
+        sr_session_set_error(ev_sess, NULL, *rc, curl_buffer);
         ret = -1;
         goto curl_cleanup;
     }
@@ -829,7 +829,7 @@ op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr
     }
     if (lyrc) {
         *rc = SR_ERR_LY;
-        sr_session_set_error_message(ev_sess, ly_err_last(ly_ctx)->msg);
+        sr_session_set_error(ev_sess, NULL, *rc, ly_err_last(ly_ctx)->msg);
     }
 
     return root;

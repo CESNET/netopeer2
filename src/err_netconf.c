@@ -307,7 +307,7 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
     return;
 
 mem_error:
-    sr_session_set_error_message(ev_sess, "Memory allocation failed.");
+    sr_session_set_error(ev_sess, NULL, SR_ERR_NO_MEMORY, "Memory allocation failed.");
 
     free(path);
     free(str);

@@ -279,7 +279,7 @@ np2srv_rpc_editconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 #else
         ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
-        sr_session_set_error_message(session, "URL not supported.");
+        sr_session_set_error(session, NULL, rc, "URL not supported.");
         goto cleanup;
 #endif
     }
@@ -365,7 +365,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 #else
         ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
-        sr_session_set_error_message(session, "URL not supported.");
+        sr_session_set_error(session, NULL, rc, "URL not supported.");
         goto cleanup;
 #endif
     }
@@ -409,7 +409,7 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 #else
         ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
-        sr_session_set_error_message(session, "URL not supported.");
+        sr_session_set_error(session, NULL, rc, "URL not supported.");
         goto cleanup;
 #endif
     }
@@ -537,7 +537,7 @@ np2srv_rpc_deleteconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), c
 #else
         ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
-        sr_session_set_error_message(session, "URL not supported.");
+        sr_session_set_error(session, NULL, rc, "URL not supported.");
         goto cleanup;
 #endif
     }
@@ -644,8 +644,7 @@ np2srv_rpc_un_lock_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         goto cleanup;
     } else if (rc) {
         /* generic error */
-        sr_session_get_error(user_sess->sess, &err_info);
-        sr_session_set_error_message(session, err_info->err[0].message);
+        sr_session_dup_error(user_sess->sess, session);
         goto cleanup;
     }
 
@@ -675,7 +674,7 @@ np2srv_rpc_kill_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
     sr_session_get_orig_data(session, 0, NULL, (const void **)&nc_sid);
     if (kill_sid == *nc_sid) {
         rc = SR_ERR_INVAL_ARG;
-        sr_session_set_error_message(session, "It is forbidden to kill own session.");
+        sr_session_set_error(session, NULL, rc, "It is forbidden to kill own session.");
         goto cleanup;
     }
 
@@ -686,7 +685,7 @@ np2srv_rpc_kill_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
     }
     if (!kill_sess) {
         rc = SR_ERR_INVAL_ARG;
-        sr_session_set_error_message(session, "Session with the specified \"session-id\" not found.");
+        sr_session_set_error(session, NULL, rc, "Session with the specified \"session-id\" not found.");
         goto cleanup;
     }
 
@@ -694,8 +693,6 @@ np2srv_rpc_kill_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
     nc_session_set_status(kill_sess, NC_STATUS_INVALID);
     nc_session_set_term_reason(kill_sess, NC_SESSION_TERM_KILLED);
     nc_session_set_killed_by(kill_sess, kill_sid);
-
-    /* success */
 
 cleanup:
     return rc;
@@ -726,12 +723,9 @@ np2srv_rpc_discard_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     /* sysrepo API */
     rc = sr_copy_config(user_sess->sess, NULL, SR_DS_RUNNING, np2srv.sr_timeout);
     if (rc != SR_ERR_OK) {
-        sr_session_get_error(user_sess->sess, &err_info);
-        sr_session_set_error_message(session, err_info->err[0].message);
+        sr_session_dup_error(user_sess->sess, session);
         goto cleanup;
     }
-
-    /* success */
 
 cleanup:
     np_release_user_sess(user_sess);
@@ -781,7 +775,7 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
 #else
         ly_set_free(nodeset, NULL);
         rc = SR_ERR_UNSUPPORTED;
-        sr_session_set_error_message(session, "URL not supported.");
+        sr_session_set_error(session, NULL, rc, "URL not supported.");
         goto cleanup;
 #endif
     }
@@ -799,8 +793,7 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
         /* sysrepo API */
         rc = sr_validate(user_sess->sess, NULL, 0);
         if (rc != SR_ERR_OK) {
-            sr_session_get_error(user_sess->sess, &err_info);
-            sr_session_set_error_message(session, err_info->err[0].message);
+            sr_session_dup_error(user_sess->sess, session);
             goto cleanup;
         }
     } /* else already validated */
@@ -918,8 +911,8 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
 
     /* RFC 5277 section 6.5 */
     if (nc_session_get_notif_status(ncs)) {
-        sr_session_set_error_message(session, "Session already subscribed.");
         rc = SR_ERR_EXISTS;
+        sr_session_set_error(session, NULL, rc, "Session already subscribed.");
         goto cleanup;
     }
 
@@ -1023,8 +1016,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
             rc = sr_notif_subscribe_tree(user_sess->sess, ly_mod->name, xp_filter, start.tv_sec ? &start : NULL,
                     stop.tv_sec ? &stop : NULL, np2srv_rpc_subscribe_ntf_cb, ntf_arg, 0, &np2srv.sr_notif_sub);
             if (rc != SR_ERR_OK) {
-                sr_session_get_error(user_sess->sess, &err_info);
-                sr_session_set_error_message(session, err_info->err[0].message);
+                sr_session_dup_error(user_sess->sess, session);
                 goto cleanup;
             }
         }
@@ -1035,8 +1027,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         rc = sr_notif_subscribe_tree(user_sess->sess, stream, xp_filter, start.tv_sec ? &start : NULL, stop.tv_sec ? &stop : NULL,
                 np2srv_rpc_subscribe_ntf_cb, ntf_arg, 0, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {
-            sr_session_get_error(user_sess->sess, &err_info);
-            sr_session_set_error_message(session, err_info->err[0].message);
+            sr_session_dup_error(user_sess->sess, session);
             goto cleanup;
         }
     }

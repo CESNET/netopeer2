@@ -138,7 +138,7 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
         ds = SR_DS_FACTORY_DEFAULT;
     } else {
         rc = SR_ERR_INVAL_ARG;
-        sr_session_set_error_message(session, "Datastore \"%s\" is not supported.", lyd_get_value(&leaf->node));
+        sr_session_set_error(session, NULL, rc, "Datastore \"%s\" is not supported.", lyd_get_value(&leaf->node));
         goto cleanup;
     }
 
@@ -246,7 +246,7 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
         ds = SR_DS_CANDIDATE;
     } else {
         rc = SR_ERR_INVAL_ARG;
-        sr_session_set_error_message(session, "Datastore \"%s\" is not supported or writable.", lyd_get_value(&leaf->node));
+        sr_session_set_error(session, NULL, rc, "Datastore \"%s\" is not supported or writable.", lyd_get_value(&leaf->node));
         goto cleanup;
     }
 
@@ -272,7 +272,7 @@ np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
         }
 #else
         rc = SR_ERR_UNSUPPORTED;
-        sr_session_set_error_message(session, "URL not supported.");
+        sr_session_set_error(session, NULL, rc, "URL not supported.");
         goto cleanup;
 #endif
     }

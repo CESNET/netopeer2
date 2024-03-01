@@ -198,96 +198,86 @@ np2srv_err_nc(sr_error_info_err_t *err)
     struct lyd_node *e_first = NULL, *e, *err_info;
     const struct ly_ctx *ly_ctx;
     const char *err_type, *err_tag, *err_app_tag, *err_path, *err_msg, **err_info_elem = NULL, **err_info_val = NULL, *ns;
-    uint32_t err_info_count, i, j;
-    int r;
+    uint32_t err_info_count, j;
 
     /* only dictionary used, no need to keep locked */
     ly_ctx = sr_acquire_context(np2srv.sr_conn);
     sr_release_context(np2srv.sr_conn);
 
-    i = 0;
-    while (1) {
-        /* read the next error */
-        r = sr_err_get_netconf_error_idx(err, i, &err_type, &err_tag, &err_app_tag, &err_path, &err_msg, &err_info_elem,
-                &err_info_val, &err_info_count);
-        if (r == SR_ERR_NOT_FOUND) {
-            /* no more errors */
-            break;
-        } else if (r) {
-            goto error;
-        }
-
-        /* rpc-error */
-        if (lyd_new_opaq2(NULL, ly_ctx, "rpc-error", NULL, NULL, NC_NS_BASE, &e)) {
-            goto error;
-        }
-
-        /* error-type */
-        if (lyd_new_opaq2(e, NULL, "error-type", err_type, NULL, NC_NS_BASE, NULL)) {
-            goto error;
-        }
-
-        /* error-tag */
-        if (lyd_new_opaq2(e, NULL, "error-tag", err_tag, NULL, NC_NS_BASE, NULL)) {
-            goto error;
-        }
-
-        /* error-severity */
-        if (lyd_new_opaq2(e, NULL, "error-severity", "error", NULL, NC_NS_BASE, NULL)) {
-            goto error;
-        }
-
-        if (err_app_tag) {
-            /* error-app-tag */
-            if (nc_err_set_app_tag(e, err_app_tag)) {
-                goto error;
-            }
-        }
-
-        if (err_path) {
-            /* error-path */
-            if (nc_err_set_path(e, err_path)) {
-                goto error;
-            }
-        }
-
-        /* error-message */
-        if (nc_err_set_msg(e, err_msg, "en")) {
-            goto error;
-        }
-
-        /* error-info */
-        err_info = NULL;
-        for (j = 0; j < err_info_count; ++j) {
-            if (!err_info) {
-                if (lyd_new_opaq2(e, NULL, "error-info", NULL, NULL, NC_NS_BASE, &err_info)) {
-                    goto error;
-                }
-            }
-            if (!strcmp(err_info_elem[j], "bad-attribute") || !strcmp(err_info_elem[j], "bad-element") ||
-                    !strcmp(err_info_elem[j], "bad-namespace") || !strcmp(err_info_elem[j], "session-id")) {
-                /* NETCONF error-info */
-                ns = NC_NS_BASE;
-            } else if (!strcmp(err_info_elem[j], "non-unique") || !strcmp(err_info_elem[j], "missing-choice")) {
-                /* YANG error-info */
-                ns = "urn:ietf:params:xml:ns:yang:1";
-            } else {
-                /* custom (unknown) */
-                ns = "urn:netconf:custom-error-info";
-            }
-            if (lyd_new_opaq2(err_info, NULL, err_info_elem[j], err_info_val[j], NULL, ns, NULL)) {
-                goto error;
-            }
-        }
-
-        /* append */
-        lyd_insert_sibling(e_first, e, &e_first);
-
-        free(err_info_elem);
-        free(err_info_val);
-        ++i;
+    /* read the error */
+    if (sr_err_get_netconf_error(err, &err_type, &err_tag, &err_app_tag, &err_path, &err_msg, &err_info_elem,
+            &err_info_val, &err_info_count)) {
+        goto error;
     }
 
+    /* rpc-error */
+    if (lyd_new_opaq2(NULL, ly_ctx, "rpc-error", NULL, NULL, NC_NS_BASE, &e)) {
+        goto error;
+    }
+
+    /* error-type */
+    if (lyd_new_opaq2(e, NULL, "error-type", err_type, NULL, NC_NS_BASE, NULL)) {
+        goto error;
+    }
+
+    /* error-tag */
+    if (lyd_new_opaq2(e, NULL, "error-tag", err_tag, NULL, NC_NS_BASE, NULL)) {
+        goto error;
+    }
+
+    /* error-severity */
+    if (lyd_new_opaq2(e, NULL, "error-severity", "error", NULL, NC_NS_BASE, NULL)) {
+        goto error;
+    }
+
+    if (err_app_tag) {
+        /* error-app-tag */
+        if (nc_err_set_app_tag(e, err_app_tag)) {
+            goto error;
+        }
+    }
+
+    if (err_path) {
+        /* error-path */
+        if (nc_err_set_path(e, err_path)) {
+            goto error;
+        }
+    }
+
+    /* error-message */
+    if (nc_err_set_msg(e, err_msg, "en")) {
+        goto error;
+    }
+
+    /* error-info */
+    err_info = NULL;
+    for (j = 0; j < err_info_count; ++j) {
+        if (!err_info) {
+            if (lyd_new_opaq2(e, NULL, "error-info", NULL, NULL, NC_NS_BASE, &err_info)) {
+                goto error;
+            }
+        }
+        if (!strcmp(err_info_elem[j], "bad-attribute") || !strcmp(err_info_elem[j], "bad-element") ||
+                !strcmp(err_info_elem[j], "bad-namespace") || !strcmp(err_info_elem[j], "session-id")) {
+            /* NETCONF error-info */
+            ns = NC_NS_BASE;
+        } else if (!strcmp(err_info_elem[j], "non-unique") || !strcmp(err_info_elem[j], "missing-choice")) {
+            /* YANG error-info */
+            ns = "urn:ietf:params:xml:ns:yang:1";
+        } else {
+            /* custom (unknown) */
+            ns = "urn:netconf:custom-error-info";
+        }
+        if (lyd_new_opaq2(err_info, NULL, err_info_elem[j], err_info_val[j], NULL, ns, NULL)) {
+            goto error;
+        }
+    }
+
+    /* append */
+    lyd_insert_sibling(e_first, e, &e_first);
+
+    free(err_info_elem);
+    free(err_info_val);
     return e_first;
 
 error:
@@ -311,15 +301,17 @@ np2srv_err_reply_sr(const sr_error_info_t *err_info)
     const struct ly_ctx *ly_ctx;
     size_t i;
 
-    /* try to find a NETCONF error */
+    /* try to find a NETCONF error(s) */
     for (i = 0; i < err_info->err_count; ++i) {
         if (err_info->err[i].error_format && !strcmp(err_info->err[i].error_format, "NETCONF")) {
             /* NETCONF error */
             e = np2srv_err_nc(&err_info->err[i]);
-            if (e) {
+
+            if (reply) {
+                nc_server_reply_add_err(reply, e);
+            } else {
                 reply = nc_server_reply_err(e);
             }
-            break;
         }
     }
 
@@ -339,7 +331,6 @@ np2srv_err_reply_sr(const sr_error_info_t *err_info)
         } else {
             reply = nc_server_reply_err(e);
         }
-        e = NULL;
     }
     sr_release_context(np2srv.sr_conn);
 

@@ -65,7 +65,7 @@ sub_ntf_error(sr_session_ctx_t *ev_sess, int sr_err, const char *fmt, ...)
     va_end(ap);
 
     ERR("%s", msg);
-    sr_session_set_error_message(ev_sess, "%s", msg);
+    sr_session_set_error(ev_sess, NULL, sr_err, "%s", msg);
     free(msg);
 
     return sr_err;
@@ -81,7 +81,7 @@ static int
 sub_ntf_error_mem(sr_session_ctx_t *ev_sess)
 {
     EMEM;
-    sr_session_set_error_message(ev_sess, "Memory allocation failed.");
+    sr_session_set_error(ev_sess, NULL, SR_ERR_NO_MEMORY, "Memory allocation failed.");
 
     return SR_ERR_NO_MEMORY;
 }
@@ -101,7 +101,7 @@ sub_ntf_error_ly(sr_session_ctx_t *ev_sess, const struct ly_ctx *ly_ctx)
     msg = ly_err_last(ly_ctx)->msg;
 
     ERR("%s", msg);
-    sr_session_set_error_message(ev_sess, "%s", msg);
+    sr_session_set_error(ev_sess, NULL, SR_ERR_LY, "%s", msg);
 
     return SR_ERR_LY;
 }
@@ -407,7 +407,6 @@ sub_ntf_filter2xpath(sr_session_ctx_t *user_sess, sr_session_ctx_t *ev_sess, con
 {
     int rc = SR_ERR_OK;
     sr_data_t *subtree = NULL;
-    const sr_error_info_t *err_info;
     char *str;
 
     if (filter_name) {
@@ -421,8 +420,7 @@ sub_ntf_filter2xpath(sr_session_ctx_t *user_sess, sr_session_ctx_t *ev_sess, con
         rc = sr_get_subtree(user_sess, str, 0, &subtree);
         free(str);
         if (rc) {
-            sr_session_get_error(user_sess, &err_info);
-            sr_session_set_error_message(ev_sess, err_info->err[0].message);
+            sr_session_dup_error(user_sess, ev_sess);
             goto cleanup;
         }
 
