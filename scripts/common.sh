@@ -88,7 +88,7 @@ function OPENSSL_GET_PATH() {
     fi
 
     if [ -z "$OPENSSL" ]; then
-        echo "$0: Unable to find sysrepoctl executable." >&2
+        echo "$0: Unable to find openssl executable." >&2
         exit 1
     fi
 }
