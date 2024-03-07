@@ -705,7 +705,6 @@ np2srv_rpc_discard_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
 {
     int rc = SR_ERR_OK;
     struct np2_user_sess *user_sess = NULL;
-    const sr_error_info_t *err_info;
 
     if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
@@ -742,7 +741,6 @@ np2srv_rpc_validate_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const
     struct ly_set *nodeset = NULL;
     struct np2_user_sess *user_sess = NULL;
     int rc = SR_ERR_OK;
-    const sr_error_info_t *err_info;
 
     if (np_ignore_rpc(session, event, &rc)) {
         /* ignore in this case */
@@ -894,7 +892,6 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     char *xp_filter = NULL;
     struct timespec start = {0}, stop = {0}, cur_ts;
     int rc = SR_ERR_OK, has_nc_ntf_status = 0;
-    const sr_error_info_t *err_info;
     uint32_t idx;
     struct ly_set mod_set = {0};
     struct np_ntf_arg *ntf_arg;
