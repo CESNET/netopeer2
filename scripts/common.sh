@@ -42,11 +42,11 @@ function SYSREPOCFG_GET_PATH() {
         # from env
         SYSREPOCFG="$SYSREPOCFG_EXECUTABLE"
     elif [ $(id -u) -eq 0 ] && [ -n "$USER" ] && [ $(command -v su) ]; then
-        # running as root, avoid problems with sudo PATH
-        SYSREPOCFG=$(su -c 'command -v sysrepocfg' -l "$USER")
+        # running as root, avoid problems with sudo PATH ("|| true" used because "set -e" is applied)
+        SYSREPOCFG=$(su -c 'command -v sysrepocfg' -l "$USER") || true
     else
         # normal user
-        SYSREPOCFG=$(command -v sysrepocfg)
+        SYSREPOCFG=$(command -v sysrepocfg) || true
     fi
 
     if [ -z "$SYSREPOCFG" ]; then
@@ -62,10 +62,10 @@ function SYSREPOCTL_GET_PATH() {
         SYSREPOCTL="$SYSREPOCTL_EXECUTABLE"
     elif [ $(id -u) -eq 0 ] && [ -n "$USER" ] && [ $(command -v su) ]; then
         # running as root, avoid problems with sudo PATH
-        SYSREPOCTL=$(su -c 'command -v sysrepoctl' -l "$USER")
+        SYSREPOCTL=$(su -c 'command -v sysrepoctl' -l "$USER") || true
     else
         # normal user
-        SYSREPOCTL=$(command -v sysrepoctl)
+        SYSREPOCTL=$(command -v sysrepoctl) || true
     fi
 
     if [ -z "$SYSREPOCTL" ]; then
@@ -81,10 +81,10 @@ function OPENSSL_GET_PATH() {
         OPENSSL="$OPENSSL_EXECUTABLE"
     elif [ $(id -u) -eq 0 ] && [ -n "$USER" ] && [ $(command -v su) ]; then
         # running as root, avoid problems with sudo PATH
-        OPENSSL=$(su -c 'command -v openssl' -l "$USER")
+        OPENSSL=$(su -c 'command -v openssl' -l "$USER") || true
     else
         # normal user
-        OPENSSL=$(command -v openssl)
+        OPENSSL=$(command -v openssl) || true
     fi
 
     if [ -z "$OPENSSL" ]; then
