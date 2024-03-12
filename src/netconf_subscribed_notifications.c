@@ -59,10 +59,16 @@ sub_ntf_error(sr_session_ctx_t *ev_sess, int sr_err, const char *fmt, ...)
 {
     char *msg;
     va_list ap;
+    int r;
 
     va_start(ap, fmt);
-    vasprintf(&msg, fmt, ap);
+    r = vasprintf(&msg, fmt, ap);
     va_end(ap);
+
+    if (r == -1) {
+        EMEM;
+        return SR_ERR_NO_MEMORY;
+    }
 
     ERR("%s", msg);
     sr_session_set_error(ev_sess, NULL, sr_err, "%s", msg);
@@ -119,10 +125,16 @@ sub_ntf_error_no_sub(sr_session_ctx_t *ev_sess, const char *fmt, ...)
 {
     char *msg;
     va_list ap;
+    int r;
 
     va_start(ap, fmt);
-    vasprintf(&msg, fmt, ap);
+    r = vasprintf(&msg, fmt, ap);
     va_end(ap);
+
+    if (r == -1) {
+        EMEM;
+        return SR_ERR_NO_MEMORY;
+    }
 
     ERR("%s", msg);
     np_err_ntf_sub_no_such_sub(ev_sess, msg);

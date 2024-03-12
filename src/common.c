@@ -516,7 +516,10 @@ np2srv_url_setcap(void)
     }
 
     /* generate the capability string and set it */
-    asprintf(&cpblt, "%s%s", main_cpblt, url_protocols);
+    if (asprintf(&cpblt, "%s%s", main_cpblt, url_protocols) == -1) {
+        free(url_protocols);
+        return 1;
+    }
     nc_server_set_capability(cpblt);
     free(cpblt);
 

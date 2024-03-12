@@ -265,8 +265,8 @@ child_error:
     }
     *state = st;
     st->server_pid = pid;
-    strncpy(st->socket_path, sock_path, sizeof st->socket_path - 1);
-    strncpy(st->test_name, test_name, sizeof st->test_name - 1);
+    memcpy(st->socket_path, sock_path, sizeof st->socket_path);
+    memcpy(st->test_name, test_name, sizeof st->test_name);
 
     /* create connection and install modules */
     if (sr_connect(SR_CONN_DEFAULT, &st->conn)) {
