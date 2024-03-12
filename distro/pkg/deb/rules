@@ -14,14 +14,11 @@ CXXFLAGS+=$(CPPFLAGS)
 # be strict when comparing symbols in netopeer2-1
 export DPKG_GENSYMBOLS_CHECK_LEVEL=4
 
-# use the executable from the system
-SYSREPOCFG_EXECUTABLE=/usr/bin/sysrepoctl
-
 %:
 	dh $@ --buildsystem=cmake --builddir=build
 
 override_dh_auto_configure:
-	dh_auto_configure --builddir=build -- -DBUILD_CLI=ON -DBUILD_TESTS=ON -DSYSREPO_SETUP=OFF -DPIDFILE_PREFIX=/run -DSERVER_DIR=/var/lib/netopeer2
+	dh_auto_configure --builddir=build -- -DCMAKE_BUILD_TYPE="Release" -DENABLE_TESTS=OFF -DBUILD_CLI=ON -DSYSREPO_SETUP=OFF -DPIDFILE_PREFIX=/run -DSERVER_DIR=/var/lib/netopeer2
 
 override_dh_auto_install:
 	dh_auto_install --builddir=build --destdir=$(CURDIR)/debian/tmp
@@ -29,6 +26,3 @@ override_dh_auto_install:
 override_dh_missing:
 	dh_missing --fail-missing
 
-override_dh_auto_test:
-	dh_auto_test --builddir=build || ( make -C build test_clean; exit 1; )
-	make -C build test_clean

@@ -12,7 +12,7 @@ Build-Depends: cmake,
                libssh-dev,
                libssl-dev,
                libsysrepo-dev (>= 2.0.0),
-               libyang2-dev (>= 2.0.0),
+               libyang-dev (>= 2.0.0),
                pkg-config,
                sysrepo-tools (>= 2.0.0),
                libcurl4-openssl-dev (>= 7.30.0)
@@ -20,6 +20,7 @@ Homepage: https://github.com/CESNET/netopeer2/
 
 Package: netopeer2
 Depends: openssl,
+         passwd,
          ${misc:Depends},
          ${shlibs:Depends}
 Section: admin

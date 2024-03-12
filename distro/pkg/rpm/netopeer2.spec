@@ -81,8 +81,6 @@ export NP2_MODULE_OWNER=root
 export LN2_MODULE_DIR=%{_datadir}/yang/modules/libnetconf2
 
 %{_datadir}/netopeer2/scripts/setup.sh
-%{_datadir}/netopeer2/scripts/merge_hostkey.sh
-%{_datadir}/netopeer2/scripts/merge_config.sh
 
 %systemd_post netopeer2-server.service
 

@@ -1,7 +1,4 @@
 #!/bin/sh
-# prerm script for netopeer2
-#
-# see: dh_installdeb(1)
 
 set -e
 
@@ -20,20 +17,8 @@ set -e
 
 
 case "$1" in
-    purge)
-	if [ -x "$(command -v delgroup)" ]; then
-	    delgroup --quiet --system netconf > /dev/null || true
-	else
-	    echo >&2 "not removing netconf system group because delgroup command was not found"
-	fi
-    ;;
     remove)
 	env - \
-	    SYSREPOCTL_EXECUTABLE=sysrepoctl \
-	    NP2_MODULE_DIR=/usr/share/yang/modules/netopeer2 \
-	    NP2_MODULE_PERMS=660 \
-	    NP2_MODULE_OWNER=root \
-	    NP2_MODULE_GROUP=netconf \
 	    bash /usr/share/netopeer2/scripts/remove.sh
     ;;
     upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
