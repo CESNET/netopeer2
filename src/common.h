@@ -227,6 +227,26 @@ int np_ntf_add_dup(const struct lyd_node *notif, const struct timespec *timestam
 int np_ntf_send(struct nc_session *ncs, const struct timespec *timestamp, struct lyd_node **ly_ntf, int use_ntf);
 
 /**
+ * @brief Send notification netconf-session-start.
+ *
+ * @param[in] new_session Created NC session.
+ * @param[in] sr_session Sysrepo server session.
+ * @param[in] sr_timeout Notification callback timeout in milliseconds.
+ * @return 0 on success.
+ */
+int np_send_notif_session_start(const struct nc_session *new_session, sr_session_ctx_t *sr_session, uint32_t sr_timeout);
+
+/**
+ * @brief Send notification netconf-session-end.
+ *
+ * @param[in] new_session NC session.
+ * @param[in] sr_session Sysrepo server session.
+ * @param[in] sr_timeout Notification callback timeout in milliseconds.
+ * @return 0 on success.
+ */
+int np_send_notif_session_end(const struct nc_session *session, sr_session_ctx_t *sr_session, uint32_t sr_timeout);
+
+/**
  * @brief NP2 callback for acquiring context.
  */
 const struct ly_ctx *np2srv_acquire_ctx_cb(void *cb_data);

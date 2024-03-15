@@ -93,12 +93,7 @@ signal_handler(int sig)
 static void
 np2srv_del_session_cb(struct nc_session *session)
 {
-    int rc;
-    char *host = NULL;
-    sr_val_t *event_data;
     struct np2_user_sess *user_sess;
-    const struct ly_ctx *ly_ctx;
-    const struct lys_module *mod;
     uint32_t i;
 
     /* terminate any subscriptions for the NETCONF session */
@@ -128,59 +123,9 @@ np2srv_del_session_cb(struct nc_session *session)
         free(user_sess);
     }
 
-    ly_ctx = nc_session_get_ctx(session);
-    if ((mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-netconf-notifications"))) {
-        /* generate ietf-netconf-notification's netconf-session-end event for sysrepo */
-        if (nc_session_get_ti(session) != NC_TI_UNIX) {
-            host = (char *)nc_session_get_host(session);
-        }
-        event_data = calloc(5, sizeof *event_data);
-        i = 0;
+    /* generate ietf-netconf-notification's netconf-session-end event for sysrepo */
+    np_send_notif_session_end(session, np2srv.sr_sess, np2srv.sr_timeout);
 
-        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/username";
-        event_data[i].type = SR_STRING_T;
-        event_data[i++].data.string_val = (char *)nc_session_get_username(session);
-        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/session-id";
-        event_data[i].type = SR_UINT32_T;
-        event_data[i++].data.uint32_val = nc_session_get_id(session);
-        if (host) {
-            event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/source-host";
-            event_data[i].type = SR_STRING_T;
-            event_data[i++].data.string_val = host;
-        }
-        if (nc_session_get_killed_by(session)) {
-            event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/killed-by";
-            event_data[i].type = SR_UINT32_T;
-            event_data[i++].data.uint32_val = nc_session_get_killed_by(session);
-        }
-        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/termination-reason";
-        event_data[i].type = SR_ENUM_T;
-        switch (nc_session_get_term_reason(session)) {
-        case NC_SESSION_TERM_CLOSED:
-            event_data[i++].data.enum_val = "closed";
-            break;
-        case NC_SESSION_TERM_KILLED:
-            event_data[i++].data.enum_val = "killed";
-            break;
-        case NC_SESSION_TERM_DROPPED:
-            event_data[i++].data.enum_val = "dropped";
-            break;
-        case NC_SESSION_TERM_TIMEOUT:
-            event_data[i++].data.enum_val = "timeout";
-            break;
-        default:
-            event_data[i++].data.enum_val = "other";
-            break;
-        }
-        rc = sr_notif_send(np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-end", event_data, i,
-                np2srv.sr_timeout, 0);
-        if (rc != SR_ERR_OK) {
-            WRN("Failed to send a notification (%s).", sr_strerror(rc));
-        } else {
-            VRB("Generated new event (netconf-session-end).");
-        }
-        free(event_data);
-    }
     /* stop monitoring and free NC session */
     ncm_session_del(session);
     nc_session_free(session, NULL);

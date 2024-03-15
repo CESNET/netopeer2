@@ -371,6 +371,111 @@ cleanup:
     return rc;
 }
 
+int
+np_send_notif_session_start(const struct nc_session *new_session, sr_session_ctx_t *sr_session, uint32_t sr_timeout)
+{
+    int rc = 0;
+    char *host = NULL;
+    sr_val_t *event_data;
+    const struct ly_ctx *ly_ctx;
+    const struct lys_module *mod;
+
+    ly_ctx = nc_session_get_ctx(new_session);
+    if ((mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-netconf-notifications"))) {
+        if (nc_session_get_ti(new_session) != NC_TI_UNIX) {
+            host = (char *)nc_session_get_host(new_session);
+        }
+        event_data = calloc(3, sizeof *event_data);
+        event_data[0].xpath = "/ietf-netconf-notifications:netconf-session-start/username";
+        event_data[0].type = SR_STRING_T;
+        event_data[0].data.string_val = (char *)nc_session_get_username(new_session);
+        event_data[1].xpath = "/ietf-netconf-notifications:netconf-session-start/session-id";
+        event_data[1].type = SR_UINT32_T;
+        event_data[1].data.uint32_val = nc_session_get_id(new_session);
+        if (host) {
+            event_data[2].xpath = "/ietf-netconf-notifications:netconf-session-start/source-host";
+            event_data[2].type = SR_STRING_T;
+            event_data[2].data.string_val = host;
+        }
+        rc = sr_notif_send(sr_session, "/ietf-netconf-notifications:netconf-session-start", event_data, host ? 3 : 2,
+                sr_timeout, 0);
+        if (rc != SR_ERR_OK) {
+            WRN("Failed to send a notification (%s).", sr_strerror(rc));
+        } else {
+            VRB("Generated new event (netconf-session-start).");
+        }
+        free(event_data);
+    }
+
+    return rc;
+}
+
+int
+np_send_notif_session_end(const struct nc_session *session, sr_session_ctx_t *sr_session, uint32_t sr_timeout)
+{
+    int rc = 0;
+    char *host = NULL;
+    sr_val_t *event_data;
+    const struct ly_ctx *ly_ctx;
+    const struct lys_module *mod;
+    uint32_t i;
+
+    ly_ctx = nc_session_get_ctx(session);
+    if ((mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-netconf-notifications"))) {
+        if (nc_session_get_ti(session) != NC_TI_UNIX) {
+            host = (char *)nc_session_get_host(session);
+        }
+        event_data = calloc(5, sizeof *event_data);
+        i = 0;
+
+        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/username";
+        event_data[i].type = SR_STRING_T;
+        event_data[i++].data.string_val = (char *)nc_session_get_username(session);
+        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/session-id";
+        event_data[i].type = SR_UINT32_T;
+        event_data[i++].data.uint32_val = nc_session_get_id(session);
+        if (host) {
+            event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/source-host";
+            event_data[i].type = SR_STRING_T;
+            event_data[i++].data.string_val = host;
+        }
+        if (nc_session_get_killed_by(session)) {
+            event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/killed-by";
+            event_data[i].type = SR_UINT32_T;
+            event_data[i++].data.uint32_val = nc_session_get_killed_by(session);
+        }
+        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/termination-reason";
+        event_data[i].type = SR_ENUM_T;
+        switch (nc_session_get_term_reason(session)) {
+        case NC_SESSION_TERM_CLOSED:
+            event_data[i++].data.enum_val = "closed";
+            break;
+        case NC_SESSION_TERM_KILLED:
+            event_data[i++].data.enum_val = "killed";
+            break;
+        case NC_SESSION_TERM_DROPPED:
+            event_data[i++].data.enum_val = "dropped";
+            break;
+        case NC_SESSION_TERM_TIMEOUT:
+            event_data[i++].data.enum_val = "timeout";
+            break;
+        default:
+            event_data[i++].data.enum_val = "other";
+            break;
+        }
+        rc = sr_notif_send(sr_session, "/ietf-netconf-notifications:netconf-session-end", event_data, i,
+                sr_timeout, 0);
+        if (rc != SR_ERR_OK) {
+            WRN("Failed to send a notification (%s).", sr_strerror(rc));
+        } else {
+            VRB("Generated new event (netconf-session-end).");
+        }
+        free(event_data);
+    }
+
+    return 0;
+}
+
 const struct ly_ctx *
 np2srv_acquire_ctx_cb(void *cb_data)
 {
@@ -387,12 +492,8 @@ int
 np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_session, void *UNUSED(user_data))
 {
     int c;
-    sr_val_t *event_data;
     sr_session_ctx_t *sr_sess = NULL;
     struct np2_user_sess *user_sess = NULL;
-    const struct ly_ctx *ly_ctx;
-    const struct lys_module *mod;
-    char *host = NULL;
     uint32_t nc_id;
     const char *username;
 
@@ -443,33 +544,8 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
         goto error;
     }
 
-    ly_ctx = nc_session_get_ctx(new_session);
-    if ((mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-netconf-notifications"))) {
-        /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
-        if (nc_session_get_ti(new_session) != NC_TI_UNIX) {
-            host = (char *)nc_session_get_host(new_session);
-        }
-        event_data = calloc(3, sizeof *event_data);
-        event_data[0].xpath = "/ietf-netconf-notifications:netconf-session-start/username";
-        event_data[0].type = SR_STRING_T;
-        event_data[0].data.string_val = (char *)nc_session_get_username(new_session);
-        event_data[1].xpath = "/ietf-netconf-notifications:netconf-session-start/session-id";
-        event_data[1].type = SR_UINT32_T;
-        event_data[1].data.uint32_val = nc_session_get_id(new_session);
-        if (host) {
-            event_data[2].xpath = "/ietf-netconf-notifications:netconf-session-start/source-host";
-            event_data[2].type = SR_STRING_T;
-            event_data[2].data.string_val = host;
-        }
-        c = sr_notif_send(np2srv.sr_sess, "/ietf-netconf-notifications:netconf-session-start", event_data, host ? 3 : 2,
-                np2srv.sr_timeout, 0);
-        if (c != SR_ERR_OK) {
-            WRN("Failed to send a notification (%s).", sr_strerror(c));
-        } else {
-            VRB("Generated new event (netconf-session-start).");
-        }
-        free(event_data);
-    }
+    /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
+    np_send_notif_session_start(new_session, np2srv.sr_sess, np2srv.sr_timeout);
 
     return 0;
 
