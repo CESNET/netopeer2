@@ -371,109 +371,158 @@ cleanup:
     return rc;
 }
 
+/**
+ * @brief Create common session parameters to identify a management session.
+ *
+ * Detail description is in the common-session-parms grouping located in the ietf-netconf-notifications module.
+ *
+ * @param[in] new_session Created NC session.
+ * @param[in,out] notif Notification to which the session parameters are to be added.
+ * @return 0 on success.
+ */
+static LY_ERR
+np_prepare_notif_common_session_parms(const struct nc_session *session, struct lyd_node *notif)
+{
+    char *value;
+    char num32[11]; /* max bytes for 32-bit unsigned number + \0 */
+
+    assert(session && notif);
+
+    /* create 'username' node */
+    value = (char *)nc_session_get_username(session);
+    if (lyd_new_term(notif, notif->schema->module, "username", value, 0, NULL)) {
+        return -1;
+    }
+
+    /* create 'session-id' node */
+    sprintf(num32, "%" PRIu32, nc_session_get_id(session));
+    if (lyd_new_term(notif, notif->schema->module, "session-id", num32, 0, NULL)) {
+        return -1;
+    }
+
+    /* create 'source-host' node */
+    if (nc_session_get_ti(session) != NC_TI_UNIX) {
+        value = (char *)nc_session_get_host(session);
+        if (lyd_new_term(notif, notif->schema->module, "source-host", value, 0, NULL)) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
 int
 np_send_notif_session_start(const struct nc_session *new_session, sr_session_ctx_t *sr_session, uint32_t sr_timeout)
 {
-    int rc = 0;
-    char *host = NULL;
-    sr_val_t *event_data;
+    int rc = 0, r;
     const struct ly_ctx *ly_ctx;
     const struct lys_module *mod;
+    struct lyd_node *notif = NULL;
 
+    /* get module */
     ly_ctx = nc_session_get_ctx(new_session);
-    if ((mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-netconf-notifications"))) {
-        if (nc_session_get_ti(new_session) != NC_TI_UNIX) {
-            host = (char *)nc_session_get_host(new_session);
-        }
-        event_data = calloc(3, sizeof *event_data);
-        event_data[0].xpath = "/ietf-netconf-notifications:netconf-session-start/username";
-        event_data[0].type = SR_STRING_T;
-        event_data[0].data.string_val = (char *)nc_session_get_username(new_session);
-        event_data[1].xpath = "/ietf-netconf-notifications:netconf-session-start/session-id";
-        event_data[1].type = SR_UINT32_T;
-        event_data[1].data.uint32_val = nc_session_get_id(new_session);
-        if (host) {
-            event_data[2].xpath = "/ietf-netconf-notifications:netconf-session-start/source-host";
-            event_data[2].type = SR_STRING_T;
-            event_data[2].data.string_val = host;
-        }
-        rc = sr_notif_send(sr_session, "/ietf-netconf-notifications:netconf-session-start", event_data, host ? 3 : 2,
-                sr_timeout, 0);
-        if (rc != SR_ERR_OK) {
-            WRN("Failed to send a notification (%s).", sr_strerror(rc));
-        } else {
-            VRB("Generated new event (netconf-session-start).");
-        }
-        free(event_data);
+    mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-netconf-notifications");
+    if (!mod) {
+        goto cleanup;
     }
 
+    /* create 'netconf-session-start' notification */
+    if (lyd_new_inner(NULL, mod, "netconf-session-start", 0, &notif)) {
+        rc = -1;
+        goto cleanup;
+    }
+
+    /* create 'common-session-parms' grouping */
+    if ((rc = np_prepare_notif_common_session_parms(new_session, notif))) {
+        goto cleanup;
+    }
+
+    /* send notification */
+    if ((r = sr_notif_send_tree(sr_session, notif, sr_timeout, 0))) {
+        WRN("Failed to send a notification (%s).", sr_strerror(r));
+        rc = -1;
+        goto cleanup;
+    }
+
+    VRB("Generated new event (netconf-session-start).");
+
+cleanup:
+    lyd_free_tree(notif);
     return rc;
 }
 
 int
 np_send_notif_session_end(const struct nc_session *session, sr_session_ctx_t *sr_session, uint32_t sr_timeout)
 {
-    int rc = 0;
-    char *host = NULL;
-    sr_val_t *event_data;
+    int rc = 0, r;
     const struct ly_ctx *ly_ctx;
     const struct lys_module *mod;
-    uint32_t i;
+    struct lyd_node *notif = NULL;
+    char num32[11]; /* max bytes for 32-bit unsigned number + \0 */
+    char *value;
 
+    /* get module */
     ly_ctx = nc_session_get_ctx(session);
-    if ((mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-netconf-notifications"))) {
-        if (nc_session_get_ti(session) != NC_TI_UNIX) {
-            host = (char *)nc_session_get_host(session);
-        }
-        event_data = calloc(5, sizeof *event_data);
-        i = 0;
-
-        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/username";
-        event_data[i].type = SR_STRING_T;
-        event_data[i++].data.string_val = (char *)nc_session_get_username(session);
-        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/session-id";
-        event_data[i].type = SR_UINT32_T;
-        event_data[i++].data.uint32_val = nc_session_get_id(session);
-        if (host) {
-            event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/source-host";
-            event_data[i].type = SR_STRING_T;
-            event_data[i++].data.string_val = host;
-        }
-        if (nc_session_get_killed_by(session)) {
-            event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/killed-by";
-            event_data[i].type = SR_UINT32_T;
-            event_data[i++].data.uint32_val = nc_session_get_killed_by(session);
-        }
-        event_data[i].xpath = "/ietf-netconf-notifications:netconf-session-end/termination-reason";
-        event_data[i].type = SR_ENUM_T;
-        switch (nc_session_get_term_reason(session)) {
-        case NC_SESSION_TERM_CLOSED:
-            event_data[i++].data.enum_val = "closed";
-            break;
-        case NC_SESSION_TERM_KILLED:
-            event_data[i++].data.enum_val = "killed";
-            break;
-        case NC_SESSION_TERM_DROPPED:
-            event_data[i++].data.enum_val = "dropped";
-            break;
-        case NC_SESSION_TERM_TIMEOUT:
-            event_data[i++].data.enum_val = "timeout";
-            break;
-        default:
-            event_data[i++].data.enum_val = "other";
-            break;
-        }
-        rc = sr_notif_send(sr_session, "/ietf-netconf-notifications:netconf-session-end", event_data, i,
-                sr_timeout, 0);
-        if (rc != SR_ERR_OK) {
-            WRN("Failed to send a notification (%s).", sr_strerror(rc));
-        } else {
-            VRB("Generated new event (netconf-session-end).");
-        }
-        free(event_data);
+    mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-netconf-notifications");
+    if (!mod) {
+        goto cleanup;
     }
 
-    return 0;
+    /* create 'netconf-session-end' notification */
+    if (lyd_new_inner(NULL, mod, "netconf-session-end", 0, &notif)) {
+        rc = -1;
+        goto cleanup;
+    }
+
+    /* create 'common-session-parms' grouping */
+    if ((rc = np_prepare_notif_common_session_parms(session, notif))) {
+        goto cleanup;
+    }
+
+    /* create 'killed-by' node */
+    if (nc_session_get_killed_by(session)) {
+        sprintf(num32, "%" PRIu32, nc_session_get_killed_by(session));
+        if (lyd_new_term(notif, notif->schema->module, "killed-by", num32, 0, NULL)) {
+            rc = -1;
+            goto cleanup;
+        }
+    }
+
+    /* create 'termination-reason' node */
+    switch (nc_session_get_term_reason(session)) {
+    case NC_SESSION_TERM_CLOSED:
+        value = "closed";
+        break;
+    case NC_SESSION_TERM_KILLED:
+        value = "killed";
+        break;
+    case NC_SESSION_TERM_DROPPED:
+        value = "dropped";
+        break;
+    case NC_SESSION_TERM_TIMEOUT:
+        value = "timeout";
+        break;
+    default:
+        value = "other";
+        break;
+    }
+    if (lyd_new_term(notif, notif->schema->module, "termination-reason", value, 0, NULL)) {
+        rc = -1;
+        goto cleanup;
+    }
+
+    /* send notification */
+    if ((r = sr_notif_send_tree(sr_session, notif, sr_timeout, 0))) {
+        WRN("Failed to send a notification (%s).", sr_strerror(r));
+        rc = -1;
+        goto cleanup;
+    }
+
+    VRB("Generated new event (netconf-session-end).");
+
+cleanup:
+    lyd_free_tree(notif);
+    return rc;
 }
 
 const struct ly_ctx *
