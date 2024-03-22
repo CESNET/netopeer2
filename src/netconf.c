@@ -427,17 +427,6 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
         goto cleanup;
     }
 
-    if (!source_is_config && !run_to_start) {
-        /* get source datastore data */
-        sr_session_switch_ds(session, sds);
-        if ((rc = sr_get_data(session, "/*", 0, np2srv.sr_timeout, 0, &sr_data))) {
-            goto cleanup;
-        }
-        config = sr_data->tree;
-        sr_data->tree = NULL;
-        sr_release_data(sr_data);
-    }
-
     /* get the user session */
     if ((rc = np_find_user_sess(session, __func__, &nc_sess, &user_sess))) {
         goto cleanup;
@@ -450,6 +439,18 @@ np2srv_rpc_copyconfig_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), con
 #ifdef NP2SRV_URL_CAPAB
     if (trg_url) {
         struct lyd_node *node;
+
+        if (!source_is_config) {
+            /* get source datastore data */
+            sr_session_switch_ds(user_sess->sess, sds);
+            if ((rc = sr_get_data(user_sess->sess, "/*", 0, np2srv.sr_timeout, 0, &sr_data))) {
+                sr_session_dup_error(user_sess->sess, session);
+                goto cleanup;
+            }
+            config = sr_data->tree;
+            sr_data->tree = NULL;
+            sr_release_data(sr_data);
+        }
 
         /* we need with-defaults flag in this case */
         lyp_wd_flag = 0;
