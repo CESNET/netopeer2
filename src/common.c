@@ -525,6 +525,92 @@ cleanup:
     return rc;
 }
 
+int
+np_send_notif_confirmed_commit(const struct nc_session *session, sr_session_ctx_t *sr_session, enum np_cc_event event,
+        uint32_t cc_timeout, uint32_t sr_timeout)
+{
+    int rc = 0, r;
+    const struct ly_ctx *ly_ctx;
+    const struct lys_module *mod;
+    struct lyd_node *notif = NULL;
+    char num32[11]; /* max bytes for 32-bit unsigned number + \0 */
+    char *value;
+
+    /* get context */
+    if (session) {
+        ly_ctx = nc_session_get_ctx(session);
+    } else {
+        assert(event == NP_CC_TIMEOUT);
+        ly_ctx = sr_session_acquire_context(sr_session);
+    }
+
+    /* get module */
+    mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-netconf-notifications");
+    if (!mod) {
+        goto cleanup;
+    }
+
+    /* create 'netconf-confirmed-commit' notification */
+    if (lyd_new_inner(NULL, mod, "netconf-confirmed-commit", 0, &notif)) {
+        rc = -1;
+        goto cleanup;
+    }
+
+    /* create 'common-session-parms' grouping */
+    if ((event != NP_CC_TIMEOUT) && (rc = np_prepare_notif_common_session_parms(session, notif))) {
+        goto cleanup;
+    }
+
+    /* create 'confirm-event' node */
+    switch (event) {
+    case NP_CC_START:
+        value = "start";
+        break;
+    case NP_CC_CANCEL:
+        value = "cancel";
+        break;
+    case NP_CC_TIMEOUT:
+        value = "timeout";
+        break;
+    case NP_CC_EXTEND:
+        value = "extend";
+        break;
+    case NP_CC_COMPLETE:
+        value = "complete";
+        break;
+    default:
+        rc = -1;
+        goto cleanup;
+    }
+    if (lyd_new_term(notif, notif->schema->module, "confirm-event", value, 0, NULL)) {
+        rc = -1;
+        goto cleanup;
+    }
+
+    /* create 'timeout' node */
+    if (cc_timeout) {
+        assert((event == NP_CC_START) || (event == NP_CC_EXTEND));
+        sprintf(num32, "%" PRIu32, cc_timeout);
+        if (lyd_new_term(notif, notif->schema->module, "timeout", num32, 0, NULL)) {
+            rc = -1;
+            goto cleanup;
+        }
+    }
+
+    /* send notification */
+    if ((r = sr_notif_send_tree(sr_session, notif, sr_timeout, 0))) {
+        WRN("Failed to send a notification (%s).", sr_strerror(r));
+        rc = -1;
+        goto cleanup;
+    }
+
+    VRB("Generated new event (netconf-confirmed-commit).");
+
+cleanup:
+    lyd_free_tree(notif);
+    return rc;
+}
+
 const struct ly_ctx *
 np2srv_acquire_ctx_cb(void *cb_data)
 {

@@ -33,6 +33,81 @@
 #include "np_test.h"
 #include "np_test_config.h"
 
+#define TCC_NOTIF_XMLNS "\"urn:ietf:params:xml:ns:yang:ietf-netconf-notifications\""
+
+#define TCC_RECV_NOTIF_PARAM(nc_sess, timeout_ms, state) \
+    do { \
+        state->msgtype = nc_recv_notif(nc_sess, timeout_ms, &state->envp, &state->op); \
+    } while (state->msgtype == NC_MSG_REPLY); \
+    assert_int_equal(NC_MSG_NOTIF, state->msgtype); \
+    while (state->op->parent) state->op = lyd_parent(state->op); \
+
+#define TCC_RECV_NOTIF(state) \
+    TCC_RECV_NOTIF_PARAM(state->nc_sess, 3000, state)
+
+#define TCC_ASSERT_NOTIF_EVENT(state, event, ssid) \
+    { \
+        assert_int_equal(lyd_print_mem(&state->str, state->op, LYD_XML, 0), LY_SUCCESS); \
+        char *exp_cce = notif_cc_event(event, ssid); \
+        assert_non_null(exp_cce); \
+        assert_string_equal(exp_cce, state->str); \
+        free(exp_cce); \
+        free(state->str); \
+        state->str = NULL; \
+    }
+
+static char *
+notif_cc_event(const char *event, uint32_t ssid)
+{
+    char *msg = NULL;
+
+    ssid = (ssid == 0) ? 1 : ssid;
+
+    /* Check data without 'timeout' leaf */
+    if (!strcmp("timeout", event)) {
+        asprintf(&msg,
+                "<netconf-confirmed-commit xmlns="TCC_NOTIF_XMLNS ">\n"
+                "  <confirm-event>timeout</confirm-event>\n"
+                "</netconf-confirmed-commit>\n");
+    } else {
+        asprintf(&msg,
+                "<netconf-confirmed-commit xmlns="TCC_NOTIF_XMLNS ">\n"
+                "  <username>%s</username>\n"
+                "  <session-id>%" PRIu32 "</session-id>\n"
+                "  <confirm-event>%s</confirm-event>\n"
+                "</netconf-confirmed-commit>\n",
+                np_get_user(), ssid, event);
+    }
+
+    return msg;
+}
+
+static int
+notif_check_cc_timeout(struct np_test *st, uint32_t expected_timeout)
+{
+    struct lyd_node *timeout_node;
+    const uint32_t timeout_tolerance = 2;
+    uint32_t timeout;
+
+    timeout_node = lyd_child(st->op)->prev;
+    if (!timeout_node || strcmp(timeout_node->schema->name, "timeout")) {
+        /* timeout node is missing */
+        return 2;
+    }
+    timeout = ((struct lyd_node_term *)timeout_node)->value.uint32;
+
+    if ((expected_timeout <= timeout_tolerance) ||
+            ((timeout >= (expected_timeout - timeout_tolerance)) &&
+            (timeout <= expected_timeout))) {
+        /* success, timeout node is checked so it can be removed */
+        lyd_free_tree(timeout_node);
+        return 0;
+    } else {
+        /* timeout is out of range */
+        return 1;
+    }
+}
+
 static int
 local_setup(void **state)
 {
@@ -68,6 +143,15 @@ local_setup(void **state)
     /* setup NACM */
     rc = setup_nacm(state);
     assert_int_equal(rc, 0);
+
+    /* Enable replay support for ietf-netconf-notifications */
+    assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "ietf-netconf-notifications", 1));
+
+    /* Subscribe confirm-commit notification */
+    SEND_RPC_ESTABSUB(st, "/ietf-netconf-notifications:netconf-confirmed-commit",
+            "ietf-netconf-notifications", NULL, NULL);
+    ASSERT_OK_SUB_NTF(st);
+    FREE_TEST_VARS(st);
 
     return 0;
 }
@@ -137,6 +221,12 @@ test_sameas_commit(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
+    /* Expect 'start' notification */
+    TCC_RECV_NOTIF(st);
+    assert_int_equal(notif_check_cc_timeout(st, 600), 0);
+    TCC_ASSERT_NOTIF_EVENT(st, "start", 0);
+    FREE_TEST_VARS(st);
+
     /* Running should now be same as candidate, same as basic commit */
     GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
@@ -155,6 +245,11 @@ test_sameas_commit(void **state)
 
     /* Check if received an OK reply */
     ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* Expect 'complete' notification */
+    TCC_RECV_NOTIF(st);
+    TCC_ASSERT_NOTIF_EVENT(st, "complete", 0);
     FREE_TEST_VARS(st);
 }
 
@@ -185,6 +280,12 @@ test_timeout_runout(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
+    /* Expect 'start' notification with 1s timeout */
+    TCC_RECV_NOTIF(st);
+    assert_int_equal(notif_check_cc_timeout(st, 1), 0);
+    TCC_ASSERT_NOTIF_EVENT(st, "start", 0);
+    FREE_TEST_VARS(st);
+
     /* Running should now be same as candidate */
     GET_FILTER(st, "/edit1:first");
     expected =
@@ -201,6 +302,11 @@ test_timeout_runout(void **state)
     /* wait for the duration of the timeout */
     sleep(2);
 
+    /* Expect 'timeout' notification */
+    TCC_RECV_NOTIF(st);
+    TCC_ASSERT_NOTIF_EVENT(st, "timeout", 0);
+    FREE_TEST_VARS(st);
+
     /* Running should have reverted back to it's original value */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 
@@ -212,6 +318,9 @@ test_timeout_runout(void **state)
     /* received an OK reply */
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+
+    /* No notification should occur */
+    ASSERT_NO_NOTIF(st);
 }
 
 static void
@@ -230,6 +339,12 @@ test_timeout_confirm(void **state)
 
     /* Check if received an OK reply */
     ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* Expect 'start' notification with 1s timeout*/
+    TCC_RECV_NOTIF(st);
+    assert_int_equal(notif_check_cc_timeout(st, 1), 0);
+    TCC_ASSERT_NOTIF_EVENT(st, "start", 0);
     FREE_TEST_VARS(st);
 
     /* Running should now be same as candidate */
@@ -252,12 +367,20 @@ test_timeout_confirm(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
+    /* Expect 'complete' notification */
+    TCC_RECV_NOTIF(st);
+    TCC_ASSERT_NOTIF_EVENT(st, "complete", 0);
+    FREE_TEST_VARS(st);
+
     sleep(2);
 
     /* Data should remain unchanged */
     GET_CONFIG_FILTER(st, "/edit1:*");
     assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
+
+    /* No notification should occur */
+    ASSERT_NO_NOTIF(st);
 }
 
 static void
@@ -277,6 +400,12 @@ test_timeout_confirm_modify(void **state)
 
     /* Check if received an OK reply */
     ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* Send a confirmed-commit rpc with 1s timeout */
+    TCC_RECV_NOTIF(st);
+    assert_int_equal(notif_check_cc_timeout(st, 1), 0);
+    TCC_ASSERT_NOTIF_EVENT(st, "start", 0);
     FREE_TEST_VARS(st);
 
     /* Running should now be same as candidate */
@@ -306,6 +435,11 @@ test_timeout_confirm_modify(void **state)
 
     sleep(2);
 
+    /* Expect 'complete' notification */
+    TCC_RECV_NOTIF(st);
+    TCC_ASSERT_NOTIF_EVENT(st, "complete", 0);
+    FREE_TEST_VARS(st);
+
     /* Data should change */
     GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
@@ -334,6 +468,12 @@ test_timeout_followup(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
+    /* Expect 'start' notification with 60s timeout */
+    TCC_RECV_NOTIF(st);
+    assert_int_equal(notif_check_cc_timeout(st, 60), 0);
+    TCC_ASSERT_NOTIF_EVENT(st, "start", 0);
+    FREE_TEST_VARS(st);
+
     /* modify candidate */
     data = "<first xmlns=\"ed1\">Test2</first>";
     SR_EDIT_SESSION(st, st->sr_sess2, data);
@@ -344,6 +484,12 @@ test_timeout_followup(void **state)
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* Expect 'extend' notification with 1s timeout */
+    TCC_RECV_NOTIF(st);
+    assert_int_equal(notif_check_cc_timeout(st, 1), 0);
+    TCC_ASSERT_NOTIF_EVENT(st, "extend", 0);
     FREE_TEST_VARS(st);
 
     /* running should now be same as candidate */
@@ -359,6 +505,11 @@ test_timeout_followup(void **state)
 
     /* wait for the rollback */
     sleep(2);
+
+    /* Expect 'timeout' notification */
+    TCC_RECV_NOTIF(st);
+    TCC_ASSERT_NOTIF_EVENT(st, "timeout", 0);
+    FREE_TEST_VARS(st);
 
     /* data should remain unchanged, empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
@@ -382,6 +533,9 @@ test_cancel(void **state)
     ASSERT_ERROR_REPLY(st);
     FREE_TEST_VARS(st);
 
+    /* No notification should occur */
+    ASSERT_NO_NOTIF(st);
+
     /* edit running */
     data = "<first xmlns=\"ed1\">val</first><cont xmlns=\"ed1\"><second/><third>5</third></cont>";
     SR_EDIT_SESSION(st, st->sr_sess, data);
@@ -394,6 +548,12 @@ test_cancel(void **state)
 
     /* check if received an OK reply */
     ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* Expect 'start' notification with 10m timeout */
+    TCC_RECV_NOTIF(st);
+    assert_int_equal(notif_check_cc_timeout(st, 600), 0);
+    TCC_ASSERT_NOTIF_EVENT(st, "start", 0);
     FREE_TEST_VARS(st);
 
     /* running should now be same as candidate */
@@ -414,6 +574,11 @@ test_cancel(void **state)
 
     /* check if received an OK reply */
     ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* Expect 'cancel' notification */
+    TCC_RECV_NOTIF(st);
+    TCC_ASSERT_NOTIF_EVENT(st, "cancel", 0);
     FREE_TEST_VARS(st);
 
     /* running should now be back how it was */
@@ -438,6 +603,7 @@ test_rollback_disconnect(void **state)
     struct np_test *st = *state;
     struct nc_session *ncs;
     const char *expected;
+    uint32_t sid;
 
     /* prior to the test running should be empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
@@ -457,6 +623,12 @@ test_rollback_disconnect(void **state)
     assert_string_equal(LYD_NAME(lyd_child(st->envp)), "ok");
     FREE_TEST_VARS(st);
 
+    /* Expect 'start' notification with 60s timeout */
+    TCC_RECV_NOTIF(st);
+    assert_int_equal(notif_check_cc_timeout(st, 60), 0);
+    TCC_ASSERT_NOTIF_EVENT(st, "start", nc_session_get_id(ncs));
+    FREE_TEST_VARS(st);
+
     /* running should now be same as candidate */
     GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
@@ -469,10 +641,16 @@ test_rollback_disconnect(void **state)
     FREE_TEST_VARS(st);
 
     /* disconnect session, commit is rolled back */
+    sid = nc_session_get_id(ncs);
     nc_session_free(ncs, NULL);
 
     /* reply is sent before the server callback is called so give it a chance to perform the rollback */
     usleep(100000);
+
+    /* Expect 'cancel' notification */
+    TCC_RECV_NOTIF(st);
+    TCC_ASSERT_NOTIF_EVENT(st, "cancel", sid);
+    FREE_TEST_VARS(st);
 
     /* data should remain unchanged, empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
@@ -501,6 +679,12 @@ test_rollback_locked(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
+    /* Expect 'start' notification with 60s timeout */
+    TCC_RECV_NOTIF(st);
+    assert_int_equal(notif_check_cc_timeout(st, 60), 0);
+    TCC_ASSERT_NOTIF_EVENT(st, "start", 0);
+    FREE_TEST_VARS(st);
+
     /* running should now be the same as candidate */
     GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
@@ -519,11 +703,19 @@ test_rollback_locked(void **state)
     ASSERT_ERROR_REPLY_SESS2(st);
     FREE_TEST_VARS(st);
 
+    /* No notification should occur */
+    ASSERT_NO_NOTIF(st);
+
     /* cancel-commit on the same session */
     st->rpc = nc_rpc_cancel("test-persist", NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* Expect 'cancel' notification */
+    TCC_RECV_NOTIF(st);
+    TCC_ASSERT_NOTIF_EVENT(st, "cancel", 0);
     FREE_TEST_VARS(st);
 
     /* data should remain unchanged, empty */
@@ -535,6 +727,9 @@ test_rollback_locked(void **state)
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+
+    /* No notification should occur */
+    ASSERT_NO_NOTIF(st);
 }
 
 static void
@@ -555,6 +750,12 @@ test_confirm_persist(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
+    /* Expect 'start' notification */
+    TCC_RECV_NOTIF(st);
+    assert_int_equal(notif_check_cc_timeout(st, 600), 0);
+    TCC_ASSERT_NOTIF_EVENT(st, "start", 0);
+    FREE_TEST_VARS(st);
+
     /* Running should now be same as candidate */
     GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
@@ -573,6 +774,11 @@ test_confirm_persist(void **state)
 
     /* Check if received an OK reply */
     ASSERT_OK_REPLY_SESS2(st);
+    FREE_TEST_VARS(st);
+
+    /* Expect 'complete' notification */
+    TCC_RECV_NOTIF(st);
+    TCC_ASSERT_NOTIF_EVENT(st, "complete", 2);
     FREE_TEST_VARS(st);
 
     /* Data should remain unchanged */
@@ -604,6 +810,12 @@ test_cancel_persist(void **state)
     ASSERT_OK_REPLY_PARAM(nc_sess, 3000, st)
     FREE_TEST_VARS(st);
 
+    /* Expect 'start' notification */
+    TCC_RECV_NOTIF(st);
+    assert_int_equal(notif_check_cc_timeout(st, 600), 0);
+    TCC_ASSERT_NOTIF_EVENT(st, "start", nc_session_get_id(nc_sess));
+    FREE_TEST_VARS(st);
+
     /* running should now be same as candidate */
     GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
@@ -618,6 +830,9 @@ test_cancel_persist(void **state)
     /* disconnect NC session */
     nc_session_free(nc_sess, NULL);
 
+    /* No notification should occur */
+    ASSERT_NO_NOTIF(st);
+
     /* send cancel-commit rpc on a different session */
     st->rpc = nc_rpc_cancel(persist, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
@@ -625,6 +840,11 @@ test_cancel_persist(void **state)
 
     /* check if received an OK reply */
     ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* Expect 'cancel' notification */
+    TCC_RECV_NOTIF(st);
+    TCC_ASSERT_NOTIF_EVENT(st, "cancel", 0);
     FREE_TEST_VARS(st);
 
     /* running should now be empty */
@@ -642,6 +862,10 @@ test_wrong_session(void **state)
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+    TCC_RECV_NOTIF(st);
+    assert_int_equal(notif_check_cc_timeout(st, 60), 0);
+    TCC_ASSERT_NOTIF_EVENT(st, "start", 0);
+    FREE_TEST_VARS(st);
 
     /* send another confirmed-commit rpc on a different NC session, invalid */
     st->rpc = nc_rpc_commit(1, 1, NULL, NULL, NC_PARAMTYPE_CONST);
@@ -650,6 +874,7 @@ test_wrong_session(void **state)
     ASSERT_ERROR_REPLY_SESS2(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "operation-failed");
     FREE_TEST_VARS(st);
+    ASSERT_NO_NOTIF(st);
 
     /* send confirming commit rpc on a different NC session, invalid */
     st->rpc = nc_rpc_commit(0, 0, NULL, NULL, NC_PARAMTYPE_CONST);
@@ -658,6 +883,7 @@ test_wrong_session(void **state)
     ASSERT_ERROR_REPLY_SESS2(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "operation-failed");
     FREE_TEST_VARS(st);
+    ASSERT_NO_NOTIF(st);
 
     /* send cancel commit rpc on a different NC session, invalid */
     st->rpc = nc_rpc_cancel(NULL, NC_PARAMTYPE_CONST);
@@ -666,6 +892,7 @@ test_wrong_session(void **state)
     ASSERT_ERROR_REPLY_SESS2(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "operation-failed");
     FREE_TEST_VARS(st);
+    ASSERT_NO_NOTIF(st);
 
     /* send running lock rpc on a different NC session, invalid */
     st->rpc = nc_rpc_lock(NC_DATASTORE_RUNNING);
@@ -674,12 +901,16 @@ test_wrong_session(void **state)
     ASSERT_ERROR_REPLY_SESS2(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "lock-denied");
     FREE_TEST_VARS(st);
+    ASSERT_NO_NOTIF(st);
 
     /* send cancel-commit rpc */
     st->rpc = nc_rpc_cancel(NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+    TCC_RECV_NOTIF(st);
+    TCC_ASSERT_NOTIF_EVENT(st, "cancel", 0);
     FREE_TEST_VARS(st);
 }
 
@@ -698,6 +929,7 @@ test_wrong_persist_id(void **state)
     ASSERT_ERROR_REPLY(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     FREE_TEST_VARS(st);
+    ASSERT_NO_NOTIF(st);
 }
 
 static int
@@ -750,8 +982,19 @@ test_failed_file(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
+    /* Expect 'start' notification with 1s timeout */
+    TCC_RECV_NOTIF(st);
+    assert_int_equal(notif_check_cc_timeout(st, 1), 0);
+    TCC_ASSERT_NOTIF_EVENT(st, "start", 0);
+    FREE_TEST_VARS(st);
+
     /* Wait for the duration of the timeout */
     sleep(2);
+
+    /* Expect 'timeout' notification */
+    TCC_RECV_NOTIF(st);
+    TCC_ASSERT_NOTIF_EVENT(st, "timeout", 0);
+    FREE_TEST_VARS(st);
 
     /* Try and find the .failed file, should be exactly one */
     dir = opendir(st->path);
