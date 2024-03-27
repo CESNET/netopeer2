@@ -510,6 +510,9 @@ cleanup:
     if (!sev.sival_int) {
         /* UNLOCK */
         pthread_mutex_unlock(&commit_ctx.lock);
+
+        /* send notification about timeout for confirmed-commits */
+        np_send_notif_confirmed_commit(commit_ctx.nc_sess, sr_sess, NP_CC_TIMEOUT, 0, 0);
     }
     sr_release_context(np2srv.sr_conn);
     if (user_sess) {
@@ -529,7 +532,7 @@ cleanup:
 }
 
 void
-ncc_del_session(const struct nc_session *nc_sess)
+ncc_del_session(const struct nc_session *nc_sess, sr_session_ctx_t *sr_sess)
 {
     /* LOCK */
     pthread_mutex_lock(&commit_ctx.lock);
@@ -538,6 +541,9 @@ ncc_del_session(const struct nc_session *nc_sess)
         /* rollback */
         VRB("Performing confirmed commit rollback after the issuing session has terminated.");
         ncc_changes_rollback_cb((union sigval)1);
+
+        /* send notification about canceling confirmed-commits */
+        np_send_notif_confirmed_commit(nc_sess, sr_sess, NP_CC_CANCEL, 0, 0);
     }
 
     /* UNLOCK */
@@ -828,6 +834,7 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
     struct lyd_node *node = NULL;
     char *endptr = NULL;
     uint32_t timeout;
+    uint8_t timeout_changed = 0;
 
     /* get the user session */
     if ((rc = np_find_user_sess(session, __func__, &nc_sess, &user_sess))) {
@@ -884,6 +891,7 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
         /* there is already a pending confirmed commit, keep its backup, but the timeout will be reset */
         timer_delete(commit_ctx.timer);
         commit_ctx.timer = 0;
+        timeout_changed = 1;
     }
 
     /* (re)set the meta file timeout */
@@ -901,6 +909,14 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
     /* (re)schedule the timer thread for rollback */
     if (ncc_commit_timeout_schedule(timeout)) {
         goto cleanup;
+    }
+
+    if (timeout_changed) {
+        /* send notification about extending timeout for confirmed-commits */
+        np_send_notif_confirmed_commit(nc_sess, session, NP_CC_EXTEND, timeout, 0);
+    } else {
+        /* send notification about starting confirmed-commits */
+        np_send_notif_confirmed_commit(nc_sess, session, NP_CC_START, timeout, 0);
     }
 
     /* sysrepo API */
@@ -971,6 +987,9 @@ np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const c
             goto cleanup;
         }
         ncc_commit_confirmed();
+
+        /* send notification about complete confirmed-commits */
+        np_send_notif_confirmed_commit(nc_sess, session, NP_CC_COMPLETE, 0, 0);
     }
 
     /* sysrepo API */
@@ -1064,6 +1083,9 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
     /* rollback */
     VRB("Performing confirmed commit rollback after receiving <cancel-commit>.");
     ncc_changes_rollback_cb((union sigval)1);
+
+    /* send notification about canceling confirmed-commits */
+    np_send_notif_confirmed_commit(nc_sess, session, NP_CC_CANCEL, 0, 0);
 
 cleanup:
     /* UNLOCK */
