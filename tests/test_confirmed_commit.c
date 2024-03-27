@@ -33,6 +33,74 @@
 #include "np_test.h"
 #include "np_test_config.h"
 
+#define TCC_NOTIF_MOD "ietf-netconf-notifications"
+#define TCC_NOTIF_XPATH "/ietf-netconf-notifications:netconf-confirmed-commit"
+#define TCC_ASSERT_NOTIF_EVENT(EXPECTED_EVENT, NOTIF_EVENT) \
+    assert_int_equal(EXPECTED_EVENT, NOTIF_EVENT); \
+    NOTIF_EVENT = TEST_CC_NOTIF_EMPTY;
+
+enum tcc_notif_event {
+    TEST_CC_NOTIF_EMPTY = 0,
+    TEST_CC_NOTIF_ERROR,
+    TEST_CC_NOTIF_START,
+    TEST_CC_NOTIF_CANCEL,
+    TEST_CC_NOTIF_TIMEOUT,
+    TEST_CC_NOTIF_EXTEND,
+    TEST_CC_NOTIF_COMPLETE
+};
+
+static void
+notif_cc_cb(sr_session_ctx_t *session, uint32_t sub_id, const sr_ev_notif_type_t notif_type,
+        const struct lyd_node *notif, struct timespec *timestamp, void *private_data)
+{
+    (void)session;
+    (void)sub_id;
+    (void)notif_type;
+    (void)timestamp;
+    (void)private_data;
+
+    struct lyd_node *node;
+    enum tcc_notif_event *event;
+    const char *value;
+
+    event = (enum tcc_notif_event *)private_data;
+
+    if (notif_type == SR_EV_NOTIF_TERMINATED) {
+        /* Just ignore this. */
+        return;
+    } else if (notif_type != SR_EV_NOTIF_REALTIME) {
+        /* Other types of notification are not expected. */
+        *event = TEST_CC_NOTIF_ERROR;
+        return;
+    } else if (*event != TEST_CC_NOTIF_EMPTY) {
+        /* The notification was not caught in the test. */
+        *event = TEST_CC_NOTIF_ERROR;
+        return;
+    }
+
+    if (!lyd_find_path(notif, "confirm-event", 0, &node)) {
+        value = lyd_get_value(node);
+
+        /* Set the corresponding value for confirm-event. */
+        if (!strcmp("start", value)) {
+            *event = TEST_CC_NOTIF_START;
+        } else if (!strcmp("cancel", value)) {
+            *event = TEST_CC_NOTIF_CANCEL;
+        } else if (!strcmp("timeout", value)) {
+            *event = TEST_CC_NOTIF_TIMEOUT;
+        } else if (!strcmp("extend", value)) {
+            *event = TEST_CC_NOTIF_EXTEND;
+        } else if (!strcmp("complete", value)) {
+            *event = TEST_CC_NOTIF_COMPLETE;
+        } else {
+            *event = TEST_CC_NOTIF_ERROR;
+        }
+    } else {
+        /* The notification has bad data nodes. */
+        *event = TEST_CC_NOTIF_ERROR;
+    }
+}
+
 static int
 local_setup(void **state)
 {
@@ -100,6 +168,8 @@ setup_common(void **state)
     SR_EDIT_SESSION(st, st->sr_sess2, data);
     FREE_TEST_VARS(st);
 
+    st->sub = NULL;
+
     return 0;
 }
 
@@ -116,6 +186,10 @@ teardown_common(void **state)
     SR_EDIT_SESSION(st, st->sr_sess2, data);
     FREE_TEST_VARS(st);
 
+    if (st->sub) {
+        sr_unsubscribe(st->sub);
+    }
+
     return 0;
 }
 
@@ -124,6 +198,11 @@ test_sameas_commit(void **state)
 {
     struct np_test *st = *state;
     const char *expected;
+    enum tcc_notif_event notif_event = TEST_CC_NOTIF_EMPTY;
+
+    /* Subscribe confirm-commit notification */
+    assert_int_equal(sr_notif_subscribe_tree(st->sr_sess, TCC_NOTIF_MOD, TCC_NOTIF_XPATH,
+            0, 0, notif_cc_cb, &notif_event, 0, &st->sub), SR_ERR_OK);
 
     /* Prior to the test running of edit1 should be empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*")
@@ -136,6 +215,9 @@ test_sameas_commit(void **state)
     /* Check if received an OK reply */
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+
+    /* Expect 'start' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_START, notif_event);
 
     /* Running should now be same as candidate, same as basic commit */
     GET_CONFIG_FILTER(st, "/edit1:*");
@@ -156,6 +238,9 @@ test_sameas_commit(void **state)
     /* Check if received an OK reply */
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+
+    /* Expect 'complete' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_COMPLETE, notif_event);
 }
 
 static void
@@ -163,6 +248,11 @@ test_timeout_runout(void **state)
 {
     struct np_test *st = *state;
     const char *expected;
+    enum tcc_notif_event notif_event = TEST_CC_NOTIF_EMPTY;
+
+    /* Subscribe confirm-commit notification */
+    assert_int_equal(sr_notif_subscribe_tree(st->sr_sess, TCC_NOTIF_MOD, TCC_NOTIF_XPATH,
+            0, 0, notif_cc_cb, &notif_event, 0, &st->sub), SR_ERR_OK);
 
     /* Prior to the test running of edit1 should be empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*")
@@ -185,6 +275,9 @@ test_timeout_runout(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
+    /* Expect 'start' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_START, notif_event);
+
     /* Running should now be same as candidate */
     GET_FILTER(st, "/edit1:first");
     expected =
@@ -201,6 +294,9 @@ test_timeout_runout(void **state)
     /* wait for the duration of the timeout */
     sleep(2);
 
+    /* Expect 'timeout' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_TIMEOUT, notif_event);
+
     /* Running should have reverted back to it's original value */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 
@@ -212,6 +308,9 @@ test_timeout_runout(void **state)
     /* received an OK reply */
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+
+    /* No notification should occur */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_EMPTY, notif_event);
 }
 
 static void
@@ -219,6 +318,11 @@ test_timeout_confirm(void **state)
 {
     struct np_test *st = *state;
     const char *expected;
+    enum tcc_notif_event notif_event = TEST_CC_NOTIF_EMPTY;
+
+    /* Subscribe confirm-commit notification */
+    assert_int_equal(sr_notif_subscribe_tree(st->sr_sess, TCC_NOTIF_MOD, TCC_NOTIF_XPATH,
+            0, 0, notif_cc_cb, &notif_event, 0, &st->sub), SR_ERR_OK);
 
     /* Prior to the test running should be empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
@@ -231,6 +335,9 @@ test_timeout_confirm(void **state)
     /* Check if received an OK reply */
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+
+    /* Expect 'start' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_START, notif_event);
 
     /* Running should now be same as candidate */
     GET_CONFIG_FILTER(st, "/edit1:*");
@@ -252,12 +359,18 @@ test_timeout_confirm(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
+    /* Expect 'complete' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_COMPLETE, notif_event);
+
     sleep(2);
 
     /* Data should remain unchanged */
     GET_CONFIG_FILTER(st, "/edit1:*");
     assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
+
+    /* No notification should occur */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_EMPTY, notif_event);
 }
 
 static void
@@ -266,6 +379,11 @@ test_timeout_confirm_modify(void **state)
     struct np_test *st = *state;
     const char *expected;
     const char *data;
+    enum tcc_notif_event notif_event = TEST_CC_NOTIF_EMPTY;
+
+    /* Subscribe confirm-commit notification */
+    assert_int_equal(sr_notif_subscribe_tree(st->sr_sess, TCC_NOTIF_MOD, TCC_NOTIF_XPATH,
+            0, 0, notif_cc_cb, &notif_event, 0, &st->sub), SR_ERR_OK);
 
     /* Prior to the test running should be empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
@@ -278,6 +396,9 @@ test_timeout_confirm_modify(void **state)
     /* Check if received an OK reply */
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+
+    /* Expect 'start' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_START, notif_event);
 
     /* Running should now be same as candidate */
     GET_CONFIG_FILTER(st, "/edit1:*");
@@ -304,6 +425,9 @@ test_timeout_confirm_modify(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
+    /* Expect 'complete' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_COMPLETE, notif_event);
+
     sleep(2);
 
     /* Data should change */
@@ -316,6 +440,9 @@ test_timeout_confirm_modify(void **state)
             "</get-config>\n";
     assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
+
+    /* No notification should occur */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_EMPTY, notif_event);
 }
 
 static void
@@ -323,6 +450,11 @@ test_timeout_followup(void **state)
 {
     struct np_test *st = *state;
     const char *data, *expected;
+    enum tcc_notif_event notif_event = TEST_CC_NOTIF_EMPTY;
+
+    /* Subscribe confirm-commit notification */
+    assert_int_equal(sr_notif_subscribe_tree(st->sr_sess, TCC_NOTIF_MOD, TCC_NOTIF_XPATH,
+            0, 0, notif_cc_cb, &notif_event, 0, &st->sub), SR_ERR_OK);
 
     /* prior to the test running should be empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
@@ -333,6 +465,9 @@ test_timeout_followup(void **state)
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+
+    /* Expect 'start' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_START, notif_event);
 
     /* modify candidate */
     data = "<first xmlns=\"ed1\">Test2</first>";
@@ -345,6 +480,9 @@ test_timeout_followup(void **state)
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+
+    /* Expect 'extend' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_EXTEND, notif_event);
 
     /* running should now be same as candidate */
     GET_CONFIG_FILTER(st, "/edit1:*");
@@ -360,6 +498,9 @@ test_timeout_followup(void **state)
     /* wait for the rollback */
     sleep(2);
 
+    /* Expect 'timeout' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_TIMEOUT, notif_event);
+
     /* data should remain unchanged, empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 }
@@ -369,6 +510,11 @@ test_cancel(void **state)
 {
     struct np_test *st = *state;
     const char *expected, *data;
+    enum tcc_notif_event notif_event = TEST_CC_NOTIF_EMPTY;
+
+    /* Subscribe confirm-commit notification */
+    assert_int_equal(sr_notif_subscribe_tree(st->sr_sess, TCC_NOTIF_MOD, TCC_NOTIF_XPATH,
+            0, 0, notif_cc_cb, &notif_event, 0, &st->sub), SR_ERR_OK);
 
     /* prior to the test running should be empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
@@ -381,6 +527,9 @@ test_cancel(void **state)
     /* check if received an error reply */
     ASSERT_ERROR_REPLY(st);
     FREE_TEST_VARS(st);
+
+    /* No notification should occur */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_EMPTY, notif_event);
 
     /* edit running */
     data = "<first xmlns=\"ed1\">val</first><cont xmlns=\"ed1\"><second/><third>5</third></cont>";
@@ -395,6 +544,9 @@ test_cancel(void **state)
     /* check if received an OK reply */
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+
+    /* Expect 'start' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_START, notif_event);
 
     /* running should now be same as candidate */
     GET_CONFIG_FILTER(st, "/edit1:*");
@@ -415,6 +567,9 @@ test_cancel(void **state)
     /* check if received an OK reply */
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+
+    /* Expect 'cancel' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_CANCEL, notif_event);
 
     /* running should now be back how it was */
     GET_CONFIG_FILTER(st, "/edit1:*");
@@ -438,6 +593,11 @@ test_rollback_disconnect(void **state)
     struct np_test *st = *state;
     struct nc_session *ncs;
     const char *expected;
+    enum tcc_notif_event notif_event = TEST_CC_NOTIF_EMPTY;
+
+    /* Subscribe confirm-commit notification */
+    assert_int_equal(sr_notif_subscribe_tree(st->sr_sess, TCC_NOTIF_MOD, TCC_NOTIF_XPATH,
+            0, 0, notif_cc_cb, &notif_event, 0, &st->sub), SR_ERR_OK);
 
     /* prior to the test running should be empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
@@ -457,6 +617,9 @@ test_rollback_disconnect(void **state)
     assert_string_equal(LYD_NAME(lyd_child(st->envp)), "ok");
     FREE_TEST_VARS(st);
 
+    /* Expect 'start' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_START, notif_event);
+
     /* running should now be same as candidate */
     GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
@@ -474,6 +637,9 @@ test_rollback_disconnect(void **state)
     /* reply is sent before the server callback is called so give it a chance to perform the rollback */
     usleep(100000);
 
+    /* Expect 'cancel' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_CANCEL, notif_event);
+
     /* data should remain unchanged, empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 }
@@ -483,6 +649,11 @@ test_rollback_locked(void **state)
 {
     struct np_test *st = *state;
     const char *expected;
+    enum tcc_notif_event notif_event = TEST_CC_NOTIF_EMPTY;
+
+    /* Subscribe confirm-commit notification */
+    assert_int_equal(sr_notif_subscribe_tree(st->sr_sess, TCC_NOTIF_MOD, TCC_NOTIF_XPATH,
+            0, 0, notif_cc_cb, &notif_event, 0, &st->sub), SR_ERR_OK);
 
     /* prior to the test running should be empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
@@ -500,6 +671,9 @@ test_rollback_locked(void **state)
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+
+    /* Expect 'start' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_START, notif_event);
 
     /* running should now be the same as candidate */
     GET_CONFIG_FILTER(st, "/edit1:*");
@@ -519,12 +693,18 @@ test_rollback_locked(void **state)
     ASSERT_ERROR_REPLY_SESS2(st);
     FREE_TEST_VARS(st);
 
+    /* No notification should occur */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_EMPTY, notif_event);
+
     /* cancel-commit on the same session */
     st->rpc = nc_rpc_cancel("test-persist", NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+
+    /* Expect 'cancel' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_CANCEL, notif_event);
 
     /* data should remain unchanged, empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
@@ -535,6 +715,9 @@ test_rollback_locked(void **state)
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+
+    /* No notification should occur */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_EMPTY, notif_event);
 }
 
 static void
@@ -542,6 +725,11 @@ test_confirm_persist(void **state)
 {
     struct np_test *st = *state;
     const char *expected, *persist = "test-persist-1";
+    enum tcc_notif_event notif_event = TEST_CC_NOTIF_EMPTY;
+
+    /* Subscribe confirm-commit notification */
+    assert_int_equal(sr_notif_subscribe_tree(st->sr_sess, TCC_NOTIF_MOD, TCC_NOTIF_XPATH,
+            0, 0, notif_cc_cb, &notif_event, 0, &st->sub), SR_ERR_OK);
 
     /* Prior to the test running should be empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
@@ -554,6 +742,9 @@ test_confirm_persist(void **state)
     /* Check if received an OK reply */
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+
+    /* Expect 'start' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_START, notif_event);
 
     /* Running should now be same as candidate */
     GET_CONFIG_FILTER(st, "/edit1:*");
@@ -575,6 +766,9 @@ test_confirm_persist(void **state)
     ASSERT_OK_REPLY_SESS2(st);
     FREE_TEST_VARS(st);
 
+    /* Expect 'complete' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_COMPLETE, notif_event);
+
     /* Data should remain unchanged */
     GET_CONFIG_FILTER(st, "/edit1:*");
     assert_string_equal(st->str, expected);
@@ -587,6 +781,11 @@ test_cancel_persist(void **state)
     struct np_test *st = *state;
     const char *expected, *persist = "test-persist-2";
     struct nc_session *nc_sess;
+    enum tcc_notif_event notif_event = TEST_CC_NOTIF_EMPTY;
+
+    /* Subscribe confirm-commit notification */
+    assert_int_equal(sr_notif_subscribe_tree(st->sr_sess, TCC_NOTIF_MOD, TCC_NOTIF_XPATH,
+            0, 0, notif_cc_cb, &notif_event, 0, &st->sub), SR_ERR_OK);
 
     /* prior to the test running should be empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
@@ -604,6 +803,9 @@ test_cancel_persist(void **state)
     ASSERT_OK_REPLY_PARAM(nc_sess, 3000, st)
     FREE_TEST_VARS(st);
 
+    /* Expect 'start' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_START, notif_event);
+
     /* running should now be same as candidate */
     GET_CONFIG_FILTER(st, "/edit1:*");
     expected =
@@ -618,6 +820,9 @@ test_cancel_persist(void **state)
     /* disconnect NC session */
     nc_session_free(nc_sess, NULL);
 
+    /* No notification should occur */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_EMPTY, notif_event);
+
     /* send cancel-commit rpc on a different session */
     st->rpc = nc_rpc_cancel(persist, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
@@ -627,6 +832,9 @@ test_cancel_persist(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
+    /* Expect 'cancel' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_CANCEL, notif_event);
+
     /* running should now be empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 }
@@ -635,6 +843,11 @@ static void
 test_wrong_session(void **state)
 {
     struct np_test *st = *state;
+    enum tcc_notif_event notif_event = TEST_CC_NOTIF_EMPTY;
+
+    /* Subscribe confirm-commit notification */
+    assert_int_equal(sr_notif_subscribe_tree(st->sr_sess, TCC_NOTIF_MOD, TCC_NOTIF_XPATH,
+            0, 0, notif_cc_cb, &notif_event, 0, &st->sub), SR_ERR_OK);
 
     /* send a confirmed-commit rpc with 60s timeout */
     st->rpc = nc_rpc_commit(1, 60, NULL, NULL, NC_PARAMTYPE_CONST);
@@ -642,6 +855,7 @@ test_wrong_session(void **state)
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_START, notif_event);
 
     /* send another confirmed-commit rpc on a different NC session, invalid */
     st->rpc = nc_rpc_commit(1, 1, NULL, NULL, NC_PARAMTYPE_CONST);
@@ -650,6 +864,7 @@ test_wrong_session(void **state)
     ASSERT_ERROR_REPLY_SESS2(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "operation-failed");
     FREE_TEST_VARS(st);
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_EMPTY, notif_event);
 
     /* send confirming commit rpc on a different NC session, invalid */
     st->rpc = nc_rpc_commit(0, 0, NULL, NULL, NC_PARAMTYPE_CONST);
@@ -658,6 +873,7 @@ test_wrong_session(void **state)
     ASSERT_ERROR_REPLY_SESS2(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "operation-failed");
     FREE_TEST_VARS(st);
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_EMPTY, notif_event);
 
     /* send cancel commit rpc on a different NC session, invalid */
     st->rpc = nc_rpc_cancel(NULL, NC_PARAMTYPE_CONST);
@@ -666,6 +882,7 @@ test_wrong_session(void **state)
     ASSERT_ERROR_REPLY_SESS2(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "operation-failed");
     FREE_TEST_VARS(st);
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_EMPTY, notif_event);
 
     /* send running lock rpc on a different NC session, invalid */
     st->rpc = nc_rpc_lock(NC_DATASTORE_RUNNING);
@@ -674,6 +891,7 @@ test_wrong_session(void **state)
     ASSERT_ERROR_REPLY_SESS2(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "lock-denied");
     FREE_TEST_VARS(st);
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_EMPTY, notif_event);
 
     /* send cancel-commit rpc */
     st->rpc = nc_rpc_cancel(NULL, NC_PARAMTYPE_CONST);
@@ -681,6 +899,7 @@ test_wrong_session(void **state)
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_CANCEL, notif_event);
 }
 
 static void
@@ -688,6 +907,11 @@ test_wrong_persist_id(void **state)
 {
     struct np_test *st = *state;
     const char *persist = "test-persist-3";
+    enum tcc_notif_event notif_event = TEST_CC_NOTIF_EMPTY;
+
+    /* Subscribe confirm-commit notification */
+    assert_int_equal(sr_notif_subscribe_tree(st->sr_sess, TCC_NOTIF_MOD, TCC_NOTIF_XPATH,
+            0, 0, notif_cc_cb, &notif_event, 0, &st->sub), SR_ERR_OK);
 
     /* Send a confirmed-commit rpc with unknown persist-id */
     st->rpc = nc_rpc_commit(0, 0, NULL, persist, NC_PARAMTYPE_CONST);
@@ -698,6 +922,7 @@ test_wrong_persist_id(void **state)
     ASSERT_ERROR_REPLY(st);
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
     FREE_TEST_VARS(st);
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_EMPTY, notif_event);
 }
 
 static int
@@ -727,6 +952,9 @@ setup_test_failed_file(void **state)
     free(file_name);
     free(test_name);
     fclose(file);
+
+    st->sub = NULL;
+
     return 0;
 }
 
@@ -737,6 +965,11 @@ test_failed_file(void **state)
     struct dirent *file = NULL;
     int found = 0;
     DIR *dir = NULL;
+    enum tcc_notif_event notif_event = TEST_CC_NOTIF_EMPTY;
+
+    /* Subscribe confirm-commit notification */
+    assert_int_equal(sr_notif_subscribe_tree(st->sr_sess, TCC_NOTIF_MOD, TCC_NOTIF_XPATH,
+            0, 0, notif_cc_cb, &notif_event, 0, &st->sub), SR_ERR_OK);
 
     /* Prior to the test running should be empty */
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
@@ -750,8 +983,14 @@ test_failed_file(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
+    /* Expect 'start' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_START, notif_event);
+
     /* Wait for the duration of the timeout */
     sleep(2);
+
+    /* Expect 'timeout' notification */
+    TCC_ASSERT_NOTIF_EVENT(TEST_CC_NOTIF_TIMEOUT, notif_event);
 
     /* Try and find the .failed file, should be exactly one */
     dir = opendir(st->path);

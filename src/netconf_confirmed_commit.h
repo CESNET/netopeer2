@@ -47,8 +47,9 @@ void ncc_try_restore(void);
  * @brief Revert current confirmed commit, if any, if not persistent and this session started it.
  *
  * @param[in] nc_sess Terminated NC session.
+ * @param[in] sr_sess Sysrepo server session.
  */
-void ncc_del_session(const struct nc_session *nc_sess);
+void ncc_del_session(const struct nc_session *nc_sess, sr_session_ctx_t *sr_sess);
 
 int np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,
         sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
