@@ -691,6 +691,13 @@ server_destroy(void)
     free(np2srv.url_protocols);
 }
 
+/**
+ * @brief Open the server PID file and write into it.
+ *
+ * @param[in] pidfile Path to the PID file.
+ * @return 0 on success.
+ * @return -1 on error.
+ */
 static int
 server_open_pidfile(const char *pidfile)
 {
@@ -735,16 +742,6 @@ server_open_pidfile(const char *pidfile)
  * @brief Callback for handling netconf-server, ietf-keystore and ietf-truststore data changes.
  *
  * The diff is given to libnetconf2, which then handles the changes.
- *
- * @param session sysrepo session.
- * @param[in] sub_id Subscription identifier.
- * @param[in] module_name Module's name.
- * @param[in] xpath XPath.
- * @param[in] event Event.
- * @param[in] request_id Request identifier.
- * @param private_data Private data.
- *
- * @return SR_ERR_OK on success, on error any other value.
  */
 static int
 np2srv_libnetconf2_config_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
@@ -766,10 +763,13 @@ np2srv_libnetconf2_config_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id),
 
 #ifdef NC_ENABLED_SSH_TLS
 
+/**
+ * @brief Callback for providing SSH algorithms operational data.
+ */
 static int
-np2srv_ssh_algs_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *module_name,
-        const char *path, const char *UNUSED(request_xpath), uint32_t UNUSED(request_id),
-        struct lyd_node **parent, void *UNUSED(private_data))
+np2srv_ssh_algs_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *module_name, const char *path,
+        const char *UNUSED(request_xpath), uint32_t UNUSED(request_id), struct lyd_node **parent,
+        void *UNUSED(private_data))
 {
     int ret = 0;
     const struct ly_ctx *ly_ctx;
