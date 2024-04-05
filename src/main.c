@@ -643,14 +643,18 @@ server_destroy(void)
 #ifdef NC_ENABLED_SSH_TLS
     struct lyd_node *data = NULL, *node = NULL;
     const struct ly_ctx *ly_ctx;
+    uint32_t temp_lo = 0;
 
     /* remove all CH clients so they do not reconnect */
     ly_ctx = sr_acquire_context(np2srv.sr_conn);
-    lyd_new_path2(NULL, ly_ctx, "/ietf-netconf-server:netconf-server/call-home", NULL, 0, 0, 0, &data, &node);
-    lyd_new_meta(ly_ctx, data, NULL, "yang:operation", "none", 0, NULL);
-    lyd_new_meta(ly_ctx, node, NULL, "yang:operation", "delete", 0, NULL);
-    nc_server_config_setup_diff(data);
-    lyd_free_tree(data);
+    ly_temp_log_options(&temp_lo);
+    if (!lyd_new_path2(NULL, ly_ctx, "/ietf-netconf-server:netconf-server/call-home", NULL, 0, 0, 0, &data, &node)) {
+        lyd_new_meta(ly_ctx, data, NULL, "yang:operation", "none", 0, NULL);
+        lyd_new_meta(ly_ctx, node, NULL, "yang:operation", "delete", 0, NULL);
+        nc_server_config_setup_diff(data);
+        lyd_free_tree(data);
+    }
+    ly_temp_log_options(NULL);
     sr_release_context(np2srv.sr_conn);
 #endif
 
