@@ -20,6 +20,7 @@ LN2_MODDIR=${DESTDIR}${LN2_MODULE_DIR}
 PERMS=${NP2_MODULE_PERMS}
 OWNER=${NP2_MODULE_OWNER}
 GROUP=${NP2_MODULE_GROUP}
+DISABLE_RUNNING=${NP2_DISABLE_RUNNING}
 
 # functions
 function INSTALL_MODULE_CMD() {
@@ -28,6 +29,9 @@ function INSTALL_MODULE_CMD() {
     fi
 
     CMD_INSTALL="$CMD_INSTALL -i $1/$2 -p '$PERMS'"
+    if [ ! -z "${DISABLE_RUNNING}" ]; then
+        CMD_INSTALL="$CMD_INSTALL -m 'running:'"
+    fi
     if [ ! -z "${OWNER}" ]; then
         CMD_INSTALL="$CMD_INSTALL -o '$OWNER'"
     fi
