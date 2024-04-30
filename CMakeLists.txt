@@ -421,6 +421,9 @@ if(BUILD_CLI)
     add_subdirectory(cli)
 endif()
 
+# np2 sysrepo setup lib
+add_subdirectory(lib)
+
 # source files to be covered by the 'format' target and a test with 'format-check' target
 source_format(${FORMAT_SRC})
 
