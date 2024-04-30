@@ -172,10 +172,6 @@ if(NOT LN2_YANG_MODULE_DIR)
     message(FATAL_ERROR "Unable to learn libnetconf2 module search directory.")
 endif()
 
-# find sysrepo pkg and get sysrepo group
-pkg_check_modules(PKG_SR REQUIRED sysrepo)
-pkg_get_variable(SR_GROUP sysrepo "SR_GROUP")
-
 # } PKGCONFIG
 
 if(ENABLE_VALGRIND_TESTS)
