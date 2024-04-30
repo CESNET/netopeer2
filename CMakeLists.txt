@@ -221,7 +221,7 @@ if(LIBSSH_FOUND)
     list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBSSH_LIBRARIES})
 endif()
 
-# dependencies - libnetconf2 (now, because we need to configure outselves based on it)
+# dependencies - libnetconf2 (now, because we need to configure ourselves based on it)
 find_package(LibNETCONF2 ${LIBNETCONF2_DEP_SOVERSION} REQUIRED)
 include_directories(${LIBNETCONF2_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBNETCONF2_INCLUDE_DIRS})
