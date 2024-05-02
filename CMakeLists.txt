@@ -80,7 +80,7 @@ set(YANG_MODULE_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/yang/modul
 set(DATA_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/netopeer2" CACHE STRING "Directory with shared netopeer2 data")
 
 # script options
-option(SYSREPO_SETUP "Install required modules with their default configuration into sysrepo" ON)
+option(SYSREPO_SETUP "Install required modules with their default configuration into sysrepo using a script. If disabled, a small library is built with the same functionality" ON)
 set(MODULES_PERMS 600 CACHE STRING "File access permissions set for all the server modules")
 if(NOT MODULES_OWNER)
     execute_process(COMMAND id -un RESULT_VARIABLE RET
@@ -417,7 +417,9 @@ if(BUILD_CLI)
 endif()
 
 # np2 sysrepo setup lib
-add_subdirectory(lib)
+if(NOT SYSREPO_SETUP)
+    add_subdirectory(lib)
+endif()
 
 # source files to be covered by the 'format' target and a test with 'format-check' target
 source_format(${FORMAT_SRC})
