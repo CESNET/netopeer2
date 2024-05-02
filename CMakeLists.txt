@@ -4,7 +4,7 @@ project(netopeer2 C)
 set(NETOPEER2_DESC "NETCONF tools suite including a server and command-line client")
 
 # include custom Modules
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules/")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules/")
 
 include(GNUInstallDirs)
 include(CheckFunctionExists)
