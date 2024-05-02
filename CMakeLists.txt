@@ -63,14 +63,19 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -std=c99")
 #
 # options
 #
+option(ENABLE_COVERAGE "Build code coverage report from tests" OFF)
+option(BUILD_SERVER "Build and install neotpeer2-server" ON)
+option(BUILD_CLI "Build and install neotpeer2-cli" ON)
 option(ENABLE_TESTS "Build tests" ON)
-if(("${BUILD_TYPE_UPPER}" STREQUAL "DEBUG") OR ("${BUILD_TYPE_UPPER}" STREQUAL "RELWITHDEBINFO"))
+if(ENABLE_TESTS AND NOT BUILD_SERVER)
+    message(WARNING "Tests require the server executable, disabling them.")
+    set(ENABLE_TESTS OFF)
+endif()
+if(ENABLE_TESTS AND "${BUILD_TYPE_UPPER}" STREQUAL "DEBUG" OR "${BUILD_TYPE_UPPER}" STREQUAL "RELWITHDEBINFO")
     option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" ON)
 else()
     option(ENABLE_VALGRIND_TESTS "Build tests with valgrind" OFF)
 endif()
-option(ENABLE_COVERAGE "Build code coverage report from tests" OFF)
-option(BUILD_CLI "Build and install neotpeer2-cli" ON)
 option(ENABLE_URL "Enable URL capability" ON)
 option(ENABLE_URL_FILE "Enable the 'file' URL protocol (security advisory: allows authorized users to access local FS as the server user)" OFF)
 set(SSH_AUTHORIZED_KEYS_FORMAT "%h/.ssh/authorized_keys" CACHE STRING "sshd-like pattern (with '%h', '%u', '%U') for determining path to users' SSH authorized_keys file.")
@@ -78,9 +83,13 @@ set(THREAD_COUNT 3 CACHE STRING "Number of threads accepting new sessions and ha
 set(POLL_IO_TIMEOUT 10 CACHE STRING "Timeout in milliseconds of polling sessions for new data. It is also used for synchronization of low level IO such as sending a reply while a notification is being sent")
 set(YANG_MODULE_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/yang/modules/netopeer2" CACHE STRING "Directory where to copy the YANG modules to")
 set(DATA_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/netopeer2" CACHE STRING "Directory with shared netopeer2 data")
+set(NETOPEER2_LIB "no" CACHE STRING "Build netopeer2 library with the setup function or also with the full server functionality, allowed values \"no\", \"setup\", and \"server\"")
+if(NOT NETOPEER2_LIB STREQUAL "no" AND NOT NETOPEER2_LIB STREQUAL "setup" AND NOT NETOPEER2_LIB STREQUAL "server")
+    message(FATAL_ERROR "Invalid value \"${NETOPEER2_LIB}\" of NETOPEER2_LIB.")
+endif()
 
 # script options
-option(SYSREPO_SETUP "Install required modules with their default configuration into sysrepo using a script. If disabled, a small library is built with the same functionality" ON)
+option(SYSREPO_SETUP "Install required modules with their default configuration into sysrepo using a script" ON)
 set(MODULES_PERMS 600 CACHE STRING "File access permissions set for all the server modules")
 if(NOT MODULES_OWNER)
     execute_process(COMMAND id -un RESULT_VARIABLE RET
@@ -230,7 +239,10 @@ use_compat()
 
 # netopeer2-server
 add_library(serverobj OBJECT ${SERVER_SRC})
-add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> src/main.c ${compatsrc})
+set(serverlibs "")
+if(BUILD_SERVER)
+    add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> src/main.c ${compatsrc})
+endif()
 
 #
 # dependencies
@@ -239,15 +251,15 @@ add_executable(netopeer2-server $<TARGET_OBJECTS:serverobj> src/main.c ${compats
 # librt (not required on OSX or QNX)
 find_library(LIBRT rt)
 if(LIBRT)
-    target_link_libraries(netopeer2-server ${LIBRT})
+    set(serverlibs ${serverlibs} ${LIBRT})
 endif()
 
 # libnetconf2 (was already found)
-target_link_libraries(netopeer2-server ${LIBNETCONF2_LIBRARIES})
+set(serverlibs ${serverlibs} ${LIBNETCONF2_LIBRARIES})
 
 # libssh (was already found, if exists)
 if(LIBSSH_FOUND AND LIBNETCONF2_ENABLED_SSH_TLS)
-    target_link_libraries(netopeer2-server ${LIBSSH_LIBRARIES})
+    set(serverlibs ${serverlibs} ${LIBSSH_LIBRARIES})
     include_directories(${LIBSSH_INCLUDE_DIRS})
 endif()
 
@@ -257,9 +269,11 @@ if(ENABLE_URL)
     if(CURL_FOUND)
         include_directories(${CURL_INCLUDE_DIRS})
         if(TARGET CURL::libcurl)
-            target_link_libraries(netopeer2-server CURL::libcurl)
+            if(BUILD_SERVER)
+                target_link_libraries(netopeer2-server CURL::libcurl)
+            endif()
         else()
-            target_link_libraries(netopeer2-server ${CURL_LIBRARIES})
+            set(serverlibs ${serverlibs} ${CURL_LIBRARIES})
         endif()
         set(NP2SRV_URL_CAPAB 1)
         if(ENABLE_URL_FILE)
@@ -280,7 +294,7 @@ endif()
 find_package(LibSystemd)
 if(LIBSYSTEMD_FOUND)
     set(NP2SRV_HAVE_SYSTEMD 1)
-    target_link_libraries(netopeer2-server ${LIBSYSTEMD_LIBRARIES})
+    set(serverlibs ${serverlibs} ${LIBSYSTEMD_LIBRARIES})
     include_directories(${LIBSYSTEMD_INCLUDE_DIRS})
     message(STATUS "systemd system service unit path: ${SYSTEMD_UNIT_DIR}")
 else()
@@ -290,19 +304,19 @@ endif()
 # pthread
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 find_package(Threads REQUIRED)
-target_link_libraries(netopeer2-server ${CMAKE_THREAD_LIBS_INIT})
+set(serverlibs ${serverlibs} ${CMAKE_THREAD_LIBS_INIT})
 list(APPEND CMAKE_REQUIRED_FLAGS ${CMAKE_THREAD_LIBS_INIT})
 
 # libyang
 find_package(LibYANG ${LIBYANG_DEP_SOVERSION} REQUIRED)
-target_link_libraries(netopeer2-server ${LIBYANG_LIBRARIES})
+set(serverlibs ${serverlibs} ${LIBYANG_LIBRARIES})
 include_directories(${LIBYANG_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${LIBYANG_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBYANG_LIBRARIES})
 
 # sysrepo
 find_package(Sysrepo ${SYSREPO_DEP_SOVERSION} REQUIRED)
-target_link_libraries(netopeer2-server ${SYSREPO_LIBRARIES})
+set(serverlibs ${serverlibs} ${SYSREPO_LIBRARIES})
 include_directories(${SYSREPO_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_INCLUDES ${SYSREPO_INCLUDE_DIRS})
 list(APPEND CMAKE_REQUIRED_LIBRARIES ${SYSREPO_LIBRARIES})
@@ -335,10 +349,13 @@ install(DIRECTORY "${PROJECT_SOURCE_DIR}/modules/" DESTINATION ${YANG_MODULE_DIR
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/scripts/" DESTINATION ${DATA_DIR}/scripts USE_SOURCE_PERMISSIONS)
 
 # install the binary, required modules, and default configuration
-install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_SBINDIR})
-install(FILES ${PROJECT_SOURCE_DIR}/doc/netopeer2-server.8 DESTINATION ${CMAKE_INSTALL_MANDIR}/man8)
-if(NP2SRV_HAVE_SYSTEMD)
-    install(FILES ${PROJECT_BINARY_DIR}/netopeer2-server.service DESTINATION ${SYSTEMD_UNIT_DIR})
+if(BUILD_SERVER)
+    target_link_libraries(netopeer2-server ${serverlibs})
+    install(TARGETS netopeer2-server DESTINATION ${CMAKE_INSTALL_SBINDIR})
+    install(FILES ${PROJECT_SOURCE_DIR}/doc/netopeer2-server.8 DESTINATION ${CMAKE_INSTALL_MANDIR}/man8)
+    if(NP2SRV_HAVE_SYSTEMD)
+        install(FILES ${PROJECT_BINARY_DIR}/netopeer2-server.service DESTINATION ${SYSTEMD_UNIT_DIR})
+    endif()
 endif()
 
 install(FILES "${CMAKE_SOURCE_DIR}/pam/netopeer2.conf" DESTINATION "${CMAKE_INSTALL_SYSCONFDIR}/pam.d")
@@ -419,8 +436,8 @@ if(BUILD_CLI)
     add_subdirectory(cli)
 endif()
 
-# np2 sysrepo setup lib
-if(NOT SYSREPO_SETUP)
+# netopeer2 lib
+if(NOT NETOPEER2_LIB STREQUAL "no")
     add_subdirectory(lib)
 endif()
 

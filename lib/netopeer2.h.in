@@ -1,7 +1,7 @@
 /**
- * @file np2_sr_setup.h
+ * @file netopeer2.h
  * @author Michal Vasko <mvasko@cesnet.cz>
- * @brief netopeer2-server sysrepo YANG module setup library header
+ * @brief netopeer2-server library header
  *
  * @copyright
  * Copyright (c) 2024 Deutsche Telekom AG.
@@ -14,8 +14,8 @@
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
-#ifndef NP2_SR_SETUP_H_
-#define NP2_SR_SETUP_H_
+#ifndef NETOPEER2_H_
+#define NETOPEER2_H_
 
 #include <sys/stat.h>
 
@@ -32,4 +32,6 @@
  */
 int np2_sr_setup(const char *owner, const char *group, mode_t perm);
 
-#endif /* NP2_SR_SETUP_H_ */
+@NETOPEER2_SERVER_FUNC@
+
+#endif /* NETOPEER2_H_ */
