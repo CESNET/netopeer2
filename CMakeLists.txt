@@ -144,30 +144,33 @@ set(FORMAT_SRC
 
 # PKGCONFIG {
 
-find_package(PkgConfig REQUIRED)
+find_package(PkgConfig)
+if(PkgConfig_FOUND)
+    # find libnetconf2 pkg
+    pkg_check_modules(PKG_LN2 REQUIRED libnetconf2)
 
-# find libnetconf2 pkg
-pkg_check_modules(PKG_LN2 REQUIRED libnetconf2)
-
-# libnetconf2 thread count check
-pkg_get_variable(LN2_THREAD_COUNT libnetconf2 "LN2_MAX_THREAD_COUNT")
-if(LN2_THREAD_COUNT)
-    if(LN2_THREAD_COUNT LESS THREAD_COUNT)
-        message(FATAL_ERROR "libnetconf2 was compiled with support up to ${LN2_THREAD_COUNT} threads, server is configured with ${THREAD_COUNT}.")
-    else()
-        message(STATUS "libnetconf2 was compiled with support of up to ${LN2_THREAD_COUNT} threads")
+    # libnetconf2 thread count check
+    pkg_get_variable(LN2_THREAD_COUNT libnetconf2 "LN2_MAX_THREAD_COUNT")
+    if(LN2_THREAD_COUNT)
+        if(LN2_THREAD_COUNT LESS THREAD_COUNT)
+            message(FATAL_ERROR "libnetconf2 was compiled with support up to ${LN2_THREAD_COUNT} threads, server is configured with ${THREAD_COUNT}.")
+        else()
+            message(STATUS "libnetconf2 was compiled with support of up to ${LN2_THREAD_COUNT} threads")
+        endif()
     endif()
-else()
-    message(STATUS "Unable to learn libnetconf2 thread support, check skipped")
-endif()
 
-# get libnetconf2 module directory, use it later when installing modules
-pkg_get_variable(LN2_YANG_MODULE_DIR libnetconf2 "LN2_SCHEMAS_DIR")
-if(NOT LN2_YANG_MODULE_DIR)
-    message(FATAL_ERROR "Unable to learn libnetconf2 module search directory.")
+    # get libnetconf2 module directory, use it later when installing modules
+    pkg_get_variable(LN2_YANG_MODULE_DIR libnetconf2 "LN2_SCHEMAS_DIR")
 endif()
 
 # } PKGCONFIG
+
+if(NOT LN2_THREAD_COUNT)
+    message(STATUS "Unable to learn libnetconf2 thread support, check skipped")
+endif()
+if(SYSREPO_SETUP AND NOT LN2_YANG_MODULE_DIR)
+    message(FATAL_ERROR "Unable to learn libnetconf2 module search directory.")
+endif()
 
 if(ENABLE_VALGRIND_TESTS)
     find_program(VALGRIND_FOUND valgrind)
