@@ -1,15 +1,14 @@
 module ietf-netconf-monitoring {
+
   namespace "urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring";
-  prefix ncm;
+  prefix "ncm";
 
-  import ietf-yang-types {
-    prefix yang;
-  }
-  import ietf-inet-types {
-    prefix inet;
-  }
+  import ietf-yang-types { prefix yang; }
+  import ietf-inet-types { prefix inet; }
 
-  organization "IETF NETCONF (Network Configuration) Working Group";
+  organization
+    "IETF NETCONF (Network Configuration) Working Group";
+
   contact
     "WG Web:   <http://tools.ietf.org/wg/netconf/>
      WG List:  <mailto:netconf@ietf.org>
@@ -25,6 +24,7 @@ module ietf-netconf-monitoring {
 
      Editor:   Martin Bjorklund
                <mailto:mbj@tail-f.com>";
+
   description
     "NETCONF Monitoring Module.
      All elements in this module are read-only.
@@ -45,18 +45,20 @@ module ietf-netconf-monitoring {
   revision 2010-10-04 {
     description
       "Initial revision.";
-    reference "RFC 6022: YANG Module for NETCONF Monitoring";
+    reference
+      "RFC 6022: YANG Module for NETCONF Monitoring";
   }
 
   typedef netconf-datastore-type {
     type enumeration {
-      enum "running";
-      enum "candidate";
-      enum "startup";
+      enum running;
+      enum candidate;
+      enum startup;
     }
     description
       "Enumeration of possible NETCONF datastore types.";
-    reference "RFC 4741: NETCONF Configuration Protocol";
+    reference
+      "RFC 4741: NETCONF Configuration Protocol";
   }
 
   identity transport {
@@ -87,7 +89,7 @@ module ietf-netconf-monitoring {
     base transport;
     description
       "NETCONF over Simple Object Access Protocol (SOAP)
-       over Hypertext Transfer Protocol Secure (HTTPS).";
+      over Hypertext Transfer Protocol Secure (HTTPS).";
     reference
       "RFC 4743: Using NETCONF over the Simple Object
                  Access Protocol (SOAP)";
@@ -106,7 +108,8 @@ module ietf-netconf-monitoring {
     base transport;
     description
       "NETCONF over Transport Layer Security (TLS).";
-    reference "RFC 5539: NETCONF over Transport Layer Security (TLS)";
+    reference
+      "RFC 5539: NETCONF over Transport Layer Security (TLS)";
   }
 
   identity schema-format {
@@ -145,20 +148,23 @@ module ietf-netconf-monitoring {
     base schema-format;
     description
       "Regular Language for XML Next Generation (RELAX NG).";
-    reference "ISO/IEC 19757-2:2008: RELAX NG";
+    reference
+      "ISO/IEC 19757-2:2008: RELAX NG";
   }
 
   identity rnc {
     base schema-format;
     description
       "Relax NG Compact Syntax";
-    reference "ISO/IEC 19757-2:2008: RELAX NG";
+    reference
+      "ISO/IEC 19757-2:2008: RELAX NG";
   }
 
   grouping common-counters {
     description
       "Counters that exist both per session, and also globally,
        accumulated from all sessions.";
+
     leaf in-rpcs {
       type yang:zero-based-counter32;
       description
@@ -189,24 +195,29 @@ module ietf-netconf-monitoring {
     description
       "The netconf-state container is the root of the monitoring
        data model.";
+
     container capabilities {
       description
         "Contains the list of NETCONF capabilities supported by the
          server.";
+
       leaf-list capability {
         type inet:uri;
         description
           "List of NETCONF capabilities supported by the server.";
       }
     }
+
     container datastores {
       description
         "Contains the list of NETCONF configuration datastores.";
+
       list datastore {
-        key "name";
+        key name;
         description
           "List of NETCONF configuration datastores supported by
            the NETCONF server and related information.";
+
         leaf name {
           type netconf-datastore-type;
           description
@@ -233,6 +244,7 @@ module ietf-netconf-monitoring {
             description
               "Lock related parameters, common to both global and
                partial locks.";
+
             leaf locked-by-session {
               type uint32;
               mandatory true;
@@ -244,7 +256,8 @@ module ietf-netconf-monitoring {
                  If the lock is held by a session that is not managed
                  by the NETCONF server (e.g., a CLI session), a session
                  id of 0 (zero) is reported.";
-              reference "RFC 4741: NETCONF Configuration Protocol";
+              reference
+                "RFC 4741: NETCONF Configuration Protocol";
             }
             leaf locked-time {
               type yang:date-and-time;
@@ -254,22 +267,26 @@ module ietf-netconf-monitoring {
                  locked.";
             }
           }
+
           choice lock-type {
             description
               "Indicates if a global lock or a set of partial locks
                are set.";
+
             container global-lock {
               description
                 "Present if the global lock is set.";
               uses lock-info;
             }
+
             list partial-lock {
-              key "lock-id";
+              key lock-id;
               description
                 "List of partial locks.";
               reference
                 "RFC 5717: Partial Lock Remote Procedure Call (RPC) for
                            NETCONF";
+
               leaf lock-id {
                 type uint32;
                 description
@@ -299,14 +316,18 @@ module ietf-netconf-monitoring {
         }
       }
     }
+
     container schemas {
       description
         "Contains the list of data model schemas supported by the
          server.";
+
       list schema {
         key "identifier version format";
+
         description
           "List of data model schemas supported by the server.";
+
         leaf identifier {
           type string;
           description
@@ -374,16 +395,19 @@ module ietf-netconf-monitoring {
         }
       }
     }
+
     container sessions {
       description
         "The sessions container includes session-specific data for
          NETCONF management sessions.  The session list MUST include
          all currently active NETCONF sessions.";
+
       list session {
-        key "session-id";
+        key session-id;
         description
           "All NETCONF sessions managed by the NETCONF server
            MUST be reported in this list.";
+
         leaf session-id {
           type uint32 {
             range "1..max";
@@ -391,7 +415,8 @@ module ietf-netconf-monitoring {
           description
             "Unique identifier for the session.  This value is the
              NETCONF session identifier, as defined in RFC 4741.";
-          reference "RFC 4741: NETCONF Configuration Protocol";
+          reference
+            "RFC 4741: NETCONF Configuration Protocol";
         }
         leaf transport {
           type identityref {
@@ -400,17 +425,17 @@ module ietf-netconf-monitoring {
           mandatory true;
           description
             "Identifies the transport for each session, e.g.,
-             'netconf-ssh', 'netconf-soap', etc.";
+            'netconf-ssh', 'netconf-soap', etc.";
         }
-        leaf username {
+        leaf username  {
           type string;
           mandatory true;
           description
             "The username is the client identity that was authenticated
-             by the NETCONF transport protocol.  The algorithm used to
-             derive the username is NETCONF transport protocol specific
-             and in addition specific to the authentication mechanism
-             used by the NETCONF transport protocol.";
+            by the NETCONF transport protocol.  The algorithm used to
+            derive the username is NETCONF transport protocol specific
+            and in addition specific to the authentication mechanism
+            used by the NETCONF transport protocol.";
         }
         leaf source-host {
           type inet:host;
@@ -434,9 +459,11 @@ module ietf-netconf-monitoring {
         }
       }
     }
+
     container statistics {
       description
         "Statistical data pertaining to the NETCONF server.";
+
       leaf netconf-start-time {
         type yang:date-and-time;
         description
@@ -447,9 +474,9 @@ module ietf-netconf-monitoring {
         type yang:zero-based-counter32;
         description
           "Number of sessions silently dropped because an
-           invalid <hello> message was received.  This includes <hello>
-           messages with a 'session-id' attribute, bad namespace, and
-           bad capability declarations.";
+          invalid <hello> message was received.  This includes <hello>
+          messages with a 'session-id' attribute, bad namespace, and
+          bad capability declarations.";
       }
       leaf in-sessions {
         type yang:zero-based-counter32;
@@ -457,7 +484,7 @@ module ietf-netconf-monitoring {
           "Number of sessions started.  This counter is incremented
            when a <hello> message with a <session-id> is sent.
 
-           'in-sessions' - 'in-bad-hellos' =
+          'in-sessions' - 'in-bad-hellos' =
               'number of correctly started netconf sessions'";
       }
       leaf dropped-sessions {
@@ -478,6 +505,7 @@ module ietf-netconf-monitoring {
       }
     }
   }
+
   rpc get-schema {
     description
       "This operation is used to retrieve a schema from the
@@ -493,6 +521,7 @@ module ietf-netconf-monitoring {
          If more than one schema matches the requested parameters, the
          <error-tag> is 'operation-failed', and <error-app-tag> is
          'data-not-unique'.";
+
     input {
       leaf identifier {
         type string;
@@ -513,16 +542,16 @@ module ietf-netconf-monitoring {
           base schema-format;
         }
         description
-          "The data modeling language of the schema.  If this
-           parameter is not present, and more than one formats of
-           the schema exists on the server, a 'data-not-unique' error
-           is returned, as described above.";
+           "The data modeling language of the schema.  If this
+            parameter is not present, and more than one formats of
+            the schema exists on the server, a 'data-not-unique' error
+            is returned, as described above.";
       }
     }
     output {
-      anyxml data {
-        description
-          "Contains the schema content.";
+        anyxml data {
+          description
+            "Contains the schema content.";
       }
     }
   }
