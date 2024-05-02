@@ -534,14 +534,14 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
         const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *output,
         void *UNUSED(private_data))
 {
-    int rc = SR_ERR_OK, fd = -1, sync_on_start, is_yp;
+    int rc = SR_ERR_OK, fd = -1, sync_on_start, is_yp, excluded_change[SRSN_COUNT_YP_CHANGE] = {0};
     struct lyd_node *node, *node2;
     const struct lyd_node *subtree_filter;
     struct nc_session *ncs;
     struct np2_user_sess *user_sess = NULL;
     struct ly_set *set;
     char id_str[11], *xp = NULL, *replay_start_str = NULL;
-    srsn_yp_change_t excluded_change[SRSN_COUNT_YP_CHANGE] = {0}, chg;
+    srsn_yp_change_t chg;
     struct timespec cur_ts, stop = {0}, start = {0}, replay_start = {0}, anchor_time = {0};
     sr_datastore_t datastore;
     uint32_t i, sub_id, period, dampening_period;
