@@ -342,7 +342,7 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
         lyd_new_inner(root, NULL, "sessions", 0, &cont);
 
         for (i = 0; i < stats.session_count; ++i) {
-            sprintf(buf, "%u", nc_session_get_id(stats.sessions[i]));
+            sprintf(buf, "%" PRIu32, nc_session_get_id(stats.sessions[i]));
             lyd_new_list(cont, NULL, "session", 0, &list, buf);
 
             switch (nc_session_get_ti(stats.sessions[i])) {
@@ -366,13 +366,13 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
             lyd_new_term(list, NULL, "login-time", time_str, 0, NULL);
             free(time_str);
 
-            sprintf(buf, "%u", stats.session_stats[i].in_rpcs);
+            sprintf(buf, "%" PRIu32, stats.session_stats[i].in_rpcs);
             lyd_new_term(list, NULL, "in-rpcs", buf, 0, NULL);
-            sprintf(buf, "%u", stats.session_stats[i].in_bad_rpcs);
+            sprintf(buf, "%" PRIu32, stats.session_stats[i].in_bad_rpcs);
             lyd_new_term(list, NULL, "in-bad-rpcs", buf, 0, NULL);
-            sprintf(buf, "%u", stats.session_stats[i].out_rpc_errors);
+            sprintf(buf, "%" PRIu32, stats.session_stats[i].out_rpc_errors);
             lyd_new_term(list, NULL, "out-rpc-errors", buf, 0, NULL);
-            sprintf(buf, "%u", stats.session_stats[i].out_notifications);
+            sprintf(buf, "%" PRIu32, stats.session_stats[i].out_notifications);
             lyd_new_term(list, NULL, "out-notifications", buf, 0, NULL);
         }
     }
@@ -383,19 +383,19 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
     ly_time_time2str(stats.netconf_start_time, NULL, &time_str);
     lyd_new_term(cont, NULL, "netconf-start-time", time_str, 0, NULL);
     free(time_str);
-    sprintf(buf, "%u", stats.in_bad_hellos);
+    sprintf(buf, "%" PRIu32, stats.in_bad_hellos);
     lyd_new_term(cont, NULL, "in-bad-hellos", buf, 0, NULL);
-    sprintf(buf, "%u", stats.in_sessions);
+    sprintf(buf, "%" PRIu32, stats.in_sessions);
     lyd_new_term(cont, NULL, "in-sessions", buf, 0, NULL);
-    sprintf(buf, "%u", stats.dropped_sessions);
+    sprintf(buf, "%" PRIu32, stats.dropped_sessions);
     lyd_new_term(cont, NULL, "dropped-sessions", buf, 0, NULL);
-    sprintf(buf, "%u", stats.global_stats.in_rpcs);
+    sprintf(buf, "%" PRIu32, stats.global_stats.in_rpcs);
     lyd_new_term(cont, NULL, "in-rpcs", buf, 0, NULL);
-    sprintf(buf, "%u", stats.global_stats.in_bad_rpcs);
+    sprintf(buf, "%" PRIu32, stats.global_stats.in_bad_rpcs);
     lyd_new_term(cont, NULL, "in-bad-rpcs", buf, 0, NULL);
-    sprintf(buf, "%u", stats.global_stats.out_rpc_errors);
+    sprintf(buf, "%" PRIu32, stats.global_stats.out_rpc_errors);
     lyd_new_term(cont, NULL, "out-rpc-errors", buf, 0, NULL);
-    sprintf(buf, "%u", stats.global_stats.out_notifications);
+    sprintf(buf, "%" PRIu32, stats.global_stats.out_notifications);
     lyd_new_term(cont, NULL, "out-notifications", buf, 0, NULL);
 
     pthread_mutex_unlock(&stats.lock);

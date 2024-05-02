@@ -22,6 +22,7 @@
 #include <grp.h>
 #include <pwd.h>
 #include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -446,7 +447,7 @@ np2srv_content_id_cb(void *UNUSED(user_data))
     uint32_t content_id;
 
     content_id = sr_get_content_id(np2srv.sr_conn);
-    sprintf(buf, "%u", content_id);
+    sprintf(buf, "%" PRIu32, content_id);
     return strdup(buf);
 }
 

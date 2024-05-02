@@ -1590,7 +1590,7 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
         }
 
         /* receivers */
-        if (asprintf(&path, "receivers/receiver[name='NETCONF session %u']", sub->nc_id) == -1) {
+        if (asprintf(&path, "receivers/receiver[name='NETCONF session %" PRIu32 "']", sub->nc_id) == -1) {
             rc = sub_ntf_error_mem(session);
             goto cleanup;
         }

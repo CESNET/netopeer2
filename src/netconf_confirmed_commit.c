@@ -158,7 +158,7 @@ ncc_rename_failed_file(const char *filename, const char *path)
 {
     char *new = NULL;
 
-    if (asprintf(&new, "%s/%s/%s-%ld.failed", np2srv.server_dir, NCC_DIR, filename, time(NULL)) == -1) {
+    if (asprintf(&new, "%s/%s/%s-%lld.failed", np2srv.server_dir, NCC_DIR, filename, (long long int)time(NULL)) == -1) {
         EMEM;
         return;
     }

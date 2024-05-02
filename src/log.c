@@ -111,7 +111,7 @@ np2log_cb_nc2(const struct nc_session *session, NC_VERB_LEVEL level, const char 
     }
 
     if (session && nc_session_get_id(session)) {
-        if (asprintf(&buf, "Session %u: %s", nc_session_get_id(session), msg) > -1) {
+        if (asprintf(&buf, "Session %" PRIu32 ": %s", nc_session_get_id(session), msg) > -1) {
             msg = buf;
         }
     }
