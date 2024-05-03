@@ -176,7 +176,7 @@ np2_sr_setup(const char *owner, const char *group, mode_t perm)
     }
 
     /* install modules */
-    if (sr_install_modules2(conn, mods, mod_count, ".", NULL, NULL, 0)) {
+    if (mod_count && sr_install_modules2(conn, mods, mod_count, ".", NULL, NULL, 0)) {
         ERRMSG("Failed to install modules.");
         rc = 1;
         goto cleanup;
