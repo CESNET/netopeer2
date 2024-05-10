@@ -82,6 +82,10 @@
  */
 #cmakedefine NP2SRV_HAVE_SYSTEMD
 
+/** @brief Whether sigaction and signals are supported
+ */
+#cmakedefine HAVE_SIGACTION
+
 /** @brief sshd-like pattern for path to the authorized_keys file
  */
 #define NP2SRV_SSH_AUTHORIZED_KEYS_FORMAT "@SSH_AUTHORIZED_KEYS_FORMAT@"

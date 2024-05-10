@@ -7,7 +7,7 @@ set(NETOPEER2_DESC "NETCONF tools suite including a server and command-line clie
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules/")
 
 include(GNUInstallDirs)
-include(CheckFunctionExists)
+include(CheckSymbolExists)
 include(CheckIncludeFile)
 include(UseCompat)
 include(SourceFormat)
@@ -247,6 +247,11 @@ endif()
 #
 # dependencies
 #
+
+# sigaction
+list(APPEND CMAKE_REQUIRED_DEFINITIONS -D_POSIX_C_SOURCE=199309L)
+check_symbol_exists(sigaction "signal.h" HAVE_SIGACTION)
+list(REMOVE_ITEM CMAKE_REQUIRED_DEFINITIONS -D_POSIX_C_SOURCE=199309L)
 
 # librt (not required on OSX or QNX)
 find_library(LIBRT rt)

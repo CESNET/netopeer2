@@ -21,7 +21,6 @@
 #include <fcntl.h>
 #include <grp.h>
 #include <pwd.h>
-#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -48,6 +47,10 @@
 #include "netconf_nmda.h"
 #include "netconf_subscribed_notifications.h"
 
+#ifdef HAVE_SIGACTION
+# include <signal.h>
+#endif
+
 #ifdef NP2SRV_HAVE_SYSTEMD
 # include <systemd/sd-daemon.h>
 #endif
@@ -56,6 +59,8 @@
 ATOMIC_T loop_continue = 1;
 
 static void *worker_thread(void *arg);
+
+#ifdef HAVE_SIGACTION
 
 /**
  * @brief Signal handler to control the process
@@ -85,6 +90,8 @@ signal_handler(int sig)
         exit(EXIT_FAILURE);
     }
 }
+
+#endif
 
 /**
  * @brief Callback for deleting NC sessions.
@@ -1086,13 +1093,16 @@ main(int argc, char *argv[])
     char *ptr;
     struct passwd *pwd;
     struct group *grp;
+#ifdef HAVE_SIGACTION
     struct sigaction action;
     sigset_t block_mask;
+#endif
 
     /* until daemonized, write messages to both syslog and stderr */
     openlog("netopeer2-server", LOG_PID, LOG_DAEMON);
     np2_stderr_log = 1;
 
+#ifdef HAVE_SIGACTION
     /* set the signal handler */
     sigfillset(&block_mask);
     action.sa_handler = signal_handler;
@@ -1107,6 +1117,7 @@ main(int argc, char *argv[])
     /* ignore SIGPIPE */
     action.sa_handler = SIG_IGN;
     sigaction(SIGPIPE, &action, NULL);
+#endif
 
     /* default value */
     np2srv.server_dir = SERVER_DIR;
