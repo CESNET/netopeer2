@@ -1093,6 +1093,7 @@ main(int argc, char *argv[])
     char *ptr;
     struct passwd *pwd;
     struct group *grp;
+
 #ifdef HAVE_SIGACTION
     struct sigaction action;
     sigset_t block_mask;
