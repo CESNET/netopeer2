@@ -12,7 +12,7 @@ set(LIB_SRC
 
 if(NETOPEER2_LIB STREQUAL "server")
     # build server main function as a library function
-    set(LIB_SRC ${LIB_SRC} ${serverobj} ${PROJECT_SOURCE_DIR}/../src/main.c ${compatsrc})
+    set(LIB_SRC ${LIB_SRC} $<TARGET_OBJECTS:serverobj> ${PROJECT_SOURCE_DIR}/../src/main.c ${compatsrc})
     add_definitions(-Dmain=np2_server)
     set(NETOPEER2_SERVER_FUNC "\
 /**
