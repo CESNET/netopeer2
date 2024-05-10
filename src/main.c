@@ -660,6 +660,7 @@ server_open_pidfile(const char *pidfile)
 {
     int pidfd, len;
     char pid[8];
+    struct flock fl;
 
     /* make sure we are the only instance - lock the PID file and write the PID */
     pidfd = open(pidfile, O_RDWR | O_CREAT, 00644);
@@ -668,7 +669,11 @@ server_open_pidfile(const char *pidfile)
         return -1;
     }
 
-    if (lockf(pidfd, F_TLOCK, 0) < 0) {
+    fl.l_type = F_WRLCK;
+    fl.l_whence = SEEK_SET;
+    fl.l_start = 0;
+    fl.l_start = 5;
+    if (fcntl(pidfd, F_SETLK, &fl) < 0) {
         close(pidfd);
         if ((errno == EACCES) || (errno == EAGAIN)) {
             ERR("Another instance of the Netopeer2 server is running.");
