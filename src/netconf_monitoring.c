@@ -67,9 +67,9 @@ ncm_is_monitored(struct nc_session *session)
 {
     switch (nc_session_get_ti(session)) {
 #ifdef NC_ENABLED_SSH_TLS
-    case NC_TI_LIBSSH:
+    case NC_TI_SSH:
         return 1;
-    case NC_TI_OPENSSL:
+    case NC_TI_TLS:
         return 1;
 #endif
     default:
@@ -347,10 +347,10 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
 
             switch (nc_session_get_ti(stats.sessions[i])) {
 #ifdef NC_ENABLED_SSH_TLS
-            case NC_TI_LIBSSH:
+            case NC_TI_SSH:
                 lyd_new_term(list, NULL, "transport", "netconf-ssh", 0, NULL);
                 break;
-            case NC_TI_OPENSSL:
+            case NC_TI_TLS:
                 lyd_new_term(list, NULL, "transport", "netconf-tls", 0, NULL);
                 break;
 #endif

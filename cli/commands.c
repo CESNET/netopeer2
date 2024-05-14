@@ -2773,12 +2773,12 @@ cmd_status(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
         printf("  ID          : %u\n", nc_session_get_id(session));
         switch (transport) {
 #ifdef NC_ENABLED_SSH_TLS
-        case NC_TI_LIBSSH:
+        case NC_TI_SSH:
             s = "SSH";
             printf("  Host        : %s\n", nc_session_get_host(session));
             printf("  Port        : %u\n", nc_session_get_port(session));
             break;
-        case NC_TI_OPENSSL:
+        case NC_TI_TLS:
             s = "TLS";
             printf("  Host        : %s\n", nc_session_get_host(session));
             printf("  Port        : %u\n", nc_session_get_port(session));
@@ -2867,10 +2867,10 @@ cmd_connect_listen(const char *arg, int is_connect)
             break;
 #ifdef NC_ENABLED_SSH_TLS
         case 's':
-            ti = NC_TI_LIBSSH;
+            ti = NC_TI_SSH;
             break;
         case 't':
-            ti = NC_TI_OPENSSL;
+            ti = NC_TI_TLS;
             break;
 #endif
         case 'u':
@@ -2884,7 +2884,7 @@ cmd_connect_listen(const char *arg, int is_connect)
     if (!ti) {
         /* default transport */
 #ifdef NC_ENABLED_SSH_TLS
-        ti = NC_TI_LIBSSH;
+        ti = NC_TI_SSH;
 #endif
     }
 
@@ -2900,10 +2900,10 @@ cmd_connect_listen(const char *arg, int is_connect)
         ret = cmd_connect_listen_unix(&cmd, is_connect);
         break;
 #ifdef NC_ENABLED_SSH_TLS
-    case NC_TI_LIBSSH:
+    case NC_TI_SSH:
         ret = cmd_connect_listen_ssh(&cmd, is_connect);
         break;
-    case NC_TI_OPENSSL:
+    case NC_TI_TLS:
         ret = cmd_connect_listen_tls(&cmd, is_connect);
         break;
 #endif
