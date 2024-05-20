@@ -48,6 +48,10 @@ int np2_${TEST}(int argc, char *argv[]);")
     add_library(netopeer2_lib_test OBJECT "${TEST_SRC_DIR}/${TEST_SRC}")
     include_directories(${TEST_BIN_DIR})
     include_directories(${TEST_SRC_DIR})
+
+    # cmocka
+    include_directories(SYSTEM ${CMOCKA_INCLUDE_DIR})
+    target_link_libraries(netopeer2_lib_test ${CMOCKA_LIBRARIES})
 endif()
 
 configure_file(${PROJECT_SOURCE_DIR}/netopeer2.h.in ${PROJECT_BINARY_DIR}/include/netopeer2.h ESCAPE_QUOTES @ONLY)
