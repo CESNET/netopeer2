@@ -239,8 +239,11 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
 
 #ifdef NETOPEER2_LIB
         /* start the server */
-        char *argv[] = {NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", "-p", pidfile_path,
-                "-U", sock_path, "-m 600", "-f", server_dir, "-x", extdata_path};
+        char *argv[] = {
+            NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", "-p", pidfile_path,
+            "-U", sock_path, "-m 600", "-f", server_dir, "-x", extdata_path
+        };
+
         np2_server(sizeof argv / sizeof *argv, argv);
 #else
         /* exec the server */
