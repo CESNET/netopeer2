@@ -38,6 +38,10 @@
 
 #include "np_test_config.h"
 
+#ifdef NETOPEER2_LIB
+# include "netopeer2.h"
+#endif
+
 uint8_t debug = 0; /* Global variable to indicate if debugging */
 
 void
@@ -138,8 +142,13 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
     char str[256], server_dir[256], extdata_path[256], sock_path[256], pidfile_path[256];
     int fd, pipefd[2], buf;
 
-    /* sysrepo environment variables must be set by NP_GLOB_SETUP_ENV_FUNC prior */
-    /* install modules */
+#ifdef NETOPEER2_LIB
+    if (np2_sr_setup(NULL, NULL, 0600)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+#else
+    /* sysrepo environment variables must be set by NP_GLOB_SETUP_ENV_FUNC prior to install modules */
     if (setenv("NP2_MODULE_DIR", NP_ROOT_DIR "/modules", 1)) {
         SETUP_FAIL_LOG;
         return 1;
@@ -168,6 +177,7 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
         SETUP_FAIL_LOG;
         return 1;
     }
+#endif
     if (setenv("CMOCKA_TEST_ABORT", "1", 0)) {
         SETUP_FAIL_LOG;
         return 1;
@@ -227,9 +237,16 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
 
         close(fd);
 
+#ifdef NETOPEER2_LIB
+        /* start the server */
+        char *argv[] = {NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", "-p", pidfile_path,
+                "-U", sock_path, "-m 600", "-f", server_dir, "-x", extdata_path};
+        np2_server(sizeof argv / sizeof *argv, argv);
+#else
         /* exec the server */
         execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", "-p", pidfile_path,
                 "-U", sock_path, "-m 600", "-f", server_dir, "-x", extdata_path, NULL);
+#endif
 
 child_error:
         printf("Child execution failed\n");

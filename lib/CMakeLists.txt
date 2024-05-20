@@ -46,6 +46,8 @@ int np2_${TEST}(int argc, char *argv[]);")
     endforeach()
 
     add_library(netopeer2_lib_test OBJECT "${TEST_SRC_DIR}/${TEST_SRC}")
+    target_compile_definitions(netopeer2_lib_test PRIVATE NETOPEER2_LIB)
+
     include_directories(${TEST_BIN_DIR})
     include_directories(${TEST_SRC_DIR})
 
@@ -67,6 +69,7 @@ add_custom_command(OUTPUT np2_sr_yang.h
 )
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 
 # lib target
 add_library(netopeer2 ${LIB_SRC} np2_sr_yang.h)
