@@ -33,27 +33,27 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 # base test source
-set(test_sources "np_test.c")
+set(TEST_SRC "np_test.c")
 
 # list of all the tests
-set(tests test_rpc test_edit test_filter test_subscribe_filter test_subscribe_param test_parallel_sessions
+set(TESTS test_rpc test_edit test_filter test_subscribe_filter test_subscribe_param test_parallel_sessions
     test_candidate test_with_defaults test_nacm test_sub_ntf test_sub_ntf_advanced test_sub_ntf_filter test_error)
 
 if(CMAKE_C_FLAGS MATCHES "-fsanitize=thread")
     message(WARNING "Features which use SIGEV_THREAD are known to be broken under TSAN, disabling tests for YANG-push and confirmed commit")
 else()
     # On TSAN, SIGEV_THREAD is known to not work: https://github.com/google/sanitizers/issues/1612
-    list(APPEND tests test_yang_push test_yang_push_advanced test_confirmed_commit)
+    list(APPEND TESTS test_yang_push test_yang_push_advanced test_confirmed_commit)
 endif()
 
 # append url if supported
 if(NP2SRV_URL_CAPAB)
-    list(APPEND tests test_url)
+    list(APPEND TESTS test_url)
 endif()
 
 # build the executables
-foreach(test_name IN LISTS tests)
-    add_executable(${test_name} ${test_sources} ${test_name}.c)
+foreach(test_name IN LISTS TESTS)
+    add_executable(${test_name} ${TEST_SRC} ${test_name}.c)
     target_link_libraries(${test_name} ${CMOCKA_LIBRARIES} ${LIBNETCONF2_LIBRARIES} ${LIBYANG_LIBRARIES} ${SYSREPO_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
     set_property(TARGET ${test_name} PROPERTY RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endforeach(test_name)
@@ -69,7 +69,7 @@ if(${CMAKE_VERSION} VERSION_GREATER "3.7")
 endif()
 
 # add tests with their attributes
-foreach(test_name IN LISTS tests)
+foreach(test_name IN LISTS TESTS)
     add_test(NAME ${test_name} COMMAND $<TARGET_FILE:${test_name}> WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
     set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT "MALLOC_CHECK_=3")
     set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT "TEST_NAME=${test_name}")
@@ -81,7 +81,7 @@ endforeach()
 
 # valgrind tests
 if(ENABLE_VALGRIND_TESTS)
-    foreach(test_name IN LISTS tests)
+    foreach(test_name IN LISTS TESTS)
         add_test(NAME ${test_name}_valgrind COMMAND valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ${CMAKE_CURRENT_BINARY_DIR}/${test_name} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
         set(test_name "${test_name}_valgrind")
         set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT "TEST_NAME=${test_name}")
@@ -91,6 +91,12 @@ if(ENABLE_VALGRIND_TESTS)
         endif()
     endforeach()
 endif()
+
+# propagate vars to parent
+set(TESTS ${TESTS} PARENT_SCOPE)
+set(TEST_SRC ${TEST_SRC} PARENT_SCOPE)
+set(TEST_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR} PARENT_SCOPE)
+set(TEST_BIN_DIR ${CMAKE_CURRENT_BINARY_DIR} PARENT_SCOPE)
 
 # phony target for clearing all sysrepo test data
 add_custom_target(test_clean

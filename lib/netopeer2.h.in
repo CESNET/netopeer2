@@ -34,4 +34,6 @@ int np2_sr_setup(const char *owner, const char *group, mode_t perm);
 
 @NETOPEER2_SERVER_FUNC@
 
+@NETOPEER2_TESTS_FUNC@
+
 #endif /* NETOPEER2_H_ */
