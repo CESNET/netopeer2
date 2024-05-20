@@ -13,7 +13,7 @@ set(LIB_SRC
 
 if(NETOPEER2_LIB_SERVER)
     # include server main function as a library function
-    add_library(netopeer2_lib_server OBJECT $<TARGET_OBJECTS:serverobj> ${PROJECT_SOURCE_DIR}/../src/main.c)
+    add_library(netopeer2_lib_server OBJECT ${PROJECT_SOURCE_DIR}/../src/main.c)
     target_compile_definitions(netopeer2_lib_server PRIVATE main=np2_server)
     set(NETOPEER2_SERVER_FUNC "\
 /**
@@ -77,7 +77,7 @@ if(TARGET CURL::libcurl)
     target_link_libraries(netopeer2 CURL::libcurl)
 endif()
 if(NETOPEER2_LIB_SERVER)
-    target_link_libraries(netopeer2 netopeer2_lib_server)
+    target_link_libraries(netopeer2 serverobj netopeer2_lib_server)
 endif()
 if(NETOPEER2_LIB_TESTS)
     foreach(TEST IN LISTS TESTS)
