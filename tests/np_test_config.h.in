@@ -4,8 +4,8 @@
  * @brief test configuration header
  *
  * @copyright
- * Copyright (c) 2019 - 2022 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2022 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2024 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2024 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -31,8 +31,8 @@
 /* sysrepo SHM prefix */
 #define NP_SR_SHM_PREFIX "_tests_np_"
 
-/* path to put test-specific directory into, just relative NP_SR_REPOS_DIR to NP_BINARY_DIR */
-#define NP_TEST_DIR "./tests/repositories"
+/* path to put test-specific directory into */
+#define NP_TEST_DIR NP_SR_REPOS_DIR
 
 /* server PID file */
 #define NP_PID_FILE "np2.pid"

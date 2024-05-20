@@ -138,17 +138,6 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
     char str[256], server_dir[256], extdata_path[256], sock_path[256], pidfile_path[256];
     int fd, pipefd[2], buf;
 
-    if (!getcwd(str, 256)) {
-        SETUP_FAIL_LOG;
-        return 1;
-    }
-    if (strcmp(str, NP_BINARY_DIR)) {
-        printf("Tests must be started from the build directory \"%s\".\n", NP_BINARY_DIR);
-        printf("CWD = %s\n", str);
-        SETUP_FAIL_LOG;
-        return 1;
-    }
-
     /* sysrepo environment variables must be set by NP_GLOB_SETUP_ENV_FUNC prior */
     /* install modules */
     if (setenv("NP2_MODULE_DIR", NP_ROOT_DIR "/modules", 1)) {
@@ -206,6 +195,13 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
 
     /* fork and start the server */
     if (!(pid = fork())) {
+        /* create test dir */
+        sprintf(str, "%s/%s", NP_TEST_DIR, test_name);
+        if ((mkdir(str, 00700) == -1) && (errno != EEXIST)) {
+            SETUP_FAIL_LOG;
+            goto child_error;
+        }
+
         /* open log file */
         sprintf(str, "%s/%s/%s", NP_TEST_DIR, test_name, NP_LOG_FILE);
         fd = open(str, O_WRONLY | O_CREAT | O_TRUNC, 00600);
