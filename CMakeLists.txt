@@ -424,8 +424,8 @@ else()
 endif()
 
 # tests
-if(ENABLE_TESTS OR BUILD_NETOPEER2_LIB AND NETOPEER2_LIB_TESTS)
-    if(ENABLE_TEST)
+if(ENABLE_TESTS OR (BUILD_NETOPEER2_LIB AND NETOPEER2_LIB_TESTS))
+    if(ENABLE_TESTS)
         enable_testing()
     endif()
     add_subdirectory(tests)
