@@ -147,6 +147,13 @@ np2_glob_test_setup_server(void **state, const char *test_name, const char **mod
     int fd;
 #endif
 
+#ifdef NETOPEER2_LIB
+    /* lib setup function */
+    if (np2_sr_setup(NULL, NULL, 0600)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+#else
     /* sysrepo environment variables must be set by NP_GLOB_SETUP_ENV_FUNC prior to install modules */
     if (setenv("NP2_MODULE_DIR", NP_ROOT_DIR "/modules", 1)) {
         SETUP_FAIL_LOG;
@@ -176,6 +183,7 @@ np2_glob_test_setup_server(void **state, const char *test_name, const char **mod
         SETUP_FAIL_LOG;
         return 1;
     }
+#endif
 
     if (setenv("CMOCKA_TEST_ABORT", "1", 0)) {
         SETUP_FAIL_LOG;
