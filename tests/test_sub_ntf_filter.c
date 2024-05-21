@@ -29,26 +29,26 @@
 #include <nc_client.h>
 #include <sysrepo.h>
 
-#include "np_test.h"
-#include "np_test_config.h"
+#include "np2_test.h"
+#include "np2_test_config.h"
 
 static int
 local_setup(void **state)
 {
-    struct np_test *st;
+    struct np2_test *st;
     char test_name[256];
     const char *modules[] = {NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang", NULL};
     int rc;
 
     /* get test name */
-    np_glob_setup_test_name(test_name);
+    np2_glob_test_setup_test_name(test_name);
 
     /* setup environment*/
-    rc = np_glob_setup_env(test_name);
+    rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -64,7 +64,7 @@ local_setup(void **state)
 static int
 teardown_common(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *cmd;
     int ret;
 
@@ -93,7 +93,7 @@ teardown_common(void **state)
 static void
 remove_filter(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     data =
@@ -114,7 +114,7 @@ teardown_filter(void **state)
 static int
 local_teardown(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *modules[] = {"notif1", "notif2", NULL};
 
     if (!st) {
@@ -131,13 +131,13 @@ local_teardown(void **state)
     teardown_common(state);
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, modules);
+    return np2_glob_test_teardown(state, modules);
 }
 
 static void
 test_basic_xpath_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Establish subscription */
@@ -162,7 +162,7 @@ test_basic_xpath_pass(void **state)
 static void
 test_basic_xpath_no_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Establish subscription */
@@ -186,7 +186,7 @@ test_basic_xpath_no_pass(void **state)
 static void
 test_basic_subtree_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Establish subscription */
@@ -212,7 +212,7 @@ test_basic_subtree_pass(void **state)
 static void
 test_basic_subtree_no_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Establish subscription */
@@ -240,7 +240,7 @@ test_basic_subtree_no_pass(void **state)
 static int
 setup_filter(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     data =
@@ -270,7 +270,7 @@ setup_filter(void **state)
 static void
 test_ref_xpath_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Establish subscription */
@@ -295,7 +295,7 @@ test_ref_xpath_pass(void **state)
 static void
 test_ref_xpath_no_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Establish subscription */
@@ -319,7 +319,7 @@ test_ref_xpath_no_pass(void **state)
 static void
 test_ref_subtree_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Establish subscription */
@@ -344,7 +344,7 @@ test_ref_subtree_pass(void **state)
 static void
 test_ref_subtree_no_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Establish subscription */
@@ -368,7 +368,7 @@ test_ref_subtree_no_pass(void **state)
 static void
 test_filter_change(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data, *template;
     char *ntf;
 
@@ -417,7 +417,7 @@ test_filter_change(void **state)
 static void
 test_filter_remove(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data, *template;
     char *ntf;
 
@@ -458,7 +458,7 @@ test_filter_remove(void **state)
 static void
 test_filter_non_existent(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* Establish subscription */
     SEND_RPC_ESTABSUB(st, "non-existant", "notif1", NULL, NULL);

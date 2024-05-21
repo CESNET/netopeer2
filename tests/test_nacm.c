@@ -29,13 +29,13 @@
 #include <sysrepo.h>
 #include <sysrepo/netconf_acm.h>
 
-#include "np_test.h"
-#include "np_test_config.h"
+#include "np2_test.h"
+#include "np2_test_config.h"
 
 static int
 local_setup(void **state)
 {
-    struct np_test *st;
+    struct np2_test *st;
     char test_name[256];
     const char *modules[] = {
         NP_TEST_MODULE_DIR "/edit1.yang", NP_TEST_MODULE_DIR "/example2.yang",
@@ -44,14 +44,14 @@ local_setup(void **state)
     int rc;
 
     /* get test name */
-    np_glob_setup_test_name(test_name);
+    np2_glob_test_setup_test_name(test_name);
 
     /* setup environment */
-    rc = np_glob_setup_env(test_name);
+    rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -59,7 +59,7 @@ local_setup(void **state)
     assert_int_equal(sr_session_start(st->conn, SR_DS_CANDIDATE, &st->sr_sess2), SR_ERR_OK);
 
     /* setup NACM */
-    rc = setup_nacm(state);
+    rc = np2_glob_test_setup_nacm(state);
     assert_int_equal(rc, 0);
 
     return 0;
@@ -68,7 +68,7 @@ local_setup(void **state)
 static int
 local_teardown(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *modules[] = {"edit1", "example2", "nacm-test1", "nacm-test2", NULL};
 
     if (!st) {
@@ -79,13 +79,13 @@ local_teardown(void **state)
     assert_int_equal(sr_session_stop(st->sr_sess2), SR_ERR_OK);
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, modules);
+    return np2_glob_test_teardown(state, modules);
 }
 
 static int
 teardown_common(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
             "xc:operation=\"remove\"></first>\n"
@@ -124,7 +124,7 @@ teardown_common(void **state)
 static int
 setup_test_exec_get(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <write-default>permit</write-default>\n"
@@ -156,7 +156,7 @@ setup_test_exec_get(void **state)
 static void
 test_exec_get(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* get and get-config bypass execution permissions */
     GET_FILTER(st, NULL);
@@ -171,7 +171,7 @@ test_exec_get(void **state)
 static int
 setup_test_read_default(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <read-default>deny</read-default>\n"
@@ -185,7 +185,7 @@ setup_test_read_default(void **state)
 static void
 test_read_default(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected =
             "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data/>\n"
@@ -200,7 +200,7 @@ test_read_default(void **state)
 static int
 setup_test_read_default_allow_path(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<first xmlns=\"ed1\">TestFirst</first>\n"
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
@@ -226,7 +226,7 @@ setup_test_read_default_allow_path(void **state)
 static void
 test_read_default_allow_path(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected =
             "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -243,7 +243,7 @@ test_read_default_allow_path(void **state)
 static int
 setup_test_get_config(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<first xmlns=\"ed1\">TestFirst</first>\n"
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
@@ -268,7 +268,7 @@ setup_test_get_config(void **state)
 static void
 test_get_config_filter(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     /* Using a filter on a denied node should not cause access denied error */
@@ -284,7 +284,7 @@ test_get_config_filter(void **state)
 static int
 setup_test_xpath_filter_denied(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<people xmlns=\"urn:nt2\">\n"
             "  <name>John</name>\n"
@@ -321,7 +321,7 @@ static void
 test_xpath_filter_denied(void **state)
 {
     /* Issue #846 */
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected, *filter = "/people[weight>100]";
 
     GET_CONFIG_FILTER(st, filter);
@@ -340,7 +340,7 @@ test_xpath_filter_denied(void **state)
 static int
 setup_test_filter_key_list(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<people xmlns=\"urn:nt2\">\n"
             "  <name>John</name>\n"
@@ -377,7 +377,7 @@ static void
 test_filter_key_list(void **state)
 {
     /* Issue #755 */
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     GET_CONFIG_FILTER(st, "/nacm-test2:*");
@@ -404,7 +404,7 @@ test_filter_key_list(void **state)
 static int
 setup_test_rule_wildcard_groups(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<first xmlns=\"ed1\">TestFirst</first>\n"
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
@@ -431,7 +431,7 @@ static void
 test_rule_wildcard_groups(void **state)
 {
     /* Issue #619 */
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected =
             "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -448,7 +448,7 @@ test_rule_wildcard_groups(void **state)
 static int
 setup_edit_config(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <write-default>deny</write-default>\n"
@@ -463,7 +463,7 @@ setup_edit_config(void **state)
 static int
 teardown_edit_config(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <write-default>permit</write-default>\n"
@@ -478,7 +478,7 @@ teardown_edit_config(void **state)
 static void
 test_edit_config(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data = "<first xmlns=\"ed1\">TestFirst</first>\n";
 
     SEND_EDIT_RPC(st, data);
@@ -491,7 +491,7 @@ test_edit_config(void **state)
 static int
 setup_test_edit_config_permit(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<first xmlns=\"ed1\">TestFirst</first>\n"
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
@@ -517,7 +517,7 @@ setup_test_edit_config_permit(void **state)
 static void
 test_edit_config_permit(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data = "<first xmlns=\"ed1\">TestFirst</first>\n";
 
     SEND_EDIT_RPC(st, data);
@@ -528,7 +528,7 @@ test_edit_config_permit(void **state)
 static int
 setup_test_edit_config_update(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <write-default>deny</write-default>\n"
@@ -553,7 +553,7 @@ setup_test_edit_config_update(void **state)
 static void
 test_edit_config_update(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected, *data = "<first xmlns=\"ed1\">Test</first>\n";
 
     /* Creating is not permited */
@@ -587,7 +587,7 @@ test_edit_config_update(void **state)
 static int
 setup_test_edit_config_subtree(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<top xmlns=\"ex2\">\n"
             "  <protocols>\n"
@@ -629,7 +629,7 @@ setup_test_edit_config_subtree(void **state)
 static void
 test_edit_config_subtree(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<top xmlns=\"ex2\">\n"
             "  <protocols>\n"
@@ -689,7 +689,7 @@ test_edit_config_subtree(void **state)
 static int
 setup_test_edit_config_when(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<top xmlns=\"urn:nt1\">\n"
             "  <name>Test</name>\n"
@@ -723,7 +723,7 @@ setup_test_edit_config_when(void **state)
 static void
 test_edit_config_when(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected, *data =
             "<top xmlns=\"urn:nt1\">\n"
             "  <num xmlns:p=\"urn:ietf:params:xml:ns:netconf:base:1.0\" p:operation=\"remove\"/>\n"
@@ -754,7 +754,7 @@ test_edit_config_when(void **state)
 static void
 test_copy_config_running2startup(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* From running to startup only needs execute on copy-config */
     st->rpc = nc_rpc_copy(NC_DATASTORE_STARTUP, NULL, NC_DATASTORE_RUNNING, NULL, NC_WD_ALL, NC_PARAMTYPE_CONST);
@@ -767,7 +767,7 @@ test_copy_config_running2startup(void **state)
 static int
 setup_test_copy_config_ds2ds_fail_read(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <write-default>deny</write-default>\n"
@@ -797,7 +797,7 @@ setup_test_copy_config_ds2ds_fail_read(void **state)
 static int
 setup_test_copy_config_ds2ds_fail_write(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <write-default>deny</write-default>\n"
@@ -827,7 +827,7 @@ setup_test_copy_config_ds2ds_fail_write(void **state)
 static void
 test_copy_config_ds2ds_fail_read(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     st->rpc = nc_rpc_copy(NC_DATASTORE_RUNNING, NULL, NC_DATASTORE_CANDIDATE, NULL, NC_WD_ALL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
@@ -847,7 +847,7 @@ test_copy_config_ds2ds_fail_write(void **state)
 static void
 test_delete_config(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Should be disabled by default */
@@ -893,7 +893,7 @@ test_delete_config(void **state)
 static int
 setup_test_commit(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *data =
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <rule-list>\n"
@@ -931,7 +931,7 @@ setup_test_commit(void **state)
 static void
 test_commit(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data, *expected;
 
     /* Should fail since candidate has element that is denied to merge */
@@ -974,7 +974,7 @@ test_commit(void **state)
 static int
 setup_test_discard_changes(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *data =
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <rule-list>\n"
@@ -1003,7 +1003,7 @@ setup_test_discard_changes(void **state)
 static void
 test_discard_changes(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     /* Should succeed despite not having rights over the datastore nodes */
@@ -1025,7 +1025,7 @@ test_discard_changes(void **state)
 static void
 test_kill_session(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Should fail since the rpc is disallowed */
@@ -1064,7 +1064,7 @@ test_kill_session(void **state)
 int
 main(int argc, char **argv)
 {
-    if (np_is_nacm_recovery()) {
+    if (np2_is_nacm_recovery()) {
         puts("Running as NACM_RECOVERY_USER. Tests will not run correctly as this user bypases NACM. Skipping.");
         return 0;
     }

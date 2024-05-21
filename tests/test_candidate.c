@@ -27,26 +27,26 @@
 #include <nc_client.h>
 #include <sysrepo/netconf_acm.h>
 
-#include "np_test.h"
-#include "np_test_config.h"
+#include "np2_test.h"
+#include "np2_test_config.h"
 
 static int
 local_setup(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char test_name[256];
     const char *modules[] = {NP_TEST_MODULE_DIR "/edit1.yang", NP_TEST_MODULE_DIR "/edit2.yang", NULL};
     int rc;
 
     /* get test name */
-    np_glob_setup_test_name(test_name);
+    np2_glob_test_setup_test_name(test_name);
 
     /* setup environment */
-    rc = np_glob_setup_env(test_name);
+    rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -54,7 +54,7 @@ local_setup(void **state)
     assert_int_equal(sr_session_start(st->conn, SR_DS_CANDIDATE, &st->sr_sess2), SR_ERR_OK);
 
     /* setup NACM */
-    rc = setup_nacm(state);
+    rc = np2_glob_test_setup_nacm(state);
     assert_int_equal(rc, 0);
 
     return 0;
@@ -63,7 +63,7 @@ local_setup(void **state)
 static int
 local_teardown(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *modules[] = {"edit1", "edit2", NULL};
 
     if (!st) {
@@ -74,13 +74,13 @@ local_teardown(void **state)
     assert_int_equal(sr_session_stop(st->sr_sess2), SR_ERR_OK);
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, modules);
+    return np2_glob_test_teardown(state, modules);
 }
 
 static int
 setup_candidate(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     data = "<first xmlns=\"ed1\">TestFirst</first>";
@@ -94,7 +94,7 @@ setup_candidate(void **state)
 static int
 empty_candidate(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     st->rpc = nc_rpc_discard();
     st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 2000, &st->msgid);
@@ -108,7 +108,7 @@ empty_candidate(void **state)
 static int
 empty_running(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     data =
@@ -125,7 +125,7 @@ empty_running(void **state)
 static void
 test_edit_basic(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *data, *expected;
 
     /* Get a simple config into candidate */
@@ -164,7 +164,7 @@ test_edit_basic(void **state)
 static void
 test_commit(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *data, *expected;
 
     /* Get some data into candidate */
@@ -211,7 +211,7 @@ test_commit(void **state)
 static void
 test_discard_changes(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *expected;
 
     /* check if Running is empty */
@@ -269,7 +269,7 @@ test_discard_changes(void **state)
 static void
 test_validate_valid(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* Send validate rpc */
     st->rpc = nc_rpc_validate(NC_DATASTORE_CANDIDATE, NULL, NC_PARAMTYPE_CONST);
@@ -283,7 +283,7 @@ test_validate_valid(void **state)
 static void
 test_validate_invalid(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     data =
@@ -305,7 +305,7 @@ test_validate_invalid(void **state)
 static int
 setup_discard_changes_advanced(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Merge config into running */
@@ -335,7 +335,7 @@ setup_discard_changes_advanced(void **state)
 static void
 test_commit_locked(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* lock running from another session */
     st->rpc = nc_rpc_lock(NC_DATASTORE_RUNNING);
@@ -390,7 +390,7 @@ test_commit_locked(void **state)
 static int
 setup_lock_modified_candidate(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Modify candidate in any way */
@@ -406,7 +406,7 @@ setup_lock_modified_candidate(void **state)
 static int
 teardown_lock_modified_candidate(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Remove anything */
@@ -422,7 +422,7 @@ teardown_lock_modified_candidate(void **state)
 static void
 test_lock_modified_candidate(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* lock */
     st->rpc = nc_rpc_lock(NC_DATASTORE_CANDIDATE);
@@ -437,7 +437,7 @@ test_lock_modified_candidate(void **state)
 static int
 teardown_discard_changes_advanced(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Remove config from running */
@@ -458,7 +458,7 @@ teardown_discard_changes_advanced(void **state)
 static void
 test_discard_changes_advanced(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     /* Check if running has correct data */
@@ -523,7 +523,7 @@ test_discard_changes_advanced(void **state)
 static void
 test_locked_discard_changes(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* modify running */
@@ -607,7 +607,7 @@ main(int argc, char **argv)
         cmocka_unit_test_teardown(test_locked_discard_changes, teardown_discard_changes_advanced),
     };
 
-    if (np_is_nacm_recovery()) {
+    if (np2_is_nacm_recovery()) {
         puts("Running as NACM_RECOVERY_USER. Tests will not run correctly as this user bypases NACM. Skipping.");
         return 0;
     }

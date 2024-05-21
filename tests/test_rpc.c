@@ -29,8 +29,8 @@
 #include <nc_client.h>
 #include <sysrepo/netconf_acm.h>
 
-#include "np_test.h"
-#include "np_test_config.h"
+#include "np2_test.h"
+#include "np2_test_config.h"
 
 static int
 local_setup(void **state)
@@ -44,18 +44,18 @@ local_setup(void **state)
     int rc;
 
     /* get test name */
-    np_glob_setup_test_name(test_name);
+    np2_glob_test_setup_test_name(test_name);
 
     /* setup environment necessary for installing module */
-    rc = np_glob_setup_env(test_name);
+    rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
 
     /* setup NACM */
-    rc = setup_nacm(state);
+    rc = np2_glob_test_setup_nacm(state);
     assert_int_equal(rc, 0);
 
     return 0;
@@ -68,7 +68,7 @@ local_teardown(void **state)
 
     /* close netopeer2 server */
     if (*state) {
-        return np_glob_teardown(state, modules);
+        return np2_glob_test_teardown(state, modules);
     }
 
     return 0;
@@ -77,7 +77,7 @@ local_teardown(void **state)
 static int
 teardown_test_lock(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     st->rpc = nc_rpc_unlock(NC_DATASTORE_RUNNING);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
@@ -90,7 +90,7 @@ teardown_test_lock(void **state)
 static void
 test_lock_basic(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* Check if lock RPC succeeds */
     st->rpc = nc_rpc_lock(NC_DATASTORE_RUNNING);
@@ -104,7 +104,7 @@ test_lock_basic(void **state)
 static void
 test_lock_fail(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template;
     char *error;
 
@@ -149,7 +149,7 @@ test_lock_fail(void **state)
 static int
 setup_test_lock_changes(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     st->rpc = nc_rpc_lock(NC_DATASTORE_RUNNING);
     assert_non_null(st->rpc);
@@ -163,7 +163,7 @@ setup_test_lock_changes(void **state)
 static int
 teardown_test_lock_changes(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
 
@@ -182,7 +182,7 @@ teardown_test_lock_changes(void **state)
 static void
 test_lock_changes(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* Send RPC editing module edit1 on the same session, should succeed */
     SEND_EDIT_RPC(st, "<first xmlns=\"ed1\">TestFirst</first>");
@@ -204,7 +204,7 @@ test_lock_changes(void **state)
 static int
 setup_test_unlock(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     st->rpc = nc_rpc_lock(NC_DATASTORE_RUNNING);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
@@ -217,7 +217,7 @@ setup_test_unlock(void **state)
 static void
 test_unlock(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* Check if unlock RPC succeeds */
     st->rpc = nc_rpc_unlock(NC_DATASTORE_RUNNING);
@@ -230,7 +230,7 @@ test_unlock(void **state)
 static int
 teardown_test_unlock_fail(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     st->rpc = nc_rpc_unlock(NC_DATASTORE_RUNNING);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
@@ -243,7 +243,7 @@ teardown_test_unlock_fail(void **state)
 static void
 test_unlock_fail(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template;
     char *error;
 
@@ -279,7 +279,7 @@ test_unlock_fail(void **state)
 static void
 test_get(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* Check if get RPC succeeds */
     st->rpc = nc_rpc_get(NULL, NC_WD_ALL, NC_PARAMTYPE_CONST);
@@ -296,11 +296,11 @@ test_get(void **state)
 static void
 test_kill(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *error, *expected;
     const char *template;
 
-    if (np_is_nacm_recovery()) {
+    if (np2_is_nacm_recovery()) {
         puts("Skipping the test.");
         return;
     }
@@ -325,7 +325,7 @@ test_kill(void **state)
             "because \"%s\" NACM authorization failed.</error-message>\n"
             "  </rpc-error>\n"
             "</rpc-reply>\n";
-    assert_int_not_equal(-1, asprintf(&expected, template, st->msgid, np_get_user()));
+    assert_int_not_equal(-1, asprintf(&expected, template, st->msgid, np2_get_user()));
     assert_string_equal(error, expected);
 
     free(error);
@@ -338,7 +338,7 @@ test_kill(void **state)
 static void
 test_commit(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* check if commit RPC succeeds */
     st->rpc = nc_rpc_commit(0, 0, NULL, NULL, NC_PARAMTYPE_CONST);
@@ -353,7 +353,7 @@ test_commit(void **state)
 static void
 test_discard(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* check if discard RPC succeeds */
     st->rpc = nc_rpc_discard();
@@ -368,9 +368,9 @@ test_discard(void **state)
 static void
 test_getconfig(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
-    if (np_is_nacm_recovery()) {
+    if (np2_is_nacm_recovery()) {
         puts("Skipping the test.");
         return;
     }
@@ -387,7 +387,7 @@ test_getconfig(void **state)
 static void
 test_validate(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* Try validating configuration of the running datastore */
     st->rpc = nc_rpc_validate(NC_DATASTORE_RUNNING, NULL, NC_PARAMTYPE_CONST);
@@ -401,7 +401,7 @@ test_validate(void **state)
 static void
 test_schema_mount(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* send RPC editing module edit1 on the same session, should succeed */
     SEND_EDIT_RPC(st,

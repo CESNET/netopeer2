@@ -29,8 +29,8 @@
 #include <nc_client.h>
 #include <sysrepo.h>
 
-#include "np_test.h"
-#include "np_test_config.h"
+#include "np2_test.h"
+#include "np2_test_config.h"
 
 #define THREAD_COUNT 3
 
@@ -41,13 +41,13 @@ local_setup(void **state)
     int rc;
 
     /* get test name */
-    np_glob_setup_test_name(test_name);
+    np2_glob_test_setup_test_name(test_name);
 
     /* setup environment necessary for installing module */
-    rc = np_glob_setup_env(test_name);
+    rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
-    return np_glob_setup_np2(state, test_name, NULL);
+    return np2_glob_test_setup_server(state, test_name, NULL);
 }
 
 static int
@@ -58,11 +58,11 @@ local_teardown(void **state)
     }
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, NULL);
+    return np2_glob_test_teardown(state, NULL);
 }
 
 struct thread_arg {
-    struct np_test *st;
+    struct np2_test *st;
     pthread_barrier_t barrier;
 };
 
@@ -71,7 +71,7 @@ static void *
 send_get_thread(void *arg)
 {
     struct thread_arg *targ = arg;
-    struct np_test state = {0}, *st = &state;
+    struct np2_test state = {0}, *st = &state;
     struct nc_session *nc_sess;
     NC_MSG_TYPE msgtype;
 
@@ -96,7 +96,7 @@ send_get_thread(void *arg)
 static void
 test_get(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     pthread_t t[THREAD_COUNT];
     struct thread_arg targ;
     uint32_t i;

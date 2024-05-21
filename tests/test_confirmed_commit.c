@@ -30,8 +30,8 @@
 #include <nc_client.h>
 #include <sysrepo/netconf_acm.h>
 
-#include "np_test.h"
-#include "np_test_config.h"
+#include "np2_test.h"
+#include "np2_test_config.h"
 
 #define TCC_NOTIF_XMLNS "\"urn:ietf:params:xml:ns:yang:ietf-netconf-notifications\""
 
@@ -76,14 +76,14 @@ notif_cc_event(const char *event, uint32_t ssid)
                 "  <session-id>%" PRIu32 "</session-id>\n"
                 "  <confirm-event>%s</confirm-event>\n"
                 "</netconf-confirmed-commit>\n",
-                np_get_user(), ssid, event);
+                np2_get_user(), ssid, event);
     }
 
     return msg;
 }
 
 static int
-notif_check_cc_timeout(struct np_test *st, uint32_t expected_timeout)
+notif_check_cc_timeout(struct np2_test *st, uint32_t expected_timeout)
 {
     struct lyd_node *timeout_node;
     const uint32_t timeout_tolerance = 2;
@@ -111,20 +111,20 @@ notif_check_cc_timeout(struct np_test *st, uint32_t expected_timeout)
 static int
 local_setup(void **state)
 {
-    struct np_test *st;
+    struct np2_test *st;
     char test_name[256];
     const char *modules[] = {NP_TEST_MODULE_DIR "/edit1.yang", NULL};
     int rc;
 
     /* get test name */
-    np_glob_setup_test_name(test_name);
+    np2_glob_test_setup_test_name(test_name);
 
     /* setup environment necessary for installing module */
-    rc = np_glob_setup_env(test_name);
+    rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -141,7 +141,7 @@ local_setup(void **state)
     }
 
     /* setup NACM */
-    rc = setup_nacm(state);
+    rc = np2_glob_test_setup_nacm(state);
     assert_int_equal(rc, 0);
 
     /* Enable replay support for ietf-netconf-notifications */
@@ -159,7 +159,7 @@ local_setup(void **state)
 static int
 local_teardown(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *modules[] = {"edit1", NULL};
 
     if (!st) {
@@ -172,13 +172,13 @@ local_teardown(void **state)
     assert_int_equal(sr_session_stop(st->sr_sess2), SR_ERR_OK);
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, modules);
+    return np2_glob_test_teardown(state, modules);
 }
 
 static int
 setup_common(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data = "<first xmlns=\"ed1\">Test</first>";
 
     SR_EDIT_SESSION(st, st->sr_sess2, data);
@@ -190,7 +190,7 @@ setup_common(void **state)
 static int
 teardown_common(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>"
             "<cont xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
@@ -206,7 +206,7 @@ teardown_common(void **state)
 static void
 test_sameas_commit(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     /* Prior to the test running of edit1 should be empty */
@@ -256,7 +256,7 @@ test_sameas_commit(void **state)
 static void
 test_timeout_runout(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     /* Prior to the test running of edit1 should be empty */
@@ -326,7 +326,7 @@ test_timeout_runout(void **state)
 static void
 test_timeout_confirm(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     /* Prior to the test running should be empty */
@@ -386,7 +386,7 @@ test_timeout_confirm(void **state)
 static void
 test_timeout_confirm_modify(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
     const char *data;
 
@@ -455,7 +455,7 @@ test_timeout_confirm_modify(void **state)
 static void
 test_timeout_followup(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data, *expected;
 
     /* prior to the test running should be empty */
@@ -518,7 +518,7 @@ test_timeout_followup(void **state)
 static void
 test_cancel(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected, *data;
 
     /* prior to the test running should be empty */
@@ -600,7 +600,7 @@ test_cancel(void **state)
 static void
 test_rollback_disconnect(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     struct nc_session *ncs;
     const char *expected;
     uint32_t sid;
@@ -659,7 +659,7 @@ test_rollback_disconnect(void **state)
 static void
 test_rollback_locked(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     /* prior to the test running should be empty */
@@ -735,7 +735,7 @@ test_rollback_locked(void **state)
 static void
 test_confirm_persist(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected, *persist = "test-persist-1";
 
     /* Prior to the test running should be empty */
@@ -790,7 +790,7 @@ test_confirm_persist(void **state)
 static void
 test_cancel_persist(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected, *persist = "test-persist-2";
     struct nc_session *nc_sess;
 
@@ -854,7 +854,7 @@ test_cancel_persist(void **state)
 static void
 test_wrong_session(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* send a confirmed-commit rpc with 60s timeout */
     st->rpc = nc_rpc_commit(1, 60, NULL, NULL, NC_PARAMTYPE_CONST);
@@ -917,7 +917,7 @@ test_wrong_session(void **state)
 static void
 test_wrong_persist_id(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *persist = "test-persist-3";
 
     /* Send a confirmed-commit rpc with unknown persist-id */
@@ -935,7 +935,7 @@ test_wrong_persist_id(void **state)
 static int
 setup_test_failed_file(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *test_name, *file_name;
     FILE *file;
 
@@ -965,7 +965,7 @@ setup_test_failed_file(void **state)
 static void
 test_failed_file(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     struct dirent *file = NULL;
     int found = 0;
     DIR *dir = NULL;
@@ -1014,7 +1014,7 @@ test_failed_file(void **state)
 static int
 teardown_test_failed_file(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     DIR *dir;
     struct dirent *file;
     char *path = NULL;
@@ -1042,7 +1042,7 @@ teardown_test_failed_file(void **state)
 int
 main(int argc, char **argv)
 {
-    if (np_is_nacm_recovery()) {
+    if (np2_is_nacm_recovery()) {
         puts("Running as NACM_RECOVERY_USER. Tests will not run correctly as this user bypases NACM. Skipping.");
         return 0;
     }

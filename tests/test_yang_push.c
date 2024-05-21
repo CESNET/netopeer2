@@ -29,26 +29,26 @@
 #include <nc_client.h>
 #include <sysrepo.h>
 
-#include "np_test.h"
-#include "np_test_config.h"
+#include "np2_test.h"
+#include "np2_test_config.h"
 
 static int
 local_setup(void **state)
 {
-    struct np_test *st;
+    struct np2_test *st;
     char test_name[256];
     const char *modules[] = {NP_TEST_MODULE_DIR "/edit1.yang", NP_TEST_MODULE_DIR "/edit2.yang", NULL};
     int rc;
 
     /* get test name */
-    np_glob_setup_test_name(test_name);
+    np2_glob_test_setup_test_name(test_name);
 
     /* setup environment */
-    rc = np_glob_setup_env(test_name);
+    rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -61,7 +61,7 @@ local_setup(void **state)
 static int
 teardown_common(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
     char *cmd;
     int ret;
@@ -102,7 +102,7 @@ teardown_common(void **state)
 static int
 local_teardown(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *modules[] = {"edit1", "edit2", NULL};
 
     if (!st) {
@@ -113,13 +113,13 @@ local_teardown(void **state)
     assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "edit1", 0));
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, modules);
+    return np2_glob_test_teardown(state, modules);
 }
 
 static void
 test_periodic_basic(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template, *data;
     char *ntf;
 
@@ -177,7 +177,7 @@ test_periodic_basic(void **state)
 static void
 test_on_change_basic(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template, *data;
     char *ntf;
 
@@ -227,7 +227,7 @@ test_on_change_basic(void **state)
 static void
 test_on_change_multiple(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template, *data;
     char *ntf;
 
@@ -332,7 +332,7 @@ test_on_change_multiple(void **state)
 static void
 test_periodic_anchor_time(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template;
     char *ntf;
 
@@ -362,7 +362,7 @@ test_periodic_anchor_time(void **state)
 static void
 test_on_change_dampening_time(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template, *data;
     char *ntf;
 
@@ -458,7 +458,7 @@ test_on_change_dampening_time(void **state)
 static void
 test_on_change_dampening_time_same_node(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template, *data;
     char *ntf;
 
@@ -540,7 +540,7 @@ test_on_change_dampening_time_same_node(void **state)
 static void
 test_on_change_dampening_time_create_delete(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template, *data;
     char *ntf;
 
@@ -625,7 +625,7 @@ test_on_change_dampening_time_create_delete(void **state)
 static void
 test_on_change_excluded(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template, *data;
     const char *excluded[] = {"create", NULL};
     char *ntf;
@@ -682,7 +682,7 @@ test_on_change_excluded(void **state)
 static void
 test_sync_on_start(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template;
     char *ntf;
 
@@ -710,7 +710,7 @@ test_sync_on_start(void **state)
 static int
 setup_test_sync_on_start_non_empty(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Put some data into the datastore */
@@ -724,7 +724,7 @@ setup_test_sync_on_start_non_empty(void **state)
 static void
 test_sync_on_start_non_empty(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template;
     char *ntf;
 
@@ -754,7 +754,7 @@ test_sync_on_start_non_empty(void **state)
 static void
 test_resync(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template;
     char *ntf;
 
@@ -792,7 +792,7 @@ test_resync(void **state)
 static void
 test_resync_id_reset(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data, *template;
     char *ntf;
 

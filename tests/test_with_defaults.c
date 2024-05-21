@@ -27,8 +27,8 @@
 #include <nc_client.h>
 #include <sysrepo/netconf_acm.h>
 
-#include "np_test.h"
-#include "np_test_config.h"
+#include "np2_test.h"
+#include "np2_test_config.h"
 
 static int
 local_setup(void **state)
@@ -38,14 +38,14 @@ local_setup(void **state)
     int rc;
 
     /* get test name */
-    np_glob_setup_test_name(test_name);
+    np2_glob_test_setup_test_name(test_name);
 
     /* setup environment */
-    rc = np_glob_setup_env(test_name);
+    rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
 
     return 0;
@@ -61,13 +61,13 @@ local_teardown(void **state)
     }
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, modules);
+    return np2_glob_test_teardown(state, modules);
 }
 
 static void
 test_all_nothing_set(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     /* Send RPC  trying to get all including default values */
@@ -100,7 +100,7 @@ test_all_nothing_set(void **state)
 static int
 setup_data_num(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     data = "<top xmlns=\"def1\"><num>1</num></top>";
@@ -115,7 +115,7 @@ setup_data_num(void **state)
 static int
 setup_data_all(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     data = "<top xmlns=\"def1\"><name>Alt</name><num>1</num></top>";
@@ -130,7 +130,7 @@ setup_data_all(void **state)
 static int
 setup_data_all_default(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     data = "<top xmlns=\"def1\"><name>Test</name><num>1</num></top>";
@@ -145,7 +145,7 @@ setup_data_all_default(void **state)
 static int
 teardown_data(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     data = "<top xmlns=\"def1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"></top>";
@@ -160,7 +160,7 @@ teardown_data(void **state)
 static void
 test_all_non_default_set(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_ALL, "/defaults1:*");
@@ -183,7 +183,7 @@ test_all_non_default_set(void **state)
 static void
 test_all_tag_non_default_set(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_ALL_TAG, "/defaults1:*");
@@ -207,7 +207,7 @@ test_all_tag_non_default_set(void **state)
 static void
 test_trim_non_default_set(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_TRIM, "/defaults1:*");
@@ -229,7 +229,7 @@ test_trim_non_default_set(void **state)
 static void
 test_explicit_non_default_set(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_TRIM, "/defaults1:*");
@@ -251,7 +251,7 @@ test_explicit_non_default_set(void **state)
 static void
 test_all_set_all(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_ALL, "/defaults1:*");
@@ -274,7 +274,7 @@ test_all_set_all(void **state)
 static void
 test_all_tag_set_all(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_ALL_TAG, "/defaults1:*");
@@ -297,7 +297,7 @@ test_all_tag_set_all(void **state)
 static void
 test_trim_set_all(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_TRIM, "/defaults1:*");
@@ -320,7 +320,7 @@ test_trim_set_all(void **state)
 static void
 test_explicit_all_set(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_EXPLICIT, "/defaults1:*");
@@ -343,7 +343,7 @@ test_explicit_all_set(void **state)
 static void
 test_explicit_all_set_default(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     GET_CONFIG_DS_WD_FILTER(st, NC_DATASTORE_RUNNING, NC_WD_EXPLICIT, "/defaults1:*");
@@ -382,7 +382,7 @@ main(int argc, char **argv)
         cmocka_unit_test_setup_teardown(test_explicit_all_set_default, setup_data_all_default, teardown_data),
     };
 
-    if (np_is_nacm_recovery()) {
+    if (np2_is_nacm_recovery()) {
         puts("Running as NACM_RECOVERY_USER. Tests will not run correctly as this user bypases NACM. Skipping.");
         return 0;
     }

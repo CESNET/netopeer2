@@ -1,12 +1,12 @@
 /**
- * @file np_test.c
+ * @file np2_test.c
  * @author Michal Vasko <mvasko@cesnet.cz>
  * @author Tadeas Vintlik <xvintr04@stud.fit.vutbr.cz>
  * @brief base source for netopeer2 testing
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2024 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2024 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 
 #define _GNU_SOURCE
 
-#include "np_test.h"
+#include "np2_test.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -36,7 +36,7 @@
 #include <nc_client.h>
 #include <sysrepo/netconf_acm.h>
 
-#include "np_test_config.h"
+#include "np2_test_config.h"
 
 #ifdef NETOPEER2_LIB
 # include "netopeer2.h"
@@ -57,32 +57,8 @@ parse_arg(int argc, char **argv)
     }
 }
 
-static int
-setup_server_file_exists_wait(const char *path)
-{
-    /* max sleep 10s */
-    const uint32_t sleep_count = 200;
-    const struct timespec ts = {.tv_sec = 0, .tv_nsec = 50000000};
-    uint32_t count = 0;
-
-    while (count < sleep_count) {
-        if (!access(path, F_OK)) {
-            break;
-        }
-
-        nanosleep(&ts, NULL);
-        ++count;
-    }
-
-    if (count == sleep_count) {
-        SETUP_FAIL_LOG;
-        return 1;
-    }
-    return 0;
-}
-
 void
-np_glob_setup_test_name(char *buf)
+np2_glob_test_setup_test_name(char *buf)
 {
     char *ptr;
 
@@ -98,7 +74,7 @@ np_glob_setup_test_name(char *buf)
 }
 
 int
-np_glob_setup_env(const char *test_name)
+np2_glob_test_setup_env(const char *test_name)
 {
     int ret = 1;
     char *sr_repo_path = NULL, *sr_shm_prefix = NULL;
@@ -134,20 +110,43 @@ cleanup:
     return ret;
 }
 
-int
-np_glob_setup_np2(void **state, const char *test_name, const char **modules)
+static int
+setup_server_file_exists_wait(const char *path)
 {
-    struct np_test *st;
-    pid_t pid;
-    char str[256], server_dir[256], extdata_path[256], sock_path[256], pidfile_path[256];
-    int fd, pipefd[2], buf;
+    /* max sleep 10s */
+    const uint32_t sleep_count = 200;
+    const struct timespec ts = {.tv_sec = 0, .tv_nsec = 50000000};
+    uint32_t count = 0;
 
-#ifdef NETOPEER2_LIB
-    if (np2_sr_setup(NULL, NULL, 0600)) {
+    while (count < sleep_count) {
+        if (!access(path, F_OK)) {
+            break;
+        }
+
+        nanosleep(&ts, NULL);
+        ++count;
+    }
+
+    if (count == sleep_count) {
         SETUP_FAIL_LOG;
         return 1;
     }
-#else
+    return 0;
+}
+
+int
+np2_glob_test_setup_server(void **state, const char *test_name, const char **modules)
+{
+    struct np2_test *st;
+    pid_t pid = 0;
+    char server_dir[256], extdata_path[256], sock_path[256], pidfile_path[256];
+    int pipefd[2], buf;
+
+#ifndef NETOPEER2_LIB
+    char str[256];
+    int fd;
+#endif
+
     /* sysrepo environment variables must be set by NP_GLOB_SETUP_ENV_FUNC prior to install modules */
     if (setenv("NP2_MODULE_DIR", NP_ROOT_DIR "/modules", 1)) {
         SETUP_FAIL_LOG;
@@ -177,7 +176,7 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
         SETUP_FAIL_LOG;
         return 1;
     }
-#endif
+
     if (setenv("CMOCKA_TEST_ABORT", "1", 0)) {
         SETUP_FAIL_LOG;
         return 1;
@@ -191,6 +190,9 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
         }
     }
 
+    /* generate path to the server's pidfile */
+    sprintf(pidfile_path, "%s/%s/%s", NP_TEST_DIR, test_name, NP_PID_FILE);
+
     /* generate path to socket */
     sprintf(sock_path, "%s/%s/%s", NP_TEST_DIR, test_name, NP_SOCKET_FILE);
 
@@ -200,18 +202,20 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
     /* generate path to the schema-mount ext data */
     sprintf(extdata_path, "%s/%s", NP_TEST_MODULE_DIR, NP_EXT_DATA_FILE);
 
-    /* generate path to the server's pidfile */
-    sprintf(pidfile_path, "%s/%s/%s", NP_TEST_DIR, test_name, NP_PID_FILE);
+    /* create the test server dir */
+    if ((mkdir(server_dir, 00700) == -1) && (errno != EEXIST)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
 
+#ifdef NETOPEER2_LIB
+    if (np2_server_test_start(pidfile_path, sock_path, server_dir, extdata_path)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+#else
     /* fork and start the server */
     if (!(pid = fork())) {
-        /* create test dir */
-        sprintf(str, "%s/%s", NP_TEST_DIR, test_name);
-        if ((mkdir(str, 00700) == -1) && (errno != EEXIST)) {
-            SETUP_FAIL_LOG;
-            goto child_error;
-        }
-
         /* open log file */
         sprintf(str, "%s/%s/%s", NP_TEST_DIR, test_name, NP_LOG_FILE);
         fd = open(str, O_WRONLY | O_CREAT | O_TRUNC, 00600);
@@ -237,19 +241,9 @@ np_glob_setup_np2(void **state, const char *test_name, const char **modules)
 
         close(fd);
 
-#ifdef NETOPEER2_LIB
-        /* start the server */
-        char *argv[] = {
-            NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", "-p", pidfile_path,
-            "-U", sock_path, "-m 600", "-f", server_dir, "-x", extdata_path
-        };
-
-        np2_server(sizeof argv / sizeof *argv, argv);
-#else
         /* exec the server */
         execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", "-p", pidfile_path,
                 "-U", sock_path, "-m 600", "-f", server_dir, "-x", extdata_path, NULL);
-#endif
 
 child_error:
         printf("Child execution failed\n");
@@ -258,6 +252,7 @@ child_error:
         SETUP_FAIL_LOG;
         return 1;
     }
+#endif
 
     if (debug) {
         if (read(pipefd[0], &buf, sizeof buf) != sizeof buf) {
@@ -330,10 +325,14 @@ child_error:
 }
 
 int
-np_glob_teardown(void **state, const char **modules)
+np2_glob_test_teardown(void **state, const char **modules)
 {
-    struct np_test *st = *state;
-    int ret = 0, wstatus, rc;
+    struct np2_test *st = *state;
+    int ret = 0, rc;
+
+#ifndef NETOPEER2_LIB
+    int wstatus;
+#endif
 
     if (!st) {
         return 0;
@@ -361,6 +360,12 @@ np_glob_teardown(void **state, const char **modules)
         ret = 1;
     }
 
+#ifdef NETOPEER2_LIB
+    if (np2_server_test_stop()) {
+        printf("np2_server_test_stop() failed\n");
+        ret = 1;
+    }
+#else
     /* terminate the server */
     if (kill(st->server_pid, SIGTERM)) {
         printf("kill() failed (%s)\n", strerror(errno));
@@ -382,6 +387,7 @@ np_glob_teardown(void **state, const char **modules)
         printf("Unexpected server exit status (%d)\n", WEXITSTATUS(wstatus));
         ret = 1;
     }
+#endif
 
     /* unset sysrepo environment variables */
     if (unsetenv("SYSREPO_REPOSITORY_PATH")) {
@@ -403,7 +409,7 @@ np_glob_teardown(void **state, const char **modules)
 }
 
 const char *
-np_get_user(void)
+np2_get_user(void)
 {
     struct passwd *pw;
 
@@ -413,15 +419,15 @@ np_get_user(void)
 }
 
 int
-np_is_nacm_recovery(void)
+np2_is_nacm_recovery(void)
 {
-    return !strcmp(sr_nacm_get_recovery_user(), np_get_user());
+    return !strcmp(sr_nacm_get_recovery_user(), np2_get_user());
 }
 
 int
-setup_nacm(void **state)
+np2_glob_test_setup_nacm(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *data;
     const char *template =
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
@@ -436,7 +442,7 @@ setup_nacm(void **state)
             "</nacm>\n";
 
     /* Put user and message id into error template */
-    if (asprintf(&data, template, np_get_user()) == -1) {
+    if (asprintf(&data, template, np2_get_user()) == -1) {
         return 1;
     }
 

@@ -1,12 +1,12 @@
 /**
- * @file np_test.h
+ * @file np2_test.h
  * @author Michal Vasko <mvasko@cesnet.cz>
  * @author Tadeas Vintlik <xvintr04@stud.fit.vutbr.cz>
  * @brief base header for netopeer2 testing
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2024 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2024 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -15,14 +15,37 @@
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
-#ifndef _NP_TEST_H_
-#define _NP_TEST_H_
+#ifndef _NP2_TEST_H_
+#define _NP2_TEST_H_
 
 #include <string.h>
 #include <unistd.h>
 
 #include <nc_client.h>
 #include <sysrepo.h>
+
+/* test state structure */
+struct np2_test {
+    pid_t server_pid;
+    char socket_path[256];
+    char test_name[256];
+    sr_conn_ctx_t *conn;
+    sr_session_ctx_t *sr_sess;
+    sr_session_ctx_t *sr_sess2;
+    sr_subscription_ctx_t *sub;
+    struct ly_in *in;
+    const struct ly_ctx *ctx;
+    struct lyd_node *node;
+    struct nc_session *nc_sess;
+    struct nc_session *nc_sess2;
+    struct nc_rpc *rpc;
+    NC_MSG_TYPE msgtype;
+    uint64_t msgid;
+    struct lyd_node *envp, *op;
+    char *str;
+    char *path;
+    uint32_t ntf_id;
+};
 
 #define SETUP_FAIL_LOG \
     fprintf(stderr, "Setup fail in %s:%d.\n", __FILE__, __LINE__)
@@ -256,43 +279,20 @@
     ASSERT_OK_REPLY(st); \
     FREE_TEST_VARS(st); \
 
-/* test state structure */
-struct np_test {
-    pid_t server_pid;
-    char socket_path[256];
-    char test_name[256];
-    sr_conn_ctx_t *conn;
-    sr_session_ctx_t *sr_sess;
-    sr_session_ctx_t *sr_sess2;
-    sr_subscription_ctx_t *sub;
-    struct ly_in *in;
-    const struct ly_ctx *ctx;
-    struct lyd_node *node;
-    struct nc_session *nc_sess;
-    struct nc_session *nc_sess2;
-    struct nc_rpc *rpc;
-    NC_MSG_TYPE msgtype;
-    uint64_t msgid;
-    struct lyd_node *envp, *op;
-    char *str;
-    char *path;
-    uint32_t ntf_id;
-};
+void np2_glob_test_setup_test_name(char *buf);
 
-void np_glob_setup_test_name(char *buf);
+int np2_glob_test_setup_env(const char *test_name);
 
-int np_glob_setup_env(const char *test_name);
+int np2_glob_test_setup_server(void **state, const char *test_name, const char **modules);
 
-int np_glob_setup_np2(void **state, const char *test_name, const char **modules);
-
-int np_glob_teardown(void **state, const char **modules);
+int np2_glob_test_teardown(void **state, const char **modules);
 
 void parse_arg(int argc, char **argv);
 
-const char *np_get_user(void);
+const char *np2_get_user(void);
 
-int np_is_nacm_recovery(void);
+int np2_is_nacm_recovery(void);
 
-int setup_nacm(void **state);
+int np2_glob_test_setup_nacm(void **state);
 
-#endif /* _NP_TEST_H_ */
+#endif /* _NP2_TEST_H_ */

@@ -27,13 +27,13 @@
 #include <nc_client.h>
 #include <sysrepo.h>
 
-#include "np_test.h"
-#include "np_test_config.h"
+#include "np2_test.h"
+#include "np2_test_config.h"
 
 static void
 setup_data(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     data =
@@ -53,7 +53,7 @@ setup_data(void **state)
 static void
 reestablish_sub(void **state, const char *filter)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* Reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
@@ -74,20 +74,20 @@ reestablish_sub(void **state, const char *filter)
 static int
 local_setup(void **state)
 {
-    struct np_test *st;
+    struct np2_test *st;
     char test_name[256];
     const char *modules[] = {NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang", NULL};
     int rc;
 
     /* get test name */
-    np_glob_setup_test_name(test_name);
+    np2_glob_test_setup_test_name(test_name);
 
     /* setup environment */
-    rc = np_glob_setup_env(test_name);
+    rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -108,13 +108,13 @@ local_teardown(void **state)
     }
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, modules);
+    return np2_glob_test_teardown(state, modules);
 }
 
 static void
 test_basic_notif(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Send the notification */
@@ -135,7 +135,7 @@ test_basic_notif(void **state)
 static void
 test_list_notif(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Send the notification */
@@ -161,7 +161,7 @@ test_list_notif(void **state)
 static void
 test_subtree_filter_no_matching_node(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *filter =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -192,7 +192,7 @@ test_subtree_filter_no_matching_node(void **state)
 static void
 test_subtree_filter_notif_selection_node_no_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Send the notification */
@@ -217,7 +217,7 @@ test_subtree_filter_notif_selection_node_no_pass(void **state)
 static void
 test_subtree_filter_notif_selection_node_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Send the notification */
@@ -238,7 +238,7 @@ test_subtree_filter_notif_selection_node_pass(void **state)
 static void
 test_subtree_filter_notif_content_match_node_no_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data, *filter =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -269,7 +269,7 @@ test_subtree_filter_notif_content_match_node_no_pass(void **state)
 static void
 test_subtree_filter_notif_content_match_node_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data, *filter =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -301,7 +301,7 @@ test_subtree_filter_notif_content_match_node_pass(void **state)
 static void
 test_xpath_filter_no_matching_node(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* Reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
@@ -326,7 +326,7 @@ test_xpath_filter_no_matching_node(void **state)
 static void
 test_xpath_filter_notif_selection_node_no_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     reestablish_sub(state, "/notif1:n1/first");
@@ -352,7 +352,7 @@ test_xpath_filter_notif_selection_node_no_pass(void **state)
 static void
 test_xpath_filter_notif_selection_node_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Send the notification */
@@ -373,7 +373,7 @@ test_xpath_filter_notif_selection_node_pass(void **state)
 static void
 test_xpath_filter_notif_content_match_node_no_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Send the notification */
@@ -398,7 +398,7 @@ test_xpath_filter_notif_content_match_node_no_pass(void **state)
 static void
 test_xpath_filter_notif_content_match_node_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Send the notification */
@@ -424,7 +424,7 @@ test_xpath_filter_notif_content_match_node_pass(void **state)
 static void
 test_xpath_boolean_no_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *data, *filter =
             "/notif2:devices/device[name='Secondary']/power-on and /notif2:devices/device/power-on[boot-time=12]";
 
@@ -450,7 +450,7 @@ test_xpath_boolean_no_pass(void **state)
 static void
 test_xpath_boolean_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *data, *filter =
             "/notif2:devices/device[name='Main']/power-on and /notif2:devices/device/power-on[boot-time=12]";
 

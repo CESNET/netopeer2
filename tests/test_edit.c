@@ -28,8 +28,8 @@
 #include <sysrepo.h>
 #include <sysrepo/netconf_acm.h>
 
-#include "np_test.h"
-#include "np_test_config.h"
+#include "np2_test.h"
+#include "np2_test_config.h"
 
 static int
 local_setup(void **state)
@@ -43,18 +43,18 @@ local_setup(void **state)
     int rc;
 
     /* get test name */
-    np_glob_setup_test_name(test_name);
+    np2_glob_test_setup_test_name(test_name);
 
     /* setup environment */
-    rc = np_glob_setup_env(test_name);
+    rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
 
     /* setup NACM */
-    rc = setup_nacm(state);
+    rc = np2_glob_test_setup_nacm(state);
     assert_int_equal(rc, 0);
 
     return 0;
@@ -70,13 +70,13 @@ local_teardown(void **state)
     }
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, modules);
+    return np2_glob_test_teardown(state, modules);
 }
 
 static int
 teardown_common(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     data =
@@ -95,7 +95,7 @@ teardown_common(void **state)
 static void
 test_merge_edit1(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Send RPC editing module edit1 */
@@ -113,7 +113,7 @@ test_merge_edit1(void **state)
 static void
 test_merge_edit2(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Send RPC editing module edit2 */
@@ -135,7 +135,7 @@ test_merge_edit2(void **state)
 static void
 test_merge_edit2_fail(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Send invalid RPC editing module edit2 */
@@ -152,7 +152,7 @@ test_merge_edit2_fail(void **state)
 static int
 setup_test_delete_edit1(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     data = "<first xmlns=\"ed1\">TestFirst</first>\n";
@@ -165,7 +165,7 @@ setup_test_delete_edit1(void **state)
 static void
 test_delete_edit1(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Send rpc deleting config in module edit1 */
@@ -181,7 +181,7 @@ test_delete_edit1(void **state)
 static int
 setup_test_delete_edit2(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Send RPC editing module edit2 */
@@ -199,7 +199,7 @@ setup_test_delete_edit2(void **state)
 static void
 test_delete_edit2(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Send rpc deleting config in module edit2 */
@@ -215,7 +215,7 @@ test_delete_edit2(void **state)
 static int
 setup_test_delete_edit3(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* send RPC editing module example1 */
@@ -237,7 +237,7 @@ setup_test_delete_edit3(void **state)
 static void
 test_delete_edit3(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* send rpc deleting config in module edit2 with non-existing nodes */
@@ -320,7 +320,7 @@ test_delete_edit3(void **state)
 static void
 test_delete_empty(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Try deleting a non-existent config, should fail */
@@ -333,7 +333,7 @@ test_delete_empty(void **state)
 static void
 test_merge_partial(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected, *data =
             "<top xmlns=\"ed2\">\n"
             "  <name>TestSecond</name>\n"
@@ -361,7 +361,7 @@ test_merge_partial(void **state)
 static int
 setup_test_merge_into_existing(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<top xmlns=\"ed2\">\n"
             "  <name>TestSecond</name>\n"
@@ -376,7 +376,7 @@ setup_test_merge_into_existing(void **state)
 static void
 test_merge_into_existing(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected, *data =
             "<top xmlns=\"ed2\">\n"
             "  <num>123</num>\n"
@@ -404,7 +404,7 @@ test_merge_into_existing(void **state)
 static int
 setup_test_merge_overwrite(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<top xmlns=\"ed2\">\n"
             "  <name>TestSecond</name>\n"
@@ -420,7 +420,7 @@ setup_test_merge_overwrite(void **state)
 static void
 test_merge_overwrite(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected, *data =
             "<top xmlns=\"ed2\">\n"
             "  <num>456</num>\n"
@@ -448,7 +448,7 @@ test_merge_overwrite(void **state)
 static int
 setup_test_replace(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<top xmlns=\"ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"replace\">\n"
             "  <name>TestThird</name>\n"
@@ -464,7 +464,7 @@ setup_test_replace(void **state)
 static void
 test_replace(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected, *data =
             "<top xmlns=\"ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"replace\">\n"
             "  <name>TestThird</name>\n"
@@ -493,7 +493,7 @@ test_replace(void **state)
 static void
 test_replace_create(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected, *data =
             "<top xmlns=\"ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"replace\">\n"
             "  <name>TestThird</name>\n"
@@ -522,7 +522,7 @@ test_replace_create(void **state)
 static void
 test_create(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected, *data =
             "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"create\">"
             "TestFourth"
@@ -547,7 +547,7 @@ test_create(void **state)
 static int
 setup_test_create_fail(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"create\">"
             "TestFourth"
@@ -562,7 +562,7 @@ setup_test_create_fail(void **state)
 static void
 test_create_fail(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"create\">"
             "TestFourth"
@@ -576,7 +576,7 @@ test_create_fail(void **state)
 static int
 setup_test_remove(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data = "<first xmlns=\"ed1\">TestFirst</first>\n";
 
     SEND_EDIT_RPC(st, data);
@@ -588,7 +588,7 @@ setup_test_remove(void **state)
 static void
 test_remove(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"></first>\n";
 
     SEND_EDIT_RPC(st, data);
@@ -600,7 +600,7 @@ test_remove(void **state)
 static void
 test_remove_empty(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"></first>\n";
 
     SEND_EDIT_RPC(st, data);
@@ -612,7 +612,7 @@ test_remove_empty(void **state)
 static int
 setup_test_ex1(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<top xmlns=\"ex1\">\n"
             "  <interface>\n"
@@ -631,7 +631,7 @@ static void
 test_ex1(void **state)
 {
     /* First example for edit-config from rfc 6241 section 7.2 */
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected, *data;
 
     data =
@@ -673,7 +673,7 @@ test_ex1(void **state)
 static int
 setup_test_ex2(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<top xmlns=\"ex2\">\n"
             "  <protocols>\n"
@@ -703,7 +703,7 @@ static void
 test_ex2(void **state)
 {
     /* Second example for edit-config from rfc 6241 section 7.2 */
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected, *data =
             "<top xmlns=\"ex2\">\n"
             "  <protocols>\n"
@@ -751,7 +751,7 @@ test_ex2(void **state)
 static void
 test_autodel_case(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* create case #1 */
@@ -824,7 +824,7 @@ test_autodel_case(void **state)
 static void
 test_unknown(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* send unknown data, should fail */
@@ -837,7 +837,7 @@ test_unknown(void **state)
 int
 main(int argc, char **argv)
 {
-    if (np_is_nacm_recovery()) {
+    if (np2_is_nacm_recovery()) {
         puts("Running as NACM_RECOVERY_USER. Tests will not run correctly as this user bypases NACM. Skipping.");
         return 0;
     }

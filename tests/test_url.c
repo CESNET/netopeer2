@@ -28,13 +28,13 @@
 #include <sysrepo/netconf_acm.h>
 
 #include "config.h"
-#include "np_test.h"
-#include "np_test_config.h"
+#include "np2_test.h"
+#include "np2_test_config.h"
 
 static int
 setup_nacm_rules(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <rule-list>\n"
@@ -74,18 +74,18 @@ local_setup(void **state)
     int rc;
 
     /* get test name */
-    np_glob_setup_test_name(test_name);
+    np2_glob_test_setup_test_name(test_name);
 
     /* setup environment */
-    rc = np_glob_setup_env(test_name);
+    rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
 
     /* setup NACM */
-    rc = setup_nacm(state);
+    rc = np2_glob_test_setup_nacm(state);
     assert_int_equal(rc, 0);
     rc = setup_nacm_rules(state);
     assert_int_equal(rc, 0);
@@ -100,7 +100,7 @@ local_teardown(void **state)
 
     /* close netopeer2 server */
     if (*state) {
-        return np_glob_teardown(state, modules);
+        return np2_glob_test_teardown(state, modules);
     }
 
     return 0;
@@ -109,7 +109,7 @@ local_teardown(void **state)
 static void
 test_validate(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *url;
 
     url = "file://" NP_TEST_MODULE_DIR "/edit1.xml";
@@ -127,10 +127,10 @@ test_validate(void **state)
 static int
 teardown_data(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
-    if (setup_nacm(state) || setup_nacm_rules(state)) {
+    if (np2_glob_test_setup_nacm(state) || setup_nacm_rules(state)) {
         return 1;
     }
 
@@ -145,7 +145,7 @@ teardown_data(void **state)
 static void
 test_copy_config(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *url, *expected;
 
     url = "file://" NP_TEST_MODULE_DIR "/edit1.xml";
@@ -177,7 +177,7 @@ test_copy_config(void **state)
 static void
 test_copy_config_same(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *url;
 
     url = "file://" NP_TEST_MODULE_DIR "/edit1.xml";
@@ -199,7 +199,7 @@ test_copy_config_same(void **state)
 static int
 setup_data(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     data = "<first xmlns=\"ed1\">TestFirst</first>";
@@ -213,7 +213,7 @@ setup_data(void **state)
 static void
 test_copy_config_into_file(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *path, *url, *template;
     char *expected, *config;
     long size;
@@ -291,7 +291,7 @@ test_copy_config_into_file(void **state)
             "  </nacm>\n"
             "</config>\n";
 
-    assert_int_not_equal(-1, asprintf(&expected, template, np_get_user()) == -1);
+    assert_int_not_equal(-1, asprintf(&expected, template, np2_get_user()) == -1);
     assert_string_equal(config, expected);
     free(expected);
 
@@ -304,7 +304,7 @@ test_copy_config_into_file(void **state)
 static void
 test_copy_config_url2url(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *url_source, *url_target, *path, *expected;
     char *config;
     FILE *file;
@@ -355,7 +355,7 @@ test_copy_config_url2url(void **state)
 static void
 test_edit_config(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *url, *template;
     char *expected;
 
@@ -419,7 +419,7 @@ test_edit_config(void **state)
             "  </data>\n"
             "</get-config>\n";
 
-    assert_int_not_equal(-1, asprintf(&expected, template, np_get_user()) == -1);
+    assert_int_not_equal(-1, asprintf(&expected, template, np2_get_user()) == -1);
     assert_string_equal(st->str, expected);
     free(expected);
 
@@ -438,7 +438,7 @@ main(int argc, char **argv)
         cmocka_unit_test_teardown(test_edit_config, teardown_data),
     };
 
-    if (np_is_nacm_recovery()) {
+    if (np2_is_nacm_recovery()) {
         puts("Running as NACM_RECOVERY_USER. Tests will not run correctly as this user bypases NACM. Skipping.");
         return 0;
     }

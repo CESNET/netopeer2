@@ -12,7 +12,7 @@ set(CMAKE_CURRENT_BINARY_DIR "${CMAKE_BINARY_DIR}/tests")
 get_filename_component(ROOT_DIR "${CMAKE_SOURCE_DIR}" REALPATH)
 
 # generate config
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/np_test_config.h.in" "${CMAKE_CURRENT_BINARY_DIR}/np_test_config.h" ESCAPE_QUOTES @ONLY)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/np2_test_config.h.in" "${CMAKE_CURRENT_BINARY_DIR}/np2_test_config.h" ESCAPE_QUOTES @ONLY)
 
 # generate config
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/scripts/kill_np_server.sh.in"
@@ -33,7 +33,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 # base test source
-set(TEST_SRC "np_test.c")
+set(TEST_SRC "np2_test.c")
 
 # list of all the tests
 set(TESTS test_rpc test_edit test_filter test_subscribe_filter test_subscribe_param test_parallel_sessions

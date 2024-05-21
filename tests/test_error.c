@@ -28,8 +28,8 @@
 #include <sysrepo.h>
 #include <sysrepo/error_format.h>
 
-#include "np_test.h"
-#include "np_test_config.h"
+#include "np2_test.h"
+#include "np2_test_config.h"
 
 static int
 local_setup(void **state)
@@ -39,18 +39,18 @@ local_setup(void **state)
     int rc;
 
     /* get test name */
-    np_glob_setup_test_name(test_name);
+    np2_glob_test_setup_test_name(test_name);
 
     /* setup environment necessary for installing module */
-    rc = np_glob_setup_env(test_name);
+    rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
 
     /* setup NACM */
-    rc = setup_nacm(state);
+    rc = np2_glob_test_setup_nacm(state);
     assert_int_equal(rc, 0);
 
     return 0;
@@ -59,7 +59,7 @@ local_setup(void **state)
 static int
 local_teardown(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *modules[] = {"errors", NULL};
 
     if (!st) {
@@ -70,14 +70,14 @@ local_teardown(void **state)
     sr_unsubscribe(st->sub);
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, modules);
+    return np2_glob_test_teardown(state, modules);
 }
 
 /* RFC 7950 sec.15.1 */
 static void
 test_unique(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* create a list instance */
@@ -108,7 +108,7 @@ test_unique(void **state)
 static void
 test_max_elem(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* create a list instance */
@@ -137,7 +137,7 @@ test_max_elem(void **state)
 static void
 test_min_elem(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* create a single leaf-list instance violating the min-elements constraint */
@@ -160,7 +160,7 @@ test_min_elem(void **state)
 static void
 test_must(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* create a leaf violating the must constraint */
@@ -183,7 +183,7 @@ test_must(void **state)
 static void
 test_require_instance(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* create a leafref without its target */
@@ -221,7 +221,7 @@ test_require_instance(void **state)
 static void
 test_mandatory_choice(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* create a container without its mandatory choice */
@@ -247,7 +247,7 @@ test_mandatory_choice(void **state)
 static void
 test_invalid_insert(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* use non-existing list instance as insert anchor */
@@ -285,7 +285,7 @@ test_invalid_insert(void **state)
 static void
 test_create_exists(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* create a list instance */
@@ -313,7 +313,7 @@ test_create_exists(void **state)
 static void
 test_delete_missing(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* try to delete a non-existing list instance */
@@ -335,7 +335,7 @@ test_delete_missing(void **state)
 static void
 test_none_missing(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* use none operation for a non-existing node */
@@ -356,7 +356,7 @@ test_none_missing(void **state)
 static void
 test_invalid_xpath_filter(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* use Xpath filter that does not evaluate to a node set */
     SEND_GET_CONFIG_PARAM(st, NC_DATASTORE_RUNNING, NC_WD_ALL, "count(/errors:cont/l)");
@@ -375,7 +375,7 @@ test_invalid_xpath_filter(void **state)
 static void
 test_bad_element(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* wrong type */
@@ -447,7 +447,7 @@ test_bad_element(void **state)
 static void
 test_unknown_element(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* unknown element */
@@ -471,7 +471,7 @@ test_unknown_element(void **state)
 static void
 test_unknown_namespace(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* unknown namespace */
@@ -508,7 +508,7 @@ multi_error_change_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *mo
 static void
 test_multi_error(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* setup subscription */

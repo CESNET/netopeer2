@@ -30,26 +30,26 @@
 #include <sysrepo.h>
 #include <sysrepo/netconf_acm.h>
 
-#include "np_test.h"
-#include "np_test_config.h"
+#include "np2_test.h"
+#include "np2_test_config.h"
 
 static int
 local_setup(void **state)
 {
-    struct np_test *st;
+    struct np2_test *st;
     char test_name[256];
     const char *modules[] = {NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang", NULL};
     int rc;
 
     /* get test name */
-    np_glob_setup_test_name(test_name);
+    np2_glob_test_setup_test_name(test_name);
 
     /* setup environment */
-    rc = np_glob_setup_env(test_name);
+    rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -60,7 +60,7 @@ local_setup(void **state)
     assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "notif1", 1));
 
     /* setup NACM */
-    rc = setup_nacm(state);
+    rc = np2_glob_test_setup_nacm(state);
     assert_int_equal(rc, 0);
 
     return 0;
@@ -69,7 +69,7 @@ local_setup(void **state)
 static int
 teardown_common(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *cmd;
     int ret;
 
@@ -98,7 +98,7 @@ teardown_common(void **state)
 static int
 local_teardown(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *modules[] = {"notif1", "notif2", NULL};
 
     if (!st) {
@@ -115,13 +115,13 @@ local_teardown(void **state)
     teardown_common(state);
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, modules);
+    return np2_glob_test_teardown(state, modules);
 }
 
 static void
 test_filter_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *filter, *data;
 
     filter = "<n1 xmlns=\"n1\"/>";
@@ -146,7 +146,7 @@ test_filter_pass(void **state)
 static void
 test_filter_no_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *filter, *data;
 
     filter = "<n1 xmlns=\"n1\"><first>Different</first></n1>";
@@ -170,7 +170,7 @@ test_filter_no_pass(void **state)
 static void
 test_modifysub_filter(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *filter, *data, *template;
     char *ntf;
 
@@ -225,7 +225,7 @@ test_modifysub_filter(void **state)
 static void
 test_modifysub_stop_time(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data, *template;
     char *ntf;
     char *stop_time;
@@ -276,7 +276,7 @@ test_modifysub_stop_time(void **state)
 static void
 test_modifysub_fail_no_such_sub(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* Try modifying a non-existent subscription */
     SEND_RPC_MODSUB(st, 1, "<n1 xmlns=\"n1\"/>", NULL);
@@ -292,7 +292,7 @@ test_modifysub_fail_no_such_sub(void **state)
 static void
 test_deletesub(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template, *data;
     char *ntf;
 
@@ -329,7 +329,7 @@ test_deletesub(void **state)
 static void
 test_deletesub_fail(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* Try deleting a non-existent subscription */
     SEND_RPC_DELSUB(st, 1);
@@ -345,7 +345,7 @@ test_deletesub_fail(void **state)
 static void
 test_deletesub_fail_diff_sess(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
     struct nc_session *tmp;
 
@@ -393,7 +393,7 @@ test_deletesub_fail_diff_sess(void **state)
 static void
 test_ds_subscriptions(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *expected;
     const char *template =
             "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -429,7 +429,7 @@ test_ds_subscriptions(void **state)
 static void
 test_ds_subscriptions_sent_event(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *expected;
     const char *data, *template =
             "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -477,7 +477,7 @@ test_ds_subscriptions_sent_event(void **state)
 static void
 test_ds_subscriptions_excluded_event(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *expected;
     const char *data, *filter, *template =
             "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
@@ -532,7 +532,7 @@ test_ds_subscriptions_excluded_event(void **state)
 static void
 test_multiple_subscriptions(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *expected;
     uint32_t nc_sess_id, tmp_id;
     const char *template =
@@ -587,7 +587,7 @@ test_multiple_subscriptions(void **state)
 static void
 test_multiple_subscriptions_notif(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *expected;
     uint32_t nc_sess_id, tmp_ids[3];
     const char *data, *template =
@@ -666,7 +666,7 @@ test_multiple_subscriptions_notif(void **state)
 static int
 setup_notif2_data(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     data =
@@ -684,7 +684,7 @@ setup_notif2_data(void **state)
 static void
 test_multiple_subscriptions_notif_interlaced(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Establish first sub */
@@ -776,7 +776,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
 static int
 teardown_nacm(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     teardown_common(state);
@@ -800,10 +800,10 @@ teardown_nacm(void **state)
 static void
 test_killsub_fail_nacm(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     /* check for NACM_RECOVERY_USER */
-    if (np_is_nacm_recovery()) {
+    if (np2_is_nacm_recovery()) {
         puts("Running as NACM_RECOVERY_USER. Tests will not run correctly as this user bypases NACM. Skipping.");
         return;
     }
@@ -818,7 +818,7 @@ test_killsub_fail_nacm(void **state)
 static int
 setup_test_killsub(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data =
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <rule-list>\n"
@@ -842,7 +842,7 @@ setup_test_killsub(void **state)
 static void
 test_killsub_fail_no_such_sub(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     SEND_RPC_KILLSUB(st, 1);
     /* Should fail on no such sub */
@@ -858,7 +858,7 @@ test_killsub_fail_no_such_sub(void **state)
 static void
 test_killsub_same_sess(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data, *template;
     char *ntf;
 
@@ -911,7 +911,7 @@ test_killsub_same_sess(void **state)
 static void
 test_killsub_diff_sess(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data, *template;
     struct nc_session *tmp;
     char *ntf;

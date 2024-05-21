@@ -1,5 +1,5 @@
 /**
- * @file np_test_config.h
+ * @file np2_test_config.h
  * @author Michal Vasko <mvasko@cesnet.cz>
  * @brief test configuration header
  *
@@ -13,8 +13,8 @@
  *
  *     https://opensource.org/licenses/BSD-3-Clause
  */
-#ifndef _NP_TEST_CONFIG_H_
-#define _NP_TEST_CONFIG_H_
+#ifndef _NP2_TEST_CONFIG_H_
+#define _NP2_TEST_CONFIG_H_
 
 /* repository root dir */
 #define NP_ROOT_DIR "@ROOT_DIR@"
@@ -58,4 +58,4 @@
 /** @brief directory for libnetconf2 YANG modules */
 #define LN2_YANG_MODULE_DIR "@LN2_YANG_MODULE_DIR@"
 
-#endif /* _NP_TEST_CONFIG_H_ */
+#endif /* _NP2_TEST_CONFIG_H_ */

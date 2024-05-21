@@ -29,26 +29,26 @@
 #include <nc_client.h>
 #include <sysrepo.h>
 
-#include "np_test.h"
-#include "np_test_config.h"
+#include "np2_test.h"
+#include "np2_test_config.h"
 
 static int
 local_setup(void **state)
 {
-    struct np_test *st;
+    struct np2_test *st;
     char test_name[256];
     const char *modules[] = {NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang", NULL};
     int rc;
 
     /* get test name */
-    np_glob_setup_test_name(test_name);
+    np2_glob_test_setup_test_name(test_name);
 
     /* setup environment */
-    rc = np_glob_setup_env(test_name);
+    rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -64,7 +64,7 @@ local_setup(void **state)
 static int
 teardown_common(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *cmd;
     int ret;
 
@@ -93,7 +93,7 @@ teardown_common(void **state)
 static int
 local_teardown(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *modules[] = {"notif1", "notif2", NULL};
 
     if (!st) {
@@ -111,13 +111,13 @@ local_teardown(void **state)
     teardown_common(state);
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, modules);
+    return np2_glob_test_teardown(state, modules);
 }
 
 static void
 test_invalid_start_time(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *start_time;
     struct timespec ts;
 
@@ -145,7 +145,7 @@ test_invalid_start_time(void **state)
 static void
 test_invalid_stop_time(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *stop_time;
     struct timespec ts;
 
@@ -174,7 +174,7 @@ test_invalid_stop_time(void **state)
 static void
 test_invalid_start_stop_time(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *start_time, *stop_time;
     struct timespec ts;
 
@@ -204,7 +204,7 @@ test_invalid_start_stop_time(void **state)
 static void
 test_basic_sub(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Establish subscription */
@@ -229,7 +229,7 @@ test_basic_sub(void **state)
 static void
 test_replay_sub(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     struct timespec ts;
     const char *data, *template;
     char *expected;
@@ -275,7 +275,7 @@ test_replay_sub(void **state)
 static void
 test_replay_real_time(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data, *expected, *template;
     char *ntf;
     struct timespec ts;
@@ -342,7 +342,7 @@ test_replay_real_time(void **state)
 static void
 test_stop_time(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data, *expected, *template;
     char *ntf;
     struct timespec ts;
@@ -416,7 +416,7 @@ test_stop_time(void **state)
 static void
 test_history_only(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template;
     char *ntf;
     struct timespec ts;
@@ -461,7 +461,7 @@ test_history_only(void **state)
 static void
 test_stream_no_pass(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     /* Subscribe to notfications from a different stream */

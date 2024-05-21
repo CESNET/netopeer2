@@ -27,13 +27,13 @@
 #include <nc_client.h>
 #include <sysrepo.h>
 
-#include "np_test.h"
-#include "np_test_config.h"
+#include "np2_test.h"
+#include "np2_test_config.h"
 
 static void
 setup_data(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *data;
 
     data =
@@ -298,7 +298,7 @@ oper_get_routing_state(sr_session_ctx_t *session, uint32_t sub_id, const char *m
 static int
 local_setup(void **state)
 {
-    struct np_test *st;
+    struct np2_test *st;
     char test_name[256];
     const char *modules[] = {
         NP_TEST_MODULE_DIR "/example2.yang", NP_TEST_MODULE_DIR "/filter1-imp.yang", NP_TEST_MODULE_DIR "/filter1.yang",
@@ -309,14 +309,14 @@ local_setup(void **state)
     int rc;
 
     /* get test name */
-    np_glob_setup_test_name(test_name);
+    np2_glob_test_setup_test_name(test_name);
 
     /* setup environment */
-    rc = np_glob_setup_env(test_name);
+    rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -336,7 +336,7 @@ local_setup(void **state)
 static int
 local_teardown(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *modules[] = {
         "example2", "filter1-imp", "filter1", "xpath", "issue1", "edit1", "ietf-routing",
         "ietf-ipv4-unicast-routing", "oper-data", NULL
@@ -350,13 +350,13 @@ local_teardown(void **state)
     sr_unsubscribe(st->sub);
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, modules);
+    return np2_glob_test_teardown(state, modules);
 }
 
 static void
 test_xpath_basic(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     expected =
@@ -418,7 +418,7 @@ test_xpath_basic(void **state)
 static void
 test_xpath_boolean_operator(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     expected =
@@ -473,7 +473,7 @@ test_xpath_boolean_operator(void **state)
 static void
 test_xpath_union(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     expected =
@@ -517,7 +517,7 @@ test_xpath_union(void **state)
 static void
 test_xpath_namespaces(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *expected;
 
     expected =
@@ -677,7 +677,7 @@ test_xpath_namespaces(void **state)
 static void
 test_xpath_top_level_leaf_match(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *expected;
 
     GET_CONFIG_FILTER(st, "/edit1:first[.='Test']");
@@ -697,7 +697,7 @@ test_xpath_top_level_leaf_match(void **state)
 static void
 test_subtree_content_match(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *filter, *expected;
 
     filter =
@@ -770,7 +770,7 @@ static void
 test_subtree_content_match_top_level_leaf(void **state)
 {
     const char *expected;
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
 
     GET_CONFIG_FILTER(st, "<first xmlns=\"ed1\">Test</first>");
 
@@ -789,7 +789,7 @@ test_subtree_content_match_top_level_leaf(void **state)
 static void
 test_subtree_selection_node(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *filter, *expected;
 
     filter =
@@ -849,7 +849,7 @@ test_subtree_selection_node(void **state)
 static void
 test_subtree_nested_selection_node(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *filter, *expected;
 
     filter =
@@ -894,7 +894,7 @@ test_subtree_nested_selection_node(void **state)
 static void
 test_subtree_no_namespace(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *filter, *expected;
 
     filter = "<top/>\n";
@@ -1070,7 +1070,7 @@ test_subtree_no_namespace(void **state)
 static void
 test_get_selection_node(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *filter, *expected;
 
     filter =
@@ -1102,7 +1102,7 @@ test_get_selection_node(void **state)
 static void
 test_get_containment_node(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *filter, *expected;
 
     filter = "<hardware xmlns=\"i1\"/>\n";
@@ -1133,7 +1133,7 @@ test_get_containment_node(void **state)
 static void
 test_get_content_match_node(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *filter, *expected;
 
     filter =
@@ -1171,7 +1171,7 @@ test_get_content_match_node(void **state)
 static void
 test_get_oper_data(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *filter, *expected;
 
     filter =
@@ -1211,7 +1211,7 @@ test_get_oper_data(void **state)
 static void
 test_get_oper_data2(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *filter, *expected;
 
     filter =
@@ -1239,7 +1239,7 @@ test_get_oper_data2(void **state)
 static void
 test_getdata_oper_data(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *filter, *expected;
 
     filter =
@@ -1279,7 +1279,7 @@ test_getdata_oper_data(void **state)
 static void
 test_keyless_list(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *filter, *expected;
 
     filter = "/ietf-routing:routing-state//ietf-ipv4-unicast-routing:next-hop-address";

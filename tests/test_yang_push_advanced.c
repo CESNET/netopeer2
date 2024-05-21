@@ -29,26 +29,26 @@
 #include <nc_client.h>
 #include <sysrepo.h>
 
-#include "np_test.h"
-#include "np_test_config.h"
+#include "np2_test.h"
+#include "np2_test_config.h"
 
 static int
 local_setup(void **state)
 {
-    struct np_test *st;
+    struct np2_test *st;
     char test_name[256];
     const char *modules[] = {NP_TEST_MODULE_DIR "/edit1.yang", NP_TEST_MODULE_DIR "/edit2.yang", NULL};
     int rc;
 
     /* get test name */
-    np_glob_setup_test_name(test_name);
+    np2_glob_test_setup_test_name(test_name);
 
     /* setup environment */
-    rc = np_glob_setup_env(test_name);
+    rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np_glob_setup_np2(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -61,7 +61,7 @@ local_setup(void **state)
 static int
 teardown_common(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
     char *cmd;
     int ret;
@@ -100,7 +100,7 @@ teardown_common(void **state)
 static int
 local_teardown(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *modules[] = {"edit1", "edit2", NULL};
 
     if (!st) {
@@ -111,13 +111,13 @@ local_teardown(void **state)
     assert_int_equal(SR_ERR_OK, sr_set_module_replay_support(st->conn, "edit1", 0));
 
     /* close netopeer2 server */
-    return np_glob_teardown(state, modules);
+    return np2_glob_test_teardown(state, modules);
 }
 
 static void
 test_on_change_stop_time(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template, *data;
     char *ntf, *stop_time;
     struct timespec ts;
@@ -160,7 +160,7 @@ test_on_change_stop_time(void **state)
 static void
 test_on_change_modify_fail(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     char *stop_time;
     struct timespec ts;
 
@@ -186,7 +186,7 @@ test_on_change_modify_fail(void **state)
 static void
 test_on_change_modify_stoptime(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template, *data;
     char *ntf, *stop_time;
     struct timespec ts;
@@ -236,7 +236,7 @@ test_on_change_modify_stoptime(void **state)
 static void
 test_on_change_modify_filter(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template, *data;
     char *ntf;
 
@@ -299,7 +299,7 @@ test_on_change_modify_filter(void **state)
 static int
 setup_test_periodic_modify_filter(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data;
 
     data =
@@ -313,7 +313,7 @@ setup_test_periodic_modify_filter(void **state)
 static void
 test_periodic_modify_filter(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template;
     char *ntf;
 
@@ -363,7 +363,7 @@ test_periodic_modify_filter(void **state)
 static void
 test_periodic_modify_period(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template;
     char *ntf;
 
@@ -412,7 +412,7 @@ test_periodic_modify_period(void **state)
 static void
 test_periodic_deletesub(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *template;
     char *ntf;
 
@@ -461,7 +461,7 @@ test_periodic_deletesub(void **state)
 static void
 test_onchange_deletesub(void **state)
 {
-    struct np_test *st = *state;
+    struct np2_test *st = *state;
     const char *data, *template;
     char *ntf;
 
