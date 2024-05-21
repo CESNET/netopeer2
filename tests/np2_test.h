@@ -285,6 +285,8 @@ int np2_glob_test_setup_env(const char *test_name);
 
 int np2_glob_test_setup_server(void **state, const char *test_name, const char **modules);
 
+int np2_glob_test_teardown_notif(const char *test_name);
+
 int np2_glob_test_teardown(void **state, const char **modules);
 
 void parse_arg(int argc, char **argv);

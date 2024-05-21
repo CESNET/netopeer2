@@ -63,8 +63,6 @@ teardown_common(void **state)
 {
     struct np2_test *st = *state;
     const char *data;
-    char *cmd;
-    int ret;
 
     /* stop NETCONF session */
     nc_session_free(st->nc_sess, NULL);
@@ -78,17 +76,8 @@ teardown_common(void **state)
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
-    /* Remove the notifications */
-    if (asprintf(&cmd, "rm -rf %s/%s/data/notif/notif1.notif*", NP_SR_REPOS_DIR, st->test_name) == -1) {
-        return 1;
-    }
-
-    ret = system(cmd);
-    free(cmd);
-
-    if (ret == -1) {
-        return 1;
-    } else if (!WIFEXITED(ret) || WEXITSTATUS(ret)) {
+    /* remove notifications */
+    if (np2_glob_test_teardown_notif(st->test_name)) {
         return 1;
     }
 

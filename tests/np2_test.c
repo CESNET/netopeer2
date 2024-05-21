@@ -19,6 +19,7 @@
 
 #include "np2_test.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <pwd.h>
@@ -329,6 +330,39 @@ child_error:
         return 1;
     }
 
+    return 0;
+}
+
+int
+np2_glob_test_teardown_notif(const char *test_name)
+{
+    char *path;
+    DIR *dir;
+    struct dirent *ent;
+
+    /* open notification dir */
+    if (asprintf(&path, "%s/%s/data/notif", NP_SR_REPOS_DIR, test_name) == -1) {
+        return 1;
+    }
+    dir = opendir(path);
+    free(path);
+    if (!dir) {
+        return 1;
+    }
+
+    /* remove all notif1 notifications */
+    while ((ent = readdir(dir))) {
+        if (!strncmp(ent->d_name, "notif1.notif", 12)) {
+            if (asprintf(&path, "%s/%s/data/notif/%s", NP_SR_REPOS_DIR, test_name, ent->d_name) == -1) {
+                closedir(dir);
+                return 1;
+            }
+            unlink(path);
+            free(path);
+        }
+    }
+
+    closedir(dir);
     return 0;
 }
 
