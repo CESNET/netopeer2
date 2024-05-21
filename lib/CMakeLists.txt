@@ -28,11 +28,38 @@ int np2_server(int argc, char *argv[]);")
 endif()
 
 if(NETOPEER2_LIB_TESTS)
+    # include declarations of functions that need to be implemented
+    set(NETOPEER2_TESTS_FUNC
+"/**
+  * @brief Start netopeer2-server for all the test clients.
+  *
+  * Function implementation NEEDS TO BE PROVIDED.
+  *
+  * @param[in] pidfile_path Path to the server PID file.
+  * @param[in] sock_path Path ot the server UNIX socket the clients can connect to.
+  * @param[in] server_dir Directory for the server to use for its files.
+  * @param[in] extdata_path Path to the server extension data file.
+  * @return 0 on success.
+  * @return non-zero on error.
+  */
+int np2_server_test_start(const char *pidfile_path, const char *sock_path, const char *server_dir,
+        const char *extdata_path);
+
+/**
+ * @brief Stop netopeer2-server after test finish.
+ *
+ * Function implementation NEEDS TO BE PROVIDED.
+ *
+ * @return 0 on success.
+ * @return non-zero on error.
+ */
+int np2_server_test_stop(void);")
+
     # include every test as a library function
     foreach(TEST IN LISTS TESTS)
         add_library(netopeer2_lib_${TEST} OBJECT "${TEST_SRC_DIR}/${TEST}.c")
         target_compile_definitions(netopeer2_lib_${TEST} PRIVATE main=np2_${TEST})
-        set(NETOPEER2_TESTS_FUNC ${NETOPEER2_TESTS_FUNC} "
+        set(NETOPEER2_TESTS_FUNC "${NETOPEER2_TESTS_FUNC}
 
 /**
  * @brief netopeer2-server ${TEST}
