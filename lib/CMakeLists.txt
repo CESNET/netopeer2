@@ -33,6 +33,9 @@ if(NETOPEER2_LIB_TESTS)
 "/**
   * @brief Start netopeer2-server for all the test clients.
   *
+  * After the server is started, this function MUST return meaning a child
+  * process or something similar needs to be created.
+  *
   * Function implementation NEEDS TO BE PROVIDED.
   *
   * @param[in] pidfile_path Path to the server PID file.
