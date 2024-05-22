@@ -43,7 +43,7 @@ extern struct np2_file {
     const char *file;
     const char *data;
     int len;
-} test_files[];
+} np2_test_files[];
 ")
 
     # include declarations of functions that need to be implemented

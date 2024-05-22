@@ -55,7 +55,7 @@ MAIN_YANG_ARRAY="${MAIN_YANG_ARRAY}    {.file = NULL, .data = NULL, .len = 0}\n}
 
 
 # generate headers from all the test files
-MAIN_YANG_ARRAY="${MAIN_YANG_ARRAY}struct np2_file test_files[] = {
+MAIN_YANG_ARRAY="${MAIN_YANG_ARRAY}struct np2_file np2_test_files[] = {
 "
 
 for FILE_PATH in ${NP2_MODULE_DIR}/../tests/modules/*; do
