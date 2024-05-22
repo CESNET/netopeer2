@@ -28,23 +28,41 @@ int np2_server(int argc, char *argv[]);")
 endif()
 
 if(NETOPEER2_LIB_TESTS)
+    # include expected test dir and test files there
+    set(NETOPEER2_TESTS_FUNC "\
+/**
+ * @brief Directory where to put test_files for the tests to work.
+ */
+#define NP2_TEST_FILE_DIR \"${CMAKE_CURRENT_SOURCE_DIR}/modules\"
+")
+    set(NETOPEER2_TESTS_FUNC "${NETOPEER2_TESTS_FUNC}
+/**
+ * @brief YANG and data files required by tests.
+ */
+extern struct np2_file {
+    const char *file;
+    const char *data;
+    int len;
+} test_files[];
+")
+
     # include declarations of functions that need to be implemented
-    set(NETOPEER2_TESTS_FUNC
-"/**
-  * @brief Start netopeer2-server for all the test clients.
-  *
-  * After the server is started, this function MUST return meaning a child
-  * process or something similar needs to be created.
-  *
-  * Function implementation NEEDS TO BE PROVIDED.
-  *
-  * @param[in] pidfile_path Path to the server PID file.
-  * @param[in] sock_path Path ot the server UNIX socket the clients can connect to.
-  * @param[in] server_dir Directory for the server to use for its files.
-  * @param[in] extdata_path Path to the server extension data file.
-  * @return 0 on success.
-  * @return non-zero on error.
-  */
+    set(NETOPEER2_TESTS_FUNC "${NETOPEER2_TESTS_FUNC}
+/**
+ * @brief Start netopeer2-server for all the test clients.
+ *
+ * After the server is started, this function MUST return meaning a child
+ * process or something similar needs to be created.
+ *
+ * Function implementation NEEDS TO BE PROVIDED.
+ *
+ * @param[in] pidfile_path Path to the server PID file.
+ * @param[in] sock_path Path ot the server UNIX socket the clients can connect to.
+ * @param[in] server_dir Directory for the server to use for its files.
+ * @param[in] extdata_path Path to the server extension data file.
+ * @return 0 on success.
+ * @return non-zero on error.
+ */
 int np2_server_test_start(const char *pidfile_path, const char *sock_path, const char *server_dir,
         const char *extdata_path);
 
@@ -86,7 +104,7 @@ int np2_${TEST}(int argc, char *argv[]);")
     target_link_libraries(netopeer2_lib_test ${CMOCKA_LIBRARIES})
 endif()
 
-configure_file(${PROJECT_SOURCE_DIR}/netopeer2.h.in ${PROJECT_BINARY_DIR}/include/netopeer2.h ESCAPE_QUOTES @ONLY)
+configure_file(${PROJECT_SOURCE_DIR}/netopeer2.h.in ${PROJECT_BINARY_DIR}/include/netopeer2.h @ONLY)
 
 # generate YANG header files
 add_custom_command(OUTPUT np2_sr_yang.h

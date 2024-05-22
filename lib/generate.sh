@@ -8,11 +8,13 @@ fi
 
 # start the YANG array
 MAIN_YANG_ARRAY="
-struct {
+struct np2_file {
     const char *file;
     const char *data;
     int len;
-} yang_files[] = {
+};
+
+struct np2_file yang_files[] = {
 "
 
 # generate headers from all the YANG modules
@@ -49,7 +51,42 @@ for YANG_PATH in ${NP2_MODDIR}/*.yang ${LN2_MODDIR}/*.yang; do
 done
 
 # end the YANG array
-MAIN_YANG_ARRAY="${MAIN_YANG_ARRAY}    {.file = NULL, .data = NULL}\n};\n\n"
+MAIN_YANG_ARRAY="${MAIN_YANG_ARRAY}    {.file = NULL, .data = NULL, .len = 0}\n};\n\n"
+
+
+# generate headers from all the test files
+MAIN_YANG_ARRAY="${MAIN_YANG_ARRAY}struct np2_file test_files[] = {
+"
+
+for FILE_PATH in ${NP2_MODULE_DIR}/../tests/modules/*; do
+    # get file name
+    FILE="$(basename "${FILE_PATH}")"
+
+    # generate HEX
+    HEX=$(echo "$(cat "${FILE_PATH}")" | xxd -i -c1)
+    LENGTH=$((${#HEX}/8))
+
+    # generate array name
+    ARRAY_NAME="$(echo "${FILE}" | tr -- "-@." "_")"
+
+    # generate header file name without the revision
+    HEADER_FILE="${ARRAY_NAME}.h"
+
+    # print into a C header file
+    echo -e "const char ${ARRAY_NAME}[] = {\n$HEX\n};\nconst int ${ARRAY_NAME}_l = ${LENGTH};" > "${BINDIR}/${HEADER_FILE}"
+
+    # do not include duplicate files
+    if [[ ! "$MAIN_INCLUDE_LINES" =~ "\"$HEADER_FILE\"" ]]; then
+        # build all the include lines in the main header
+        MAIN_INCLUDE_LINES="${MAIN_INCLUDE_LINES}#include \"${HEADER_FILE}\"\n"
+    fi
+
+    # build the array of modules
+    MAIN_YANG_ARRAY="${MAIN_YANG_ARRAY}    {.file = \"${FILE}\", .data = ${ARRAY_NAME}, .len = ${ARRAY_NAME}_l},\n"
+done
+
+# end the test array
+MAIN_YANG_ARRAY="${MAIN_YANG_ARRAY}    {.file = NULL, .data = NULL, .len = 0}\n};\n\n"
 
 
 # import module arrays
