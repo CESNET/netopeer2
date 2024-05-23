@@ -112,7 +112,7 @@ add_custom_command(OUTPUT np2_sr_yang.h
             NP2_MODULE_DIR=${PROJECT_SOURCE_DIR}/../modules
             LN2_MODULE_DIR=${LN2_YANG_MODULE_DIR}
             NP2_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
-            ${PROJECT_SOURCE_DIR}/generate.sh
+            bash ${PROJECT_SOURCE_DIR}/generate.sh
         COMMENT "Generating YANG header files (generate.sh)..."
 )
 
