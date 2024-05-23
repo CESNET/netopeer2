@@ -5,9 +5,6 @@ endif()
 # correct RPATH usage on OS X
 set(CMAKE_MACOSX_RPATH TRUE)
 
-# update binary dir
-set(CMAKE_CURRENT_BINARY_DIR "${CMAKE_BINARY_DIR}/tests")
-
 # set ROOT_DIR to realpath
 get_filename_component(ROOT_DIR "${CMAKE_SOURCE_DIR}" REALPATH)
 
