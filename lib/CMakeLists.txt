@@ -33,7 +33,7 @@ if(NETOPEER2_LIB_TESTS)
 /**
  * @brief Directory where to put test_files for the tests to work.
  */
-#define NP2_TEST_FILE_DIR \"${CMAKE_CURRENT_SOURCE_DIR}/modules\"
+#define NP2_TEST_FILE_DIR \"${TEST_MODULE_DIR}\"
 ")
     set(NETOPEER2_TESTS_FUNC "${NETOPEER2_TESTS_FUNC}
 /**
