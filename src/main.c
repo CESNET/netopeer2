@@ -672,7 +672,7 @@ server_open_pidfile(const char *pidfile)
     fl.l_type = F_WRLCK;
     fl.l_whence = SEEK_SET;
     fl.l_start = 0;
-    fl.l_start = 5;
+    fl.l_len = 5;
     if (fcntl(pidfd, F_SETLK, &fl) < 0) {
         close(pidfd);
         if ((errno == EACCES) || (errno == EAGAIN)) {
