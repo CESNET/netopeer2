@@ -22,17 +22,14 @@
 /* binary dir */
 #define NP_BINARY_DIR "@PROJECT_BINARY_DIR@"
 
-/* sysrepo test repository */
-#define NP_SR_REPOS_DIR "@CMAKE_CURRENT_BINARY_DIR@/repositories"
+/* path to put test-specific directory into and to serve as test SR repository */
+#define NP_TEST_DIR "@NP2_TEST_ROOT_DIR@"
 
 /* directory with test YANG modules */
-#define NP_TEST_MODULE_DIR "@CMAKE_CURRENT_SOURCE_DIR@/modules"
+#define NP_TEST_MODULE_DIR "@NP2_TEST_MODULE_DIR@"
 
 /* sysrepo SHM prefix */
 #define NP_SR_SHM_PREFIX "_tests_np_"
-
-/* path to put test-specific directory into */
-#define NP_TEST_DIR NP_SR_REPOS_DIR
 
 /* server PID file */
 #define NP_PID_FILE "np2.pid"

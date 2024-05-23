@@ -81,12 +81,12 @@ np2_glob_test_setup_env(const char *test_name)
     char *sr_repo_path = NULL, *sr_shm_prefix = NULL;
 
     /* set sysrepo environment variables */
-    sr_repo_path = malloc(strlen(NP_SR_REPOS_DIR) + 1 + strlen(test_name) + 1);
+    sr_repo_path = malloc(strlen(NP_TEST_DIR) + 1 + strlen(test_name) + 1);
     if (!sr_repo_path) {
         SETUP_FAIL_LOG;
         goto cleanup;
     }
-    sprintf(sr_repo_path, "%s/%s", NP_SR_REPOS_DIR, test_name);
+    sprintf(sr_repo_path, "%s/%s", NP_TEST_DIR, test_name);
     if (setenv("SYSREPO_REPOSITORY_PATH", sr_repo_path, 1)) {
         SETUP_FAIL_LOG;
         goto cleanup;
@@ -341,7 +341,7 @@ np2_glob_test_teardown_notif(const char *test_name)
     struct dirent *ent;
 
     /* open notification dir */
-    if (asprintf(&path, "%s/%s/data/notif", NP_SR_REPOS_DIR, test_name) == -1) {
+    if (asprintf(&path, "%s/%s/data/notif", NP_TEST_DIR, test_name) == -1) {
         return 1;
     }
     dir = opendir(path);
@@ -353,7 +353,7 @@ np2_glob_test_teardown_notif(const char *test_name)
     /* remove all notif1 notifications */
     while ((ent = readdir(dir))) {
         if (!strncmp(ent->d_name, "notif1.notif", 12)) {
-            if (asprintf(&path, "%s/%s/data/notif/%s", NP_SR_REPOS_DIR, test_name, ent->d_name) == -1) {
+            if (asprintf(&path, "%s/%s/data/notif/%s", NP_TEST_DIR, test_name, ent->d_name) == -1) {
                 closedir(dir);
                 return 1;
             }
