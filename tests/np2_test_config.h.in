@@ -35,7 +35,7 @@
 #define NP_PID_FILE "np2.pid"
 
 /* server socket path */
-#define NP_SOCKET_FILE "np2.sock"
+#define NP_SOCKET_FILE "s"
 
 /* server ext data file */
 #define NP_EXT_DATA_FILE "schema_mount.xml"
