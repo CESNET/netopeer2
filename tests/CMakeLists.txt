@@ -102,7 +102,7 @@ if(ENABLE_TESTS)
     add_custom_target(test_clean
         COMMAND ${TEST_KILL_SERVER_COMMAND}
         COMMAND ${TEST_CLEAR_STATE_COMMAND}
-        COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/repositories
+        COMMAND rm -rf ${NP2_TEST_ROOT_DIR}
     )
 endif()
 
