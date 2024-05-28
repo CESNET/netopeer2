@@ -83,6 +83,9 @@ struct np2_test {
     } \
     assert_null(state->op);
 
+#define ASSERT_OK_REPLY(state) \
+    ASSERT_OK_REPLY_PARAM(state->nc_sess, 3000, state)
+
 #define ASSERT_DATA_REPLY_PARAM(nc_sess, timeout_ms, state) \
     do { \
         state->msgtype = nc_recv_reply(nc_sess, state->rpc, state->msgid, timeout_ms, &state->envp, &state->op); \
@@ -102,8 +105,8 @@ struct np2_test {
     } \
     assert_int_equal(LY_SUCCESS, lyd_print_mem(&state->str, state->op, LYD_XML, 0));
 
-#define ASSERT_OK_REPLY(state) \
-    ASSERT_OK_REPLY_PARAM(state->nc_sess, 3000, state)
+#define ASSERT_DATA_REPLY(state) \
+    ASSERT_DATA_REPLY_PARAM(state->nc_sess, 3000, state)
 
 #define ASSERT_OK_REPLY_SESS2(state) \
     state->msgtype = nc_recv_reply(state->nc_sess2, state->rpc, state->msgid, 3000, &state->envp, &state->op); \

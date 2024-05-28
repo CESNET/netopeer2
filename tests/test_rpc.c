@@ -194,10 +194,7 @@ test_lock_changes(void **state)
             NC_RPC_EDIT_ERROPT_ROLLBACK, "<first xmlns=\"ed1\">TestFirst</first>", NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
-    st->msgtype = nc_recv_reply(st->nc_sess2, st->rpc, st->msgid, 2000, &st->envp, &st->op);
-    assert_int_equal(st->msgtype, NC_MSG_REPLY);
-    assert_null(st->op);
-    assert_string_equal(LYD_NAME(lyd_child(st->envp)), "rpc-error");
+    ASSERT_ERROR_REPLY_SESS2(st);
     FREE_TEST_VARS(st);
 }
 
@@ -285,11 +282,7 @@ test_get(void **state)
     st->rpc = nc_rpc_get(NULL, NC_WD_ALL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
-    st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 2000, &st->envp, &st->op);
-    assert_int_equal(st->msgtype, NC_MSG_REPLY);
-    assert_non_null(st->op);
-    assert_non_null(st->envp);
-
+    ASSERT_DATA_REPLY(st);
     FREE_TEST_VARS(st);
 }
 
