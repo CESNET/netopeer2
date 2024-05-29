@@ -170,6 +170,10 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
                     sr_session_dup_error(user_sess->sess, session);
                     goto cleanup;
                 }
+            } else {
+                ERR("Invalid subtree filter:\n  %s", ((struct lyd_node_any *)node)->value.str);
+                rc = SR_ERR_INVAL_ARG;
+                goto cleanup;
             }
         } else {
             /* xpath */
