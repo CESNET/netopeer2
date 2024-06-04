@@ -10,6 +10,8 @@ fi
 MAIN_YANG_ARRAY="
 struct np2_file {
     const char *file;
+    const char *name;
+    const char *revision;
     const char *data;
     int len;
 };
@@ -33,9 +35,13 @@ for YANG_PATH in ${NP2_MODDIR}/*.yang ${LN2_MODDIR}/*.yang; do
     # generate HEX
     HEX=$(echo "$(cat "${YANG_PATH}")" | xxd -i -c1)
     LENGTH=$((${#HEX}/8))
+    HEX="${HEX},\n  0x00"
 
-    # generate array name
+    # generate array name, module name, and revision
     ARRAY_NAME="$(echo "${YANG_FILE}" | tr -- "-@." "_")"
+    NAME="$(echo "${YANG_FILE}" | cut -d@ -f1)"
+    REVISION="$(echo "${YANG_FILE}" | cut -d@ -f2)"
+    REVISION=${REVISION:0:10}
 
     # generate header file name without the revision
     HEADER_FILE="${ARRAY_NAME}.h"
@@ -47,11 +53,11 @@ for YANG_PATH in ${NP2_MODDIR}/*.yang ${LN2_MODDIR}/*.yang; do
     MAIN_INCLUDE_LINES="${MAIN_INCLUDE_LINES}#include \"${HEADER_FILE}\"\n"
 
     # build the array of modules
-    MAIN_YANG_ARRAY="${MAIN_YANG_ARRAY}    {.file = \"${YANG_FILE}\", .data = ${ARRAY_NAME}, .len = ${ARRAY_NAME}_l},\n"
+    MAIN_YANG_ARRAY="${MAIN_YANG_ARRAY}    {.file = \"${YANG_FILE}\", .name = \"${NAME}\", .revision = \"${REVISION}\", .data = ${ARRAY_NAME}, .len = ${ARRAY_NAME}_l},\n"
 done
 
 # end the YANG array
-MAIN_YANG_ARRAY="${MAIN_YANG_ARRAY}    {.file = NULL, .data = NULL, .len = 0}\n};\n\n"
+MAIN_YANG_ARRAY="${MAIN_YANG_ARRAY}    {.file = NULL, .name = NULL, .revision = NULL, .data = NULL, .len = 0}\n};\n\n"
 
 
 # generate headers from all the test files
@@ -65,9 +71,13 @@ for FILE_PATH in ${NP2_MODULE_DIR}/../tests/modules/*; do
     # generate HEX
     HEX=$(echo "$(cat "${FILE_PATH}")" | xxd -i -c1)
     LENGTH=$((${#HEX}/8))
+    HEX="${HEX},\n  0x00"
 
-    # generate array name
+    # generate array name, module name, and revision
     ARRAY_NAME="$(echo "${FILE}" | tr -- "-@." "_")"
+    NAME="$(echo "${YANG_FILE}" | cut -d@ -f1)"
+    REVISION="$(echo "${YANG_FILE}" | cut -d@ -f2)"
+    REVISION=${REVISION:0:10}
 
     # generate header file name without the revision
     HEADER_FILE="${ARRAY_NAME}.h"
@@ -82,11 +92,11 @@ for FILE_PATH in ${NP2_MODULE_DIR}/../tests/modules/*; do
     fi
 
     # build the array of modules
-    MAIN_YANG_ARRAY="${MAIN_YANG_ARRAY}    {.file = \"${FILE}\", .data = ${ARRAY_NAME}, .len = ${ARRAY_NAME}_l},\n"
+    MAIN_YANG_ARRAY="${MAIN_YANG_ARRAY}    {.file = \"${FILE}\", .name = \"${NAME}\", .revision = \"${REVISION}\", .data = ${ARRAY_NAME}, .len = ${ARRAY_NAME}_l},\n"
 done
 
 # end the test array
-MAIN_YANG_ARRAY="${MAIN_YANG_ARRAY}    {.file = NULL, .data = NULL, .len = 0}\n};\n\n"
+MAIN_YANG_ARRAY="${MAIN_YANG_ARRAY}    {.file = NULL, .name = NULL, .revision = NULL, .data = NULL, .len = 0}\n};\n\n"
 
 
 # import module arrays
@@ -104,7 +114,7 @@ for LINE in "${NP2_MODULES[@]}" "${LN2_MODULES[@]}"; do
 
     # get file and array name
     FILE="$(echo "$LINE" | sed 's/\([^ ]*\).*/\1/')"
-    ARRAY_NAME="$(echo "${FILE}" | tr -- "-@." "_")_f"
+    ARRAY_NAME="$(echo "$FILE" | tr -- "-@." "_")_f"
 
     # generate feature array
     HAS_FEATURES=$(echo "$LINE" | grep " -e ")
