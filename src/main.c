@@ -1369,11 +1369,11 @@ main(int argc, char *argv[])
 cleanup:
     VRB("Server terminated.");
 
-    /* remove PID file */
-    unlink(pidfile);
-
     /* destroy the server */
     server_destroy();
+
+    /* remove PID file */
+    unlink(pidfile);
 
     return ret;
 }
