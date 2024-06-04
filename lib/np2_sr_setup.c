@@ -16,6 +16,8 @@
 
 #define _GNU_SOURCE
 
+#include "netopeer2.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>

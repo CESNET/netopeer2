@@ -8,14 +8,6 @@ fi
 
 # start the YANG array
 MAIN_YANG_ARRAY="
-struct np2_file {
-    const char *file;
-    const char *name;
-    const char *revision;
-    const char *data;
-    int len;
-};
-
 struct np2_file yang_files[] = {
 "
 
