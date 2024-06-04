@@ -46,6 +46,8 @@ if(NETOPEER2_LIB_TESTS)
  */
 extern struct np2_file {
     const char *file;
+    const char *name;
+    const char *revision;
     const char *data;
     int len;
 } np2_test_files[];
