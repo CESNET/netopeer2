@@ -75,9 +75,15 @@ for FILE_PATH in ${NP2_MODULE_DIR}/../tests/modules/*; do
 
     # generate array name, module name, and revision
     ARRAY_NAME="$(echo "${FILE}" | tr -- "-@." "_")"
-    NAME="$(echo "${YANG_FILE}" | cut -d@ -f1)"
-    REVISION="$(echo "${YANG_FILE}" | cut -d@ -f2)"
-    REVISION=${REVISION:0:10}
+    NAME="$(echo "${FILE}" | cut -d@ -f1)"
+    if [[ "$NAME" == "$FILE" ]]; then
+        # no revision
+        NAME="$(echo "${FILE}" | cut -d. -f1)"
+        REVISION=
+    else
+        REVISION="$(echo "${FILE}" | cut -d@ -f2)"
+        REVISION=${REVISION:0:10}
+    fi
 
     # generate header file name without the revision
     HEADER_FILE="${ARRAY_NAME}.h"
