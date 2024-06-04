@@ -24,7 +24,12 @@ if(NETOPEER2_LIB_SERVER)
  * @return EXIT_SUCCESS on success.
  * @return EXIT_FAILURE on error.
  */
-int np2_server(int argc, char *argv[]);")
+int np2_server(int argc, char *argv[]);
+
+/**
+ * @brief netopeer2-server terminate function.
+ */
+void np2_server_terminate(void);")
 endif()
 
 if(NETOPEER2_LIB_TESTS)

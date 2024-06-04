@@ -60,6 +60,15 @@ ATOMIC_T loop_continue = 1;
 
 static void *worker_thread(void *arg);
 
+/**
+ * @brief netopeer2 lib terminate function, unused in the binary.
+ */
+void
+np2_server_terminate(void)
+{
+    ATOMIC_STORE_RELAXED(loop_continue, 0);
+}
+
 #ifdef HAVE_SIGACTION
 
 /**
