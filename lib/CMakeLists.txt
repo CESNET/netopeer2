@@ -40,18 +40,6 @@ if(NETOPEER2_LIB_TESTS)
  */
 #define NP2_TEST_FILE_DIR \"${TEST_MODULE_DIR}\"
 ")
-    set(NETOPEER2_TESTS_FUNC "${NETOPEER2_TESTS_FUNC}
-/**
- * @brief YANG and data files required by tests.
- */
-extern struct np2_file {
-    const char *file;
-    const char *name;
-    const char *revision;
-    const char *data;
-    int len;
-} np2_test_files[];
-")
 
     # include declarations of functions that need to be implemented
     set(NETOPEER2_TESTS_FUNC "${NETOPEER2_TESTS_FUNC}

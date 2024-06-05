@@ -20,6 +20,17 @@
 #include <sys/stat.h>
 
 /**
+ * @brief YANG and data files.
+ */
+extern struct np2_file {
+    const char *file;
+    const char *name;
+    const char *revision;
+    const char *data;
+    int len;
+} np2_test_files[];
+
+/**
  * @brief Install all YANG modules required by netopeer2-server into sysrepo.
  *
  * Logs to stderr.
