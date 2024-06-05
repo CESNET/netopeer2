@@ -186,7 +186,7 @@ if(ENABLE_VALGRIND_TESTS)
     endif()
 endif()
 
-if(ENABLE_TESTS OR BUILD_NETOPEER2_LIB AND NETOPEER2_LIB_TESTS)
+if(ENABLE_TESTS OR (BUILD_NETOPEER2_LIB AND NETOPEER2_LIB_TESTS))
     find_package(CMocka 1.0.1)
     if(NOT CMOCKA_FOUND)
         message(STATUS "Disabling tests because of missing CMocka")
