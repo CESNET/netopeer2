@@ -390,18 +390,6 @@ np2_glob_test_teardown(void **state, const char **modules)
     /* release context */
     sr_release_context(st->conn);
 
-    /* uninstall modules */
-    if (modules && (rc = sr_remove_modules(st->conn, modules, 0))) {
-        printf("sr_remove_modules() failed (%s)\n", sr_strerror(rc));
-        ret = 1;
-    }
-
-    /* disconnect */
-    if ((rc = sr_disconnect(st->conn))) {
-        printf("sr_disconnect() failed (%s)\n", sr_strerror(rc));
-        ret = 1;
-    }
-
 #ifdef NETOPEER2_LIB
     if (np2_server_test_stop()) {
         printf("np2_server_test_stop() failed\n");
@@ -430,6 +418,18 @@ np2_glob_test_teardown(void **state, const char **modules)
         ret = 1;
     }
 #endif
+
+    /* uninstall modules */
+    if (modules && (rc = sr_remove_modules(st->conn, modules, 0))) {
+        printf("sr_remove_modules() failed (%s)\n", sr_strerror(rc));
+        ret = 1;
+    }
+
+    /* disconnect */
+    if ((rc = sr_disconnect(st->conn))) {
+        printf("sr_disconnect() failed (%s)\n", sr_strerror(rc));
+        ret = 1;
+    }
 
     /* unset sysrepo environment variables */
     if (unsetenv("SYSREPO_REPOSITORY_PATH")) {
