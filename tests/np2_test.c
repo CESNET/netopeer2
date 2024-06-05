@@ -136,6 +136,78 @@ setup_server_file_exists_wait(const char *path)
 }
 
 int
+np2_glob_test_setup_sess_ctx(struct nc_session *sess, const char **modules)
+{
+    struct ly_ctx *ctx;
+    const char *all_features[] = {"*", NULL};
+    const char *sub_ntf_features[] = {"encode-xml", "replay", "subtree", "xpath", NULL};
+    uint32_t i;
+
+    ctx = (struct ly_ctx *)nc_session_get_ctx(sess);
+
+    /* base modules */
+    ly_ctx_set_searchdir(ctx, LN2_YANG_MODULE_DIR);
+    if (!ly_ctx_load_module(ctx, "ietf-netconf", "2013-09-29", all_features)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (!ly_ctx_load_module(ctx, "ietf-netconf-with-defaults", "2011-06-01", NULL)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (!ly_ctx_load_module(ctx, "ietf-yang-library", "2019-01-04", NULL)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (!ly_ctx_load_module(ctx, "ietf-datastores", "2018-02-14", NULL)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (!ly_ctx_load_module(ctx, "notifications", "2008-07-14", NULL)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (!ly_ctx_load_module(ctx, "nc-notifications", "2008-07-14", NULL)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (!ly_ctx_load_module(ctx, "ietf-netconf-notifications", "2012-02-06", NULL)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (!ly_ctx_load_module(ctx, "ietf-netconf-nmda", "2019-01-07", all_features)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (!ly_ctx_load_module(ctx, "ietf-subscribed-notifications", "2019-09-09", sub_ntf_features)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (!ly_ctx_load_module(ctx, "ietf-yang-push", "2019-09-09", all_features)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+
+    /* test modules */
+    if (modules) {
+        for (i = 0; modules[i]; ++i) {
+            if (lys_parse_path(ctx, modules[i], LYS_IN_YANG, NULL)) {
+                SETUP_FAIL_LOG;
+                return 1;
+            }
+        }
+    }
+
+    /* schema-mount, uses the final context */
+    if (nc_client_set_new_session_context_schema_mount(sess)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+
+    return 0;
+}
+
+int
 np2_glob_test_setup_server(void **state, const char *test_name, const char **modules)
 {
     struct np2_test *st;
@@ -317,15 +389,26 @@ child_error:
     }
     nc_client_set_schema_searchpath(NP_TEST_MODULE_DIR);
 
+    /* disable automatic YANG retrieval */
+    nc_client_set_new_session_context_autofill(0);
+
     /* create NETCONF sessions */
     st->nc_sess = nc_connect_unix(st->socket_path, NULL);
     if (!st->nc_sess) {
         SETUP_FAIL_LOG;
         return 1;
     }
+    if (np2_glob_test_setup_sess_ctx(st->nc_sess, modules)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
 
     st->nc_sess2 = nc_connect_unix(st->socket_path, NULL);
     if (!st->nc_sess2) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (np2_glob_test_setup_sess_ctx(st->nc_sess2, modules)) {
         SETUP_FAIL_LOG;
         return 1;
     }

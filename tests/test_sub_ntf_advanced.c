@@ -33,12 +33,13 @@
 #include "np2_test.h"
 #include "np2_test_config.h"
 
+static const char *test_modules[] = {NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang", NULL};
+
 static int
 local_setup(void **state)
 {
     struct np2_test *st;
     char test_name[256];
-    const char *modules[] = {NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang", NULL};
     int rc;
 
     /* get test name */
@@ -49,7 +50,7 @@ local_setup(void **state)
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np2_glob_test_setup_server(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, test_modules);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -80,6 +81,7 @@ teardown_common(void **state)
     nc_session_free(st->nc_sess, NULL);
     st->nc_sess = nc_connect_unix(st->socket_path, NULL);
     assert_non_null(st->nc_sess);
+    np2_glob_test_setup_sess_ctx(st->nc_sess, test_modules);
 
     return 0;
 }
@@ -358,6 +360,7 @@ test_deletesub_fail_diff_sess(void **state)
     /* Create a new session */
     tmp = nc_connect_unix(st->socket_path, NULL);
     assert_non_null(tmp);
+    np2_glob_test_setup_sess_ctx(tmp, test_modules);
 
     /* Try to delete it */
     st->rpc = nc_rpc_deletesub(st->ntf_id);
@@ -925,6 +928,7 @@ test_killsub_diff_sess(void **state)
     /* Create a new session */
     tmp = nc_connect_unix(st->socket_path, NULL);
     assert_non_null(tmp);
+    np2_glob_test_setup_sess_ctx(tmp, test_modules);
 
     /* Kill it */
     st->rpc = nc_rpc_killsub(st->ntf_id);

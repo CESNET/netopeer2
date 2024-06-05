@@ -286,6 +286,8 @@ void np2_glob_test_setup_test_name(char *buf);
 
 int np2_glob_test_setup_env(const char *test_name);
 
+int np2_glob_test_setup_sess_ctx(struct nc_session *sess, const char **modules);
+
 int np2_glob_test_setup_server(void **state, const char *test_name, const char **modules);
 
 int np2_glob_test_teardown_notif(const char *test_name);

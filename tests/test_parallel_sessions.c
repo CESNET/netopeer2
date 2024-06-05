@@ -78,6 +78,8 @@ send_get_thread(void *arg)
     /* create a NETCONF session */
     nc_sess = nc_connect_unix(targ->st->socket_path, NULL);
     assert_non_null(nc_sess);
+    np2_glob_test_setup_sess_ctx(nc_sess, NULL);
+
     pthread_barrier_wait(&targ->barrier);
 
     /* send get rpc */

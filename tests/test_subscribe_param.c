@@ -32,6 +32,8 @@
 #include "np2_test.h"
 #include "np2_test_config.h"
 
+static const char *test_modules[] = {NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang", NULL};
+
 static void
 reestablish_sub(void **state, const char *stream, const char *start_time, const char *stop_time)
 {
@@ -41,6 +43,7 @@ reestablish_sub(void **state, const char *stream, const char *start_time, const 
     nc_session_free(st->nc_sess, NULL);
     st->nc_sess = nc_connect_unix(st->socket_path, NULL);
     assert_non_null(st->nc_sess);
+    np2_glob_test_setup_sess_ctx(st->nc_sess, test_modules);
 
     /* Get a subscription to receive notifications */
     st->rpc = nc_rpc_subscribe(stream, NULL, start_time, stop_time, NC_PARAMTYPE_CONST);
@@ -69,7 +72,6 @@ local_setup(void **state)
 {
     struct np2_test *st;
     char test_name[256];
-    const char *modules[] = {NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang", NULL};
     int rc;
 
     /* get test name */
@@ -80,7 +82,7 @@ local_setup(void **state)
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np2_glob_test_setup_server(state, test_name, modules);
+    rc = np2_glob_test_setup_server(state, test_name, test_modules);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -148,6 +150,7 @@ test_stop_time_invalid(void **state)
     nc_session_free(st->nc_sess, NULL);
     st->nc_sess = nc_connect_unix(st->socket_path, NULL);
     assert_non_null(st->nc_sess);
+    np2_glob_test_setup_sess_ctx(st->nc_sess, test_modules);
 
     /* Get a subscription to receive notifications */
     st->rpc = nc_rpc_subscribe(NULL, NULL, start_time, stop_time, NC_PARAMTYPE_CONST);
@@ -187,6 +190,7 @@ test_start_time_invalid(void **state)
     nc_session_free(st->nc_sess, NULL);
     st->nc_sess = nc_connect_unix(st->socket_path, NULL);
     assert_non_null(st->nc_sess);
+    np2_glob_test_setup_sess_ctx(st->nc_sess, test_modules);
 
     /* Get a subscription to receive notifications */
     st->rpc = nc_rpc_subscribe(NULL, NULL, start_time, NULL, NC_PARAMTYPE_CONST);
@@ -224,6 +228,7 @@ test_stop_time_no_start_time(void **state)
     nc_session_free(st->nc_sess, NULL);
     st->nc_sess = nc_connect_unix(st->socket_path, NULL);
     assert_non_null(st->nc_sess);
+    np2_glob_test_setup_sess_ctx(st->nc_sess, test_modules);
 
     /* Get a subscription to receive notifications */
     st->rpc = nc_rpc_subscribe(NULL, NULL, NULL, stop_time, NC_PARAMTYPE_CONST);
