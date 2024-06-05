@@ -147,6 +147,7 @@ np2_glob_test_setup_sess_ctx(struct nc_session *sess, const char **modules)
 
     /* base modules */
     ly_ctx_set_searchdir(ctx, LN2_YANG_MODULE_DIR);
+    ly_ctx_set_searchdir(ctx, NP_ROOT_DIR "/modules");
     if (!ly_ctx_load_module(ctx, "ietf-netconf", "2013-09-29", all_features)) {
         SETUP_FAIL_LOG;
         return 1;
