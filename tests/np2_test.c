@@ -142,12 +142,16 @@ np2_glob_test_setup_sess_ctx(struct nc_session *sess, const char **modules)
     const char *all_features[] = {"*", NULL};
     const char *sub_ntf_features[] = {"encode-xml", "replay", "subtree", "xpath", NULL};
     uint32_t i;
+    char *path;
 
     ctx = (struct ly_ctx *)nc_session_get_ctx(sess);
 
+    /* server YANG dir searchdir */
+    asprintf(&path, "%s/yang", getenv("SYSREPO_REPOSITORY_PATH"));
+    ly_ctx_set_searchdir(ctx, path);
+    free(path);
+
     /* base modules */
-    ly_ctx_set_searchdir(ctx, LN2_YANG_MODULE_DIR);
-    ly_ctx_set_searchdir(ctx, NP_ROOT_DIR "/modules");
     if (!ly_ctx_load_module(ctx, "ietf-netconf", "2013-09-29", all_features)) {
         SETUP_FAIL_LOG;
         return 1;
@@ -188,6 +192,9 @@ np2_glob_test_setup_sess_ctx(struct nc_session *sess, const char **modules)
         SETUP_FAIL_LOG;
         return 1;
     }
+
+    /* test module searchdir */
+    ly_ctx_set_searchdir(ctx, NP_ROOT_DIR "/modules");
 
     /* test modules */
     if (modules) {
