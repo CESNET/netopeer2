@@ -194,7 +194,7 @@ np2_glob_test_setup_sess_ctx(struct nc_session *sess, const char **modules)
     }
 
     /* test module searchdir */
-    ly_ctx_set_searchdir(ctx, NP_ROOT_DIR "/modules");
+    ly_ctx_set_searchdir(ctx, NP_TEST_MODULE_DIR);
 
     /* test modules */
     if (modules) {
