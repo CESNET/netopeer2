@@ -396,7 +396,6 @@ child_error:
         SETUP_FAIL_LOG;
         return 1;
     }
-    nc_client_set_schema_searchpath(NP_TEST_MODULE_DIR);
 
     /* disable automatic YANG retrieval */
     nc_client_set_new_session_context_autofill(0);
