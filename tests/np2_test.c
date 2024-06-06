@@ -222,6 +222,7 @@ np2_glob_test_setup_server(void **state, const char *test_name, const char **mod
     pid_t pid = 0;
     char server_dir[256], extdata_path[256], sock_path[256], pidfile_path[256];
     int pipefd[2], buf;
+    struct ly_ctx *ly_ctx;
 
 #ifndef NETOPEER2_LIB
     char str[256];
@@ -400,23 +401,20 @@ child_error:
     /* disable automatic YANG retrieval */
     nc_client_set_new_session_context_autofill(0);
 
-    /* create NETCONF sessions */
-    st->nc_sess = nc_connect_unix(st->socket_path, NULL);
-    if (!st->nc_sess) {
-        SETUP_FAIL_LOG;
-        return 1;
-    }
-    if (np2_glob_test_setup_sess_ctx(st->nc_sess, modules)) {
-        SETUP_FAIL_LOG;
-        return 1;
-    }
-
+    /* create NETCONF sessions, with a single context */
     st->nc_sess2 = nc_connect_unix(st->socket_path, NULL);
     if (!st->nc_sess2) {
         SETUP_FAIL_LOG;
         return 1;
     }
     if (np2_glob_test_setup_sess_ctx(st->nc_sess2, modules)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+
+    ly_ctx = (struct ly_ctx *)nc_session_get_ctx(st->nc_sess2);
+    st->nc_sess = nc_connect_unix(st->socket_path, ly_ctx);
+    if (!st->nc_sess) {
         SETUP_FAIL_LOG;
         return 1;
     }
