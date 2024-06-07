@@ -666,6 +666,9 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
         goto error;
     }
 
+    /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
+    np_send_notif_session_start(new_session, np2srv.sr_sess, np2srv.sr_timeout);
+
     c = 0;
     while ((c < 3) && nc_ps_add_session(np2srv.nc_ps, new_session)) {
         /* presumably timeout, give it a shot 2 times */
@@ -678,9 +681,6 @@ np2srv_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_se
         EINT;
         goto error;
     }
-
-    /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
-    np_send_notif_session_start(new_session, np2srv.sr_sess, np2srv.sr_timeout);
 
     return 0;
 
