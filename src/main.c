@@ -250,6 +250,64 @@ error:
 }
 
 /**
+ * @brief Find the nth substring delimited by quotes.
+ *
+ * For example: abcd"ef"ghij"kl"mn -> index 0 is "ef", index 1 is "kl".
+ *
+ * @param[in] msg Input string with quoted substring.
+ * @param[in] index Number starting from 0 specifying the nth substring.
+ * @return Copied nth substring without quotes.
+ */
+static char *
+np2srv_err_reply_get_quoted_string(const char *msg, uint32_t index)
+{
+    char *ret;
+    const char *start = NULL, *end = NULL, *iter, *tmp;
+    uint32_t quote_cnt = 0, last_quote;
+
+    assert(msg);
+
+    last_quote = (index + 1) * 2;
+    for (iter = msg; *iter; ++iter) {
+        if (*iter != '\"') {
+            continue;
+        }
+        /* updating the start and end pointers - swap */
+        tmp = end;
+        end = iter;
+        start = tmp;
+        if (++quote_cnt == last_quote) {
+            /* nth substring found */
+            break;
+        }
+    }
+
+    if (!start) {
+        return NULL;
+    }
+
+    /* Skip first quote */
+    ++start;
+    /* Copy substring */
+    ret = strndup(start, end - start);
+
+    return ret;
+}
+
+/**
+ * @brief Check that the @p str starts with the @p prefix.
+ *
+ * @param[in] prefix Required prefix.
+ * @param[in] str Input string to check.
+ * @return True if @p str start with @p prefix otherwise False.
+ */
+static ly_bool
+np2srv_strstarts(const char *prefix, const char *str)
+{
+    return strncmp(str, prefix, strlen(prefix)) == 0;
+}
+
+/**
  * @brief Create NC error reply based on SR error info.
  *
  * @param[in] err_info SR error info.
@@ -262,6 +320,9 @@ np2srv_err_reply_sr(const sr_error_info_t *err_info)
     struct lyd_node *e;
     const struct ly_ctx *ly_ctx;
     size_t i;
+    char *str, *path;
+    const struct lysc_node *cn;
+    NC_ERR_TYPE errtype;
 
     /* try to find a NETCONF error(s) */
     for (i = 0; i < err_info->err_count; ++i) {
@@ -284,16 +345,34 @@ np2srv_err_reply_sr(const sr_error_info_t *err_info)
 
     ly_ctx = sr_acquire_context(np2srv.sr_conn);
     for (i = 0; i < err_info->err_count; ++i) {
-        /* generic error */
-        e = nc_err(ly_ctx, NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        nc_err_set_msg(e, err_info->err[i].message, "en");
+        if (np2srv_strstarts("Mandatory node", err_info->err[i].message) ||
+                np2srv_strstarts("Mandatory choice", err_info->err[i].message)) {
+            str = np2srv_err_reply_get_quoted_string(err_info->err[i].message, 0);
+            path = np2srv_err_reply_get_quoted_string(err_info->err[i].message, 1);
+            cn = lys_find_path(ly_ctx, NULL, path, 0);
+            if (cn && ((cn->nodetype & LYS_RPC) || (cn->nodetype & LYS_INPUT))) {
+                errtype = NC_ERR_TYPE_PROT;
+            } else {
+                errtype = NC_ERR_TYPE_APP;
+            }
+            e = nc_err(ly_ctx, NC_ERR_MISSING_ELEM, errtype, str);
+            free(str);
+            free(path);
+        } else if (err_info->err->err_code == SR_ERR_NO_MEMORY) {
+            e = nc_err(ly_ctx, NC_ERR_RES_DENIED, NC_ERR_TYPE_APP);
+        } else {
+            /* generic error */
+            e = nc_err(ly_ctx, NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+        }
 
+        nc_err_set_msg(e, err_info->err[i].message, "en");
         if (reply) {
             nc_server_reply_add_err(reply, e);
         } else {
             reply = nc_server_reply_err(e);
         }
     }
+    /* clear for other errors */
     sr_release_context(np2srv.sr_conn);
 
     return reply;

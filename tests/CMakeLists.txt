@@ -42,7 +42,7 @@ set(TEST_SRC "np2_test.c" "np2_other_client.c")
 
 # list of all the tests
 set(TESTS test_rpc test_edit test_filter test_subscribe_filter test_subscribe_param test_parallel_sessions
-    test_candidate test_with_defaults test_nacm test_sub_ntf test_sub_ntf_advanced test_sub_ntf_filter test_error)
+    test_candidate test_with_defaults test_nacm test_sub_ntf test_sub_ntf_advanced test_sub_ntf_filter test_error test_other_client)
 
 if(CMAKE_C_FLAGS MATCHES "-fsanitize=thread")
     message(WARNING "Features which use SIGEV_THREAD are known to be broken under TSAN, disabling tests for YANG-push and confirmed commit")
