@@ -76,9 +76,8 @@ send_get_thread(void *arg)
     NC_MSG_TYPE msgtype;
 
     /* create a NETCONF session */
-    nc_sess = nc_connect_unix(targ->st->socket_path, NULL);
+    nc_sess = nc_connect_unix(targ->st->socket_path, (struct ly_ctx *)nc_session_get_ctx(st->nc_sess2));
     assert_non_null(nc_sess);
-    np2_glob_test_setup_sess_ctx(nc_sess, NULL);
 
     pthread_barrier_wait(&targ->barrier);
 

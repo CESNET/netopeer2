@@ -30,8 +30,6 @@
 #include "np2_test.h"
 #include "np2_test_config.h"
 
-static const char *test_modules[] = {NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang", NULL};
-
 static void
 setup_data(void **state)
 {
@@ -59,9 +57,8 @@ reestablish_sub(void **state, const char *filter)
 
     /* Reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
-    st->nc_sess = nc_connect_unix(st->socket_path, NULL);
+    st->nc_sess = nc_connect_unix(st->socket_path, (struct ly_ctx *)nc_session_get_ctx(st->nc_sess2));
     assert_non_null(st->nc_sess);
-    np2_glob_test_setup_sess_ctx(st->nc_sess, test_modules);
 
     /* Get a subscription to receive notifications */
     st->rpc = nc_rpc_subscribe(NULL, filter, NULL, NULL, NC_PARAMTYPE_CONST);
@@ -78,6 +75,7 @@ static int
 local_setup(void **state)
 {
     struct np2_test *st;
+    const char *modules[] = {NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang", NULL};
     char test_name[256];
     int rc;
 
@@ -89,7 +87,7 @@ local_setup(void **state)
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np2_glob_test_setup_server(state, test_name, test_modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -173,9 +171,8 @@ test_subtree_filter_no_matching_node(void **state)
 
     /* Reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
-    st->nc_sess = nc_connect_unix(st->socket_path, NULL);
+    st->nc_sess = nc_connect_unix(st->socket_path, (struct ly_ctx *)nc_session_get_ctx(st->nc_sess2));
     assert_non_null(st->nc_sess);
-    np2_glob_test_setup_sess_ctx(st->nc_sess, test_modules);
 
     /* Get a subscription to receive notifications */
     st->rpc = nc_rpc_subscribe(NULL, filter, NULL, NULL, NC_PARAMTYPE_CONST);
@@ -308,9 +305,8 @@ test_xpath_filter_no_matching_node(void **state)
 
     /* Reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
-    st->nc_sess = nc_connect_unix(st->socket_path, NULL);
+    st->nc_sess = nc_connect_unix(st->socket_path, (struct ly_ctx *)nc_session_get_ctx(st->nc_sess2));
     assert_non_null(st->nc_sess);
-    np2_glob_test_setup_sess_ctx(st->nc_sess, test_modules);
 
     /* Get a subscription to receive notifications */
     st->rpc = nc_rpc_subscribe(NULL, "/notif2:devices/device[name='Main']", NULL, NULL, NC_PARAMTYPE_CONST);

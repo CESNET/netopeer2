@@ -106,12 +106,11 @@ notif_check_cc_timeout(struct np2_test *st, uint32_t expected_timeout)
     }
 }
 
-static const char *test_modules[] = {NP_TEST_MODULE_DIR "/edit1.yang", NULL};
-
 static int
 local_setup(void **state)
 {
     struct np2_test *st;
+    const char *modules[] = {NP_TEST_MODULE_DIR "/edit1.yang", NULL};
     char test_name[256];
     int rc;
 
@@ -123,7 +122,7 @@ local_setup(void **state)
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np2_glob_test_setup_server(state, test_name, test_modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -608,9 +607,8 @@ test_rollback_disconnect(void **state)
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 
     /* create a new session */
-    ncs = nc_connect_unix(st->socket_path, NULL);
+    ncs = nc_connect_unix(st->socket_path, (struct ly_ctx *)nc_session_get_ctx(st->nc_sess2));
     assert_non_null(ncs);
-    np2_glob_test_setup_sess_ctx(ncs, test_modules);
 
     /* send a confirmed-commit rpc with 60s timeout */
     st->rpc = nc_rpc_commit(1, 60, NULL, NULL, NC_PARAMTYPE_CONST);
@@ -798,9 +796,8 @@ test_cancel_persist(void **state)
     ASSERT_EMPTY_CONFIG_FILTER(st, "/edit1:*");
 
     /* start a new NC session */
-    nc_sess = nc_connect_unix(st->socket_path, NULL);
+    nc_sess = nc_connect_unix(st->socket_path, (struct ly_ctx *)nc_session_get_ctx(st->nc_sess2));
     assert_non_null(nc_sess);
-    np2_glob_test_setup_sess_ctx(nc_sess, test_modules);
 
     /* send a confirmed-commit rpc with persist */
     st->rpc = nc_rpc_commit(1, 0, persist, NULL, NC_PARAMTYPE_CONST);

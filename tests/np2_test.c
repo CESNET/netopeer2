@@ -135,7 +135,7 @@ setup_server_file_exists_wait(const char *path)
     return 0;
 }
 
-int
+static int
 np2_glob_test_setup_sess_ctx(struct nc_session *sess, const char **modules)
 {
     struct ly_ctx *ctx;

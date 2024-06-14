@@ -32,12 +32,11 @@
 #include "np2_test.h"
 #include "np2_test_config.h"
 
-static const char *test_modules[] = {NP_TEST_MODULE_DIR "/edit1.yang", NP_TEST_MODULE_DIR "/edit2.yang", NULL};
-
 static int
 local_setup(void **state)
 {
     struct np2_test *st;
+    const char *modules[] = {NP_TEST_MODULE_DIR "/edit1.yang", NP_TEST_MODULE_DIR "/edit2.yang", NULL};
     char test_name[256];
     int rc;
 
@@ -49,7 +48,7 @@ local_setup(void **state)
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np2_glob_test_setup_server(state, test_name, test_modules);
+    rc = np2_glob_test_setup_server(state, test_name, modules);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -72,9 +71,8 @@ teardown_common(void **state)
 
     /* reestablish NETCONF connection */
     nc_session_free(st->nc_sess, NULL);
-    st->nc_sess = nc_connect_unix(st->socket_path, NULL);
+    st->nc_sess = nc_connect_unix(st->socket_path, (struct ly_ctx *)nc_session_get_ctx(st->nc_sess2));
     assert_non_null(st->nc_sess);
-    np2_glob_test_setup_sess_ctx(st->nc_sess, test_modules);
 
     /* Remove the data */
     data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
