@@ -211,6 +211,11 @@ np2srv_srsn_notif_cb(const struct lyd_node *notif, const struct timespec *timest
         STATE_UNLOCK;
     }
 
+    if (nc_session_get_status(ncs) != NC_STATUS_RUNNING) {
+        /* is being closed */
+        goto cleanup;
+    }
+
     /* create the notification object */
     ly_time_ts2str(timestamp, &datetime);
     nc_ntf = nc_server_notif_new((struct lyd_node *)notif, datetime, NC_PARAMTYPE_CONST);
