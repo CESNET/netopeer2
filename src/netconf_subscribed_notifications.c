@@ -248,12 +248,9 @@ static int
 sub_ntf_add(sr_session_ctx_t *ev_sess, struct nc_session *ncs, uint32_t sub_id, const char *filter_name,
         const struct lyd_node *subtree_filter, const char *xpath_filter, int is_yp, int fd)
 {
-    int rc = SR_ERR_OK, dispatch_start;
+    int rc = SR_ERR_OK;
     struct np2srv_sub_ntf *sub;
     void *mem;
-
-    /* remember whether we need to start the dispatch */
-    dispatch_start = state.subs ? 0 : 1;
 
     /* add into subscriptions */
     mem = realloc(state.subs, (state.count + 1) * sizeof *state.subs);
@@ -288,18 +285,10 @@ sub_ntf_add(sr_session_ctx_t *ev_sess, struct nc_session *ncs, uint32_t sub_id, 
 
     ++state.count;
 
-    if (dispatch_start) {
-        /* start dispatch */
-        if ((rc = srsn_read_dispatch_start(fd, np2srv.sr_conn, np2srv_srsn_notif_cb, sub->cb_arg))) {
-            rc = sub_ntf_error(ev_sess, rc, "Failed to start SR sub-ntf dispatch.");
-            goto cleanup;
-        }
-    } else {
-        /* add to dispatch */
-        if ((rc = srsn_read_dispatch_add(fd, sub->cb_arg))) {
-            rc = sub_ntf_error(ev_sess, rc, "Failed to add a FD to SR sub-ntf dispatch.");
-            goto cleanup;
-        }
+    /* add to dispatch */
+    if ((rc = srsn_read_dispatch_add(fd, sub->cb_arg))) {
+        rc = sub_ntf_error(ev_sess, rc, "Failed to add a FD to SR sub-ntf dispatch.");
+        goto cleanup;
     }
 
 cleanup:
@@ -561,6 +550,11 @@ np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
 
     /* WRITE LOCK */
     STATE_WLOCK;
+
+    /* init dispatch params, can be called repeatedly */
+    if ((rc = srsn_read_dispatch_init(np2srv.sr_conn, np2srv_srsn_notif_cb))) {
+        goto cleanup;
+    }
 
     /* stop time */
     if (!lyd_find_path(input, "stop-time", 0, &node)) {

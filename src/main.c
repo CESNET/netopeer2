@@ -620,6 +620,9 @@ server_destroy(void)
     sr_release_context(np2srv.sr_conn);
 #endif
 
+    /* stop notif read dispatched thread, if running */
+    srsn_read_dispatch_destroy();
+
     /* close all open sessions */
     if (np2srv.nc_ps) {
         while (nc_ps_session_count(np2srv.nc_ps)) {
