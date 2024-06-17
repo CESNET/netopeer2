@@ -305,7 +305,7 @@ np2srv_sub_ntf_session_destroy(struct nc_session *ncs)
 
     while (i < state.count) {
         if (state.subs[i].nc_id == nc_session_get_id(ncs)) {
-            /* terminate the subscription (without a notification being sent, so remove it amnually) */
+            /* terminate the subscription (without a notification being sent, so remove it manually) */
             srsn_terminate(state.subs[i].sub_id, NULL);
             sub_ntf_del(state.subs[i].sub_id);
         } else {
