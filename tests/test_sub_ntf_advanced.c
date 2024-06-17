@@ -674,7 +674,7 @@ static void
 test_multiple_subscriptions_notif_interlaced(void **state)
 {
     struct np2_test *st = *state;
-    const char *data;
+    const char *data, *data2;
 
     /* Establish first sub */
     SEND_RPC_ESTABSUB(st, NULL, "notif1", NULL, NULL);
@@ -696,7 +696,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
     /* Send another notification to the first session */
     data =
             "<n1 xmlns=\"n1\">\n"
-            "  <first>Test</first>\n"
+            "  <first>Test2</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
@@ -710,7 +710,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
     assert_string_equal(st->str, data);
     FREE_TEST_VARS(st);
 
-    /* Check for establishing the sub */
+    /* Check reply of establishing the sub */
     st->rpc = nc_rpc_establishsub(NULL, "notif2", NULL, NULL, NULL, NC_PARAMTYPE_CONST);
     ASSERT_OK_SUB_NTF(st);
     FREE_TEST_VARS(st);
@@ -718,14 +718,14 @@ test_multiple_subscriptions_notif_interlaced(void **state)
     /* Send last notification to the first session */
     data =
             "<n1 xmlns=\"n1\">\n"
-            "  <first>Test</first>\n"
+            "  <first>Test3</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
 
     /* Send notification to the second session */
-    data =
+    data2 =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
             "    <name>Main</name>\n"
@@ -734,31 +734,18 @@ test_multiple_subscriptions_notif_interlaced(void **state)
             "    </power-on>\n"
             "  </device>\n"
             "</devices>\n";
-    NOTIF_PARSE(st, data);
+    NOTIF_PARSE(st, data2);
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
     FREE_TEST_VARS(st);
 
     /* Receive the notification from first sub */
     RECV_NOTIF(st);
-    data =
-            "<n1 xmlns=\"n1\">\n"
-            "  <first>Test</first>\n"
-            "</n1>\n";
     assert_string_equal(st->str, data);
     FREE_TEST_VARS(st);
 
     /* Receive the notification from second sub */
     RECV_NOTIF(st);
-    data =
-            "<devices xmlns=\"n2\">\n"
-            "  <device>\n"
-            "    <name>Main</name>\n"
-            "    <power-on>\n"
-            "      <boot-time>12</boot-time>\n"
-            "    </power-on>\n"
-            "  </device>\n"
-            "</devices>\n";
-    assert_string_equal(st->str, data);
+    assert_string_equal(st->str, data2);
     FREE_TEST_VARS(st);
 }
 
