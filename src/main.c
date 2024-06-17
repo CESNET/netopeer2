@@ -113,13 +113,13 @@ np2srv_del_session_cb(struct nc_session *session)
     struct np2_user_sess *user_sess;
     uint32_t i;
 
-    /* terminate any subscriptions for the NETCONF session */
-    np2srv_sub_ntf_session_destroy(session);
-
     /* remove from PS structure */
     if (nc_ps_del_session(np2srv.nc_ps, session)) {
         ERR("Removing session from ps failed.");
     }
+
+    /* terminate any subscriptions for the NETCONF session */
+    np2srv_sub_ntf_session_destroy(session);
 
     /* stop sysrepo session subscriptions */
     user_sess = nc_session_get_data(session);
