@@ -350,10 +350,7 @@ test_commit_locked(void **state)
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
     /* receive a reply, should have error-tag in-use */
-    st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 2000, &st->envp, &st->op);
-    assert_int_equal(st->msgtype, NC_MSG_REPLY);
-    assert_null(st->op);
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "in-use");
+    ASSERT_ERROR_REPLY_TAG(st, "in-use");
     FREE_TEST_VARS(st);
 
     /* unlock from another session */
@@ -374,10 +371,7 @@ test_commit_locked(void **state)
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 2000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
-    st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 2000, &st->envp, &st->op);
-    assert_int_equal(st->msgtype, NC_MSG_REPLY);
-    assert_null(st->op);
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "in-use");
+    ASSERT_ERROR_REPLY_TAG(st, "in-use");
     FREE_TEST_VARS(st);
 
     st->rpc = nc_rpc_unlock(NC_DATASTORE_CANDIDATE);

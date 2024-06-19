@@ -74,15 +74,9 @@ test_all_nothing_set(void **state)
     st->rpc = nc_rpc_getconfig(NC_DATASTORE_RUNNING, "/defaults1:*", NC_WD_ALL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
-    st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 2000, &st->envp, &st->op);
 
     /* Get reply, should succeed */
-    assert_int_equal(st->msgtype, NC_MSG_REPLY);
-    assert_non_null(st->op);
-    assert_non_null(st->envp);
-    assert_string_equal(LYD_NAME(lyd_child(st->op)), "data");
-    assert_int_equal(LY_SUCCESS, lyd_print_mem(&st->str, st->op, LYD_XML, 0));
-
+    ASSERT_DATA_REPLY(st);
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -91,7 +85,6 @@ test_all_nothing_set(void **state)
             "    </top>\n"
             "  </data>\n"
             "</get-config>\n";
-
     assert_string_equal(st->str, expected);
 
     FREE_TEST_VARS(st);

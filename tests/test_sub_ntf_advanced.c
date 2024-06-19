@@ -363,13 +363,10 @@ test_deletesub_fail_diff_sess(void **state)
     st->rpc = nc_rpc_deletesub(st->ntf_id);
     st->msgtype = nc_send_rpc(tmp, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
+
     /* Receive rpc-error reply */
-    st->msgtype = nc_recv_reply(tmp, st->rpc, st->msgid, 2000, &st->envp, &st->op);
-    assert_int_equal(st->msgtype, NC_MSG_REPLY);
-    assert_null(st->op);
-    assert_string_equal(LYD_NAME(lyd_child(st->envp)), "rpc-error");
-    /* Check if correct error-tag */
-    assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
+    ASSERT_ERROR_REPLY_PARAM(st, tmp, "invalid-value");
+
     /* Check if correct error-app-tag */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next->next->next),
             "ietf-subscribed-notifications:no-such-subscription");
@@ -929,11 +926,9 @@ test_killsub_diff_sess(void **state)
     free(ntf);
     FREE_TEST_VARS(st);
     st->rpc = nc_rpc_killsub(st->ntf_id);
+
     /* Receive OK reply */
-    st->msgtype = nc_recv_reply(tmp, st->rpc, st->msgid, 2000, &st->envp, &st->op);
-    assert_int_equal(st->msgtype, NC_MSG_REPLY);
-    assert_null(st->op);
-    assert_string_equal(LYD_NAME(lyd_child(st->envp)), "ok");
+    ASSERT_OK_REPLY_SESS(st, tmp);
     FREE_TEST_VARS(st);
 
     /* Send notification, should NOT arrive */

@@ -174,18 +174,11 @@ test_subtree_filter_no_matching_node(void **state)
     st->nc_sess = nc_connect_unix(st->socket_path, (struct ly_ctx *)nc_session_get_ctx(st->nc_sess2));
     assert_non_null(st->nc_sess);
 
-    /* Get a subscription to receive notifications */
+    /* Get a subscription to receive notifications, rpc-error since no notification can match the filter */
     st->rpc = nc_rpc_subscribe(NULL, filter, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
-
-    /* Check reply */
-    st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op);
-    assert_int_equal(NC_MSG_REPLY, st->msgtype);
-    assert_null(st->op);
-
-    /* Should be an rpc-error since no notification can match the filter */
-    assert_string_equal(LYD_NAME(lyd_child(st->envp)), "rpc-error");
+    ASSERT_ERROR_REPLY(st);
     FREE_TEST_VARS(st);
 }
 
@@ -308,18 +301,11 @@ test_xpath_filter_no_matching_node(void **state)
     st->nc_sess = nc_connect_unix(st->socket_path, (struct ly_ctx *)nc_session_get_ctx(st->nc_sess2));
     assert_non_null(st->nc_sess);
 
-    /* Get a subscription to receive notifications */
+    /* Get a subscription to receive notifications, rpc-error since no notification can match the filter */
     st->rpc = nc_rpc_subscribe(NULL, "/notif2:devices/device[name='Main']", NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
-
-    /* Check reply */
-    st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op);
-    assert_int_equal(NC_MSG_REPLY, st->msgtype);
-    assert_null(st->op);
-
-    /* Should be an rpc-error since no notification can match the filter */
-    assert_string_equal(LYD_NAME(lyd_child(st->envp)), "rpc-error");
+    ASSERT_ERROR_REPLY(st);
     FREE_TEST_VARS(st);
 }
 

@@ -86,6 +86,9 @@ struct np2_test {
 #define ASSERT_OK_REPLY(state) \
     ASSERT_OK_REPLY_PARAM(state->nc_sess, 3000, state)
 
+#define ASSERT_OK_REPLY_SESS(state, nc_sess) \
+    ASSERT_OK_REPLY_PARAM(nc_sess, 3000, state)
+
 #define ASSERT_DATA_REPLY_PARAM(nc_sess, timeout_ms, state) \
     do { \
         state->msgtype = nc_recv_reply(nc_sess, state->rpc, state->msgid, timeout_ms, &state->envp, &state->op); \
@@ -114,8 +117,8 @@ struct np2_test {
     assert_null(state->op); \
     assert_string_equal(LYD_NAME(lyd_child(state->envp)), "ok");
 
-#define ASSERT_ERROR_REPLY(state) \
-    state->msgtype = nc_recv_reply(state->nc_sess, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
+#define ASSERT_ERROR_REPLY_PARAM(state, nc_sess, err_tag) \
+    state->msgtype = nc_recv_reply(nc_sess, state->rpc, state->msgid, 3000, &state->envp, &state->op); \
     assert_int_equal(state->msgtype, NC_MSG_REPLY); \
     if (!lyd_child(state->envp) || strcmp(LYD_NAME(lyd_child(state->envp)), "rpc-error")) { \
         if (lyd_child(state->envp)) { \
@@ -134,7 +137,17 @@ struct np2_test {
         fail(); \
     } \
     assert_null(state->op); \
-    assert_int_equal(LY_SUCCESS, lyd_print_mem(&state->str, lyd_child(state->envp), LYD_XML, LYD_PRINT_WITHSIBLINGS));
+    if (err_tag) { \
+        assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), err_tag); \
+    } else { \
+        assert_int_equal(LY_SUCCESS, lyd_print_mem(&state->str, lyd_child(state->envp), LYD_XML, LYD_PRINT_WITHSIBLINGS)); \
+    }
+
+#define ASSERT_ERROR_REPLY(state) \
+    ASSERT_ERROR_REPLY_PARAM(state, state->nc_sess, NULL)
+
+#define ASSERT_ERROR_REPLY_TAG(state, err_tag) \
+    ASSERT_ERROR_REPLY_PARAM(state, state->nc_sess, err_tag)
 
 #define ASSERT_ERROR_REPLY_SESS2(state) \
     state->msgtype = nc_recv_reply(state->nc_sess2, state->rpc, state->msgid, 3000, &state->envp, &state->op); \

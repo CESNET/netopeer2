@@ -48,19 +48,7 @@ reestablish_sub(void **state, const char *stream, const char *start_time, const 
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
     /* Check reply */
-    st->msgtype = NC_MSG_NOTIF;
-    while (st->msgtype == NC_MSG_NOTIF) {
-        st->msgtype = nc_recv_reply(st->nc_sess, st->rpc, st->msgid, 1000, &st->envp, &st->op);
-    }
-    assert_int_equal(NC_MSG_REPLY, st->msgtype);
-    assert_null(st->op);
-    if (strcmp(LYD_NAME(lyd_child(st->envp)), "ok")) {
-        lyd_print_file(stdout, st->envp, LYD_XML, 0);
-        fprintf(stdout, "start time: %s\n", start_time);
-        fprintf(stdout, "stop time:  %s\n", stop_time);
-        fail();
-    }
-
+    ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 }
 

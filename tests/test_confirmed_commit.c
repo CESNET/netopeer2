@@ -616,9 +616,7 @@ test_rollback_disconnect(void **state)
     assert_int_equal(st->msgtype, NC_MSG_RPC);
 
     /* expect OK */
-    st->msgtype = nc_recv_reply(ncs, st->rpc, st->msgid, 3000, &st->envp, &st->op);
-    assert_int_equal(st->msgtype, NC_MSG_REPLY);
-    assert_string_equal(LYD_NAME(lyd_child(st->envp)), "ok");
+    ASSERT_OK_REPLY_SESS(st, ncs);
     FREE_TEST_VARS(st);
 
     /* Expect 'start' notification with 60s timeout */
