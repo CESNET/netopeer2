@@ -338,6 +338,11 @@ np_ntf_send(struct nc_session *ncs, const struct timespec *timestamp, struct lyd
     NC_MSG_TYPE msg_type;
     char *datetime = NULL;
 
+    if (nc_session_get_status(ncs) != NC_STATUS_RUNNING) {
+        /* is being closed */
+        goto cleanup;
+    }
+
     /* create the notification object, all the passed arguments must exist until it is sent */
     ly_time_ts2str(timestamp, &datetime);
     if (use_ntf) {
