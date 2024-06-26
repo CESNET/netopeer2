@@ -898,7 +898,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     struct timespec start = {0}, stop = {0}, cur_ts;
     int rc = SR_ERR_OK, has_nc_ntf_status = 0;
     uint32_t idx;
-    struct ly_set mod_set = {0};
+    struct ly_set *mod_set = NULL;
     struct np_ntf_arg *ntf_arg;
 
     if (np_ignore_rpc(session, event, &rc)) {
@@ -992,42 +992,19 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     nc_session_inc_notif_status(ncs);
     has_nc_ntf_status = 1;
 
-    /* sysrepo API */
-    if (!strcmp(stream, "NETCONF")) {
-        /* find all modules with notifications */
-        idx = 0;
-        while ((ly_mod = ly_ctx_get_module_iter(LYD_CTX(input), &idx))) {
-            if (!ly_mod->implemented) {
-                continue;
-            }
+    /* collect modules */
+    if ((rc = srsn_stream_collect_mods(stream, xp_filter, LYD_CTX(input), &mod_set))) {
+        sr_session_set_error(session, NULL, rc, "Failed to collect modules to subscribe to (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
 
-            if (np_ly_mod_has_notif(ly_mod)) {
-                /* a notification was found */
-                if (ly_set_add(&mod_set, (void *)ly_mod, 1, NULL)) {
-                    rc = SR_ERR_INTERNAL;
-                    goto cleanup;
-                }
-            }
-        }
-
-        /* subscribe to all the modules */
-        ntf_arg->sr_sub_count = mod_set.count;
-        ntf_arg->sr_ntf_replay_complete_count = start.tv_sec ? 0 : ntf_arg->sr_sub_count;
-        for (idx = 0; idx < mod_set.count; ++idx) {
-            ly_mod = mod_set.objs[idx];
-            rc = sr_notif_subscribe_tree(user_sess->sess, ly_mod->name, xp_filter, start.tv_sec ? &start : NULL,
-                    stop.tv_sec ? &stop : NULL, np2srv_rpc_subscribe_ntf_cb, ntf_arg, 0, &np2srv.sr_notif_sub);
-            if (rc != SR_ERR_OK) {
-                sr_session_dup_error(user_sess->sess, session);
-                goto cleanup;
-            }
-        }
-    } else {
-        /* subscribe to the specific module (stream) */
-        ntf_arg->sr_sub_count = 1;
-        ntf_arg->sr_ntf_replay_complete_count = start.tv_sec ? 0 : 1;
-        rc = sr_notif_subscribe_tree(user_sess->sess, stream, xp_filter, start.tv_sec ? &start : NULL, stop.tv_sec ? &stop : NULL,
-                np2srv_rpc_subscribe_ntf_cb, ntf_arg, 0, &np2srv.sr_notif_sub);
+    /* subscribe to the modules */
+    ntf_arg->sr_sub_count = mod_set->count;
+    ntf_arg->sr_ntf_replay_complete_count = start.tv_sec ? 0 : ntf_arg->sr_sub_count;
+    for (idx = 0; idx < mod_set->count; ++idx) {
+        ly_mod = mod_set->objs[idx];
+        rc = sr_notif_subscribe_tree(user_sess->sess, ly_mod->name, xp_filter, start.tv_sec ? &start : NULL,
+                stop.tv_sec ? &stop : NULL, np2srv_rpc_subscribe_ntf_cb, ntf_arg, 0, &np2srv.sr_notif_sub);
         if (rc != SR_ERR_OK) {
             sr_session_dup_error(user_sess->sess, session);
             goto cleanup;
@@ -1038,7 +1015,7 @@ cleanup:
     if (rc && has_nc_ntf_status) {
         nc_session_dec_notif_status(ncs);
     }
-    ly_set_erase(&mod_set, NULL);
+    ly_set_free(mod_set, NULL);
     free(xp_filter);
     np_release_user_sess(user_sess);
     return rc;
