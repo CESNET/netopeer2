@@ -658,6 +658,7 @@ server_destroy(void)
 
     /* free dynamic members */
     free(np2srv.url_protocols);
+    np2srv.url_protocols = NULL;
 }
 
 /**
