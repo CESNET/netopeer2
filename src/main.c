@@ -660,7 +660,7 @@ server_destroy(void)
     free(np2srv.url_protocols);
 
     /* zero */
-    memset(&np2srv, sizeof np2srv, 0);
+    memset(&np2srv, 0, sizeof np2srv);
 }
 
 /**
