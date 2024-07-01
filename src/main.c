@@ -1147,6 +1147,7 @@ main(int argc, char *argv[])
     np2srv.server_dir = SERVER_DIR;
 
     /* process command line options */
+    optind = 0;
     while ((c = getopt(argc, argv, "dFhVp:f:U::m:u:g:t:x:v:c:")) != -1) {
         switch (c) {
         case 'd':
