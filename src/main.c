@@ -56,7 +56,7 @@
 #endif
 
 /** @brief flag for main loop */
-ATOMIC_T loop_continue = 1;
+ATOMIC_T loop_continue;
 
 static void *worker_thread(void *arg);
 
@@ -1118,6 +1118,9 @@ main(int argc, char *argv[])
     struct sigaction action;
     sigset_t block_mask;
 #endif
+
+    /* reset control var */
+    ATOMIC_STORE_RELAXED(loop_continue, 1);
 
     /* until daemonized, write messages to both syslog and stderr */
     openlog("netopeer2-server", LOG_PID, LOG_DAEMON);
