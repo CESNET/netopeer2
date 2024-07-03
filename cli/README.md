@@ -21,9 +21,10 @@ trusted store, or use the default directory. To add certificates
 to this directory, use the `cert add` command.
 
 ## Certificate Revocation Lists
-For netopeer-cli to check if a certificate was not revocated by
-its issuer, use the `crl add` command to provide
-CRLs of your trusted CAs for netopeer-cli.
+CRLs are automatically downloaded from URIs specified in the
+x509 CRLDistributionPoints extensions of set certificates.
+Be wary that if any configured certificate has this extension,
+then a CRL issued by the server's CA has to be present for the connection to succeed. 
 
 ## Certificates
 

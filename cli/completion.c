@@ -83,9 +83,8 @@ complete_cmd(const char *buf, const char *hint, linenoiseCompletions *lc)
 
     if (!strncmp(buf, "searchpath ", 11)
 #ifdef NC_ENABLED_SSH_TLS
-            || !strncmp(buf, "auth keys add ", 14) ||
-            !strncmp(buf, "cert add ", 9) || !strncmp(buf, "cert remove ", 12) || !strncmp(buf, "cert replaceown ", 16) ||
-            !strncmp(buf, "crl add ", 8) || !strncmp(buf, "crl remove ", 11)
+            || !strncmp(buf, "auth keys add ", 14) || !strncmp(buf, "cert add ", 9) ||
+            !strncmp(buf, "cert remove ", 12) || !strncmp(buf, "cert replaceown ", 16)
 #endif
        ) {
         linenoisePathCompletion(buf, hint, lc);

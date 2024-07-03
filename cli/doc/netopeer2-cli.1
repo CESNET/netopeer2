@@ -314,41 +314,6 @@ see \fIRFC 6243 section 3\fR.
 .RE
 .RE
 
-
-.SS crl
-Manage Certificate Revocation List certificates that are stored in the \fI~/.netopeer2-cli/crl\fR directory.
-.PP
-This command is available only with TLS support.
-.PP
-
-.B crl
-[\-\-help] [display] [add \fIcrl_path\fR] [remove \fIcrl_name\fR]
-.PP
-.RS 4
-
-.B display
-.RS 4
-Displays all the recognized CRLs in \fI~/.netopeer2-cli/crl\fR. First the file name, then issuer, last and next update dates are shown for each CRL followed by the serial numbers and revocation dates of all the revocated certificates.
-.RE
-.PP
-
-.B add
-\fIcrl_path\fR
-.RS 4
-Adds the \fIcrl_path\fR CRL to the \fI~/.netopeer2-cli/crl\fR dir and recalculates hashes of all the CRLs.
-.RE
-.PP
-
-.B remove
-\fIcrl_name\fR
-.RS 4
-Removes the \fIcert_name\fR CRL from the \fI~/.netopeer2-cli/crl\fR dir and recalculates hashes of all the CRLs. \fIcrl_name\fR is the CRL file name, as displayed in the
-.B crl display
-command output.
-.RE
-.RE
-
-
 .SS delete-config
 Perform NETCONF <delete-config> operation. For more details see \fIRFC 6241 section 7.4\fR.
 .PP
@@ -1416,12 +1381,6 @@ Per user private key for the user certificate. Needs a corresponding certificate
 .I ~/.netopeer2-cli/certs
 .RS
 Per user trusted Certificate Authority directory that is searched when verifying a server certificate. Only with TLS support.
-.RE
-.PP
-.I ~/.netopeer2-cli/crl
-.RS
-Per user Certificate Revocation List directory that is searched when verifying a server certificate. Only with TLS support.
-
 
 .SH SEE ALSO
 RFC 5277 (Event Notifications)
