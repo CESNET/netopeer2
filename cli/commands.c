@@ -1284,12 +1284,6 @@ cmd_cert_help(void)
     printf("cert [--help | display | add <cert_path> | remove <cert_name> | displayown | replaceown (<cert_path.pem> | <cert_path.crt> <key_path.key>)]\n");
 }
 
-static void
-cmd_crl_help(void)
-{
-    printf("crl [--help | display | add <crl_path> | remove <crl_name>]\n");
-}
-
 static int
 cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
 {
@@ -1911,85 +1905,6 @@ parse_cert(const char *name, const char *path)
     fclose(fp);
 }
 
-static void
-parse_crl(const char *name, const char *path)
-{
-    int i;
-    BIO *bio_out;
-    FILE *fp;
-    X509_CRL *crl;
-    const ASN1_INTEGER *bs;
-    X509_REVOKED *rev;
-
-    fp = fopen(path, "r");
-    if (fp == NULL) {
-        ERROR("parse_crl", "Unable to open \"%s\": %s", path, strerror(errno));
-        return;
-    }
-    crl = PEM_read_X509_CRL(fp, NULL, NULL, NULL);
-    if (crl == NULL) {
-        ERROR("parse_crl", "Unable to parse certificate: %s", path);
-        fclose(fp);
-        return;
-    }
-
-    bio_out = BIO_new_fp(stdout, BIO_NOCLOSE);
-
-    BIO_printf(bio_out, "-----%s-----\n", name);
-
-    BIO_printf(bio_out, "Issuer: ");
-    X509_NAME_print(bio_out, X509_CRL_get_issuer(crl), 0);
-    BIO_printf(bio_out, "\n");
-
-    BIO_printf(bio_out, "Last update: ");
-#if OPENSSL_VERSION_NUMBER < 0x10100000L // < 1.1.0
-    ASN1_TIME_print(bio_out, X509_CRL_get_lastUpdate(crl));
-#else
-    ASN1_TIME_print(bio_out, X509_CRL_get0_lastUpdate(crl));
-#endif
-    BIO_printf(bio_out, "\n");
-
-    BIO_printf(bio_out, "Next update: ");
-#if OPENSSL_VERSION_NUMBER < 0x10100000L // < 1.1.0
-    ASN1_TIME_print(bio_out, X509_CRL_get_nextUpdate(crl));
-#else
-    ASN1_TIME_print(bio_out, X509_CRL_get0_nextUpdate(crl));
-#endif
-    BIO_printf(bio_out, "\n");
-
-    BIO_printf(bio_out, "REVOKED:\n");
-
-    if ((rev = sk_X509_REVOKED_pop(X509_CRL_get_REVOKED(crl))) == NULL) {
-        BIO_printf(bio_out, "\tNone\n");
-    }
-    while (rev != NULL) {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L // < 1.1.0
-        bs = rev->serialNumber;
-#else
-        bs = X509_REVOKED_get0_serialNumber(rev);
-#endif
-        BIO_printf(bio_out, "\tSerial no.: ");
-        for (i = 0; i < bs->length; i++) {
-            BIO_printf(bio_out, "%02x", bs->data[i]);
-        }
-
-        BIO_printf(bio_out, "  Date: ");
-#if OPENSSL_VERSION_NUMBER < 0x10100000L // < 1.1.0
-        ASN1_TIME_print(bio_out, rev->revocationDate);
-#else
-        ASN1_TIME_print(bio_out, X509_REVOKED_get0_revocationDate(rev));
-#endif
-        BIO_printf(bio_out, "\n");
-
-        X509_REVOKED_free(rev);
-        rev = sk_X509_REVOKED_pop(X509_CRL_get_REVOKED(crl));
-    }
-
-    X509_CRL_free(crl);
-    BIO_vfree(bio_out);
-    fclose(fp);
-}
-
 static int
 cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
 {
@@ -2256,140 +2171,6 @@ error:
 }
 
 static int
-cmd_crl(const char *arg, char **UNUSED(tmp_config_file))
-{
-    int ret;
-    char *args = strdupa(arg);
-    char *cmd = NULL, *ptr = NULL, *path, *dest = NULL;
-    char *crl_dir = NULL, *rehash_cmd = NULL;
-    DIR *dir = NULL;
-    struct dirent *d;
-
-    cmd = strtok_r(args, " ", &ptr);
-    cmd = strtok_r(NULL, " ", &ptr);
-    if (!cmd || !strcmp(cmd, "--help") || !strcmp(cmd, "-h")) {
-        cmd_crl_help();
-
-    } else if (!strcmp(cmd, "display")) {
-        int none = 1;
-        char *name;
-
-        if (!(crl_dir = get_default_CRL_dir(NULL))) {
-            ERROR("crl display", "Could not get the default CRL directory");
-            goto error;
-        }
-
-        dir = opendir(crl_dir);
-        while ((d = readdir(dir))) {
-            if (!strcmp(d->d_name + strlen(d->d_name) - 4, ".pem")) {
-                none = 0;
-                name = strdup(d->d_name);
-                name[strlen(name) - 4] = '\0';
-                if (asprintf(&path, "%s/%s", crl_dir, d->d_name) == -1) {
-                    free(name);
-                    break;
-                }
-                parse_crl(name, path);
-                free(name);
-                free(path);
-            }
-        }
-        closedir(dir);
-        if (none) {
-            printf("No CRLs found in the default CRL directory.\n");
-        }
-
-    } else if (!strcmp(cmd, "add")) {
-        path = strtok_r(NULL, " ", &ptr);
-        if (!path || (strlen(path) < 5)) {
-            ERROR("crl add", "Missing or wrong path to the certificate");
-            goto error;
-        }
-        if (eaccess(path, R_OK)) {
-            ERROR("crl add", "Cannot access certificate \"%s\": %s", path, strerror(errno));
-            goto error;
-        }
-
-        crl_dir = get_default_CRL_dir(NULL);
-        if (!crl_dir) {
-            ERROR("crl add", "Could not get the default CRL directory");
-            goto error;
-        }
-
-        if ((asprintf(&dest, "%s/%s", crl_dir, strrchr(path, '/') + 1) == -1) ||
-                (asprintf(&rehash_cmd, "openssl rehash %s &> /dev/null", crl_dir) == -1)) {
-            ERROR("crl add", "Memory allocation failed");
-            goto error;
-        }
-
-        if (strcmp(dest + strlen(dest) - 4, ".pem")) {
-            ERROR("crl add", "CRLs are expected to be in *.pem format");
-            strcpy(dest + strlen(dest) - 4, ".pem");
-        }
-
-        if (cp(dest, path)) {
-            ERROR("crl add", "Could not copy the CRL \"%s\": %s", path, strerror(errno));
-            goto error;
-        }
-
-        if (((ret = system(rehash_cmd)) == -1) || WEXITSTATUS(ret)) {
-            ERROR("crl add", "openssl rehash execution failed");
-            goto error;
-        }
-
-    } else if (!strcmp(cmd, "remove")) {
-        path = strtok_r(NULL, " ", &ptr);
-        if (!path) {
-            ERROR("crl remove", "Missing the certificate name");
-            goto error;
-        }
-
-        // delete ".pem" if the user unnecessarily included it
-        if ((strlen(path) > 4) && !strcmp(path + strlen(path) - 4, ".pem")) {
-            path[strlen(path) - 4] = '\0';
-        }
-
-        crl_dir = get_default_CRL_dir(NULL);
-        if (!crl_dir) {
-            ERROR("crl remove", "Could not get the default CRL directory");
-            goto error;
-        }
-
-        if ((asprintf(&dest, "%s/%s.pem", crl_dir, path) == -1) ||
-                (asprintf(&rehash_cmd, "openssl rehash %s &> /dev/null", crl_dir) == -1)) {
-            ERROR("crl remove", "Memory allocation failed");
-            goto error;
-        }
-
-        if (remove(dest)) {
-            ERROR("crl remove", "Cannot remove CRL \"%s\": %s (use the name from \"crl display\" output)",
-                    path, strerror(errno));
-            goto error;
-        }
-
-        if (((ret = system(rehash_cmd)) == -1) || WEXITSTATUS(ret)) {
-            ERROR("crl remove", "openssl rehash execution failed");
-            goto error;
-        }
-
-    } else {
-        ERROR("crl", "Unknown argument %s", cmd);
-        goto error;
-    }
-
-    free(dest);
-    free(rehash_cmd);
-    free(crl_dir);
-    return EXIT_SUCCESS;
-
-error:
-    free(dest);
-    free(rehash_cmd);
-    free(crl_dir);
-    return EXIT_FAILURE;
-}
-
-static int
 cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
 {
     const char *func_name, *optstring, *host = NULL, *trusted_store = NULL, *peername = NULL;
@@ -2397,7 +2178,7 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
     DIR *dir = NULL;
     struct dirent *d;
     int c, n, timeout = 0, ret = EXIT_FAILURE;
-    char *cert = NULL, *key = NULL, *trusted_dir = NULL, *crl_dir = NULL;
+    char *cert = NULL, *key = NULL, *trusted_dir = NULL;
     unsigned short port = 0;
     int option_index = 0;
     struct option long_options[] = {
@@ -2510,15 +2291,10 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
             goto error_cleanup;
         }
     }
-    if (!(crl_dir = get_default_CRL_dir(NULL))) {
-        ERROR(func_name, "Could not use the CRL directory.");
-        goto error_cleanup;
-    }
 
     if (is_connect) {
         nc_client_tls_set_cert_key_paths(cert, key);
         nc_client_tls_set_trusted_ca_paths(trusted_store, trusted_dir);
-        nc_client_tls_set_crl_paths(NULL, crl_dir);
 
         /* default port */
         if (!port) {
@@ -2539,7 +2315,6 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
     } else {
         nc_client_tls_ch_set_cert_key_paths(cert, key);
         nc_client_tls_ch_set_trusted_ca_paths(trusted_store, trusted_dir);
-        nc_client_tls_ch_set_crl_paths(NULL, crl_dir);
 
         /* default timeout */
         if (!timeout) {
@@ -2575,7 +2350,6 @@ cmd_connect_listen_tls(struct arglist *cmd, int is_connect)
 
 error_cleanup:
     free(trusted_dir);
-    free(crl_dir);
     free(cert);
     free(key);
     return ret;
@@ -6742,9 +6516,6 @@ COMMAND commands[] = {
     {"commit", cmd_commit, cmd_commit_help, "ietf-netconf <commit> operation"},
     {"connect", cmd_connect, cmd_connect_help, "Connect to a NETCONF server"},
     {"copy-config", cmd_copyconfig, cmd_copyconfig_help, "ietf-netconf <copy-config> operation"},
-#ifdef NC_ENABLED_SSH_TLS
-    {"crl", cmd_crl, cmd_crl_help, "Manage Certificate Revocation List directory"},
-#endif
     {"delete-config", cmd_deleteconfig, cmd_deleteconfig_help, "ietf-netconf <delete-config> operation"},
     {"delete-sub", cmd_deletesub, cmd_deletesub_help, "ietf-subscribed-notifications <delete-subscription> operation"},
     {"discard-changes", cmd_discardchanges, cmd_discardchanges_help, "ietf-netconf <discard-changes> operation"},

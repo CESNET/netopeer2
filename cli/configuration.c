@@ -45,7 +45,6 @@ struct cli_opts opts = {.output_format = LYD_XML};
 #define NCC_DIR ".netopeer2-cli"
 /* all these appended to NCC_DIR */
 #define CA_DIR "certs"
-#define CRL_DIR "crl"
 #define CERT_CRT "client.crt"
 #define CERT_PEM "client.pem"
 #define CERT_KEY "client.key"
@@ -198,50 +197,6 @@ get_default_trustedCA_dir(DIR **ret_dir)
     }
 
     return cert_dir;
-}
-
-char *
-get_default_CRL_dir(DIR **ret_dir)
-{
-    char *netconf_dir, *crl_dir;
-
-    if (!(netconf_dir = get_netconf_dir())) {
-        return NULL;
-    }
-
-    if (asprintf(&crl_dir, "%s/%s", netconf_dir, CRL_DIR) == -1) {
-        ERROR(__func__, "asprintf() failed (%s:%d).", __FILE__, __LINE__);
-        ERROR(__func__, "Unable to use the trusted CA directory due to the previous error.");
-        free(netconf_dir);
-        return NULL;
-    }
-    free(netconf_dir);
-
-    if (ret_dir) {
-        if (!(*ret_dir = opendir(crl_dir))) {
-            ERROR(__func__, "Unable to open the default CRL directory (%s).", strerror(errno));
-        }
-        free(crl_dir);
-        return NULL;
-    }
-
-    errno = 0;
-    if (eaccess(crl_dir, R_OK | W_OK | X_OK)) {
-        if (errno == ENOENT) {
-            ERROR(__func__, "Default CRL dir does not exist, creating it.");
-            if (mkdir(crl_dir, 00777)) {
-                ERROR(__func__, "Failed to create the default CRL directory (%s).", strerror(errno));
-                free(crl_dir);
-                return NULL;
-            }
-        } else {
-            ERROR(__func__, "Unable to access the default CRL directory (%s).", strerror(errno));
-            free(crl_dir);
-            return NULL;
-        }
-    }
-
-    return crl_dir;
 }
 
 void
