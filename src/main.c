@@ -1274,8 +1274,7 @@ main(int argc, char *argv[])
                     np2_verbose_level = NC_VERB_DEBUG_LOWLVL;
 # ifdef NC_ENABLED_SSH_TLS
                 } else if (!strcmp(ptr, "SSH")) {
-                    /* 2 should be always enough, 3 is too much useless info */
-                    np2_libssh_verbose_level = 2;
+                    np2_libssh_verbose_level = 3;
 # endif
                 } else if (!strcmp(ptr, "SYSREPO")) {
                     np2_sr_verbose_level = SR_LL_DBG;
