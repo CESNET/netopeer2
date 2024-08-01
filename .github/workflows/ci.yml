@@ -97,9 +97,23 @@ jobs:
             make-prepend: "",
             make-target: ""
           }
+          - {
+            name: "DEB Package",
+            os: "ubuntu-22.04",
+            build-type: "Release",
+            dep-build-type: "Release",
+            cc: "gcc",
+            options: "",
+            packages: "cmake debhelper valgrind python3-pip",
+            snaps: "",
+            make-prepend: "",
+            make-target: ""
+          }
 
     steps:
       - uses: actions/checkout@main
+        with:
+          fetch-depth: 100
 
       - name: Deps-packages
         shell: bash
@@ -108,6 +122,10 @@ jobs:
           sudo apt-get install $DEFAULT_PACKAGES ${{ matrix.config.packages }}
           if ${{ matrix.config.snaps != '' }}
             then sudo snap install ${{ matrix.config.snaps }}
+          fi
+          if ${{ matrix.config.name == 'DEB Package' }}; then
+            pip install apkg
+            apkg system-setup
           fi
 
       - name: Deps-uncrustify
@@ -128,33 +146,48 @@ jobs:
         run: |
           git clone -b ${{ needs.git-branch.outputs.branch-name }} https://github.com/CESNET/libyang.git
           cd libyang
-          mkdir build
-          cd build
-          CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.dep-build-type }} -DENABLE_TESTS=OFF ..
-          make -j2
-          sudo make install
+          if ${{ matrix.config.name == 'DEB Package' }}; then
+            apkg build
+            apkg install
+          else
+            mkdir build
+            cd build
+            CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.dep-build-type }} -DENABLE_TESTS=OFF ..
+            make -j2
+            sudo make install
+          fi
 
       - name: Deps-sysrepo
         shell: bash
         run: |
           git clone -b ${{ needs.git-branch.outputs.branch-name }} https://github.com/sysrepo/sysrepo.git
           cd sysrepo
-          mkdir build
-          cd build
-          CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.build-type }} -DSYSREPO_SUPERUSER_UID=`id -u` -DENABLE_TESTS=OFF ..
-          make -j2
-          sudo make install
+          if ${{ matrix.config.name == 'DEB Package' }}; then
+            apkg build
+            apkg install
+          else
+            mkdir build
+            cd build
+            CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.build-type }} -DSYSREPO_SUPERUSER_UID=`id -u` -DENABLE_TESTS=OFF ..
+            make -j2
+            sudo make install
+          fi
 
       - name: Deps-libnetconf2
         shell: bash
         run: |
           git clone -b ${{ needs.git-branch.outputs.branch-name }} https://github.com/CESNET/libnetconf2.git
           cd libnetconf2
-          mkdir build
-          cd build
-          CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.build-type }} -DENABLE_TESTS=OFF ..
-          make -j2
-          sudo make install
+          if ${{ matrix.config.name == 'DEB Package' }}; then
+            apkg build
+            apkg install
+          else
+            mkdir build
+            cd build
+            CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.build-type }} -DENABLE_TESTS=OFF ..
+            make -j2
+            sudo make install
+          fi
 
       - name: Deps-update-ld-cache
         shell: bash
@@ -167,6 +200,7 @@ jobs:
           mkdir build
           cd build
           CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.build-type }} ${{ matrix.config.options }} ..
+        if: ${{ matrix.config.name != 'DEB Package' }}
 
       - name: Build
         shell: bash
@@ -175,8 +209,10 @@ jobs:
           export LC_ALL=C.UTF-8
           export PATH=/snap/bin:${{ github.workspace }}/coverity-tools/bin:$PATH
           ${{ matrix.config.make-prepend }} make ${{ matrix.config.make-target }}
+        if: ${{ matrix.config.name != 'DEB Package' }}
 
       - name: Test
         shell: bash
         working-directory: ${{ github.workspace }}/build
         run: ctest --output-on-failure -j4
+        if: ${{ matrix.config.name != 'DEB Package' }}
