@@ -104,7 +104,7 @@ jobs:
             dep-build-type: "Release",
             cc: "gcc",
             options: "",
-            packages: "cmake debhelper libsystemd-dev valgrind python3-pip",
+            packages: "cmake debhelper graphviz libsystemd-dev valgrind python3-pip",
             snaps: "",
             make-prepend: "",
             make-target: ""
