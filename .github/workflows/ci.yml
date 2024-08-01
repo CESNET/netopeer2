@@ -193,6 +193,14 @@ jobs:
         shell: bash
         run: sudo ldconfig
 
+      - name: Build-and-install-package
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          apkg build
+          apkg install
+        if: ${{ matrix.config.name == 'DEB Package' }}
+
       - name: Configure
         shell: bash
         working-directory: ${{ github.workspace }}
