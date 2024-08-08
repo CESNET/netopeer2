@@ -65,13 +65,13 @@ a single established NETCONF session.
 %cmake -DCMAKE_BUILD_TYPE=RELWITHDEBINFO \
        -DSYSREPO_SETUP=OFF \
        -DPIDFILE_PREFIX=/run \
-       -DSERVER_DIR=%{_libdir}/netopeer2-server
+       -DSERVER_DIR=%{_sharedstatedir}/netopeer2-server
 %cmake_build
 
 %install
 %cmake_install
 install -D -p -m 0644 %{SOURCE2} %{buildroot}%{_unitdir}/netopeer2-server.service
-mkdir -p -m=700 %{buildroot}%{_libdir}/netopeer2-server
+mkdir -p -m=700 %{buildroot}%{_sharedstatedir}/netopeer2-server
 
 %post server
 set -e
@@ -102,7 +102,7 @@ set -e
 %{_sysconfdir}/pam.d/netopeer2.conf
 %dir %{_datadir}/yang/modules/netopeer2/
 %dir %{_datadir}/netopeer2/
-%dir %{_libdir}/netopeer2-server/
+%dir %{_sharedstatedir}/netopeer2-server/
 
 %files cli
 %license LICENSE
