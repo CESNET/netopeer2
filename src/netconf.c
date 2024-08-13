@@ -155,7 +155,7 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
         if (meta && !strcmp(lyd_get_meta_value(meta), "xpath")) {
             meta = lyd_find_meta(node->meta, NULL, "ietf-netconf:select");
             if (!meta) {
-                ERR("RPC with an XPath filter without the \"select\" attribute.");
+                np_err_missing_attribute(session, "Missing \"select\" attribute", "filter");
                 rc = SR_ERR_INVAL_ARG;
                 goto cleanup;
             }
@@ -933,7 +933,7 @@ np2srv_rpc_subscribe_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         if (meta && !strcmp(lyd_get_meta_value(meta), "xpath")) {
             meta = lyd_find_meta(node->meta, NULL, "ietf-netconf:select");
             if (!meta) {
-                ERR("RPC with an XPath filter without the \"select\" attribute.");
+                np_err_missing_attribute(session, "Missing \"select\" attribute", "filter");
                 rc = SR_ERR_INVAL_ARG;
                 goto cleanup;
             }
