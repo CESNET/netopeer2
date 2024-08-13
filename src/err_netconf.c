@@ -123,6 +123,12 @@ np_err_missing_element(sr_session_ctx_t *ev_sess, const char *elem_name)
 }
 
 void
+np_err_missing_attribute(sr_session_ctx_t *ev_sess, const char *message, const char *elem_name)
+{
+    sr_session_set_netconf_error(ev_sess, "protocol", "missing-attribute", NULL, NULL, message, 1, "bad-element", elem_name);
+}
+
+void
 np_err_bad_element(sr_session_ctx_t *ev_sess, const char *elem_name, const char *description)
 {
     /* set error */

@@ -31,6 +31,8 @@ void np_err_lock_denied(sr_session_ctx_t *ev_sess, const char *err_msg, uint32_t
 
 void np_err_missing_element(sr_session_ctx_t *ev_sess, const char *elem_name);
 
+void np_err_missing_attribute(sr_session_ctx_t *ev_sess, const char *message, const char *elem_name);
+
 void np_err_bad_element(sr_session_ctx_t *ev_sess, const char *elem_name, const char *description);
 
 void np_err_invalid_value(sr_session_ctx_t *ev_sess, const char *description, const char *bad_elem_name);
