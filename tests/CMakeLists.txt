@@ -38,7 +38,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 # base test source
-set(TEST_SRC "np2_test.c")
+set(TEST_SRC "np2_test.c" "np2_other_client.c")
 
 # list of all the tests
 set(TESTS test_rpc test_edit test_filter test_subscribe_filter test_subscribe_param test_parallel_sessions

@@ -48,7 +48,7 @@ local_setup(void **state)
     rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
-    return np2_glob_test_setup_server(state, test_name, NULL);
+    return np2_glob_test_setup_server(state, test_name, NULL, 0);
 }
 
 static int
