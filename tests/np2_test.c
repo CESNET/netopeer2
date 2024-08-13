@@ -37,6 +37,7 @@
 #include <nc_client.h>
 #include <sysrepo/netconf_acm.h>
 
+#include "np2_other_client.h"
 #include "np2_test_config.h"
 
 #ifdef NETOPEER2_LIB
@@ -248,7 +249,7 @@ np2_glob_test_setup_sess_ctx(struct nc_session *sess, const char **modules)
 }
 
 int
-np2_glob_test_setup_server(void **state, const char *test_name, const char **modules)
+np2_glob_test_setup_server(void **state, const char *test_name, const char **modules, uint32_t flags)
 {
     struct np2_test *st;
     pid_t pid = 0;
@@ -432,22 +433,30 @@ child_error:
     /* disable automatic YANG retrieval */
     nc_client_set_new_session_context_autofill(0);
 
-    /* create NETCONF sessions, with a single context */
-    st->nc_sess2 = nc_connect_unix(st->socket_path, NULL);
-    if (!st->nc_sess2) {
-        SETUP_FAIL_LOG;
-        return 1;
-    }
-    if (np2_glob_test_setup_sess_ctx(st->nc_sess2, modules)) {
-        SETUP_FAIL_LOG;
-        return 1;
-    }
+    if (flags & NP_GLOB_SETUP_OTHER_CLIENT) {
+        st->oc_sess = oc_connect_unix(st->socket_path);
+        if (!st->oc_sess) {
+            SETUP_FAIL_LOG;
+            return 1;
+        }
+    } else {
+        /* create NETCONF sessions, with a single context */
+        st->nc_sess2 = nc_connect_unix(st->socket_path, NULL);
+        if (!st->nc_sess2) {
+            SETUP_FAIL_LOG;
+            return 1;
+        }
+        if (np2_glob_test_setup_sess_ctx(st->nc_sess2, modules)) {
+            SETUP_FAIL_LOG;
+            return 1;
+        }
 
-    ly_ctx = (struct ly_ctx *)nc_session_get_ctx(st->nc_sess2);
-    st->nc_sess = nc_connect_unix(st->socket_path, ly_ctx);
-    if (!st->nc_sess) {
-        SETUP_FAIL_LOG;
-        return 1;
+        ly_ctx = (struct ly_ctx *)nc_session_get_ctx(st->nc_sess2);
+        st->nc_sess = nc_connect_unix(st->socket_path, ly_ctx);
+        if (!st->nc_sess) {
+            SETUP_FAIL_LOG;
+            return 1;
+        }
     }
 
     return 0;
@@ -509,6 +518,8 @@ np2_glob_test_teardown(void **state, const char **modules)
 
     /* release context */
     sr_release_context(st->conn);
+
+    oc_session_free(st->oc_sess);
 
 #ifdef NETOPEER2_LIB
     if (np2_server_test_stop()) {
