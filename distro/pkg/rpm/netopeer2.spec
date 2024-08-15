@@ -63,6 +63,7 @@ a single established NETCONF session.
 
 %build
 %cmake -DCMAKE_BUILD_TYPE=RELWITHDEBINFO \
+       -DCMAKE_INSTALL_SYSCONFDIR=/etc \
        -DSYSREPO_SETUP=OFF \
        -DPIDFILE_PREFIX=/run \
        -DSERVER_DIR=%{_sharedstatedir}/netopeer2-server
