@@ -837,7 +837,9 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(s
         ly_ctx = sr_acquire_context(np2srv.sr_conn);
         sr_release_context(np2srv.sr_conn);
 
-        lyd_new_path(NULL, ly_ctx, "/nc-notifications:replayComplete", NULL, 0, &ly_ntf);
+        if (lyd_new_path(NULL, ly_ctx, "/nc-notifications:replayComplete", NULL, 0, &ly_ntf)) {
+            return;
+        }
         np_ntf_send(arg->nc_sess, timestamp, &ly_ntf, 1);
 
         /* now send all the buffered notifications */
@@ -855,7 +857,9 @@ np2srv_rpc_subscribe_ntf_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(s
         ly_ctx = sr_acquire_context(np2srv.sr_conn);
         sr_release_context(np2srv.sr_conn);
 
-        lyd_new_path(NULL, ly_ctx, "/nc-notifications:notificationComplete", NULL, 0, &ly_ntf);
+        if (lyd_new_path(NULL, ly_ctx, "/nc-notifications:notificationComplete", NULL, 0, &ly_ntf)) {
+            return;
+        }
         np_ntf_send(arg->nc_sess, timestamp, &ly_ntf, 1);
 
         /* subscription finished */
