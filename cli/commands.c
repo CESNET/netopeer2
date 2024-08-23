@@ -1275,7 +1275,7 @@ cmd_auth_help(void)
 static void
 cmd_knownhosts_help(void)
 {
-    printf("knownhosts [--help] [--del <key_index>]\n");
+    printf("knownhosts (--help | --del <key_index> | --mode <accept|accept-new|ask|skip|strict>)\n");
 }
 
 static void
@@ -1420,18 +1420,20 @@ cmd_auth(const char *arg, char **UNUSED(tmp_config_file))
 static int
 cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
 {
-    char *ptr, *kh_file, *line = NULL, **pkeys = NULL, *text;
-    int del_idx = -1, i, j, pkey_len = 0, written, text_len;
+    char *ptr, *kh_file = NULL, *line = NULL, **pkeys = NULL, *text = NULL, *mode = NULL;
+    int del_idx = -1, i, j, pkey_len = 0, written, text_len, ret = EXIT_SUCCESS;
     size_t line_len;
-    FILE *file;
+    FILE *file = NULL;
     struct passwd *pwd;
     struct arglist cmd;
     struct option long_options[] = {
         {"help", 0, 0, 'h'},
         {"del", 1, 0, 'd'},
+        {"mode", 1, 0, 'm'},
         {0, 0, 0, 0}
     };
     int option_index = 0, c;
+    NC_SSH_KNOWNHOSTS_MODE knownhosts_mode;
 
     optind = 0;
 
@@ -1440,30 +1442,52 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
         return EXIT_FAILURE;
     }
 
-    while ((c = getopt_long(cmd.count, cmd.list, "hd:", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(cmd.count, cmd.list, "hd:m:", long_options, &option_index)) != -1) {
         switch (c) {
         case 'h':
             cmd_knownhosts_help();
-            clear_arglist(&cmd);
-            return EXIT_SUCCESS;
-            break;
+            ret = EXIT_SUCCESS;
+            goto cleanup;
         case 'd':
             del_idx = strtol(optarg, &ptr, 10);
             if ((*ptr != '\0') || (del_idx < 0)) {
                 ERROR("knownhosts", "Wrong index");
-                clear_arglist(&cmd);
-                return EXIT_FAILURE;
+                ret = EXIT_FAILURE;
+                goto cleanup;
             }
+            break;
+        case 'm':
+            mode = optarg;
             break;
         default:
             ERROR("knownhosts", "Unknown option -%c", c);
             cmd_knownhosts_help();
-            clear_arglist(&cmd);
-            return EXIT_FAILURE;
+            ret = EXIT_FAILURE;
+            goto cleanup;
         }
     }
 
-    clear_arglist(&cmd);
+    if (mode) {
+        if (!strcmp(mode, "accept")) {
+            knownhosts_mode = NC_SSH_KNOWNHOSTS_ACCEPT;
+        } else if (!strcmp(mode, "accept-new")) {
+            knownhosts_mode = NC_SSH_KNOWNHOSTS_ACCEPT_NEW;
+        } else if (!strcmp(mode, "ask")) {
+            knownhosts_mode = NC_SSH_KNOWNHOSTS_ASK;
+        } else if (!strcmp(mode, "skip")) {
+            knownhosts_mode = NC_SSH_KNOWNHOSTS_SKIP;
+        } else if (!strcmp(mode, "strict")) {
+            knownhosts_mode = NC_SSH_KNOWNHOSTS_STRICT;
+        } else {
+            ERROR("knownhosts", "Unknown mode \"%s\"", mode);
+            ret = EXIT_FAILURE;
+            goto cleanup;
+        }
+
+        nc_client_ssh_set_knownhosts_mode(knownhosts_mode);
+        nc_client_ssh_ch_set_knownhosts_mode(knownhosts_mode);
+        goto cleanup;
+    }
 
     errno = 0;
     pwd = getpwuid(getuid());
@@ -1473,19 +1497,20 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
         } else {
             ERROR("knownhosts", "Failed to get a pwd entry (%s)", strerror(errno));
         }
-        return EXIT_FAILURE;
+        ret = EXIT_FAILURE;
+        goto cleanup;
     }
 
     if (asprintf(&kh_file, "%s/.ssh/known_hosts", pwd->pw_dir) == -1) {
-        return EXIT_FAILURE;
+        ret = EXIT_FAILURE;
+        goto cleanup;
     }
 
     if ((file = fopen(kh_file, "r+")) == NULL) {
         ERROR("knownhosts", "Cannot open \"%s\" (%s)", kh_file, strerror(errno));
-        free(kh_file);
-        return EXIT_FAILURE;
+        ret = EXIT_FAILURE;
+        goto cleanup;
     }
-    free(kh_file);
 
     /* list */
     if (del_idx == -1) {
@@ -1558,17 +1583,16 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
         text_len = ftell(file);
         if (text_len < 0) {
             ERROR("knownhosts", "ftell on the known hosts file failed (%s)", strerror(errno));
-            fclose(file);
-            return EXIT_FAILURE;
+            ret = EXIT_FAILURE;
+            goto cleanup;
         }
         fseek(file, 0, SEEK_SET);
 
         text = malloc(text_len + 1);
         if (fread(text, 1, text_len, file) < (unsigned)text_len) {
             ERROR("knownhosts", "Cannot read known hosts file (%s)", strerror(ferror(file)));
-            free(text);
-            fclose(file);
-            return EXIT_FAILURE;
+            ret = EXIT_FAILURE;
+            goto cleanup;
         }
         text[text_len] = '\0';
         fseek(file, 0, SEEK_SET);
@@ -1577,9 +1601,8 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
 
         if (!ptr || (strlen(ptr) < 2)) {
             ERROR("knownhosts", "Key index %d does not exist", del_idx);
-            free(text);
-            fclose(file);
-            return EXIT_FAILURE;
+            ret = EXIT_FAILURE;
+            goto cleanup;
         }
 
         if (ptr[0] == '\n') {
@@ -1590,9 +1613,8 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
         written = fwrite(text, 1, ptr - text, file);
         if (written < ptr - text) {
             ERROR("knownhosts", "Failed to write to known hosts file (%s)", strerror(ferror(file)));
-            free(text);
-            fclose(file);
-            return EXIT_FAILURE;
+            ret = EXIT_FAILURE;
+            goto cleanup;
         }
 
         ptr = strchr(ptr, '\n');
@@ -1602,23 +1624,27 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
             /* write the rest */
             if (fwrite(ptr, 1, strlen(ptr), file) < strlen(ptr)) {
                 ERROR("knownhosts", "Failed to write to known hosts file (%s)", strerror(ferror(file)));
-                free(text);
-                fclose(file);
-                return EXIT_FAILURE;
+                ret = EXIT_FAILURE;
+                goto cleanup;
             }
             written += strlen(ptr);
         }
-        free(text);
 
         if (ftruncate(fileno(file), written) < 0) {
             ERROR("knownhosts", "ftruncate() on known hosts file failed (%s)", strerror(ferror(file)));
-            fclose(file);
-            return EXIT_FAILURE;
+            ret = EXIT_FAILURE;
+            goto cleanup;
         }
     }
 
-    fclose(file);
-    return EXIT_SUCCESS;
+cleanup:
+    clear_arglist(&cmd);
+    free(kh_file);
+    free(text);
+    if (file) {
+        fclose(file);
+    }
+    return ret;
 }
 
 static int
