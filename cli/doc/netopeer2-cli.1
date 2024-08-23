@@ -935,7 +935,7 @@ Manage the user knownhosts file where all the known SSH server host keys are sto
 .PP
 
 .B knownhosts
-[\-\-help] [\-\-del <key_index>]
+(\-\-help | \-\-del <key_index> | \-\-mode <accept|accept-new|ask|skip|strict>)
 .PP
 .RS 4
 
@@ -945,6 +945,23 @@ Manage the user knownhosts file where all the known SSH server host keys are sto
 Remove a host key on a specific index. Useful when the server host key changed and the client refuses to connect.
 But note that unless the change is known (such as the key being newly generated), it is not safe to blindly trust
 a modified host key.
+.RE
+.PP
+
+.B \-\-(m)ode
+\fIaccept|accept-new|ask|skip|strict\fR
+.RS 4
+Set the host key checking mode used when connecting over SSH.
+.IP accept
+Add the host key to the knownhosts file without prompting and allow connections to servers that changed their host key.
+.IP accept-new
+Add the host key to the knownhosts file without prompting, but only if it is not already there.
+.IP \fIask\fR
+Prompt the user to accept the host key. This is the default mode.
+.IP skip
+Skip the host key and do not add it to the knownhosts file.
+.IP strict
+Do not add the host key to the knownhosts file and refuse to connect to hosts whose host key is not known or has changed.
 .RE
 .PP
 
