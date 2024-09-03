@@ -58,6 +58,38 @@ parse_arg(int argc, char **argv)
     }
 }
 
+static int
+mkpath(char *path, mode_t mode)
+{
+    int rc = 0;
+    char *p = NULL;
+
+    /* create each directory in the path */
+    for (p = strchr(path + 1, '/'); p; p = strchr(p + 1, '/')) {
+        *p = '\0';
+        if ((mkdir(path, mode) == -1) && (errno != EEXIST)) {
+            rc = -1;
+            goto cleanup;
+        }
+
+        errno = 0;
+        *p = '/';
+    }
+
+    /* create the last directory in the path */
+    if ((mkdir(path, mode) == -1) && (errno != EEXIST)) {
+        rc = -1;
+        goto cleanup;
+    }
+    errno = 0;
+
+cleanup:
+    if (p) {
+        *p = '/';
+    }
+    return rc;
+}
+
 void
 np2_glob_test_setup_test_name(char *buf)
 {
@@ -293,7 +325,7 @@ np2_glob_test_setup_server(void **state, const char *test_name, const char **mod
     sprintf(extdata_path, "%s/%s", NP_TEST_MODULE_DIR, NP_EXT_DATA_FILE);
 
     /* create the test server dir */
-    if ((mkdir(server_dir, 00700) == -1) && (errno != EEXIST)) {
+    if (mkpath(server_dir, 00700) == -1) {
         SETUP_FAIL_LOG;
         return 1;
     }
