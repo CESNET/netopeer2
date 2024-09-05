@@ -88,7 +88,7 @@ int np2_server_test_stop(void);")
 int np2_${TEST}(int argc, char *argv[]);")
     endforeach()
 
-    add_library(netopeer2_lib_test OBJECT "${TEST_SRC_DIR}/${TEST_SRC}")
+    add_library(netopeer2_lib_test OBJECT ${TEST_SRC})
     target_compile_definitions(netopeer2_lib_test PRIVATE NETOPEER2_LIB)
 
     include_directories(${TEST_BIN_DIR})
