@@ -16,6 +16,7 @@
 
 #define _GNU_SOURCE
 
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -68,6 +69,7 @@ oc_write(struct np_other_client *oc_sess, const char *msg, uint64_t msglen)
 
     msglen = msglen ? msglen : strlen(msg);
     do {
+        interrupted = 0;
         cnt = write(oc_sess->unixsock, msg + written, msglen - written);
         written += cnt;
         if ((cnt < 0) && (errno == EAGAIN)) {
@@ -123,22 +125,28 @@ oc_realloc(struct np_other_client *oc_sess)
  *
  * @param[in] oc_sess Client session.
  * @param[in] flags Option for function (@ref ocreadflags).
- * @return positive number representing number of characters written into @p oc_sess buffer.
+ * @param[out] read_total Optional number of characters written into @p oc_sess buffer.
+ * @return 0 on success.
  * @return negative number on error.
  */
-static int64_t
-oc_read(struct np_other_client *oc_sess, uint32_t flags)
+static int
+oc_read(struct np_other_client *oc_sess, uint32_t flags, uint64_t *read_total)
 {
-    int64_t rd, rdall = 0;
+    int64_t rd;
+    uint64_t rdall = 0;
     time_t tm;
     int interrupted;
     const char *endtag;
 
     tm = time(NULL);
     oc_sess->buf[0] = 0;
+    if (read_total) {
+        *read_total = 0;
+    }
 
     do {
         interrupted = 0;
+        assert(oc_sess->bufsize >= rdall);
         rd = read(oc_sess->unixsock, oc_sess->buf + rdall, oc_sess->bufsize - rdall);
         if (rd < 0) {
             if (errno == EAGAIN) {
@@ -147,7 +155,6 @@ oc_read(struct np_other_client *oc_sess, uint32_t flags)
             } else if (errno == EINTR) {
                 rd = 0;
                 interrupted = 1;
-                break;
             } else {
                 fprintf(stderr, "Reading from file descriptor (%d) failed (%s).\n", oc_sess->unixsock, strerror(errno));
                 return -1;
@@ -194,7 +201,11 @@ oc_read(struct np_other_client *oc_sess, uint32_t flags)
         }
     } while (1);
 
-    return rdall;
+    if (read_total) {
+        *read_total = rdall;
+    }
+
+    return 0;
 }
 
 /**
@@ -218,7 +229,7 @@ oc_hello_handshake(struct np_other_client *oc_sess)
         return rc;
     }
 
-    return (oc_read(oc_sess, OC_READ_HELLO_MSG) >= 0) ? 0 : -1;
+    return oc_read(oc_sess, OC_READ_HELLO_MSG, NULL);
 }
 
 struct np_other_client *
@@ -231,13 +242,13 @@ oc_connect_unix(const char *address)
     oc_sess = calloc(1, sizeof *oc_sess);
     if (!oc_sess) {
         OC_FAIL_LOG;
-        return NULL;
+        goto error;
     }
 
     oc_sess->unixsock = socket(AF_UNIX, SOCK_STREAM, 0);
     if (oc_sess->unixsock < 0) {
         OC_FAIL_LOG;
-        return NULL;
+        goto error;
     }
 
     memset(&sun, 0, sizeof(sun));
@@ -246,28 +257,33 @@ oc_connect_unix(const char *address)
 
     if (connect(oc_sess->unixsock, (struct sockaddr *)&sun, sizeof(sun)) < 0) {
         OC_FAIL_LOG;
-        return NULL;
+        goto error;
     }
 
     if (fcntl(oc_sess->unixsock, F_SETFL, O_NONBLOCK) < 0) {
         OC_FAIL_LOG;
-        return NULL;
+        goto error;
     }
 
     oc_sess->buf = malloc(2048);
     if (!oc_sess->buf) {
-        return NULL;
+        goto error;
     }
     oc_sess->bufsize = 2048;
 
     rc = oc_hello_handshake(oc_sess);
     if (rc) {
-        return NULL;
+        goto error;
     }
 
     oc_sess->msgid = 1;
 
     return oc_sess;
+
+error:
+    oc_session_free(oc_sess);
+
+    return NULL;
 }
 
 int
@@ -277,6 +293,8 @@ oc_send_msg(struct np_other_client *oc_sess, const char *msg)
     char *starttag = NULL;
     uint64_t msglen;
 
+    assert(oc_sess && msg);
+
     /* increment message-id but do not increment after initial handshake */
     oc_sess->msgid = (oc_sess->msgid != 1) ? oc_sess->msgid + 1 : oc_sess->msgid;
 
@@ -285,7 +303,6 @@ oc_send_msg(struct np_other_client *oc_sess, const char *msg)
     if (!starttag) {
         OC_FAIL_LOG;
         return -1;
-        goto cleanup;
     }
 
     rc = oc_write(oc_sess, starttag, 0);
@@ -312,18 +329,16 @@ cleanup:
 int
 oc_recv_msg(struct np_other_client *oc_sess, char **msg)
 {
-    int64_t len;
+    int rc;
+    uint64_t len;
     char *endtag;
 
-    len = oc_read(oc_sess, 0);
+    assert(oc_sess && msg);
 
-    if (len < 0) {
+    *msg = "";
+    rc = oc_read(oc_sess, 0, &len);
+    if (rc) {
         return -1;
-    } else if (len == (int64_t)oc_sess->bufsize) {
-        /* unlikely, though no space for zero character */
-        if (oc_realloc(oc_sess)) {
-            return -1;
-        }
     }
 
     /* Delete end tag: \n##\n */
