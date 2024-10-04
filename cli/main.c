@@ -39,6 +39,7 @@
 
 int done;
 extern struct nc_session *session;
+extern int monitor;
 
 static void
 lnc2_print_clb(const struct nc_session *UNUSED(session), NC_VERB_LEVEL level, const char *msg)
@@ -219,6 +220,9 @@ main(void)
 
     if (session) {
         nc_session_free(session, NULL);
+    }
+    if (monitor) {
+        nc_client_monitoring_thread_stop();
     }
     nc_client_destroy();
 
