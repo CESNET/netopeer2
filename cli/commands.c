@@ -70,7 +70,7 @@ COMMAND commands[];
 extern int done;
 struct nc_session *session;
 volatile int interleave;
-int timed;
+int timed, monitor;
 
 static int cmd_disconnect(const char *arg, char **tmp_config_file);
 
@@ -1262,6 +1262,12 @@ static void
 cmd_timed_help(void)
 {
     printf("timed [--help] [on | off]\n");
+}
+
+static void
+cmd_monitor_help(void)
+{
+    printf("monitor [--help] [on | off]\n");
 }
 
 #ifdef NC_ENABLED_SSH_TLS
@@ -2555,6 +2561,61 @@ cmd_disconnect(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
     }
 
     return EXIT_SUCCESS;
+}
+
+void
+monitoring_clb(struct nc_session *sess, void *user_data)
+{
+    int was_rawmode = 0;
+
+    (void)sess;
+    (void)user_data;
+
+    /* needed for the case that the user is typing a command */
+    if (lss.rawmode) {
+        was_rawmode = 1;
+        linenoiseDisableRawMode(lss.ifd);
+        printf("\n");
+    }
+
+    fprintf(stdout, "Connection reset by peer.\n");
+    fflush(stdout);
+
+    /* set the global session variable to NULL */
+    session = NULL;
+
+    if (was_rawmode) {
+        linenoiseEnableRawMode(lss.ifd);
+        linenoiseRefreshLine();
+    }
+}
+
+static int
+cmd_monitor(const char *arg, char **UNUSED(tmp_config_file))
+{
+    char *args = strdupa(arg);
+    char *cmd = NULL;
+
+    strtok(args, " ");
+    if ((cmd = strtok(NULL, " ")) == NULL) {
+        fprintf(stdout, "Connection state will %sbe monitored.\n", monitor ? "" : "not ");
+    } else {
+        if (!strcmp(cmd, "on")) {
+            if (nc_client_monitoring_thread_start(monitoring_clb, NULL, NULL)) {
+                ERROR(__func__, "Monitoring thread failed to start.");
+                return 1;
+            }
+            monitor = 1;
+        } else if (!strcmp(cmd, "off")) {
+            monitor = 0;
+            nc_client_monitoring_thread_stop();
+        } else {
+            ERROR(__func__, "Unknown option %s.", cmd);
+            cmd_monitor_help();
+        }
+    }
+
+    return 0;
 }
 
 static int
@@ -6575,6 +6636,7 @@ COMMAND commands[] = {
         "ietf-subscribed-notifications <modify-subscription> operation with ietf-yang-push augments"
     },
     {"modify-sub", cmd_modifysub, cmd_modifysub_help, "ietf-subscribed-notifications <modify-subscription> operation"},
+    {"monitor", cmd_monitor, cmd_monitor_help, "Monitor client connection status"},
     {"outputformat", cmd_outputformat, cmd_outputformat_help, "Set the output format of all the data"},
     {"resync-sub", cmd_resyncsub, cmd_resyncsub_help, "ietf-yang-push <resync-subscription> operation"},
     {"searchpath", cmd_searchpath, cmd_searchpath_help, "Set the search path for models"},
