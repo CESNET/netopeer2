@@ -2581,7 +2581,8 @@ monitoring_clb(struct nc_session *sess, void *user_data)
     fprintf(stdout, "Connection reset by peer.\n");
     fflush(stdout);
 
-    /* set the global session variable to NULL */
+    /* free the session and set the global session variable to NULL */
+    nc_session_free(session, NULL);
     session = NULL;
 
     if (was_rawmode) {
