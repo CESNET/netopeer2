@@ -1057,12 +1057,6 @@ test_subtree_no_namespace(void **state)
             "  <error-tag>operation-failed</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
             "  <error-message xml:lang=\"en\">Subtree filter node \"invalid-name\" without a namespace does not match any YANG nodes.</error-message>\n"
-            "</rpc-error>\n"
-            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <error-type>application</error-type>\n"
-            "  <error-tag>operation-failed</error-tag>\n"
-            "  <error-severity>error</error-severity>\n"
-            "  <error-message xml:lang=\"en\">User callback failed.</error-message>\n"
             "</rpc-error>\n";
     assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);

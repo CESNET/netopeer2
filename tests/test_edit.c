@@ -296,12 +296,6 @@ test_delete_edit3(void **state)
             "  <error-tag>operation-failed</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
             "  <error-message xml:lang=\"en\">Invalid operation \"merge\" for node \"prefix-length\" with parent operation \"delete\".</error-message>\n"
-            "</rpc-error>\n"
-            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <error-type>application</error-type>\n"
-            "  <error-tag>operation-failed</error-tag>\n"
-            "  <error-severity>error</error-severity>\n"
-            "  <error-message xml:lang=\"en\">User callback failed.</error-message>\n"
             "</rpc-error>\n");
     FREE_TEST_VARS(st);
 
