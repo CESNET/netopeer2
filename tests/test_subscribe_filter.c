@@ -56,19 +56,23 @@ reestablish_sub(void **state, const char *filter)
 {
     struct np2_test *st = *state;
 
-    /* Reestablish NETCONF connection */
+    /* free the current session (with its subscription) */
     nc_session_free(st->nc_sess, NULL);
+
+    /* because of multithreading, try to prevent netconf-session-end being generated AFTER the new subscription is made */
+    usleep(20000);
+
+    /* create a new session */
     st->nc_sess = nc_connect_unix(st->socket_path, (struct ly_ctx *)nc_session_get_ctx(st->nc_sess2));
     assert_non_null(st->nc_sess);
 
-    /* Get a subscription to receive notifications */
+    /* get a subscription to receive notifications */
     st->rpc = nc_rpc_subscribe(NULL, filter, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
-    /* Check reply */
+    /* check reply */
     ASSERT_OK_REPLY(st);
-
     FREE_TEST_VARS(st);
 }
 
