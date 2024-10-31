@@ -90,10 +90,6 @@ np2log_cb_nc2(const struct nc_session *session, NC_VERB_LEVEL level, const char 
     int priority = LOG_ERR;
     char *buf = NULL;
 
-    if (level > np2_verbose_level) {
-        return;
-    }
-
     switch (level) {
     case NC_VERB_ERROR:
         priority = LOG_ERR;
