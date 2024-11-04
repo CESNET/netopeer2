@@ -73,8 +73,8 @@ np2srv_get_rpc_data(sr_session_ctx_t *session, const char *xp_filter, sr_session
         goto cleanup;
     }
 
-    if (!strcmp(xp_filter, "/*")) {
-        /* no filter, use all the data */
+    if (!strcmp(xp_filter, "/*") || !base_data) {
+        /* no filter, use all the data, or no data at all */
         *data = base_data;
         base_data = NULL;
         goto cleanup;
