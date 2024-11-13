@@ -49,8 +49,8 @@ set(LIBYANG_DEP_SOVERSION 3.0.0)
 set(LIBYANG_DEP_SOVERSION_MAJOR 3)
 
 # libnetconf2 required version
-set(LIBNETCONF2_DEP_VERSION 3.5.2)
-set(LIBNETCONF2_DEP_SOVERSION 4.4.2)
+set(LIBNETCONF2_DEP_VERSION 3.5.4)
+set(LIBNETCONF2_DEP_SOVERSION 4.4.4)
 set(LIBNETCONF2_DEP_SOVERSION_MAJOR 4)
 
 # sysrepo required version
@@ -407,6 +407,7 @@ if(SYSREPO_SETUP)
         message(STATUS \"Merging default server listen configuration if there is none (merge_config.sh)...\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
         set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
+        set(ENV{NP2_VERSION} \"${NP2SRV_VERSION}\")
         execute_process(COMMAND \"\$ENV{DESTDIR}${DATA_DIR}/scripts/merge_config.sh\"
                 RESULT_VARIABLE CMD_RES
                 OUTPUT_VARIABLE CMD_OUT
