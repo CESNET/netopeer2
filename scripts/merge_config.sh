@@ -62,6 +62,13 @@ if [ -n "$AUTH_CONFIG" ]; then
                 </users>"
 fi
 
+SSH_BANNER=""
+# check if the NP2_VERSION environment variable is set
+if [ -n "$NP2_VERSION" ]; then
+    # get the banner from the NP2_VERSION environment variable
+    SSH_BANNER="<banner xmlns=\"urn:cesnet:libnetconf2-netconf-server\">netopeer2-netconf-server-${NP2_VERSION}</banner>"
+fi
+
 # import default config
 CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\">
     <listen>
@@ -74,6 +81,7 @@ CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\
                     </tcp-server-parameters>
                     <ssh-server-parameters>
                         <server-identity>
+                            ${SSH_BANNER}
                             <host-key>
                                 <name>default-key</name>
                                 <public-key>
