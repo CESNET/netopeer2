@@ -38,6 +38,70 @@
 #include "configuration.h"
 #include "linenoise/linenoise.h"
 
+/**
+ * @brief Fill path completion.
+ *
+ * @param[in] hint Path to directory.
+ * @param[in] lc For adding completions.
+ */
+static void
+path_completion(const char *hint, linenoiseCompletions *lc)
+{
+    const char *ptr;
+    char *full_path, *hint_ptr, match[FILENAME_MAX + 2];
+    DIR *dir;
+    struct dirent *ent;
+    struct stat st;
+
+    lc->path = 1;
+
+    ptr = strrchr(hint, '/');
+
+    /* new relative path */
+    if (ptr == NULL) {
+        full_path = malloc(2 + FILENAME_MAX + 1);
+        strcpy(full_path, "./");
+
+        ptr = hint;
+    } else {
+        full_path = malloc((int)(ptr - hint) + FILENAME_MAX + 1);
+        ++ptr;
+        sprintf(full_path, "%.*s", (int)(ptr - hint), hint);
+    }
+    hint_ptr = full_path + strlen(full_path);
+
+    dir = opendir(full_path);
+    if (dir == NULL) {
+        free(full_path);
+        return;
+    }
+
+    while ((ent = readdir(dir))) {
+        if (ent->d_name[0] == '.') {
+            continue;
+        }
+
+        if (!strncmp(ptr, ent->d_name, strlen(ptr))) {
+            /* is it a directory? */
+            strcpy(hint_ptr, ent->d_name);
+            if (stat(full_path, &st)) {
+                /* skip this item */
+                continue;
+            }
+
+            strcpy(match, ent->d_name);
+            if (S_ISDIR(st.st_mode)) {
+                strcat(match, "/");
+            }
+
+            linenoiseAddCompletion(lc, match);
+        }
+    }
+
+    free(full_path);
+    closedir(dir);
+}
+
 static void
 get_cmd_completion(const char *hint, char ***matches, unsigned int *match_count)
 {
@@ -87,18 +151,18 @@ complete_cmd(const char *buf, const char *hint, linenoiseCompletions *lc)
             !strncmp(buf, "cert remove ", 12) || !strncmp(buf, "cert replaceown ", 16)
 #endif
        ) {
-        linenoisePathCompletion(buf, hint, lc);
+        path_completion(hint, lc);
     } else if ((!strncmp(buf, "copy-config ", 12) || !strncmp(buf, "validate ", 9)) && last_opt(buf, hint, "--src-config")) {
-        linenoisePathCompletion(buf, hint, lc);
+        path_completion(hint, lc);
     } else if (!strncmp(buf, "edit-config ", 12) && last_opt(buf, hint, "--config")) {
-        linenoisePathCompletion(buf, hint, lc);
+        path_completion(hint, lc);
     } else if ((!strncmp(buf, "get ", 4) || !strncmp(buf, "get-config ", 11) || !strncmp(buf, "subscribe ", 10)) &&
             (last_opt(buf, hint, "--filter-subtree") || last_opt(buf, hint, "--out"))) {
-        linenoisePathCompletion(buf, hint, lc);
+        path_completion(hint, lc);
     } else if (!strncmp(buf, "get-schema ", 11) && last_opt(buf, hint, "--out")) {
-        linenoisePathCompletion(buf, hint, lc);
+        path_completion(hint, lc);
     } else if (!strncmp(buf, "user-rpc ", 9) && last_opt(buf, hint, "--content")) {
-        linenoisePathCompletion(buf, hint, lc);
+        path_completion(hint, lc);
     } else if (!strchr(buf, ' ') && hint[0]) {
         get_cmd_completion(hint, &matches, &match_count);
 

@@ -44,13 +44,7 @@ extern int monitor;
 static void
 lnc2_print_clb(const struct nc_session *UNUSED(session), NC_VERB_LEVEL level, const char *msg)
 {
-    int was_rawmode = 0;
-
-    if (lss.rawmode) {
-        was_rawmode = 1;
-        linenoiseDisableRawMode(lss.ifd);
-        printf("\n");
-    }
+    linenoiseBackgroundPrintStart();
 
     switch (level) {
     case NC_VERB_ERROR:
@@ -68,22 +62,13 @@ lnc2_print_clb(const struct nc_session *UNUSED(session), NC_VERB_LEVEL level, co
         break;
     }
 
-    if (was_rawmode) {
-        linenoiseEnableRawMode(lss.ifd);
-        linenoiseRefreshLine();
-    }
+    linenoiseBackgroundPrintEnd();
 }
 
 static void
 ly_print_clb(LY_LOG_LEVEL level, const char *msg, const char *data_path, const char *schema_path, uint64_t UNUSED(line))
 {
-    int was_rawmode = 0;
-
-    if (lss.rawmode) {
-        was_rawmode = 1;
-        linenoiseDisableRawMode(lss.ifd);
-        printf("\n");
-    }
+    linenoiseBackgroundPrintStart();
 
     switch (level) {
     case LY_LLERR:
@@ -119,10 +104,7 @@ ly_print_clb(LY_LOG_LEVEL level, const char *msg, const char *data_path, const c
         return;
     }
 
-    if (was_rawmode) {
-        linenoiseEnableRawMode(lss.ifd);
-        linenoiseRefreshLine();
-    }
+    linenoiseBackgroundPrintEnd();
 }
 
 int
@@ -197,9 +179,7 @@ main(void)
                     printf("%s\n", commands[i].helpstring);
                 }
             } else {
-                if (lss.history_index) {
-                    tmp_config_file = (char *)lss.history[lss.history_len - lss.history_index].data;
-                }
+                tmp_config_file = linenoiseHistoryDataGet();
                 commands[i].func((const char *)cmdstart, &tmp_config_file);
             }
         } else {

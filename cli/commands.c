@@ -213,17 +213,10 @@ static void
 cli_ntf_clb(struct nc_session *UNUSED(session), const struct lyd_node *envp, const struct lyd_node *op, void *user_data)
 {
     FILE *output = user_data;
-    int was_rawmode = 0;
     const struct lyd_node *top;
 
     if (output == stdout) {
-        if (lss.rawmode) {
-            was_rawmode = 1;
-            linenoiseDisableRawMode(lss.ifd);
-            printf("\n");
-        } else {
-            was_rawmode = 0;
-        }
+        linenoiseBackgroundPrintStart();
     }
 
     for (top = op; top->parent; top = lyd_parent(top)) {}
@@ -233,9 +226,8 @@ cli_ntf_clb(struct nc_session *UNUSED(session), const struct lyd_node *envp, con
     fprintf(output, "\n");
     fflush(output);
 
-    if ((output == stdout) && was_rawmode) {
-        linenoiseEnableRawMode(lss.ifd);
-        linenoiseRefreshLine();
+    if (output == stdout) {
+        linenoiseBackgroundPrintEnd();
     }
 
     if (!strcmp(op->schema->name, "notificationComplete") && !strcmp(op->schema->module->name, "nc-notifications")) {
@@ -2566,29 +2558,19 @@ cmd_disconnect(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
 void
 monitoring_clb(struct nc_session *sess, void *user_data)
 {
-    int was_rawmode = 0;
-
     (void)sess;
     (void)user_data;
 
-    /* needed for the case that the user is typing a command */
-    if (lss.rawmode) {
-        was_rawmode = 1;
-        linenoiseDisableRawMode(lss.ifd);
-        printf("\n");
-    }
+    linenoiseBackgroundPrintStart();
 
     fprintf(stdout, "Connection reset by peer.\n");
     fflush(stdout);
 
+    linenoiseBackgroundPrintEnd();
+
     /* free the session and set the global session variable to NULL */
     nc_session_free(session, NULL);
     session = NULL;
-
-    if (was_rawmode) {
-        linenoiseEnableRawMode(lss.ifd);
-        linenoiseRefreshLine();
-    }
 }
 
 static int
