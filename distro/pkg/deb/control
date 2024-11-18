@@ -19,7 +19,8 @@ Build-Depends: cmake,
 Homepage: https://github.com/CESNET/netopeer2/
 
 Package: netopeer2
-Depends: openssl,
+Depends: sysrepo-tools,
+         openssl,
          passwd,
          ${misc:Depends},
          ${shlibs:Depends}
