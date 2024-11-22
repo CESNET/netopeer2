@@ -1,0 +1,1 @@
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99 -g CMakeFiles/test_error.dir/np2_test.c.o CMakeFiles/test_error.dir/np2_other_client.c.o CMakeFiles/test_error.dir/test_error.c.o -o test_error  -Wl,-rpath,/usr/local/lib /usr/lib/x86_64-linux-gnu/libcmocka.so /usr/local/lib/libnetconf2.so /usr/local/lib/libyang.so /usr/local/lib/libsysrepo.so 

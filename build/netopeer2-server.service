@@ -1,0 +1,14 @@
+[Unit]
+Description=netopeer2 NETCONF server
+#After=
+
+[Service]
+Type=notify
+ExecStart=/usr/local/sbin/netopeer2-server -d -v2
+Restart=always
+SystemCallArchitectures=native
+KillMode=control-group
+SupplementaryGroups=
+
+[Install]
+WantedBy=multi-user.target
