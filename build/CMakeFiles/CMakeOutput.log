@@ -1,0 +1,770 @@
+The system is: Linux - 5.15.0-126-generic - x86_64
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /usr/bin/cc 
+Build flags: 
+Id flags:  
+
+The output was:
+0
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
+
+The C compiler identification is GNU, found in "/home/netconf/netopeer2-1/build/CMakeFiles/3.22.1/CompilerIdC/a.out"
+
+Detecting C compiler ABI info compiled with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_e0f36/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_e0f36.dir/build.make CMakeFiles/cmTC_e0f36.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o
+/usr/bin/cc   -v -o CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o -c /usr/share/cmake-3.22/Modules/CMakeCCompilerABI.c
+Using built-in specs.
+COLLECT_GCC=/usr/bin/cc
+OFFLOAD_TARGET_NAMES=nvptx-none:amdgcn-amdhsa
+OFFLOAD_TARGET_DEFAULT=1
+Target: x86_64-linux-gnu
+Configured with: ../src/configure -v --with-pkgversion='Ubuntu 11.4.0-1ubuntu1~22.04' --with-bugurl=file:///usr/share/doc/gcc-11/README.Bugs --enable-languages=c,ada,c++,go,brig,d,fortran,objc,obj-c++,m2 --prefix=/usr --with-gcc-major-version-only --program-suffix=-11 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --enable-bootstrap --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-plugin --enable-default-pie --with-system-zlib --enable-libphobos-checking=release --with-target-system-zlib=auto --enable-objc-gc=auto --enable-multiarch --disable-werror --enable-cet --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32,m64,mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-nvptx/usr,amdgcn-amdhsa=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-gcn/usr --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --with-build-config=bootstrap-lto-lean --enable-link-serialization=2
+Thread model: posix
+Supported LTO compression algorithms: zlib zstd
+gcc version 11.4.0 (Ubuntu 11.4.0-1ubuntu1~22.04) 
+COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_e0f36.dir/'
+ /usr/lib/gcc/x86_64-linux-gnu/11/cc1 -quiet -v -imultiarch x86_64-linux-gnu /usr/share/cmake-3.22/Modules/CMakeCCompilerABI.c -quiet -dumpdir CMakeFiles/cmTC_e0f36.dir/ -dumpbase CMakeCCompilerABI.c.c -dumpbase-ext .c -mtune=generic -march=x86-64 -version -fasynchronous-unwind-tables -fstack-protector-strong -Wformat -Wformat-security -fstack-clash-protection -fcf-protection -o /tmp/ccYkbjVs.s
+GNU C17 (Ubuntu 11.4.0-1ubuntu1~22.04) version 11.4.0 (x86_64-linux-gnu)
+	compiled by GNU C version 11.4.0, GMP version 6.2.1, MPFR version 4.1.0, MPC version 1.2.1, isl version isl-0.24-GMP
+
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+ignoring nonexistent directory "/usr/local/include/x86_64-linux-gnu"
+ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/11/include-fixed"
+ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/11/../../../../x86_64-linux-gnu/include"
+#include "..." search starts here:
+#include <...> search starts here:
+ /usr/lib/gcc/x86_64-linux-gnu/11/include
+ /usr/local/include
+ /usr/include/x86_64-linux-gnu
+ /usr/include
+End of search list.
+GNU C17 (Ubuntu 11.4.0-1ubuntu1~22.04) version 11.4.0 (x86_64-linux-gnu)
+	compiled by GNU C version 11.4.0, GMP version 6.2.1, MPFR version 4.1.0, MPC version 1.2.1, isl version isl-0.24-GMP
+
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+Compiler executable checksum: 50eaa2331df977b8016186198deb2d18
+COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_e0f36.dir/'
+ as -v --64 -o CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o /tmp/ccYkbjVs.s
+GNU assembler version 2.38 (x86_64-linux-gnu) using BFD version (GNU Binutils for Ubuntu) 2.38
+COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/
+LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.'
+Linking C executable cmTC_e0f36
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e0f36.dir/link.txt --verbose=1
+/usr/bin/cc  -v CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o -o cmTC_e0f36 
+Using built-in specs.
+COLLECT_GCC=/usr/bin/cc
+COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-linux-gnu/11/lto-wrapper
+OFFLOAD_TARGET_NAMES=nvptx-none:amdgcn-amdhsa
+OFFLOAD_TARGET_DEFAULT=1
+Target: x86_64-linux-gnu
+Configured with: ../src/configure -v --with-pkgversion='Ubuntu 11.4.0-1ubuntu1~22.04' --with-bugurl=file:///usr/share/doc/gcc-11/README.Bugs --enable-languages=c,ada,c++,go,brig,d,fortran,objc,obj-c++,m2 --prefix=/usr --with-gcc-major-version-only --program-suffix=-11 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --enable-bootstrap --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-plugin --enable-default-pie --with-system-zlib --enable-libphobos-checking=release --with-target-system-zlib=auto --enable-objc-gc=auto --enable-multiarch --disable-werror --enable-cet --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32,m64,mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-nvptx/usr,amdgcn-amdhsa=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-gcn/usr --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --with-build-config=bootstrap-lto-lean --enable-link-serialization=2
+Thread model: posix
+Supported LTO compression algorithms: zlib zstd
+gcc version 11.4.0 (Ubuntu 11.4.0-1ubuntu1~22.04) 
+COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/
+LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_e0f36' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_e0f36.'
+ /usr/lib/gcc/x86_64-linux-gnu/11/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/11/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/11/lto-wrapper -plugin-opt=-fresolution=/tmp/ccVNI5qx.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -z now -z relro -o cmTC_e0f36 /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/Scrt1.o /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/11/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/11 -L/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/11/../../.. CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/lib/gcc/x86_64-linux-gnu/11/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crtn.o
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_e0f36' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_e0f36.'
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+
+Parsed C implicit include dir info from above output: rv=done
+  found start of include info
+  found start of implicit include info
+    add: [/usr/lib/gcc/x86_64-linux-gnu/11/include]
+    add: [/usr/local/include]
+    add: [/usr/include/x86_64-linux-gnu]
+    add: [/usr/include]
+  end of search list found
+  collapse include dir [/usr/lib/gcc/x86_64-linux-gnu/11/include] ==> [/usr/lib/gcc/x86_64-linux-gnu/11/include]
+  collapse include dir [/usr/local/include] ==> [/usr/local/include]
+  collapse include dir [/usr/include/x86_64-linux-gnu] ==> [/usr/include/x86_64-linux-gnu]
+  collapse include dir [/usr/include] ==> [/usr/include]
+  implicit include dirs: [/usr/lib/gcc/x86_64-linux-gnu/11/include;/usr/local/include;/usr/include/x86_64-linux-gnu;/usr/include]
+
+
+Parsed C implicit link information from above output:
+  link line regex: [^( *|.*[/\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
+  ignore line: [Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp]
+  ignore line: []
+  ignore line: [Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_e0f36/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_e0f36.dir/build.make CMakeFiles/cmTC_e0f36.dir/build]
+  ignore line: [gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp']
+  ignore line: [Building C object CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o]
+  ignore line: [/usr/bin/cc   -v -o CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o -c /usr/share/cmake-3.22/Modules/CMakeCCompilerABI.c]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=/usr/bin/cc]
+  ignore line: [OFFLOAD_TARGET_NAMES=nvptx-none:amdgcn-amdhsa]
+  ignore line: [OFFLOAD_TARGET_DEFAULT=1]
+  ignore line: [Target: x86_64-linux-gnu]
+  ignore line: [Configured with: ../src/configure -v --with-pkgversion='Ubuntu 11.4.0-1ubuntu1~22.04' --with-bugurl=file:///usr/share/doc/gcc-11/README.Bugs --enable-languages=c ada c++ go brig d fortran objc obj-c++ m2 --prefix=/usr --with-gcc-major-version-only --program-suffix=-11 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --enable-bootstrap --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-plugin --enable-default-pie --with-system-zlib --enable-libphobos-checking=release --with-target-system-zlib=auto --enable-objc-gc=auto --enable-multiarch --disable-werror --enable-cet --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32 m64 mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-nvptx/usr amdgcn-amdhsa=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-gcn/usr --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --with-build-config=bootstrap-lto-lean --enable-link-serialization=2]
+  ignore line: [Thread model: posix]
+  ignore line: [Supported LTO compression algorithms: zlib zstd]
+  ignore line: [gcc version 11.4.0 (Ubuntu 11.4.0-1ubuntu1~22.04) ]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_e0f36.dir/']
+  ignore line: [ /usr/lib/gcc/x86_64-linux-gnu/11/cc1 -quiet -v -imultiarch x86_64-linux-gnu /usr/share/cmake-3.22/Modules/CMakeCCompilerABI.c -quiet -dumpdir CMakeFiles/cmTC_e0f36.dir/ -dumpbase CMakeCCompilerABI.c.c -dumpbase-ext .c -mtune=generic -march=x86-64 -version -fasynchronous-unwind-tables -fstack-protector-strong -Wformat -Wformat-security -fstack-clash-protection -fcf-protection -o /tmp/ccYkbjVs.s]
+  ignore line: [GNU C17 (Ubuntu 11.4.0-1ubuntu1~22.04) version 11.4.0 (x86_64-linux-gnu)]
+  ignore line: [	compiled by GNU C version 11.4.0  GMP version 6.2.1  MPFR version 4.1.0  MPC version 1.2.1  isl version isl-0.24-GMP]
+  ignore line: []
+  ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+  ignore line: [ignoring nonexistent directory "/usr/local/include/x86_64-linux-gnu"]
+  ignore line: [ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/11/include-fixed"]
+  ignore line: [ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/11/../../../../x86_64-linux-gnu/include"]
+  ignore line: [#include "..." search starts here:]
+  ignore line: [#include <...> search starts here:]
+  ignore line: [ /usr/lib/gcc/x86_64-linux-gnu/11/include]
+  ignore line: [ /usr/local/include]
+  ignore line: [ /usr/include/x86_64-linux-gnu]
+  ignore line: [ /usr/include]
+  ignore line: [End of search list.]
+  ignore line: [GNU C17 (Ubuntu 11.4.0-1ubuntu1~22.04) version 11.4.0 (x86_64-linux-gnu)]
+  ignore line: [	compiled by GNU C version 11.4.0  GMP version 6.2.1  MPFR version 4.1.0  MPC version 1.2.1  isl version isl-0.24-GMP]
+  ignore line: []
+  ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+  ignore line: [Compiler executable checksum: 50eaa2331df977b8016186198deb2d18]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_e0f36.dir/']
+  ignore line: [ as -v --64 -o CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o /tmp/ccYkbjVs.s]
+  ignore line: [GNU assembler version 2.38 (x86_64-linux-gnu) using BFD version (GNU Binutils for Ubuntu) 2.38]
+  ignore line: [COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.']
+  ignore line: [Linking C executable cmTC_e0f36]
+  ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e0f36.dir/link.txt --verbose=1]
+  ignore line: [/usr/bin/cc  -v CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o -o cmTC_e0f36 ]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=/usr/bin/cc]
+  ignore line: [COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-linux-gnu/11/lto-wrapper]
+  ignore line: [OFFLOAD_TARGET_NAMES=nvptx-none:amdgcn-amdhsa]
+  ignore line: [OFFLOAD_TARGET_DEFAULT=1]
+  ignore line: [Target: x86_64-linux-gnu]
+  ignore line: [Configured with: ../src/configure -v --with-pkgversion='Ubuntu 11.4.0-1ubuntu1~22.04' --with-bugurl=file:///usr/share/doc/gcc-11/README.Bugs --enable-languages=c ada c++ go brig d fortran objc obj-c++ m2 --prefix=/usr --with-gcc-major-version-only --program-suffix=-11 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --enable-bootstrap --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-plugin --enable-default-pie --with-system-zlib --enable-libphobos-checking=release --with-target-system-zlib=auto --enable-objc-gc=auto --enable-multiarch --disable-werror --enable-cet --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32 m64 mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-nvptx/usr amdgcn-amdhsa=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-gcn/usr --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --with-build-config=bootstrap-lto-lean --enable-link-serialization=2]
+  ignore line: [Thread model: posix]
+  ignore line: [Supported LTO compression algorithms: zlib zstd]
+  ignore line: [gcc version 11.4.0 (Ubuntu 11.4.0-1ubuntu1~22.04) ]
+  ignore line: [COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_e0f36' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_e0f36.']
+  link line: [ /usr/lib/gcc/x86_64-linux-gnu/11/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/11/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/11/lto-wrapper -plugin-opt=-fresolution=/tmp/ccVNI5qx.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -z now -z relro -o cmTC_e0f36 /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/Scrt1.o /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/11/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/11 -L/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/11/../../.. CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/lib/gcc/x86_64-linux-gnu/11/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crtn.o]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/collect2] ==> ignore
+    arg [-plugin] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/liblto_plugin.so] ==> ignore
+    arg [-plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/11/lto-wrapper] ==> ignore
+    arg [-plugin-opt=-fresolution=/tmp/ccVNI5qx.res] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [--build-id] ==> ignore
+    arg [--eh-frame-hdr] ==> ignore
+    arg [-m] ==> ignore
+    arg [elf_x86_64] ==> ignore
+    arg [--hash-style=gnu] ==> ignore
+    arg [--as-needed] ==> ignore
+    arg [-dynamic-linker] ==> ignore
+    arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+    arg [-pie] ==> ignore
+    arg [-znow] ==> ignore
+    arg [-zrelro] ==> ignore
+    arg [-o] ==> ignore
+    arg [cmTC_e0f36] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/Scrt1.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/Scrt1.o]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crti.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crti.o]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/crtbeginS.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/11/crtbeginS.o]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/11] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/11]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib]
+    arg [-L/lib/x86_64-linux-gnu] ==> dir [/lib/x86_64-linux-gnu]
+    arg [-L/lib/../lib] ==> dir [/lib/../lib]
+    arg [-L/usr/lib/x86_64-linux-gnu] ==> dir [/usr/lib/x86_64-linux-gnu]
+    arg [-L/usr/lib/../lib] ==> dir [/usr/lib/../lib]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/11/../../..] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../..]
+    arg [CMakeFiles/cmTC_e0f36.dir/CMakeCCompilerABI.c.o] ==> ignore
+    arg [-lgcc] ==> lib [gcc]
+    arg [--push-state] ==> ignore
+    arg [--as-needed] ==> ignore
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [--pop-state] ==> ignore
+    arg [-lc] ==> lib [c]
+    arg [-lgcc] ==> lib [gcc]
+    arg [--push-state] ==> ignore
+    arg [--as-needed] ==> ignore
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [--pop-state] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/crtendS.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/11/crtendS.o]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crtn.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crtn.o]
+  collapse obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/Scrt1.o] ==> [/usr/lib/x86_64-linux-gnu/Scrt1.o]
+  collapse obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crti.o] ==> [/usr/lib/x86_64-linux-gnu/crti.o]
+  collapse obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crtn.o] ==> [/usr/lib/x86_64-linux-gnu/crtn.o]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/11] ==> [/usr/lib/gcc/x86_64-linux-gnu/11]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib] ==> [/usr/lib]
+  collapse library dir [/lib/x86_64-linux-gnu] ==> [/lib/x86_64-linux-gnu]
+  collapse library dir [/lib/../lib] ==> [/lib]
+  collapse library dir [/usr/lib/x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+  collapse library dir [/usr/lib/../lib] ==> [/usr/lib]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../..] ==> [/usr/lib]
+  implicit libs: [gcc;gcc_s;c;gcc;gcc_s]
+  implicit objs: [/usr/lib/x86_64-linux-gnu/Scrt1.o;/usr/lib/x86_64-linux-gnu/crti.o;/usr/lib/gcc/x86_64-linux-gnu/11/crtbeginS.o;/usr/lib/gcc/x86_64-linux-gnu/11/crtendS.o;/usr/lib/x86_64-linux-gnu/crtn.o]
+  implicit dirs: [/usr/lib/gcc/x86_64-linux-gnu/11;/usr/lib/x86_64-linux-gnu;/usr/lib;/lib/x86_64-linux-gnu;/lib]
+  implicit fwks: []
+
+
+Determining if the NC_ENABLED_SSH_TLS exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_55a07/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_55a07.dir/build.make CMakeFiles/cmTC_55a07.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_55a07.dir/CheckSymbolExists.c.o
+/usr/bin/cc   -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_55a07.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_55a07
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_55a07.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_55a07.dir/CheckSymbolExists.c.o -o cmTC_55a07  /usr/lib/x86_64-linux-gnu/libssl.so /usr/lib/x86_64-linux-gnu/libcrypto.so /usr/lib/x86_64-linux-gnu/libssh.so 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <nc_client.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef NC_ENABLED_SSH_TLS
+  return ((int*)(&NC_ENABLED_SSH_TLS))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the _POSIX_TIMERS exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_89801/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_89801.dir/build.make CMakeFiles/cmTC_89801.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_89801.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_89801.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_89801
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_89801.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_89801.dir/CheckSymbolExists.c.o -o cmTC_89801  -lpthread 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <unistd.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef _POSIX_TIMERS
+  return ((int*)(&_POSIX_TIMERS))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the pthread_mutex_timedlock exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_d4ee3/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_d4ee3.dir/build.make CMakeFiles/cmTC_d4ee3.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_d4ee3.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_d4ee3.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_d4ee3
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d4ee3.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_d4ee3.dir/CheckSymbolExists.c.o -o cmTC_d4ee3  -lpthread 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <pthread.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef pthread_mutex_timedlock
+  return ((int*)(&pthread_mutex_timedlock))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the pthread_mutex_clocklock exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_d872c/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_d872c.dir/build.make CMakeFiles/cmTC_d872c.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_d872c.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_d872c.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_d872c
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d872c.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_d872c.dir/CheckSymbolExists.c.o -o cmTC_d872c  -lpthread 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <pthread.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef pthread_mutex_clocklock
+  return ((int*)(&pthread_mutex_clocklock))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the pthread_rwlock_clockrdlock exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_e2e47/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_e2e47.dir/build.make CMakeFiles/cmTC_e2e47.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_e2e47.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_e2e47.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_e2e47
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e2e47.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_e2e47.dir/CheckSymbolExists.c.o -o cmTC_e2e47  -lpthread 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <pthread.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef pthread_rwlock_clockrdlock
+  return ((int*)(&pthread_rwlock_clockrdlock))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the pthread_rwlock_clockwrlock exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_407af/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_407af.dir/build.make CMakeFiles/cmTC_407af.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_407af.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_407af.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_407af
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_407af.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_407af.dir/CheckSymbolExists.c.o -o cmTC_407af  -lpthread 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <pthread.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef pthread_rwlock_clockwrlock
+  return ((int*)(&pthread_rwlock_clockwrlock))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the pthread_cond_clockwait exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_ce280/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_ce280.dir/build.make CMakeFiles/cmTC_ce280.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_ce280.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_ce280.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_ce280
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ce280.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_ce280.dir/CheckSymbolExists.c.o -o cmTC_ce280  -lpthread 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <pthread.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef pthread_cond_clockwait
+  return ((int*)(&pthread_cond_clockwait))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the _POSIX_MONOTONIC_CLOCK exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_debb0/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_debb0.dir/build.make CMakeFiles/cmTC_debb0.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_debb0.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_debb0.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_debb0
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_debb0.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_debb0.dir/CheckSymbolExists.c.o -o cmTC_debb0  -lpthread 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <unistd.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef _POSIX_MONOTONIC_CLOCK
+  return ((int*)(&_POSIX_MONOTONIC_CLOCK))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the vdprintf exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_7360b/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_7360b.dir/build.make CMakeFiles/cmTC_7360b.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_7360b.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_7360b.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_7360b
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_7360b.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_7360b.dir/CheckSymbolExists.c.o -o cmTC_7360b  -lpthread 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <stdio.h>
+#include <stdarg.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef vdprintf
+  return ((int*)(&vdprintf))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the asprintf exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_6cbc8/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_6cbc8.dir/build.make CMakeFiles/cmTC_6cbc8.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_6cbc8.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_6cbc8.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_6cbc8
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_6cbc8.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_6cbc8.dir/CheckSymbolExists.c.o -o cmTC_6cbc8  -lpthread 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <stdio.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef asprintf
+  return ((int*)(&asprintf))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the vasprintf exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_9b8a2/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_9b8a2.dir/build.make CMakeFiles/cmTC_9b8a2.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_9b8a2.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_9b8a2.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_9b8a2
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_9b8a2.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_9b8a2.dir/CheckSymbolExists.c.o -o cmTC_9b8a2  -lpthread 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <stdio.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef vasprintf
+  return ((int*)(&vasprintf))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the getline exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_ca039/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_ca039.dir/build.make CMakeFiles/cmTC_ca039.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_ca039.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_ca039.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_ca039
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ca039.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_ca039.dir/CheckSymbolExists.c.o -o cmTC_ca039  -lpthread 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <stdio.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef getline
+  return ((int*)(&getline))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the strndup exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_81e07/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_81e07.dir/build.make CMakeFiles/cmTC_81e07.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_81e07.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_81e07.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_81e07
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_81e07.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_81e07.dir/CheckSymbolExists.c.o -o cmTC_81e07  -lpthread 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <string.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef strndup
+  return ((int*)(&strndup))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the strdupa exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_c1649/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_c1649.dir/build.make CMakeFiles/cmTC_c1649.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_c1649.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_c1649.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_c1649
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_c1649.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_c1649.dir/CheckSymbolExists.c.o -o cmTC_c1649  -lpthread 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <string.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef strdupa
+  return ((int*)(&strdupa))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the strchrnul exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_fafd5/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_fafd5.dir/build.make CMakeFiles/cmTC_fafd5.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_fafd5.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_fafd5.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_fafd5
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_fafd5.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_fafd5.dir/CheckSymbolExists.c.o -o cmTC_fafd5  -lpthread 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <string.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef strchrnul
+  return ((int*)(&strchrnul))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the get_current_dir_name exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_efca2/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_efca2.dir/build.make CMakeFiles/cmTC_efca2.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_efca2.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_efca2.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_efca2
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_efca2.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_efca2.dir/CheckSymbolExists.c.o -o cmTC_efca2  -lpthread 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <unistd.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef get_current_dir_name
+  return ((int*)(&get_current_dir_name))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the include file stdatomic.h exists passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_ae6ea/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_ae6ea.dir/build.make CMakeFiles/cmTC_ae6ea.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_ae6ea.dir/CheckIncludeFile.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_ae6ea.dir/CheckIncludeFile.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckIncludeFile.c
+Linking C executable cmTC_ae6ea
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ae6ea.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_ae6ea.dir/CheckIncludeFile.c.o -o cmTC_ae6ea  -lpthread 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+
+Determining if the sigaction exist passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_e0a99/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_e0a99.dir/build.make CMakeFiles/cmTC_e0a99.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_e0a99.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_POSIX_C_SOURCE=199309L  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_e0a99.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_e0a99
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e0a99.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_e0a99.dir/CheckSymbolExists.c.o -o cmTC_e0a99 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <signal.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef sigaction
+  return ((int*)(&sigaction))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+Determining if the include file pthread.h exists passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_f360a/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_f360a.dir/build.make CMakeFiles/cmTC_f360a.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_f360a.dir/CheckIncludeFile.c.o
+/usr/bin/cc   -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_f360a.dir/CheckIncludeFile.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckIncludeFile.c
+Linking C executable cmTC_f360a
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_f360a.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_f360a.dir/CheckIncludeFile.c.o -o cmTC_f360a 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+
+Performing C SOURCE FILE Test CMAKE_HAVE_LIBC_PTHREAD succeeded with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_ecd3c/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_ecd3c.dir/build.make CMakeFiles/cmTC_ecd3c.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_ecd3c.dir/src.c.o
+/usr/bin/cc -DCMAKE_HAVE_LIBC_PTHREAD  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_ecd3c.dir/src.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/src.c
+Linking C executable cmTC_ecd3c
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ecd3c.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99  CMakeFiles/cmTC_ecd3c.dir/src.c.o -o cmTC_ecd3c 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+Source file was:
+#include <pthread.h>
+
+static void* test_func(void* data)
+{
+  return data;
+}
+
+int main(void)
+{
+  pthread_t thread;
+  pthread_create(&thread, NULL, test_func, NULL);
+  pthread_detach(thread);
+  pthread_cancel(thread);
+  pthread_join(thread, NULL);
+  pthread_atfork(NULL, NULL, NULL);
+  pthread_exit(NULL);
+
+  return 0;
+}
+
+Determining if the function eaccess exists passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_189a2/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_189a2.dir/build.make CMakeFiles/cmTC_189a2.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_189a2.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -g -O0  -Wall -Wextra -std=c99 -DCHECK_FUNCTION_EXISTS=eaccess -o CMakeFiles/cmTC_189a2.dir/CheckFunctionExists.c.o -c /usr/share/cmake-3.22/Modules/CheckFunctionExists.c
+Linking C executable cmTC_189a2
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_189a2.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99 -DCHECK_FUNCTION_EXISTS=eaccess CMakeFiles/cmTC_189a2.dir/CheckFunctionExists.c.o -o cmTC_189a2  -Wl,-rpath,/usr/local/lib /usr/local/lib/libyang.so /usr/local/lib/libsysrepo.so 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+
+Determining if the function mkstemps exists passed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_cef21/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_cef21.dir/build.make CMakeFiles/cmTC_cef21.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_cef21.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -g -O0  -Wall -Wextra -std=c99 -DCHECK_FUNCTION_EXISTS=mkstemps -o CMakeFiles/cmTC_cef21.dir/CheckFunctionExists.c.o -c /usr/share/cmake-3.22/Modules/CheckFunctionExists.c
+Linking C executable cmTC_cef21
+/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_cef21.dir/link.txt --verbose=1
+/usr/bin/cc -g -O0  -Wall -Wextra -std=c99 -DCHECK_FUNCTION_EXISTS=mkstemps CMakeFiles/cmTC_cef21.dir/CheckFunctionExists.c.o -o cmTC_cef21  -Wl,-rpath,/usr/local/lib /usr/local/lib/libyang.so /usr/local/lib/libsysrepo.so 
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+
+
+

@@ -1,0 +1,35 @@
+Determining if the strnstr exist failed with the following output:
+Change Dir: /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_1f39e/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_1f39e.dir/build.make CMakeFiles/cmTC_1f39e.dir/build
+gmake[1]: Entering directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_1f39e.dir/CheckSymbolExists.c.o
+/usr/bin/cc -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D__BSD_VISIBLE=1  -g -O0  -Wall -Wextra -std=c99  -o CMakeFiles/cmTC_1f39e.dir/CheckSymbolExists.c.o -c /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c: In function ‘main’:
+/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:8:19: error: ‘strnstr’ undeclared (first use in this function); did you mean ‘strstr’?
+    8 |   return ((int*)(&strnstr))[argc];
+      |                   ^~~~~~~
+      |                   strstr
+/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:8:19: note: each undeclared identifier is reported only once for each function it appears in
+/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:4:14: warning: parameter ‘argc’ set but not used [-Wunused-but-set-parameter]
+    4 | int main(int argc, char** argv)
+      |          ~~~~^~~~
+gmake[1]: *** [CMakeFiles/cmTC_1f39e.dir/build.make:78: CMakeFiles/cmTC_1f39e.dir/CheckSymbolExists.c.o] Error 1
+gmake[1]: Leaving directory '/home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:127: cmTC_1f39e/fast] Error 2
+
+
+File /home/netconf/netopeer2-1/build/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <string.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef strnstr
+  return ((int*)(&strnstr))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
