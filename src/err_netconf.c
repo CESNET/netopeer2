@@ -168,148 +168,170 @@ np_err_sr2nc_edit(sr_session_ctx_t *ev_sess, const sr_session_ctx_t *err_sess)
 {
     const sr_error_info_t *err_info;
     const sr_error_info_err_t *err;
-    const char *ptr, *ptr2;
+    const char *ptr, *ptr2, *etype, *etag, *eatag, *epath, *emsg, **einfoelems, **einfovals;
     char *path = NULL, *str = NULL, *str2 = NULL;
+    uint32_t i, einfocount;
 
-    /* get the error */
+    /* get the errors */
     sr_session_get_error((sr_session_ctx_t *)err_sess, &err_info);
     assert(err_info);
-    err = &err_info->err[0];
 
-    /* get path */
-    if ((ptr = strstr(err->message, "(path \""))) {
-        ptr += 7;
+    for (i = 0; i < err_info->err_count; ++i) {
+        err = &err_info->err[i];
+
+        if (err->error_format && !strcmp(err->error_format, "NETCONF")) {
+            /* just copy the NETCONF error */
+            if (sr_err_get_netconf_error(err, &etype, &etag, &eatag, &epath, &emsg, &einfoelems, &einfovals, &einfocount)) {
+                goto mem_error;
+            }
+            sr_session_set_netconf_error2(ev_sess, etype, etag, eatag, epath, emsg, einfocount, einfoelems, einfovals);
+            free(einfoelems);
+            free(einfovals);
+            continue;
+        }
+
+        /* get path */
+        if ((ptr = strstr(err->message, "(path \""))) {
+            ptr += 7;
+        }
+        if (ptr) {
+            path = strndup(ptr, strchr(ptr, '\"') - ptr);
+            if (!path) {
+                goto mem_error;
+            }
+        }
+
+        if (!strncmp(err->message, "Unique data leaf(s)", 19)) {
+            /* data-not-unique */
+            assert(path);
+            sr_session_set_netconf_error(ev_sess, "protocol", "operation-failed", "data-not-unique", NULL,
+                    "Unique constraint violated.", 1, "non-unique", path);
+        } else if (!strncmp(err->message, "Too many", 8)) {
+            /* too-many-elements */
+            assert(path);
+            sr_session_set_netconf_error(ev_sess, "protocol", "operation-failed", "too-many-elements", path,
+                    "Too many elements.", 0);
+        } else if (!strncmp(err->message, "Too few", 7)) {
+            /* too-few-elements */
+            assert(path);
+            sr_session_set_netconf_error(ev_sess, "protocol", "operation-failed", "too-few-elements", path,
+                    "Too few elements.", 0);
+        } else if (!strncmp(err->message, "Must condition", 14)) {
+            /* get the must condition error message */
+            ptr = strrchr(err->message, '(');
+            --ptr;
+            str = strndup(err->message, ptr - err->message);
+
+            /* must-violation */
+            assert(path);
+            sr_session_set_netconf_error(ev_sess, "protocol", "operation-failed", "must-violation", path, str, 0);
+        } else if (!strncmp(err->message, "Invalid leafref value", 21) && strstr(err->message, "no target instance")) {
+            /* get the value */
+            assert(err->message[22] == '\"');
+            ptr = strchr(err->message + 23, '\"');
+
+            /* create error message */
+            if (asprintf(&str, "Required leafref target with value \"%.*s\" missing.", (int)(ptr - (err->message + 23)),
+                    err->message + 23) == -1) {
+                goto mem_error;
+            }
+
+            /* instance-required */
+            assert(path);
+            sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", "instance-required", path, str, 0);
+        } else if (!strncmp(err->message, "Invalid instance-identifier", 26) && strstr(err->message, "required instance not found")) {
+            /* get the value */
+            assert(err->message[28] == '\"');
+            ptr = strchr(err->message + 29, '\"');
+
+            /* create error message */
+            if (asprintf(&str, "Required instance-identifier \"%.*s\" missing.", (int)(ptr - (err->message + 29)),
+                    err->message + 29) == -1) {
+                goto mem_error;
+            }
+
+            /* instance-required */
+            assert(path);
+            sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", "instance-required", path, str, 0);
+        } else if (!strncmp(err->message, "Mandatory choice", 16)) {
+            /* get the choice */
+            assert(path);
+            assert(err->message[17] == '\"');
+            ptr = err->message + 18;
+            ptr2 = strchr(ptr, '\"');
+            if (asprintf(&str, "%s/%.*s", path, (int)(ptr2 - ptr), ptr) == -1) {
+                goto mem_error;
+            }
+
+            /* missing-choice */
+            sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", "mandatory-choice", path,
+                    "Missing mandatory choice.", 1, "missing-choice", str);
+        } else if (strstr(err->message, "instance to insert next to not found.")) {
+            /* get the node name */
+            assert(err->message[5] == '\"');
+            ptr = strchr(err->message + 6, '\"');
+
+            /* create error message */
+            if (asprintf(&str, "Missing insert anchor \"%.*s\" instance.", (int)(ptr - (err->message + 6)),
+                    err->message + 6) == -1) {
+                goto mem_error;
+            }
+
+            /* missing-instance */
+            sr_session_set_netconf_error(ev_sess, "protocol", "bad-attribute", "missing-instance", NULL, str, 0);
+        } else if (strstr(err->message, "to be created already exists.")) {
+            /* data-exists */
+            sr_session_set_netconf_error(ev_sess, "protocol", "data-exists", NULL, NULL, err->message, 0);
+        } else if (strstr(err->message, "to be deleted does not exist.")) {
+            /* data-missing */
+            sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", NULL, NULL, err->message, 0);
+        } else if (strstr(err->message, "does not exist.")) {
+            /* data-missing */
+            sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", NULL, NULL, err->message, 0);
+        } else if (!strncmp(err->message, "Invalid type", 12) || !strncmp(err->message, "Unsatisfied range", 17) ||
+                !strncmp(err->message, "Unsatisfied pattern", 19) || strstr(err->message, "min/max bounds")) {
+            /* create error message */
+            str = strndup(err->message, (strrchr(err->message, '(') - 1) - err->message);
+
+            /* bad-element */
+            assert(path);
+            sr_session_set_netconf_error(ev_sess, "application", "bad-element", NULL, NULL, str, 1, "bad-element", path);
+        } else if (!strncmp(err->message, "Node \"", 6) && strstr(err->message, " not found")) {
+            /* get the node name */
+            assert(err->message[5] == '\"');
+            ptr = strchr(err->message + 6, '\"');
+            str = strndup(err->message + 6, ptr - (err->message + 6));
+
+            /* unknown-element */
+            sr_session_set_netconf_error(ev_sess, "application", "unknown-element", NULL, NULL, err->message, 1,
+                    "bad-element", str);
+        } else if (!strncmp(err->message, "No (implemented) module with namespace", 38)) {
+            /* get the namespace */
+            ptr = strchr(err->message, '\"') + 1;
+            ptr2 = strchr(ptr, '\"');
+            str = strndup(ptr, ptr2 - ptr);
+
+            /* get the node name */
+            ptr = strchr(ptr2 + 1, '\"') + 1;
+            ptr2 = strchr(ptr, '\"');
+            str2 = strndup(ptr, ptr2 - ptr);
+
+            /* unknown-namespace */
+            sr_session_set_netconf_error(ev_sess, "application", "unknown-namespace", NULL, NULL,
+                    "An unexpected namespace is present.", 2, "bad-element", str2, "bad-namespace", str);
+        } else {
+            /* other error */
+            np_err_operation_failed(ev_sess, err->message);
+        }
+
+        free(path);
+        path = NULL;
+        free(str);
+        str = NULL;
+        free(str2);
+        str2 = NULL;
     }
-    if (ptr) {
-        path = strndup(ptr, strchr(ptr, '\"') - ptr);
-    }
 
-    if (!strncmp(err->message, "Unique data leaf(s)", 19)) {
-        /* data-not-unique */
-        assert(path);
-        sr_session_set_netconf_error(ev_sess, "protocol", "operation-failed", "data-not-unique", NULL,
-                "Unique constraint violated.", 1, "non-unique", path);
-    } else if (!strncmp(err->message, "Too many", 8)) {
-        /* too-many-elements */
-        assert(path);
-        sr_session_set_netconf_error(ev_sess, "protocol", "operation-failed", "too-many-elements", path,
-                "Too many elements.", 0);
-    } else if (!strncmp(err->message, "Too few", 7)) {
-        /* too-few-elements */
-        assert(path);
-        sr_session_set_netconf_error(ev_sess, "protocol", "operation-failed", "too-few-elements", path,
-                "Too few elements.", 0);
-    } else if (!strncmp(err->message, "Must condition", 14)) {
-        /* get the must condition error message */
-        ptr = strrchr(err->message, '(');
-        --ptr;
-        str = strndup(err->message, ptr - err->message);
-
-        /* must-violation */
-        assert(path);
-        sr_session_set_netconf_error(ev_sess, "protocol", "operation-failed", "must-violation", path, str, 0);
-    } else if (!strncmp(err->message, "Invalid leafref value", 21) && strstr(err->message, "no target instance")) {
-        /* get the value */
-        assert(err->message[22] == '\"');
-        ptr = strchr(err->message + 23, '\"');
-
-        /* create error message */
-        if (asprintf(&str, "Required leafref target with value \"%.*s\" missing.", (int)(ptr - (err->message + 23)),
-                err->message + 23) == -1) {
-            goto mem_error;
-        }
-
-        /* instance-required */
-        assert(path);
-        sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", "instance-required", path, str, 0);
-    } else if (!strncmp(err->message, "Invalid instance-identifier", 26) && strstr(err->message, "required instance not found")) {
-        /* get the value */
-        assert(err->message[28] == '\"');
-        ptr = strchr(err->message + 29, '\"');
-
-        /* create error message */
-        if (asprintf(&str, "Required instance-identifier \"%.*s\" missing.", (int)(ptr - (err->message + 29)),
-                err->message + 29) == -1) {
-            goto mem_error;
-        }
-
-        /* instance-required */
-        assert(path);
-        sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", "instance-required", path, str, 0);
-    } else if (!strncmp(err->message, "Mandatory choice", 16)) {
-        /* get the choice */
-        assert(path);
-        assert(err->message[17] == '\"');
-        ptr = err->message + 18;
-        ptr2 = strchr(ptr, '\"');
-        if (asprintf(&str, "%s/%.*s", path, (int)(ptr2 - ptr), ptr) == -1) {
-            goto mem_error;
-        }
-
-        /* missing-choice */
-        sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", "mandatory-choice", path,
-                "Missing mandatory choice.", 1, "missing-choice", str);
-    } else if (strstr(err->message, "instance to insert next to not found.")) {
-        /* get the node name */
-        assert(err->message[5] == '\"');
-        ptr = strchr(err->message + 6, '\"');
-
-        /* create error message */
-        if (asprintf(&str, "Missing insert anchor \"%.*s\" instance.", (int)(ptr - (err->message + 6)),
-                err->message + 6) == -1) {
-            goto mem_error;
-        }
-
-        /* missing-instance */
-        sr_session_set_netconf_error(ev_sess, "protocol", "bad-attribute", "missing-instance", NULL, str, 0);
-    } else if (strstr(err->message, "to be created already exists.")) {
-        /* data-exists */
-        sr_session_set_netconf_error(ev_sess, "protocol", "data-exists", NULL, NULL, err->message, 0);
-    } else if (strstr(err->message, "to be deleted does not exist.")) {
-        /* data-missing */
-        sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", NULL, NULL, err->message, 0);
-    } else if (strstr(err->message, "does not exist.")) {
-        /* data-missing */
-        sr_session_set_netconf_error(ev_sess, "protocol", "data-missing", NULL, NULL, err->message, 0);
-    } else if (!strncmp(err->message, "Invalid type", 12) || !strncmp(err->message, "Unsatisfied range", 17) ||
-            !strncmp(err->message, "Unsatisfied pattern", 19) || strstr(err->message, "min/max bounds")) {
-        /* create error message */
-        str = strndup(err->message, (strrchr(err->message, '(') - 1) - err->message);
-
-        /* bad-element */
-        assert(path);
-        sr_session_set_netconf_error(ev_sess, "application", "bad-element", NULL, NULL, str, 1, "bad-element", path);
-    } else if (!strncmp(err->message, "Node \"", 6) && strstr(err->message, " not found")) {
-        /* get the node name */
-        assert(err->message[5] == '\"');
-        ptr = strchr(err->message + 6, '\"');
-        str = strndup(err->message + 6, ptr - (err->message + 6));
-
-        /* unknown-element */
-        sr_session_set_netconf_error(ev_sess, "application", "unknown-element", NULL, NULL, err->message, 1,
-                "bad-element", str);
-    } else if (!strncmp(err->message, "No (implemented) module with namespace", 38)) {
-        /* get the namespace */
-        ptr = strchr(err->message, '\"') + 1;
-        ptr2 = strchr(ptr, '\"');
-        str = strndup(ptr, ptr2 - ptr);
-
-        /* get the node name */
-        ptr = strchr(ptr2 + 1, '\"') + 1;
-        ptr2 = strchr(ptr, '\"');
-        str2 = strndup(ptr, ptr2 - ptr);
-
-        /* unknown-namespace */
-        sr_session_set_netconf_error(ev_sess, "application", "unknown-namespace", NULL, NULL,
-                "An unexpected namespace is present.", 2, "bad-element", str2, "bad-namespace", str);
-    } else {
-        /* other error */
-        sr_session_dup_error((sr_session_ctx_t *)err_sess, ev_sess);
-    }
-
-    free(path);
-    free(str);
-    free(str2);
     return;
 
 mem_error:
