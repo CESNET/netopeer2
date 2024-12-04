@@ -17,7 +17,8 @@ set(CLI_SRC
     commands.c
     completion.c
     configuration.c
-    linenoise/linenoise.c)
+    linenoise/linenoise.c
+    linenoise/utf8.c)
 
 # netopeer2-cli target
 add_executable(netopeer2-cli ${CLI_SRC} ${compatsrc})
