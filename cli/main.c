@@ -36,6 +36,7 @@
 #include "completion.h"
 #include "configuration.h"
 #include "linenoise/linenoise.h"
+#include "linenoise/utf8.h"
 
 int done;
 extern struct nc_session *session;
@@ -125,6 +126,8 @@ main(void)
     ly_set_log_clb(ly_print_clb);
     linenoiseSetCompletionCallback(complete_cmd);
     linenoiseHistoryDataFree(free);
+    linenoiseSetEncodingFunctions(linenoiseUtf8PrevCharLen, linenoiseUtf8NextCharLen, linenoiseUtf8ReadCode);
+    linenoiseSetMultiLine(1);
 
     load_history();
     load_config();
