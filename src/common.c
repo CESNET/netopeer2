@@ -1062,6 +1062,11 @@ op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_options
     int rc;
     LY_ERR lyrc;
 
+    if (!xp_filter) {
+        /* empty filter matches no data */
+        return SR_ERR_OK;
+    }
+
     /* get the selected data */
     rc = sr_get_data(session, xp_filter, max_depth, np2srv.sr_timeout, get_opts, &sr_data);
     if (rc && (rc != SR_ERR_NOT_FOUND)) {

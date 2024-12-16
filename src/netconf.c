@@ -61,6 +61,11 @@ np2srv_get_rpc_data(sr_session_ctx_t *session, const char *xp_filter, sr_session
 
     *data = NULL;
 
+    if (!xp_filter) {
+        /* empty filter matches no data */
+        return SR_ERR_OK;
+    }
+
     /* get base data from running */
     sr_session_switch_ds(session, SR_DS_RUNNING);
     if ((rc = op_filter_data_get(session, 0, SR_GET_NO_FILTER, xp_filter, ev_sess, &base_data))) {
@@ -166,9 +171,12 @@ np2srv_rpc_get_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
         if (!meta) {
             /* subtree */
             if (((struct lyd_node_any *)node)->value_type == LYD_ANYDATA_DATATREE) {
-                if ((rc = srsn_filter_subtree2xpath(((struct lyd_node_any *)node)->value.tree, user_sess->sess, &xp_filter))) {
-                    sr_session_dup_error(user_sess->sess, session);
-                    goto cleanup;
+                if (((struct lyd_node_any *)node)->value.tree) {
+                    if ((rc = srsn_filter_subtree2xpath(((struct lyd_node_any *)node)->value.tree, user_sess->sess,
+                            &xp_filter))) {
+                        sr_session_dup_error(user_sess->sess, session);
+                        goto cleanup;
+                    }
                 }
             } else {
                 ERR("Invalid subtree filter:\n  %s", ((struct lyd_node_any *)node)->value.str);

@@ -147,9 +147,11 @@ np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const 
     node = nodeset->count ? nodeset->dnodes[0] : NULL;
     ly_set_free(nodeset, NULL);
     if (node && !strcmp(node->schema->name, "subtree-filter")) {
-        if ((rc = srsn_filter_subtree2xpath(((struct lyd_node_any *)node)->value.tree, user_sess->sess, &xp_filter))) {
-            sr_session_dup_error(user_sess->sess, session);
-            goto cleanup;
+        if (((struct lyd_node_any *)node)->value.tree) {
+            if ((rc = srsn_filter_subtree2xpath(((struct lyd_node_any *)node)->value.tree, user_sess->sess, &xp_filter))) {
+                sr_session_dup_error(user_sess->sess, session);
+                goto cleanup;
+            }
         }
     } else {
         xp_filter = strdup(node ? lyd_get_value(node) : "/*");
