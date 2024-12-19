@@ -144,7 +144,7 @@ main(void)
 
     while (!done) {
         /* get the command from user */
-        cmdline = linenoise(PROMPT);
+        cmdline = linenoise(NC_CLI_PROMPT);
 
         /* EOF -> exit */
         if (cmdline == NULL) {
