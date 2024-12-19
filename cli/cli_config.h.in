@@ -4,6 +4,7 @@
  * @brief netopeer2-cli version
  *
  * @copyright
+ * Copyright (c) 2024 - Heiko Thiery <heiko dot thiery at gmail dot com>
  * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
  * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
  *
@@ -15,3 +16,5 @@
  */
 
 #define CLI_VERSION "@NP2CLI_VERSION@"
+
+#define NC_CLI_PROMPT "@CLI_PROMPT@ "

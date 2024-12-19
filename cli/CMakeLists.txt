@@ -8,7 +8,11 @@ project(netopeer2-cli C)
 
 # set version
 set(NP2CLI_VERSION 2.0.78)
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cli_version.h.in" "${PROJECT_BINARY_DIR}/cli_version.h" ESCAPE_QUOTES @ONLY)
+
+# configure CLI prompt
+set(CLI_PROMPT ">" CACHE STRING "Set the CLI prompt (a space is automatically appended at the end)")
+
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cli_config.h.in" "${PROJECT_BINARY_DIR}/cli_config.h" ESCAPE_QUOTES @ONLY)
 include_directories(${PROJECT_BINARY_DIR})
 
 # source files
