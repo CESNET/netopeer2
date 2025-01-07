@@ -323,14 +323,14 @@ readinput(const char *instruction, const char *old_tmp, char **new_tmp)
         }
     }
 
+cleanup:
+
     if (new_tmp) {
         *new_tmp = tmpname;
     } else {
         unlink(tmpname);
         free(tmpname);
     }
-
-cleanup:
 
     close(tmpfd);
     free(old_content);

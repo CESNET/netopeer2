@@ -1044,8 +1044,10 @@ char *linenoiseHistoryDataGet() {
 
 static void linenoiseHistItemFree(int hist_idx) {
     free(history[hist_idx].line);
+    history[hist_idx].line = NULL;
     if (hist_data_free_clb) {
         hist_data_free_clb(history[hist_idx].data);
+        history[hist_idx].data = NULL;
     }
 }
 
