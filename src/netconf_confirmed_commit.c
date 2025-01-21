@@ -39,7 +39,6 @@
 
 #include "common.h"
 #include "compat.h"
-#include "err_netconf.h"
 #include "log.h"
 
 #define META_FILE "meta"
@@ -275,7 +274,7 @@ cleanup:
 }
 
 /**
- * @brief check if NCC_DIR exists, try creating it otherwise. Check permissions and ownership. Change if wrong.
+ * @brief Check if NCC_DIR exists, try creating it otherwise. Check permissions and ownership. Change if wrong.
  *
  * @return SR_ERR_SYS When failed during creation of the directory.
  * @return SR_ERR_NO_MEMRY When out of memory.
@@ -392,13 +391,13 @@ ncc_commit_confirmed(void)
  * @brief Restore running using the backup files.
  * Thread run after the timer in commit_ctx_s runs out.
  *
- * @param[in] sev Received signal. 0 when called by the timer (no commit lock).
+ * @param[in] sev User session to use. NULL when called by the timer (no commit lock nor user session).
  */
 static void
 ncc_changes_rollback_cb(union sigval sev)
 {
     int rc;
-    struct np2_user_sess *user_sess = NULL;
+    struct np_user_sess *user_sess = NULL;
     sr_session_ctx_t *sr_sess = NULL;
     struct lyd_node *node = NULL;
     const struct ly_ctx *ly_ctx;
@@ -413,14 +412,16 @@ ncc_changes_rollback_cb(union sigval sev)
     }
     ly_ctx = sr_acquire_context(np2srv.sr_conn);
 
-    if (!sev.sival_int) {
+    if (!sev.sival_ptr) {
         /* LOCK */
         pthread_mutex_lock(&commit_ctx.lock);
+    } else {
+        user_sess = sev.sival_ptr;
     }
 
     if (commit_ctx.nc_sess) {
         /* get user session, use the original NC (SR) session in case it was used for locking running DS */
-        if ((rc = np_acquire_user_sess(commit_ctx.nc_sess, &user_sess))) {
+        if (!user_sess && (rc = np_acquire_user_sess(commit_ctx.nc_sess, &user_sess))) {
             goto cleanup;
         }
         sr_sess = user_sess->sess;
@@ -507,9 +508,13 @@ ncc_changes_rollback_cb(union sigval sev)
     ncc_commit_confirmed();
 
 cleanup:
-    if (!sev.sival_int) {
+    if (!sev.sival_ptr) {
         /* UNLOCK */
         pthread_mutex_unlock(&commit_ctx.lock);
+
+        if (user_sess) {
+            np_release_user_sess(user_sess);
+        }
 
         /* send notification about timeout for confirmed-commits */
         np_send_notif_confirmed_commit(commit_ctx.nc_sess, sr_sess, NP_CC_TIMEOUT, 0, 0);
@@ -520,7 +525,6 @@ cleanup:
             sr_nacm_set_user(sr_sess, nacm_user);
             free(nacm_user);
         }
-        np_release_user_sess(user_sess);
     } else {
         sr_session_stop(sr_sess);
     }
@@ -532,18 +536,18 @@ cleanup:
 }
 
 void
-ncc_del_session(const struct nc_session *nc_sess, sr_session_ctx_t *sr_sess)
+ncc_del_session(struct np_user_sess *user_sess, sr_session_ctx_t *sr_sess)
 {
     /* LOCK */
     pthread_mutex_lock(&commit_ctx.lock);
 
-    if (commit_ctx.timer && !commit_ctx.persist && (commit_ctx.nc_sess == nc_sess)) {
+    if (commit_ctx.timer && !commit_ctx.persist && (commit_ctx.nc_sess == user_sess->ntf_arg.nc_sess)) {
         /* rollback */
         VRB("Performing confirmed commit rollback after the issuing session has terminated.");
-        ncc_changes_rollback_cb((union sigval)1);
+        ncc_changes_rollback_cb((union sigval)(void *)user_sess);
 
         /* send notification about canceling confirmed-commits */
-        np_send_notif_confirmed_commit(nc_sess, sr_sess, NP_CC_CANCEL, 0, 0);
+        np_send_notif_confirmed_commit(user_sess->ntf_arg.nc_sess, sr_sess, NP_CC_CANCEL, 0, 0);
     }
 
     /* UNLOCK */
@@ -555,43 +559,41 @@ ncc_del_session(const struct nc_session *nc_sess, sr_session_ctx_t *sr_sess)
  *
  * @param[in] session Sysrepo session used to get data of the module.
  * @param[in] module Module to backup.
- * @return SR_ERR_LY When printing into the file failed.
- * @return SR_ERR_NO_MEMORY When memory ran during allocation
- * @return SR_ERR_OK On success
+ * @return Error reply on error, NULL on success.
  */
-static int
+static struct nc_server_reply *
 ncc_backup_module(sr_session_ctx_t *session, const struct lys_module *module)
 {
-    int rc = SR_ERR_OK;
+    struct nc_server_reply *reply = NULL;
     char *path = NULL, *xpath = NULL, *ncc_path = NULL;
     sr_data_t *data = NULL;
 
     if (asprintf(&ncc_path, "%s/%s", np2srv.server_dir, NCC_DIR) == -1) {
         EMEM;
-        rc = SR_ERR_NO_MEMORY;
+        reply = np_reply_err_op_failed(session, NULL, "Memory allocation failed.");
         goto cleanup;
     }
     VRB("Backing up module \"%s\".", module->name);
 
     if (asprintf(&xpath, "/%s:*", module->name) == -1) {
         EMEM;
-        rc = SR_ERR_NO_MEMORY;
+        reply = np_reply_err_op_failed(session, NULL, "Memory allocation failed.");
         goto cleanup;
     }
 
-    if ((rc = sr_get_data(session, xpath, 0, 0, 0, &data))) {
-        ERR("Failed getting configuration of running for module \"%s\" (%s).", module->name, sr_strerror(rc));
+    if (sr_get_data(session, xpath, 0, 0, 0, &data)) {
+        reply = np_reply_err_sr(session, "get");
         goto cleanup;
     }
 
     if (asprintf(&path, "%s/%s.json", ncc_path, module->name) == -1) {
         EMEM;
-        rc = SR_ERR_NO_MEMORY;
+        reply = np_reply_err_op_failed(session, NULL, "Memory allocation failed.");
         goto cleanup;
     }
     if (lyd_print_path(path, data ? data->tree : NULL, LYD_JSON, LYD_PRINT_WITHSIBLINGS | LYD_PRINT_SHRINK)) {
         ERR("Failed backing up node of module \"%s\" into file \"%s\".", module->name, path);
-        rc = SR_ERR_LY;
+        reply = np_reply_err_op_failed(session, NULL, ly_last_logmsg());
         goto cleanup;
     }
 
@@ -600,18 +602,19 @@ cleanup:
     free(ncc_path);
     free(path);
     free(xpath);
-    return rc;
+    return reply;
 }
 
 /**
  * @brief Schedule a rollback of confirmed commit. Create the timer and set all the options.
  *
  * @param[in] timeout_s Time (in seconds) after which the timer will start the rollback.
+ * @param[in] user_sess User session structure, if available.
  * @return SR_ERR_SYS on timer creation failure.
  * @return SR_ERR_OK on succeeded.
  */
 static int
-ncc_commit_timeout_schedule(uint32_t timeout_s)
+ncc_commit_timeout_schedule(uint32_t timeout_s, struct np_user_sess *user_sess)
 {
     struct sigevent sev = {0};
     struct itimerspec its = {0};
@@ -623,11 +626,11 @@ ncc_commit_timeout_schedule(uint32_t timeout_s)
 
     if (!timeout_s) {
         /* just perform the rollback without locking */
-        ncc_changes_rollback_cb((union sigval)1);
+        ncc_changes_rollback_cb((union sigval)(void *)user_sess);
     } else {
         /* create and arm the timer */
         sev.sigev_notify = SIGEV_THREAD;
-        sev.sigev_value = (union sigval)0;
+        sev.sigev_value = (union sigval)NULL;
         sev.sigev_notify_function = ncc_changes_rollback_cb;
         its.it_value.tv_sec = timeout_s;
         if (timer_create(CLOCK_REALTIME, &sev, &timer_id) == -1) {
@@ -711,32 +714,32 @@ ncc_try_restore(void)
     }
 
     VRB("Performing confirmed commit rollback after server restart.");
-    ncc_changes_rollback_cb((union sigval)1);
+    ncc_changes_rollback_cb((union sigval)NULL);
 }
 
 /**
  * @brief Create backup files for all implemented modules
  *
- * @return SR_ERR_OK When successful.
+ * @param[in] ly_ctx Context to use.
+ * @return Error reply on error, NULL on success.
  */
-static int
-ncc_running_backup(void)
+static struct nc_server_reply *
+ncc_running_backup(const struct ly_ctx *ly_ctx)
 {
-    int rc = SR_ERR_OK, read = 0, write = 0;
-    const struct ly_ctx *ly_ctx;
-    sr_session_ctx_t *session;
+    struct nc_server_reply *reply = NULL;
+    int read = 0, write = 0;
+    sr_session_ctx_t *session = NULL;
     struct lys_module *module;
     uint32_t index = 0;
 
-    ly_ctx = sr_acquire_context(np2srv.sr_conn);
-
-    if ((rc = sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &session))) {
-        ERR("Failed starting a sysrepo session (%s).", sr_strerror(rc));
+    if (sr_session_start(np2srv.sr_conn, SR_DS_RUNNING, &session)) {
+        reply = np_reply_err_op_failed(NULL, ly_ctx, "Failed to start a sysrepo session.");
         goto cleanup;
     }
 
     /* iterate over all implemented modules */
-    if ((rc = ncc_check_server_dir())) {
+    if (ncc_check_server_dir()) {
+        reply = np_reply_err_op_failed(NULL, ly_ctx, "Failed to check server dir.");
         goto cleanup;
     }
     while ((module = ly_ctx_get_module_iter(ly_ctx, &index))) {
@@ -751,26 +754,26 @@ ncc_running_backup(void)
             continue;
         }
 
-        /* Check if has both read and write permission for module in sysrepo */
-        if ((rc = sr_check_module_ds_access(np2srv.sr_conn, module->name, SR_DS_RUNNING, &read, &write))) {
-            ERR("Failed getting permissions of module \"%s\".", module->name);
+        /* check if has both read and write permission for module in sysrepo */
+        if (sr_check_module_ds_access(np2srv.sr_conn, module->name, SR_DS_RUNNING, &read, &write)) {
+            ERR("Failed getting the permissions of module \"%s\".", module->name);
+            reply = np_reply_err_op_failed(NULL, ly_ctx, "Failed to learn the permissions of a module.");
             goto cleanup;
         }
         if (!read || !write) {
             continue;
         }
 
-        /* Create the backup */
-        if ((rc = ncc_backup_module(session, module))) {
+        /* create the backup */
+        if ((reply = ncc_backup_module(session, module))) {
             ERR("Failed creating backup of module \"%s\".", module->name);
             goto cleanup;
         }
     }
 
 cleanup:
-    sr_release_context(np2srv.sr_conn);
     sr_session_stop(session);
-    return rc;
+    return reply;
 }
 
 /**
@@ -818,72 +821,56 @@ cleanup:
 /**
  * @brief Callback for the confirmed commit RPC.
  *
- * @param[in] session Sysrepo session.
- * @param[in] input RPC parsed into lyd_node.
- * @return SR_ERR_INVAL_ARG When timeout was not a valid uint32 number or persist-id given when not expected.
- * @return SR_ERR_OK When successful.
+ * @param[in] rpc Input RPC.
+ * @param[in] user_sess User session structure to use.
+ * @return Error reply on error, NULL on success.
  */
-static int
-np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *input)
+static struct nc_server_reply *
+np2srv_confirmed_commit_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess)
 {
-    int rc = SR_ERR_OK;
-    struct np2_user_sess *user_sess = NULL;
+    struct nc_server_reply *reply = NULL;
     struct nc_session *nc_sess;
-    const sr_error_info_t *err_info;
     const char *persist = NULL;
     struct lyd_node *node = NULL;
-    char *endptr = NULL;
     uint32_t timeout;
     uint8_t timeout_changed = 0;
 
-    /* get the user session */
-    if ((rc = np_find_user_sess(session, __func__, &nc_sess, &user_sess))) {
-        goto cleanup;
-    }
-    if ((rc = sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING))) {
-        goto cleanup;
-    }
+    nc_sess = user_sess->ntf_arg.nc_sess;
 
     /* confirm-timeout */
-    lyd_find_path(input, "confirm-timeout", 0, &node);
+    lyd_find_path(rpc, "confirm-timeout", 0, &node);
     assert(node);
-    timeout = strtoul(lyd_get_value(node), &endptr, 10);
-    if (*endptr) {
-        ERR("Invalid timeout \"%s\" given", lyd_get_value(node));
-        rc = SR_ERR_INVAL_ARG;
-        goto cleanup;
-    }
+    timeout = strtoul(lyd_get_value(node), NULL, 10);
 
     /* persist */
-    if (!lyd_find_path(input, "persist", 0, &node)) {
+    if (!lyd_find_path(rpc, "persist", 0, &node)) {
         persist = lyd_get_value(node);
     }
 
     /* persist-id */
-    if (!lyd_find_path(input, "persist-id", 0, &node)) {
-        ERR("Persist-id given in confirmed commit rpc.");
-        rc = SR_ERR_INVAL_ARG;
+    if (!lyd_find_path(rpc, "persist-id", 0, &node)) {
+        ERR("Persist ID given in confirmed commit rpc.");
+        reply = np_reply_err_invalid_val(LYD_CTX(rpc), "Persist ID given in confirmed commit rpc.", "persist-id");
         goto cleanup;
     }
 
     if (!commit_ctx.timer) {
         /* create and store the backup */
-        if (ncc_running_backup()) {
+        if (ncc_running_backup(LYD_CTX(rpc))) {
             goto cleanup;
         }
     } else {
         if (commit_ctx.persist) {
             if (!persist || strcmp(persist, commit_ctx.persist)) {
-                np_err_invalid_value(session, "Follow-up confirm commit does not match pending confirmed commit.", "persist");
-                rc = SR_ERR_INVAL_ARG;
+                reply = np_reply_err_invalid_val(LYD_CTX(rpc),
+                        "Follow-up confirm commit does not match pending confirmed commit.", "persist");
                 goto cleanup;
             }
         } else {
             assert(commit_ctx.nc_sess);
             if (commit_ctx.nc_sess != nc_sess) {
-                np_err_operation_failed(session,
+                reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc),
                         "Follow-up confirm commit session does not match the pending confirmed commit session.");
-                rc = SR_ERR_OPERATION_FAILED;
                 goto cleanup;
             }
         }
@@ -907,134 +894,100 @@ np2srv_confirmed_commit_cb(sr_session_ctx_t *session, const struct lyd_node *inp
     }
 
     /* (re)schedule the timer thread for rollback */
-    if (ncc_commit_timeout_schedule(timeout)) {
+    if (ncc_commit_timeout_schedule(timeout, user_sess)) {
         goto cleanup;
     }
 
     if (timeout_changed) {
         /* send notification about extending timeout for confirmed-commits */
-        np_send_notif_confirmed_commit(nc_sess, session, NP_CC_EXTEND, timeout, 0);
+        np_send_notif_confirmed_commit(nc_sess, user_sess->sess, NP_CC_EXTEND, timeout, 0);
     } else {
         /* send notification about starting confirmed-commits */
-        np_send_notif_confirmed_commit(nc_sess, session, NP_CC_START, timeout, 0);
+        np_send_notif_confirmed_commit(nc_sess, user_sess->sess, NP_CC_START, timeout, 0);
     }
 
+    sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING);
+
     /* sysrepo API */
-    rc = sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout);
-    if (rc == SR_ERR_LOCKED) {
-        /* NETCONF error */
-        sr_session_get_error(user_sess->sess, &err_info);
-        np_err_sr2nc_in_use(session, err_info);
-    } else if (rc) {
-        /* Sysrepo error */
-        sr_session_dup_error(user_sess->sess, session);
+    if (sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout)) {
+        reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
         goto cleanup;
     }
 
+    /* OK reply */
+    reply = np_reply_success(rpc, NULL);
+
 cleanup:
-    np_release_user_sess(user_sess);
-    return rc;
+    return reply;
 }
 
-int
-np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
-        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
-        void *UNUSED(private_data))
+struct nc_server_reply *
+np2srv_rpc_commit_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess)
 {
-    int rc = SR_ERR_OK;
-    struct np2_user_sess *user_sess = NULL;
-    struct nc_session *nc_sess;
+    struct nc_server_reply *reply = NULL;
     struct lyd_node *node;
-    const sr_error_info_t *err_info;
     const char *persist_id = NULL, *persist;
-
-    if (np_ignore_rpc(session, event, &rc)) {
-        /* ignore in this case */
-        return rc;
-    }
 
     /* LOCK */
     pthread_mutex_lock(&commit_ctx.lock);
 
     /* check if confirmed-commit */
-    if (!lyd_find_path(input, "confirmed", 0, NULL)) {
-        rc = np2srv_confirmed_commit_cb(session, input);
+    if (!lyd_find_path(rpc, "confirmed", 0, NULL)) {
+        reply = np2srv_confirmed_commit_cb(rpc, user_sess);
         goto cleanup;
     }
 
     /* persist-id */
-    if (!lyd_find_path(input, "persist-id", 0, &node)) {
+    if (!lyd_find_path(rpc, "persist-id", 0, &node)) {
         persist_id = lyd_get_value(node);
     }
 
     persist = commit_ctx.persist;
     if ((persist && !persist_id) || (!persist && persist_id) || (persist && persist_id && strcmp(persist, persist_id))) {
-        np_err_invalid_value(session, "Commit does not match pending confirmed commit.", "persist_id");
-        rc = SR_ERR_INVAL_ARG;
-        goto cleanup;
-    }
-
-    /* get the user session */
-    if ((rc = np_find_user_sess(session, __func__, &nc_sess, &user_sess))) {
+        reply = np_reply_err_invalid_val(LYD_CTX(rpc), "Commit does not match pending confirmed commit.", "persist-id");
         goto cleanup;
     }
 
     /* if there is a commit waiting to be confirmed, confirm it */
     if (commit_ctx.timer) {
-        if (!persist_id && (commit_ctx.nc_sess != nc_sess)) {
-            np_err_operation_failed(session, "Commit session does not match the pending confirmed commit session.");
-            rc = SR_ERR_OPERATION_FAILED;
+        if (!persist_id && (commit_ctx.nc_sess != user_sess->ntf_arg.nc_sess)) {
+            reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc),
+                    "Follow-up confirm commit session does not match the pending confirmed commit session.");
             goto cleanup;
         }
         ncc_commit_confirmed();
 
         /* send notification about complete confirmed-commits */
-        np_send_notif_confirmed_commit(nc_sess, session, NP_CC_COMPLETE, 0, 0);
+        np_send_notif_confirmed_commit(user_sess->ntf_arg.nc_sess, user_sess->sess, NP_CC_COMPLETE, 0, 0);
     }
 
     /* sysrepo API */
     sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING);
-    rc = sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout);
-    if (rc == SR_ERR_LOCKED) {
-        /* NETCONF error */
-        sr_session_get_error(user_sess->sess, &err_info);
-        np_err_sr2nc_in_use(session, err_info);
-    } else if (rc) {
-        /* Sysrepo error */
-        sr_session_dup_error(user_sess->sess, session);
+    if (sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout)) {
+        reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
         goto cleanup;
     }
+
+    /* OK reply */
+    reply = np_reply_success(rpc, NULL);
 
 cleanup:
     /* UNLOCK */
     pthread_mutex_unlock(&commit_ctx.lock);
-    np_release_user_sess(user_sess);
-    return rc;
+    return reply;
 }
 
-int
-np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
-        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *UNUSED(output),
-        void *UNUSED(private_data))
+struct nc_server_reply *
+np2srv_rpc_cancel_commit_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess)
 {
-    int rc = SR_ERR_OK, is_locked;
-    struct nc_session *nc_sess;
+    struct nc_server_reply *reply = NULL;
+    int is_locked;
     struct lyd_node *node;
     const char *persist_id = NULL, *persist = NULL;
     uint32_t sr_id;
 
-    if (np_ignore_rpc(session, event, &rc)) {
-        /* ignore in this case */
-        return rc;
-    }
-
-    /* get the NC session */
-    if ((rc = np_find_user_sess(session, __func__, &nc_sess, NULL))) {
-        goto cleanup;
-    }
-
     /* persist-id */
-    if (!lyd_find_path(input, "persist-id", 0, &node)) {
+    if (!lyd_find_path(rpc, "persist-id", 0, &node)) {
         persist_id = lyd_get_value(node);
     }
 
@@ -1043,52 +996,53 @@ np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), 
 
     /* check there is a confirmed commit to cancel */
     if (!commit_ctx.timer) {
-        np_err_invalid_value(session, "No pending confirmed commit to cancel.", NULL);
-        rc = SR_ERR_INVAL_ARG;
+        reply = np_reply_err_invalid_val(LYD_CTX(rpc), "No pending confirmed commit to cancel.", NULL);
         goto cleanup;
     }
 
     /* check persist-id */
     persist = commit_ctx.persist;
     if ((persist && !persist_id) || (!persist && persist_id) || (persist && persist_id && strcmp(persist, persist_id))) {
-        np_err_invalid_value(session, "Cancel commit does not match pending confirmed commit.", persist_id);
-        rc = SR_ERR_INVAL_ARG;
+        reply = np_reply_err_invalid_val(LYD_CTX(rpc), "Cancel commit does not match pending confirmed commit.",
+                persist_id ? "persist-id" : NULL);
         goto cleanup;
     }
 
     if (!persist_id) {
         /* non-persist pending confirmed commit and session issuing the <cancel-commit> does not match
          * the one issuing <commit> */
-        if (commit_ctx.nc_sess != nc_sess) {
-            np_err_operation_failed(session, "Cancel commit session does not match the pending confirmed commit session.");
-            rc = SR_ERR_OPERATION_FAILED;
+        if (commit_ctx.nc_sess != user_sess->ntf_arg.nc_sess) {
+            reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc),
+                    "Cancel commit session does not match the pending confirmed commit session.");
             goto cleanup;
         }
     } else {
         /* make sure the running datastore in unlocked */
-        if ((rc = sr_get_lock(np2srv.sr_conn, SR_DS_RUNNING, NULL, &is_locked, &sr_id, NULL))) {
-            np_err_operation_failed(session, "Failed to learn the lock state of the <running> datastore.");
+        if (sr_get_lock(np2srv.sr_conn, SR_DS_RUNNING, NULL, &is_locked, &sr_id, NULL)) {
+            reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), "Failed to learn the lock state of the <running> datastore.");
             goto cleanup;
-        } else if (is_locked && (sr_session_get_id(((struct np2_user_sess *)nc_session_get_data(nc_sess))->sess) != sr_id)) {
-            np_err_in_use(session, sr_id);
-            rc = SR_ERR_LOCKED;
+        } else if (is_locked && (sr_session_get_id(user_sess->sess) != sr_id)) {
+            reply = np_reply_err_in_use(LYD_CTX(rpc), "The request requires a resource that already is in use.", sr_id);
             goto cleanup;
         }
 
         /* persist commit, set the NC session to use for the rollback */
         assert(!commit_ctx.nc_sess);
-        commit_ctx.nc_sess = nc_sess;
+        commit_ctx.nc_sess = user_sess->ntf_arg.nc_sess;
     }
 
     /* rollback */
     VRB("Performing confirmed commit rollback after receiving <cancel-commit>.");
-    ncc_changes_rollback_cb((union sigval)1);
+    ncc_changes_rollback_cb((union sigval)(void *)user_sess);
 
     /* send notification about canceling confirmed-commits */
-    np_send_notif_confirmed_commit(nc_sess, session, NP_CC_CANCEL, 0, 0);
+    np_send_notif_confirmed_commit(user_sess->ntf_arg.nc_sess, user_sess->sess, NP_CC_CANCEL, 0, 0);
+
+    /* OK reply */
+    reply = np_reply_success(rpc, NULL);
 
 cleanup:
     /* UNLOCK */
     pthread_mutex_unlock(&commit_ctx.lock);
-    return rc;
+    return reply;
 }

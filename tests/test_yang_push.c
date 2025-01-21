@@ -762,6 +762,7 @@ test_resync(void **state)
     /* Resync the subscription */
     st->rpc = nc_rpc_resyncsub(st->ntf_id);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
 
     /* Sync notification should arrive */
     RECV_NOTIF(st);

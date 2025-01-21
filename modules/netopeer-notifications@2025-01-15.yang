@@ -1,0 +1,192 @@
+module netopeer-notifications {
+    namespace "urn:cesnet:netopeer-notifcations";
+    prefix npn;
+
+    yang-version 1.1;
+
+    import ietf-datastores {
+        prefix ds;
+    }
+
+    import ietf-netconf-notifications {
+        prefix ncn;
+    }
+
+    organization
+        "CESNET";
+
+    contact
+        "Author: Michal Vasko
+                 <mvasko@cesnet.cz>";
+
+    description
+        "Netopeer2 NETCONF server YANG notifications.";
+
+    revision "2025-01-15" {
+        description
+            "Initial revision.";
+    }
+
+    grouping session-type-params {
+        description
+            "Parameters to identify the type of NETCONF session.";
+
+        leaf session-type {
+            type enumeration {
+                enum standard {
+                    description
+                        "Standard NETCONF session created by the client connecting to the listening server.";
+                }
+                enum call-home {
+                    description
+                        "Call-Home NETCONF session created by the server connecting to the listening client.";
+                }
+            }
+            mandatory true;
+            description
+                "Distinguishes the type of session.";
+        }
+    }
+
+    notification netconf-rpc-execution {
+        description
+            "NETCONF RPC is being executed.";
+
+        choice stage-of-execution {
+            mandatory true;
+            description
+                "Distinguishes between pre-execution and post-execution notifications.";
+
+            leaf pre-execution {
+                type empty;
+                description
+                    "Notification sent before the RPC is executed.";
+            }
+            leaf post-execution {
+                description
+                    "Notification sent after the RPC is executed.";
+                type enumeration {
+                    enum success {
+                        description
+                            "RPC executed successfully.";
+                    }
+                    enum fail {
+                        description
+                            "RPC execution failed.";
+                    }
+                }
+            }
+        }
+
+        leaf name {
+            type enumeration {
+                enum get-config {
+                    description
+                        "ietf-netconf get-config RPC";
+                }
+                enum edit-config {
+                    description
+                        "ietf-netconf edit-config RPC";
+                }
+                enum copy-config {
+                    description
+                        "ietf-netconf copy-config RPC";
+                }
+                enum delete-config {
+                    description
+                        "ietf-netconf delete-config RPC";
+                }
+                enum lock {
+                    description
+                        "ietf-netconf lock RPC";
+                }
+                enum unlock {
+                    description
+                        "ietf-netconf unlock RPC";
+                }
+                enum get {
+                    description
+                        "ietf-netconf get RPC";
+                }
+                enum kill-session {
+                    description
+                        "ietf-netconf kill-session RPC";
+                }
+                enum commit {
+                    description
+                        "ietf-netconf commit RPC";
+                }
+                enum discard-changes {
+                    description
+                        "ietf-netconf discard-changes RPC";
+                }
+                enum cancel-commit {
+                    description
+                        "ietf-netconf cancel-commit RPC";
+                }
+                enum validate {
+                    description
+                        "ietf-netconf validate RPC";
+                }
+
+                enum get-schema {
+                    description
+                        "ietf-netconf-monitoring get-schema RPC";
+                }
+
+                enum create-subscription {
+                    description
+                        "notifications create-subscription RPC";
+                }
+
+                enum get-data {
+                    description
+                        "ietf-netconf-nmda get-data RPC";
+                }
+                enum edit-data {
+                    description
+                        "ietf-netconf-nmda edit-data RPC";
+                }
+
+                enum establish-subscription {
+                    description
+                        "ietf-subscribed-notifications establish-subscription RPC";
+                }
+                enum modify-subscription {
+                    description
+                        "ietf-subscribed-notifications modify-subscription RPC";
+                }
+                enum delete-subscription {
+                    description
+                        "ietf-subscribed-notifications delete-subscription RPC";
+                }
+                enum kill-subscription {
+                    description
+                        "ietf-subscribed-notifications kill-subscription RPC";
+                }
+
+                enum resync-subscription {
+                    description
+                        "ietf-yang-push resync-subscription RPC";
+                }
+            }
+            mandatory true;
+            description
+                "Name of the executed RPC.";
+        }
+
+        leaf datastore {
+            type ds:datastore-ref;
+            description
+                "Affected datastore by the RPC, if relevant.";
+        }
+    }
+
+    augment "/ncn:netconf-session-start" {
+        uses session-type-params;
+    }
+
+    augment "/ncn:netconf-session-end" {
+        uses session-type-params;
+    }
+}

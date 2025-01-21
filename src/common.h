@@ -4,8 +4,8 @@
  * @brief netopeer2-server common structures and functions
  *
  * @copyright
- * Copyright (c) 2019 - 2023 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2023 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2025 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2025 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ struct np_ntf_arg {
 };
 
 /* user session structure assigned as data of NC sessions */
-struct np2_user_sess {
+struct np_user_sess {
     sr_session_ctx_t *sess;
     ATOMIC_T ref_count;
     pthread_mutex_t lock;
@@ -63,8 +63,6 @@ struct np2_user_sess {
 struct np2srv {
     sr_conn_ctx_t *sr_conn;         /**< sysrepo connection */
     sr_session_ctx_t *sr_sess;      /**< sysrepo server session */
-    sr_subscription_ctx_t *sr_rpc_sub;  /**< sysrepo RPC subscription context */
-    sr_subscription_ctx_t *sr_create_sub_rpc_sub;   /**< sysrepo \<create-subscription\> RPC subscription context */
     sr_subscription_ctx_t *sr_data_sub; /**< sysrepo data subscription context */
     sr_subscription_ctx_t *sr_nacm_stats_sub;   /**< sysrepo NACM global stats subscription context */
     sr_subscription_ctx_t *sr_notif_sub;    /**< sysrepo notification subscription context */
@@ -85,16 +83,6 @@ struct np2srv {
 };
 
 extern struct np2srv np2srv;
-
-/**
- * @brief Check whether to ignore an RPC callback event.
- *
- * @param[in] ev_sess Event session to generate an error for.
- * @param[in] event RPC callback event.
- * @param[out] rc Return code to return.
- * @return Whether the RPC should be processed or not.
- */
-int np_ignore_rpc(sr_session_ctx_t *ev_sess, sr_event_t event, int *rc);
 
 /**
  * @brief Sleep in milliseconds.
@@ -159,21 +147,7 @@ int np_get_nc_sess_by_id(uint32_t sr_id, uint32_t nc_id, const char *func, struc
  * @param[out] user_sess Sysrepo user session.
  * @return SR error value.
  */
-int np_acquire_user_sess(const struct nc_session *ncs, struct np2_user_sess **user_sess);
-
-/**
- * @brief Find NC session and/or SR user session based on SR event session.
- *
- * Increases refcount of the session if @p user_sess is set, needs ::np_release_user_sess() call to decrease.
- *
- * @param[in] ev_sess Sysrepo event session.
- * @param[in] func Caller function, for logging.
- * @param[out] nc_sess Optional found NC session.
- * @param[out] user_sess Optional sysrepo user session.
- * @return SR error value.
- */
-int np_find_user_sess(sr_session_ctx_t *ev_sess, const char *func, struct nc_session **nc_sess,
-        struct np2_user_sess **user_sess);
+int np_acquire_user_sess(const struct nc_session *ncs, struct np_user_sess **user_sess);
 
 /**
  * @brief Release SR user session, free if no longer referenced.
@@ -182,7 +156,7 @@ int np_find_user_sess(sr_session_ctx_t *ev_sess, const char *func, struct nc_ses
  *
  * @param[in] user_sess Sysrepo user session.
  */
-void np_release_user_sess(struct np2_user_sess *user_sess);
+void np_release_user_sess(struct np_user_sess *user_sess);
 
 /**
  * @brief Learn whether a module includes any notification definitions.
@@ -259,7 +233,7 @@ enum np_cc_event {
  * @brief Send notification netconf-confirmed-commit.
  *
  * @param[in] new_session NC session. For :NP_CC_TIMEOUT can be NULL.
- * @param[in] sr_session Sysrepo server session.
+ * @param[in] sr_session Sysrepo session.
  * @param[in] event Type of confirm-commit event.
  * @param[in] cc_timout For event :NP_CC_START or :NP_CC_EXTEND. Number of seconds when the confirmed-commit 'timeout'
  * event might occur.
@@ -269,15 +243,35 @@ enum np_cc_event {
 int np_send_notif_confirmed_commit(const struct nc_session *session, sr_session_ctx_t *sr_session,
         enum np_cc_event event, uint32_t cc_timeout, uint32_t sr_timeout);
 
+enum np_rpc_exec_stage {
+    NP_RPC_STAGE_PRE,           /**< pre-RPC execution */
+    NP_RPC_STAGE_POST_SUCCESS,  /**< post-RPC successful execution */
+    NP_RPC_STAGE_POST_FAIL      /**< post-RPC failed execution */
+};
+
+/**
+ * @brief Send notification netconf-rpc-execution.
+ *
+ * @param[in] sr_session Sysrepo session.
+ * @param[in] stage RPC execution stage.
+ * @param[in] rpc_name Executed RPC name.
+ * @param[in] ds_str Optional relevant RPC datastore.
+ * @param[in] sr_timeout Notification callback timeout in milliseconds.
+ * @return 0 on success;
+ * @return -1 on error.
+ */
+int np_send_notif_rpc(sr_session_ctx_t *sr_session, enum np_rpc_exec_stage stage, const char *rpc_name,
+        const char *ds_str, uint32_t sr_timeout);
+
 /**
  * @brief NP2 callback for acquiring context.
  */
-const struct ly_ctx *np2srv_acquire_ctx_cb(void *cb_data);
+const struct ly_ctx *np_acquire_ctx_cb(void *cb_data);
 
 /**
  * @brief NP2 callback for releasing context.
  */
-void np2srv_release_ctx_cb(void *cb_data);
+void np_release_ctx_cb(void *cb_data);
 
 /**
  * @brief NP2 callback for a new session creation.
@@ -288,7 +282,7 @@ void np2srv_release_ctx_cb(void *cb_data);
  * @return 0 on success;
  * @return -1 on error.
  */
-int np2srv_new_session_cb(const char *client_name, struct nc_session *new_session, void *user_data);
+int np_new_session_cb(const char *client_name, struct nc_session *new_session, void *user_data);
 
 /**
  * @brief Set URL capability to be advertised for new NETCONF sessions.
@@ -296,46 +290,44 @@ int np2srv_new_session_cb(const char *client_name, struct nc_session *new_sessio
  * @return 0 on success;
  * @return -1 on error.
  */
-int np2srv_url_setcap(void);
+int np_url_setcap(void);
 
 #ifdef NP2SRV_URL_CAPAB
 
 /**
  * @brief Parse YANG data found at an URL (encapsulated in `config` element).
  *
+ * @param[in] ly_ctx Context to use.
  * @param[in] url URL to access.
  * @param[in] validate Whether to validate nested data.
- * @param[out] rc SR error value.
- * @param[in] ev_sess SR session for errors.
- * @return Parsed data.
+ * @param[out] config Parsed data.
+ * @return Error reply on error, NULL on success.
  */
-struct lyd_node *op_parse_url(const char *url, int validate, int *rc, sr_session_ctx_t *ev_sess);
+struct nc_server_reply *np_op_parse_url(const struct ly_ctx *ly_ctx, const char *url, int validate, struct lyd_node **config);
 
 /**
  * @brief Upload YANG data to an URL (encapsulated in `config` element).
  *
+ * @param[in] ly_ctx Context to use.
  * @param[in] url URL to upload to.
- * @param[in] data Data to upload.
+ * @param[in] data Data to upload, are temporarily modified.
  * @param[in] print_options Options for printing the data.
- * @param[out] rc SR error value.
- * @param[in] ev_sess SR session for errors.
- * @return 0 on success;
- * @return -1 on error.
+ * @return Error reply on error, NULL on success.
  */
-int op_export_url(const char *url, struct lyd_node *data, uint32_t print_options, int *rc, sr_session_ctx_t *ev_sess);
+struct nc_server_reply *np_op_export_url(const struct ly_ctx *ly_ctx, const char *url, struct lyd_node *data,
+        uint32_t print_options);
 
 #endif
 
 /**
  * @brief Parse YANG data in a `config` YANG anyxml node.
  *
- * @param[in] config Config node with the data.
+ * @param[in] node Config node with the data.
  * @param[in] parse_options Options for parsing the data.
- * @param[out] rc SR error value.
- * @param[in] ev_sess SR session for errors.
- * @return Parsed data.
+ * @param[out] config Parsed data.
+ * @return Error reply on error, NULL on success.
  */
-struct lyd_node *op_parse_config(struct lyd_node_any *config, uint32_t parse_options, int *rc, sr_session_ctx_t *ev_sess);
+struct nc_server_reply *np_op_parse_config(struct lyd_node_any *node, uint32_t parse_options, struct lyd_node **config);
 
 /**
  * @brief Get all data matching the NP2 filter.
@@ -344,11 +336,108 @@ struct lyd_node *op_parse_config(struct lyd_node_any *config, uint32_t parse_opt
  * @param[in] max_depth Max depth fo the retrieved data.
  * @param[in] get_opts SR get options to use.
  * @param[in] xp_filter XPath filter to use.
- * @param[in] ev_sess SR session for errors.
  * @param[out] data Retrieved data.
- * @return SR error value.
+ * @return Error reply on error, NULL on success.
  */
-int op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_options_t get_opts,
-        const char *xp_filter, sr_session_ctx_t *ev_sess, struct lyd_node **data);
+struct nc_server_reply *np_op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_options_t get_opts,
+        const char *xp_filter, struct lyd_node **data);
+
+/**
+ * @brief Create NC data/OK reply.
+ *
+ * @param[in] rpc Executed RPC.
+ * @param[in] output RPC output data, if any. Always spent.
+ * @return Server reply structure.
+ */
+struct nc_server_reply *np_reply_success(const struct lyd_node *rpc, struct lyd_node *output);
+
+/**
+ * @brief Create NC error reply based on SR error info.
+ *
+ * @param[in] session Session to read the error from.
+ * @param[in] rpc_name Failed RPC name.
+ * @return Server reply structure.
+ */
+struct nc_server_reply *np_reply_err_sr(sr_session_ctx_t *session, const char *rpc_name);
+
+/**
+ * @brief Create NC error reply based on failed libyang validation.
+ *
+ * @param[in] ly_ctx Context to read the error(s) from.
+ * @return Server reply structure.
+ */
+struct nc_server_reply *np_reply_err_valid(const struct ly_ctx *ly_ctx);
+
+/**
+ * @brief Create NC error reply operation-failed with a generic message.
+ *
+ * @param[in] session Session to get context from, not needed if @p ly_ctx is set.
+ * @param[in] ly_ctx Context to use directly, if available.
+ * @param[in] msg Error message to use.
+ * @return Server reply structure.
+ */
+struct nc_server_reply *np_reply_err_op_failed(sr_session_ctx_t *session, const struct ly_ctx *ly_ctx, const char *msg);
+
+/**
+ * @brief Create NC error reply invalid-value.
+ *
+ * @param[in] ly_ctx Context to use.
+ * @param[in] msg Error message to use.
+ * @param[in] bad_elem Optional name of the bad element.
+ * @return Server reply structure.
+ */
+struct nc_server_reply *np_reply_err_invalid_val(const struct ly_ctx *ly_ctx, const char *msg, const char *bad_elem);
+
+/**
+ * @brief Create NC error reply lock-denied.
+ *
+ * @param[in] ly_ctx Context to use.
+ * @param[in] msg Error message to use.
+ * @param[in] nc_id NETCONF session ID of the session holding the lock.
+ * @return Server reply structure.
+ */
+struct nc_server_reply *np_reply_err_lock_denied(const struct ly_ctx *ly_ctx, const char *msg, uint32_t nc_id);
+
+/**
+ * @brief Create NC error reply missing-attribute.
+ *
+ * @param[in] ly_ctx Context to use.
+ * @param[in] msg Error message to use.
+ * @param[in] bad_attr Bad attribute.
+ * @param[in] bad_elem Bad element.
+ * @return Server reply structure.
+ */
+struct nc_server_reply *np_reply_err_missing_attr(const struct ly_ctx *ly_ctx, const char *msg, const char *bad_attr,
+        const char *bad_elem);
+
+/**
+ * @brief Create NC error reply missing-element.
+ *
+ * @param[in] ly_ctx Context to use.
+ * @param[in] msg Error message to use.
+ * @param[in] bad_elem Bad element.
+ * @return Server reply structure.
+ */
+struct nc_server_reply *np_reply_err_missing_elem(const struct ly_ctx *ly_ctx, const char *msg, const char *bad_elem);
+
+/**
+ * @brief Create NC error reply bad-element.
+ *
+ * @param[in] ly_ctx Context to use.
+ * @param[in] msg Error message to use.
+ * @param[in] bad_elem Bad element.
+ * @return Server reply structure.
+ */
+struct nc_server_reply *np_reply_err_bad_elem(const struct ly_ctx *ly_ctx, const char *msg, const char *bad_elem);
+
+/**
+ * @brief Create NC error reply in-use.
+ *
+ * @param[in] ly_ctx Context to use.
+ * @param[in] msg Error message to use.
+ * @param[in] sr_id SR ID of the session holding the resource.
+ * @return Server reply structure.
+ */
+struct nc_server_reply *np_reply_err_in_use(const struct ly_ctx *ly_ctx, const char *msg, uint32_t sr_id);
 
 #endif /* NP2SRV_COMMON_H_ */

@@ -4,8 +4,8 @@
  * @brief netopeer2-server - NETCONF server
  *
  * @copyright
- * Copyright (c) 2019 - 2023 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2023 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2025 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2025 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -39,7 +39,6 @@
 #include "common.h"
 #include "compat.h"
 #include "config.h"
-#include "err_netconf.h"
 #include "log.h"
 #include "netconf.h"
 #include "netconf_confirmed_commit.h"
@@ -110,7 +109,7 @@ signal_handler(int sig)
 static void
 np2srv_del_session_cb(struct nc_session *session)
 {
-    struct np2_user_sess *user_sess;
+    struct np_user_sess *user_sess;
     uint32_t i;
 
     /* remove from PS structure */
@@ -119,14 +118,14 @@ np2srv_del_session_cb(struct nc_session *session)
     }
 
     /* terminate any subscriptions for the NETCONF session */
-    np2srv_sub_ntf_session_destroy(session);
+    np_sub_ntf_session_destroy(session);
 
     /* stop sysrepo session subscriptions */
     user_sess = nc_session_get_data(session);
     sr_session_unsubscribe(user_sess->sess);
 
     /* revert any pending confirmed commits */
-    ncc_del_session(session, np2srv.sr_sess);
+    ncc_del_session(user_sess, np2srv.sr_sess);
 
     /* free sysrepo session, if no callback is using it */
     if (ATOMIC_DEC_RELAXED(user_sess->ref_count) == 1) {
@@ -149,233 +148,36 @@ np2srv_del_session_cb(struct nc_session *session)
 }
 
 /**
- * @brief Create NC rpc-error from a SR error.
+ * @brief Get the primary affected DS of a RPC, if any.
  *
- * @param[in] err SR error.
- * @return NC rpc-error opaque node tree.
+ * @param[in] rpc RPC to use.
+ * @return Affected datastore identity name with a prefix;
+ * @return NULL if no affected datastore.
  */
-static struct lyd_node *
-np2srv_err_nc(sr_error_info_err_t *err)
+static const char *
+np_rpc_get_ds(const struct lyd_node *rpc)
 {
-    struct lyd_node *e_first = NULL, *e, *err_info;
-    const struct ly_ctx *ly_ctx;
-    const char *err_type, *err_tag, *err_app_tag, *err_path, *err_msg, **err_info_elem = NULL, **err_info_val = NULL, *ns;
-    uint32_t err_info_count, j;
+    struct lyd_node *node;
+    const char *ds_str = NULL;
+    uint32_t temp_lo = 0;
 
-    /* only dictionary used, no need to keep locked */
-    ly_ctx = sr_acquire_context(np2srv.sr_conn);
-    sr_release_context(np2srv.sr_conn);
+    /* no logging */
+    ly_temp_log_options(&temp_lo);
 
-    /* read the error */
-    if (sr_err_get_netconf_error(err, &err_type, &err_tag, &err_app_tag, &err_path, &err_msg, &err_info_elem,
-            &err_info_val, &err_info_count)) {
-        goto error;
-    }
-
-    /* rpc-error */
-    if (lyd_new_opaq2(NULL, ly_ctx, "rpc-error", NULL, NULL, NC_NS_BASE, &e)) {
-        goto error;
-    }
-
-    /* error-type */
-    if (lyd_new_opaq2(e, NULL, "error-type", err_type, NULL, NC_NS_BASE, NULL)) {
-        goto error;
-    }
-
-    /* error-tag */
-    if (lyd_new_opaq2(e, NULL, "error-tag", err_tag, NULL, NC_NS_BASE, NULL)) {
-        goto error;
-    }
-
-    /* error-severity */
-    if (lyd_new_opaq2(e, NULL, "error-severity", "error", NULL, NC_NS_BASE, NULL)) {
-        goto error;
-    }
-
-    if (err_app_tag) {
-        /* error-app-tag */
-        if (nc_err_set_app_tag(e, err_app_tag)) {
-            goto error;
+    if (!lyd_find_path(rpc, "target", 0, &node) || !lyd_find_path(rpc, "source", 0, &node)) {
+        if (!strcmp(LYD_NAME(lyd_child(node)), "candidate")) {
+            ds_str = "ietf-datastores:candidate";
+        } else if (!strcmp(LYD_NAME(lyd_child(node)), "running")) {
+            ds_str = "ietf-datastores:running";
+        } else if (!strcmp(LYD_NAME(lyd_child(node)), "startup")) {
+            ds_str = "ietf-datastores:startup";
         }
+    } else if (!lyd_find_path(rpc, "datastore", 0, &node)) {
+        ds_str = lyd_get_value(node);
     }
 
-    if (err_path) {
-        /* error-path */
-        if (nc_err_set_path(e, err_path)) {
-            goto error;
-        }
-    }
-
-    /* error-message */
-    if (nc_err_set_msg(e, err_msg, "en")) {
-        goto error;
-    }
-
-    /* error-info */
-    err_info = NULL;
-    for (j = 0; j < err_info_count; ++j) {
-        if (!err_info) {
-            if (lyd_new_opaq2(e, NULL, "error-info", NULL, NULL, NC_NS_BASE, &err_info)) {
-                goto error;
-            }
-        }
-        if (!strcmp(err_info_elem[j], "bad-attribute") || !strcmp(err_info_elem[j], "bad-element") ||
-                !strcmp(err_info_elem[j], "bad-namespace") || !strcmp(err_info_elem[j], "session-id")) {
-            /* NETCONF error-info */
-            ns = NC_NS_BASE;
-        } else if (!strcmp(err_info_elem[j], "non-unique") || !strcmp(err_info_elem[j], "missing-choice")) {
-            /* YANG error-info */
-            ns = "urn:ietf:params:xml:ns:yang:1";
-        } else {
-            /* custom (unknown) */
-            ns = "urn:netconf:custom-error-info";
-        }
-        if (lyd_new_opaq2(err_info, NULL, err_info_elem[j], err_info_val[j], NULL, ns, NULL)) {
-            goto error;
-        }
-    }
-
-    /* append */
-    lyd_insert_sibling(e_first, e, &e_first);
-
-    free(err_info_elem);
-    free(err_info_val);
-    return e_first;
-
-error:
-    lyd_free_siblings(e_first);
-    free(err_info_elem);
-    free(err_info_val);
-    return NULL;
-}
-
-/**
- * @brief Find the nth substring delimited by quotes.
- *
- * For example: abcd"ef"ghij"kl"mn -> index 0 is "ef", index 1 is "kl".
- *
- * @param[in] msg Input string with quoted substring.
- * @param[in] index Number starting from 0 specifying the nth substring.
- * @return Copied nth substring without quotes.
- */
-static char *
-np2srv_err_reply_get_quoted_string(const char *msg, uint32_t index)
-{
-    char *ret;
-    const char *start = NULL, *end = NULL, *iter, *tmp;
-    uint32_t quote_cnt = 0, last_quote;
-
-    assert(msg);
-
-    last_quote = (index + 1) * 2;
-    for (iter = msg; *iter; ++iter) {
-        if (*iter != '\"') {
-            continue;
-        }
-        /* updating the start and end pointers - swap */
-        tmp = end;
-        end = iter;
-        start = tmp;
-        if (++quote_cnt == last_quote) {
-            /* nth substring found */
-            break;
-        }
-    }
-
-    if (!start) {
-        return NULL;
-    }
-
-    /* Skip first quote */
-    ++start;
-    /* Copy substring */
-    ret = strndup(start, end - start);
-
-    return ret;
-}
-
-/**
- * @brief Check that the @p str starts with the @p prefix.
- *
- * @param[in] prefix Required prefix.
- * @param[in] str Input string to check.
- * @return True if @p str start with @p prefix otherwise False.
- */
-static ly_bool
-np2srv_strstarts(const char *prefix, const char *str)
-{
-    return strncmp(str, prefix, strlen(prefix)) == 0;
-}
-
-/**
- * @brief Create NC error reply based on SR error info.
- *
- * @param[in] err_info SR error info.
- * @return Server reply structure.
- */
-static struct nc_server_reply *
-np2srv_err_reply_sr(const sr_error_info_t *err_info)
-{
-    struct nc_server_reply *reply = NULL;
-    struct lyd_node *e;
-    const struct ly_ctx *ly_ctx;
-    size_t i;
-    char *str, *path;
-    const struct lysc_node *cn;
-    NC_ERR_TYPE errtype;
-
-    /* try to find a NETCONF error(s) */
-    for (i = 0; i < err_info->err_count; ++i) {
-        if (err_info->err[i].error_format && !strcmp(err_info->err[i].error_format, "NETCONF")) {
-            /* NETCONF error */
-            e = np2srv_err_nc(&err_info->err[i]);
-
-            if (reply) {
-                nc_server_reply_add_err(reply, e);
-            } else {
-                reply = nc_server_reply_err(e);
-            }
-        }
-    }
-
-    if (reply) {
-        /* return just the NETCONF error */
-        return reply;
-    }
-
-    ly_ctx = sr_acquire_context(np2srv.sr_conn);
-    for (i = 0; i < err_info->err_count; ++i) {
-        if (np2srv_strstarts("Mandatory node", err_info->err[i].message) ||
-                np2srv_strstarts("Mandatory choice", err_info->err[i].message)) {
-            str = np2srv_err_reply_get_quoted_string(err_info->err[i].message, 0);
-            path = np2srv_err_reply_get_quoted_string(err_info->err[i].message, 1);
-            cn = lys_find_path(ly_ctx, NULL, path, 0);
-            if (cn && ((cn->nodetype & LYS_RPC) || (cn->nodetype & LYS_INPUT))) {
-                errtype = NC_ERR_TYPE_PROT;
-            } else {
-                errtype = NC_ERR_TYPE_APP;
-            }
-            e = nc_err(ly_ctx, NC_ERR_MISSING_ELEM, errtype, str);
-            free(str);
-            free(path);
-        } else if (err_info->err->err_code == SR_ERR_NO_MEMORY) {
-            e = nc_err(ly_ctx, NC_ERR_RES_DENIED, NC_ERR_TYPE_APP);
-        } else {
-            /* generic error */
-            e = nc_err(ly_ctx, NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
-        }
-
-        nc_err_set_msg(e, err_info->err[i].message, "en");
-        if (reply) {
-            nc_server_reply_add_err(reply, e);
-        } else {
-            reply = nc_server_reply_err(e);
-        }
-    }
-    /* clear for other errors */
-    sr_release_context(np2srv.sr_conn);
-
-    return reply;
+    ly_temp_log_options(NULL);
+    return ds_str;
 }
 
 /**
@@ -388,74 +190,136 @@ np2srv_err_reply_sr(const sr_error_info_t *err_info)
 static struct nc_server_reply *
 np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
 {
-    struct np2_user_sess *user_sess;
-    struct lyd_node *node;
-    const sr_error_info_t *err_info;
+    struct np_user_sess *user_sess = NULL;
     struct nc_server_reply *reply = NULL;
-    struct lyd_node *child = NULL;
-    sr_data_t *output;
-    NC_WD_MODE nc_wd;
+    sr_data_t *output = NULL, *op_data = NULL;
+    struct nc_server_reply *(*rpc_cb)(const struct lyd_node *rpc, struct np_user_sess *user_sess) = NULL;
+    const char *ds_str;
+    NC_RPL rpl_type;
     int rc;
 
-    if (!strcmp(LYD_NAME(rpc), "close-session") && !strcmp(lyd_owner_module(rpc)->name, "ietf-netconf")) {
-        /* call close-session directly */
-        return nc_clb_default_close_session(rpc, ncs);
+    /* get the user session */
+    if (np_acquire_user_sess(ncs, &user_sess)) {
+        goto cleanup;
     }
 
-    /* get this user session with its originator data, no need to use ref-count */
-    user_sess = nc_session_get_data(ncs);
+    if (!strcmp(lyd_owner_module(rpc)->name, "ietf-netconf")) {
+        /* ietf-netconf */
+        if (!strcmp(LYD_NAME(rpc), "get-config")) {
+            rpc_cb = np2srv_rpc_get_cb;
+        } else if (!strcmp(LYD_NAME(rpc), "edit-config")) {
+            rpc_cb = np2srv_rpc_editconfig_cb;
+        } else if (!strcmp(LYD_NAME(rpc), "copy-config")) {
+            rpc_cb = np2srv_rpc_copyconfig_cb;
+        } else if (!strcmp(LYD_NAME(rpc), "delete-config")) {
+            rpc_cb = np2srv_rpc_deleteconfig_cb;
+        } else if (!strcmp(LYD_NAME(rpc), "lock") || !strcmp(LYD_NAME(rpc), "unlock")) {
+            rpc_cb = np2srv_rpc_un_lock_cb;
+        } else if (!strcmp(LYD_NAME(rpc), "get")) {
+            rpc_cb = np2srv_rpc_get_cb;
+        } else if (!strcmp(LYD_NAME(rpc), "close-session")) {
+            /* lnc2 callback */
+            reply = nc_clb_default_close_session(rpc, ncs);
+            goto cleanup;
+        } else if (!strcmp(LYD_NAME(rpc), "kill-session")) {
+            rpc_cb = np2srv_rpc_kill_cb;
+        } else if (!strcmp(LYD_NAME(rpc), "commit")) {
+            rpc_cb = np2srv_rpc_commit_cb;
+        } else if (!strcmp(LYD_NAME(rpc), "discard-changes")) {
+            rpc_cb = np2srv_rpc_discard_cb;
+        } else if (!strcmp(LYD_NAME(rpc), "cancel-commit")) {
+            rpc_cb = np2srv_rpc_cancel_commit_cb;
+        } else if (!strcmp(LYD_NAME(rpc), "validate")) {
+            rpc_cb = np2srv_rpc_validate_cb;
+        }
+    } else if (!strcmp(lyd_owner_module(rpc)->name, "ietf-netconf-monitoring")) {
+        /* ietf-netconf-monitoring */
+        if (!strcmp(LYD_NAME(rpc), "get-schema")) {
+            rpc_cb = np2srv_rpc_getschema_cb;
+        }
+    } else if (!strcmp(lyd_owner_module(rpc)->name, "notifications")) {
+        /* notifications */
+        if (!strcmp(LYD_NAME(rpc), "create-subscription")) {
+            rpc_cb = np2srv_rpc_subscribe_cb;
+        }
+    } else if (!strcmp(lyd_owner_module(rpc)->name, "ietf-netconf-nmda")) {
+        /* ietf-netconf-nmda */
+        if (!strcmp(LYD_NAME(rpc), "get-data")) {
+            rpc_cb = np2srv_rpc_getdata_cb;
+        } else if (!strcmp(LYD_NAME(rpc), "edit-data")) {
+            rpc_cb = np2srv_rpc_editdata_cb;
+        }
+    } else if (!strcmp(lyd_owner_module(rpc)->name, "ietf-subscribed-notifications")) {
+        /* ietf-subscribed-notifications */
+        if (!strcmp(LYD_NAME(rpc), "establish-subscription")) {
+            rpc_cb = np2srv_rpc_establish_sub_cb;
+        } else if (!strcmp(LYD_NAME(rpc), "modify-subscription")) {
+            rpc_cb = np2srv_rpc_modify_sub_cb;
+        } else if (!strcmp(LYD_NAME(rpc), "delete-subscription")) {
+            rpc_cb = np2srv_rpc_delete_sub_cb;
+        } else if (!strcmp(LYD_NAME(rpc), "kill-subscription")) {
+            rpc_cb = np2srv_rpc_kill_sub_cb;
+        }
 
-    /* sysrepo API, use the default timeout or slightly higher than the configured one */
-    rc = sr_rpc_send_tree(user_sess->sess, rpc, np2srv.sr_timeout ? np2srv.sr_timeout + 2000 : 0, &output);
-    if (rc) {
-        ERR("Failed to send an RPC (%s).", sr_strerror(rc));
-
-        /* build proper error */
-        sr_session_get_error(user_sess->sess, &err_info);
-        return np2srv_err_reply_sr(err_info);
-    }
-
-    /* build RPC Reply */
-    if (output) {
-        LY_LIST_FOR(lyd_child(output->tree), child) {
-            if (!(child->flags & LYD_DEFAULT)) {
-                break;
+        if (rpc_cb) {
+            /* get filters for validation */
+            if (sr_get_data(user_sess->sess, "/ietf-subscribed-notifications:filters", 0, 0, 0, &op_data)) {
+                reply = np_reply_err_sr(user_sess->sess, "get");
+                goto cleanup;
             }
         }
-    }
-    if (child) {
-        /* get with-defaults mode */
-        if (!strcmp(rpc->schema->module->name, "ietf-netconf")) {
-            /* augment */
-            lyd_find_path(rpc, "ietf-netconf-with-defaults:with-defaults", 0, &node);
-        } else if (!lys_find_child(rpc->schema, rpc->schema->module, "with-defaults", 0, LYS_LEAF, 0)) {
-            /* no with-defaults mode */
-            node = NULL;
-        } else {
-            /* grouping */
-            lyd_find_path(rpc, "with-defaults", 0, &node);
+    } else if (!strcmp(lyd_owner_module(rpc)->name, "ietf-yang-push")) {
+        /* ietf-yang-push */
+        if (!strcmp(LYD_NAME(rpc), "resync-subscription")) {
+            rpc_cb = np2srv_rpc_resync_sub_cb;
         }
-        if (node) {
-            if (!strcmp(lyd_get_value(node), "report-all")) {
-                nc_wd = NC_WD_ALL;
-            } else if (!strcmp(lyd_get_value(node), "report-all-tagged")) {
-                nc_wd = NC_WD_ALL_TAG;
-            } else if (!strcmp(lyd_get_value(node), "trim")) {
-                nc_wd = NC_WD_TRIM;
-            } else {
-                nc_wd = NC_WD_EXPLICIT;
-            }
-        } else {
-            nc_server_get_capab_withdefaults(&nc_wd, NULL);
+    }
+
+    if (rpc_cb) {
+        if (lyd_validate_op(rpc, op_data ? op_data->tree : NULL, LYD_TYPE_RPC_YANG, NULL)) {
+            /* validation failed */
+            reply = np_reply_err_valid(LYD_CTX(rpc));
+            goto cleanup;
+        } else if (sr_nacm_check_operation(user_sess->sess, rpc)) {
+            /* NACM check failed */
+            reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+            goto cleanup;
         }
 
-        reply = nc_server_reply_data(output->tree, nc_wd, NC_PARAMTYPE_FREE);
-        output->tree = NULL;
+        /* get DS, if any */
+        ds_str = np_rpc_get_ds(rpc);
+
+        /* pre-NETCONF RPC */
+        np_send_notif_rpc(user_sess->sess, NP_RPC_STAGE_PRE, LYD_NAME(rpc), ds_str, np2srv.sr_timeout);
+
+        /* netopeer2 RPC execution */
+        reply = rpc_cb(rpc, user_sess);
+        if (!reply) {
+            goto cleanup;
+        }
+
+        /* post-NETCONF RPC */
+        rpl_type = nc_server_reply_type(reply);
+        np_send_notif_rpc(user_sess->sess, (rpl_type == NC_RPL_ERROR) ? NP_RPC_STAGE_POST_FAIL : NP_RPC_STAGE_POST_SUCCESS,
+                LYD_NAME(rpc), ds_str, np2srv.sr_timeout);
     } else {
-        reply = nc_server_reply_ok();
+        /* sysrepo RPC, use the default timeout or slightly higher than the configured one */
+        rc = sr_rpc_send_tree(user_sess->sess, rpc, np2srv.sr_timeout ? np2srv.sr_timeout + 2000 : 0, &output);
+        if (rc) {
+            ERR("Failed to send an RPC (%s).", sr_strerror(rc));
+
+            /* error reply */
+            reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+        } else {
+            /* OK/data reply */
+            reply = np_reply_success(rpc, output ? output->tree : NULL);
+        }
     }
 
+cleanup:
     sr_release_data(output);
+    sr_release_data(op_data);
+    np_release_user_sess(user_sess);
     return reply;
 }
 
@@ -723,7 +587,7 @@ server_init(void)
 
 #ifdef NC_ENABLED_SSH_TLS
     /* set ln2 call home call backs and data */
-    nc_server_ch_set_dispatch_data(np2srv_acquire_ctx_cb, np2srv_release_ctx_cb, np2srv.sr_conn, np2srv_new_session_cb, NULL);
+    nc_server_ch_set_dispatch_data(np_acquire_ctx_cb, np_release_ctx_cb, np2srv.sr_conn, np_new_session_cb, NULL);
 
     /* if PAM is not supported, the function will return an error, but don't check it, because PAM is not required */
     nc_server_ssh_set_pam_conf_filename("netopeer2.conf");
@@ -746,7 +610,7 @@ server_init(void)
     nc_server_set_capability("urn:ietf:params:netconf:capability:interleave:1.0");
 
     /* set URL capability */
-    if (np2srv_url_setcap()) {
+    if (np_url_setcap()) {
         goto error;
     }
 
@@ -812,8 +676,6 @@ server_destroy(void)
     }
 
     /* stop subscriptions */
-    sr_unsubscribe(np2srv.sr_rpc_sub);
-    sr_unsubscribe(np2srv.sr_create_sub_rpc_sub);
     sr_unsubscribe(np2srv.sr_data_sub);
     sr_unsubscribe(np2srv.sr_nacm_stats_sub);
     sr_unsubscribe(np2srv.sr_notif_sub);
@@ -962,69 +824,6 @@ np2srv_ssh_algs_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
 #endif /* NC_ENABLED_SSH_TLS */
 
 /**
- * @brief Subscribe to all the handled RPCs of the server.
- *
- * @return 0 on success;
- * @return -1 on error.
- */
-static int
-server_rpc_subscribe(void)
-{
-    int rc;
-
-#define SR_RPC_SUBSCR(xpath, cb, sub) \
-    rc = sr_rpc_subscribe_tree(np2srv.sr_sess, xpath, cb, NULL, 0, 0, sub); \
-    if (rc != SR_ERR_OK) { \
-        ERR("Subscribing for \"%s\" RPC failed (%s).", xpath, sr_strerror(rc)); \
-        goto error; \
-    }
-
-    /* subscribe to standard supported RPCs */
-    if (np2srv.sr_rpc_sub) {
-        EINT;
-        goto error;
-    }
-    SR_RPC_SUBSCR("/ietf-netconf:get-config", np2srv_rpc_get_cb, &np2srv.sr_rpc_sub);
-    SR_RPC_SUBSCR("/ietf-netconf:edit-config", np2srv_rpc_editconfig_cb, &np2srv.sr_rpc_sub);
-    SR_RPC_SUBSCR("/ietf-netconf:copy-config", np2srv_rpc_copyconfig_cb, &np2srv.sr_rpc_sub);
-    SR_RPC_SUBSCR("/ietf-netconf:delete-config", np2srv_rpc_deleteconfig_cb, &np2srv.sr_rpc_sub);
-    SR_RPC_SUBSCR("/ietf-netconf:lock", np2srv_rpc_un_lock_cb, &np2srv.sr_rpc_sub);
-    SR_RPC_SUBSCR("/ietf-netconf:unlock", np2srv_rpc_un_lock_cb, &np2srv.sr_rpc_sub);
-    SR_RPC_SUBSCR("/ietf-netconf:get", np2srv_rpc_get_cb, &np2srv.sr_rpc_sub);
-    /* close-session called directly */
-    SR_RPC_SUBSCR("/ietf-netconf:kill-session", np2srv_rpc_kill_cb, &np2srv.sr_rpc_sub);
-    SR_RPC_SUBSCR("/ietf-netconf:commit", np2srv_rpc_commit_cb, &np2srv.sr_rpc_sub);
-    SR_RPC_SUBSCR("/ietf-netconf:cancel-commit", np2srv_rpc_cancel_commit_cb, &np2srv.sr_rpc_sub);
-    SR_RPC_SUBSCR("/ietf-netconf:discard-changes", np2srv_rpc_discard_cb, &np2srv.sr_rpc_sub);
-    SR_RPC_SUBSCR("/ietf-netconf:validate", np2srv_rpc_validate_cb, &np2srv.sr_rpc_sub);
-
-    /* subscribe to get-schema */
-    SR_RPC_SUBSCR("/ietf-netconf-monitoring:get-schema", np2srv_rpc_getschema_cb, &np2srv.sr_rpc_sub);
-
-    /* subscribe to create-subscription, separate structure */
-    SR_RPC_SUBSCR("/notifications:create-subscription", np2srv_rpc_subscribe_cb, &np2srv.sr_create_sub_rpc_sub);
-
-    /* subscribe to NMDA RPCs */
-    SR_RPC_SUBSCR("/ietf-netconf-nmda:get-data", np2srv_rpc_getdata_cb, &np2srv.sr_rpc_sub);
-    SR_RPC_SUBSCR("/ietf-netconf-nmda:edit-data", np2srv_rpc_editdata_cb, &np2srv.sr_rpc_sub);
-
-    /* subscribe to ietf-subscribed-notifications RPCs */
-    SR_RPC_SUBSCR("/ietf-subscribed-notifications:establish-subscription", np2srv_rpc_establish_sub_cb, &np2srv.sr_rpc_sub);
-    SR_RPC_SUBSCR("/ietf-subscribed-notifications:modify-subscription", np2srv_rpc_modify_sub_cb, &np2srv.sr_rpc_sub);
-    SR_RPC_SUBSCR("/ietf-subscribed-notifications:delete-subscription", np2srv_rpc_delete_sub_cb, &np2srv.sr_rpc_sub);
-    SR_RPC_SUBSCR("/ietf-subscribed-notifications:kill-subscription", np2srv_rpc_kill_sub_cb, &np2srv.sr_rpc_sub);
-
-    /* one more yang-push RPC */
-    SR_RPC_SUBSCR("/ietf-yang-push:resync-subscription", np2srv_rpc_resync_sub_cb, &np2srv.sr_rpc_sub);
-
-    return 0;
-
-error:
-    ERR("Server RPC subscribe failed.");
-    return -1;
-}
-
-/**
  * @brief Subscribe to all the handled configuration and operational data by the server.
  *
  * @return 0 on success;
@@ -1151,7 +950,7 @@ server_accept_session(void)
 
     /* accept session */
     msgtype = nc_accept(0, ly_ctx, &ncs);
-    if ((msgtype == NC_MSG_HELLO) && !np2srv_new_session_cb(NULL, ncs, NULL)) {
+    if ((msgtype == NC_MSG_HELLO) && !np_new_session_cb(NULL, ncs, NULL)) {
         /* callback success, keep the session with the context lock */
         return;
     }
@@ -1217,7 +1016,7 @@ worker_thread(void *arg)
             VRB("Session %d: thread %d event new SSH channel.", nc_session_get_id(ncs), idx);
             msgtype = nc_session_accept_ssh_channel(ncs, &ncs);
             if (msgtype == NC_MSG_HELLO) {
-                if (np2srv_new_session_cb(NULL, ncs, NULL)) {
+                if (np_new_session_cb(NULL, ncs, NULL)) {
                     nc_session_free(ncs, NULL);
                     continue;
                 }
@@ -1505,11 +1304,7 @@ main(int argc, char *argv[])
         goto cleanup;
     }
 
-    /* subscribe to sysrepo */
-    if (server_rpc_subscribe()) {
-        ret = EXIT_FAILURE;
-        goto cleanup;
-    }
+    /* subscribe to sysrepo for providing data */
     if (server_data_subscribe()) {
         ret = EXIT_FAILURE;
         goto cleanup;

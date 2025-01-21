@@ -12,6 +12,7 @@ NP2_MODULES=(
 "ietf-network-instance@2019-01-21.yang"
 "ietf-subscribed-notifications@2019-09-09.yang -e encode-xml -e replay -e subtree -e xpath"
 "ietf-yang-push@2019-09-09.yang -e on-change"
+"netopeer-notifications@2025-01-15.yang"
 )
 
 LN2_MODULES=(

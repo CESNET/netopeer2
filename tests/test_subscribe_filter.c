@@ -52,22 +52,19 @@ setup_data(void **state)
 }
 
 static void
-reestablish_sub(void **state, const char *filter)
+reestablish_sub(void **state, const char *stream, const char *filter)
 {
     struct np2_test *st = *state;
 
     /* free the current session (with its subscription) */
     nc_session_free(st->nc_sess, NULL);
 
-    /* because of multithreading, try to prevent netconf-session-end being generated AFTER the new subscription is made */
-    usleep(20000);
-
     /* create a new session */
     st->nc_sess = nc_connect_unix(st->socket_path, (struct ly_ctx *)nc_session_get_ctx(st->nc_sess2));
     assert_non_null(st->nc_sess);
 
     /* get a subscription to receive notifications */
-    st->rpc = nc_rpc_subscribe(NULL, filter, NULL, NULL, NC_PARAMTYPE_CONST);
+    st->rpc = nc_rpc_subscribe(stream, filter, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
@@ -123,7 +120,7 @@ test_basic_notif(void **state)
     const char *data;
 
     /* Send the notification */
-    reestablish_sub(state, NULL);
+    reestablish_sub(state, "notif1", NULL);
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Test</first>\n"
@@ -144,7 +141,7 @@ test_list_notif(void **state)
     const char *data;
 
     /* Send the notification */
-    reestablish_sub(state, NULL);
+    reestablish_sub(state, "notif2", NULL);
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -194,7 +191,7 @@ test_subtree_filter_notif_selection_node_no_pass(void **state)
     const char *data;
 
     /* Send the notification */
-    reestablish_sub(state, "<n1 xmlns=\"n1\"/>");
+    reestablish_sub(state, NULL, "<n1 xmlns=\"n1\"/>");
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -219,7 +216,7 @@ test_subtree_filter_notif_selection_node_pass(void **state)
     const char *data;
 
     /* Send the notification */
-    reestablish_sub(state, "<n1 xmlns=\"n1\"/>");
+    reestablish_sub(state, NULL, "<n1 xmlns=\"n1\"/>");
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Test</first>\n"
@@ -246,7 +243,7 @@ test_subtree_filter_notif_content_match_node_no_pass(void **state)
             "</devices>\n";
 
     /* Send the notification */
-    reestablish_sub(state, filter);
+    reestablish_sub(state, "notif2", filter);
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -277,7 +274,7 @@ test_subtree_filter_notif_content_match_node_pass(void **state)
             "</devices>\n";
 
     /* Send the notification */
-    reestablish_sub(state, filter);
+    reestablish_sub(state, NULL, filter);
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -320,7 +317,7 @@ test_xpath_filter_notif_selection_node_no_pass(void **state)
     struct np2_test *st = *state;
     const char *data;
 
-    reestablish_sub(state, "/notif1:n1/first");
+    reestablish_sub(state, NULL, "/notif1:n1/first");
 
     /* Send the notification */
     data =
@@ -347,7 +344,7 @@ test_xpath_filter_notif_selection_node_pass(void **state)
     const char *data;
 
     /* Send the notification */
-    reestablish_sub(state, "/notif1:n1/first");
+    reestablish_sub(state, NULL, "/notif1:n1/first");
     data =
             "<n1 xmlns=\"n1\">\n"
             "  <first>Test</first>\n"
@@ -368,7 +365,7 @@ test_xpath_filter_notif_content_match_node_no_pass(void **state)
     const char *data;
 
     /* Send the notification */
-    reestablish_sub(state, "/notif2:devices/device[name='Main']/power-on");
+    reestablish_sub(state, NULL, "/notif2:devices/device[name='Main']/power-on");
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -393,7 +390,7 @@ test_xpath_filter_notif_content_match_node_pass(void **state)
     const char *data;
 
     /* Send the notification */
-    reestablish_sub(state, "/notif2:devices/device[name='Main']/power-on");
+    reestablish_sub(state, NULL, "/notif2:devices/device[name='Main']/power-on");
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -420,7 +417,7 @@ test_xpath_boolean_no_pass(void **state)
             "/notif2:devices/device[name='Secondary']/power-on and /notif2:devices/device/power-on[boot-time=12]";
 
     /* Send the notification */
-    reestablish_sub(state, filter);
+    reestablish_sub(state, NULL, filter);
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"
@@ -446,7 +443,7 @@ test_xpath_boolean_pass(void **state)
             "/notif2:devices/device[name='Main']/power-on and /notif2:devices/device/power-on[boot-time=12]";
 
     /* Send the notification */
-    reestablish_sub(state, filter);
+    reestablish_sub(state, NULL, filter);
     data =
             "<devices xmlns=\"n2\">\n"
             "  <device>\n"

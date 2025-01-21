@@ -5,8 +5,8 @@
  * @brief ietf-netconf confirmed-commit capability header
  *
  * @copyright
- * Copyright (c) 2019 - 2023 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2023 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2025 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2025 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 #include <stdint.h>
 
 #include <libyang/libyang.h>
-#include <sysrepo.h>
+#include <nc_server.h>
 
 #include "common.h"
 
@@ -46,15 +46,13 @@ void ncc_try_restore(void);
 /**
  * @brief Revert current confirmed commit, if any, if not persistent and this session started it.
  *
- * @param[in] nc_sess Terminated NC session.
+ * @param[in] user_sess User session with terminated NC session.
  * @param[in] sr_sess Sysrepo server session.
  */
-void ncc_del_session(const struct nc_session *nc_sess, sr_session_ctx_t *sr_sess);
+void ncc_del_session(struct np_user_sess *user_sess, sr_session_ctx_t *sr_sess);
 
-int np2srv_rpc_commit_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,
-        sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
+struct nc_server_reply *np2srv_rpc_commit_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess);
 
-int np2srv_rpc_cancel_commit_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path,
-        const struct lyd_node *input, sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
+struct nc_server_reply *np2srv_rpc_cancel_commit_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess);
 
 #endif /* NP2SRV_NETCONF_CONFIRMED_COMMIT_H_ */

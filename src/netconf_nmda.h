@@ -4,8 +4,8 @@
  * @brief ietf-netconf-nmda callbacks header
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2025 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2025 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -18,12 +18,12 @@
 #define NP2SRV_NETCONF_NMDA_H_
 
 #include <libyang/libyang.h>
-#include <sysrepo.h>
+#include <nc_server.h>
 
-int np2srv_rpc_getdata_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,
-        sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
+#include "common.h"
 
-int np2srv_rpc_editdata_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,
-        sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
+struct nc_server_reply *np2srv_rpc_getdata_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess);
+
+struct nc_server_reply *np2srv_rpc_editdata_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess);
 
 #endif /* NP2SRV_NMDA_H_ */

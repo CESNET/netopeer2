@@ -49,13 +49,13 @@ set(LIBYANG_DEP_SOVERSION 3.0.0)
 set(LIBYANG_DEP_SOVERSION_MAJOR 3)
 
 # libnetconf2 required version
-set(LIBNETCONF2_DEP_VERSION 3.5.4)
-set(LIBNETCONF2_DEP_SOVERSION 4.4.4)
+set(LIBNETCONF2_DEP_VERSION 3.5.7)
+set(LIBNETCONF2_DEP_SOVERSION 4.5.0)
 set(LIBNETCONF2_DEP_SOVERSION_MAJOR 4)
 
 # sysrepo required version
-set(SYSREPO_DEP_VERSION 2.12.0)
-set(SYSREPO_DEP_SOVERSION 7.27.20)
+set(SYSREPO_DEP_VERSION 3.4.3)
+set(SYSREPO_DEP_SOVERSION 7.30.0)
 set(SYSREPO_DEP_SOVERSION_MAJOR 7)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -std=c99")
@@ -128,8 +128,7 @@ set(SERVER_SRC
     src/netconf_nmda.c
     src/netconf_subscribed_notifications.c
     src/netconf_confirmed_commit.c
-    src/log.c
-    src/err_netconf.c)
+    src/log.c)
 
 # source files to be covered by the 'format' target
 set(FORMAT_SRC

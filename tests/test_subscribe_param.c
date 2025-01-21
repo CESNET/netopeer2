@@ -41,9 +41,6 @@ reestablish_sub(void **state, const char *stream, const char *start_time, const 
     /* free the current session (with its subscription) */
     nc_session_free(st->nc_sess, NULL);
 
-    /* because of multithreading, try to prevent netconf-session-end being generated AFTER the new subscription is made */
-    usleep(20000);
-
     /* create a new session */
     st->nc_sess = nc_connect_unix(st->socket_path, (struct ly_ctx *)nc_session_get_ctx(st->nc_sess2));
     assert_non_null(st->nc_sess);
@@ -261,7 +258,7 @@ test_basic_replay(void **state)
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Subscribe to notfications */
-    reestablish_sub(state, NULL, start_time, NULL);
+    reestablish_sub(state, "notif1", start_time, NULL);
     free(start_time);
 
     /* Receive the notification and test the contents */
@@ -302,7 +299,7 @@ test_replay_real_time(void **state)
     assert_int_equal(sr_notif_send_tree(st->sr_sess, st->node, 1000, 1), SR_ERR_OK);
 
     /* Subscribe to notfications */
-    reestablish_sub(state, NULL, timestr, NULL);
+    reestablish_sub(state, "notif1", timestr, NULL);
     free(timestr);
 
     /* Send the notification */
@@ -367,7 +364,7 @@ test_stop_time(void **state)
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&stop, &stop_time));
 
     /* Subscribe to notfications */
-    reestablish_sub(state, NULL, start_time, stop_time);
+    reestablish_sub(state, "notif1", start_time, stop_time);
     free(start_time);
     free(stop_time);
 
@@ -419,7 +416,7 @@ test_stop_time_sub_end(void **state)
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
 
     /* subscribe to notfications */
-    reestablish_sub(state, NULL, start_time, stop_time);
+    reestablish_sub(state, "notif1", start_time, stop_time);
     free(start_time);
     free(stop_time);
 
@@ -439,7 +436,7 @@ test_stop_time_sub_end(void **state)
     usleep(10000);
 
     /* create new subscription */
-    st->rpc = nc_rpc_subscribe(NULL, NULL, NULL, NULL, NC_PARAMTYPE_CONST);
+    st->rpc = nc_rpc_subscribe("notif1", NULL, NULL, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(NC_MSG_RPC, st->msgtype);
 
@@ -481,7 +478,7 @@ test_history_only(void **state)
     assert_int_equal(LY_SUCCESS, ly_time_ts2str(&ts, &stop_time));
 
     /* Subscribe to notfications */
-    reestablish_sub(state, NULL, start_time, stop_time);
+    reestablish_sub(state, "notif1", start_time, stop_time);
     free(start_time);
     free(stop_time);
 

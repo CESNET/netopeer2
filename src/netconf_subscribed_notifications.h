@@ -4,8 +4,8 @@
  * @brief ietf-subscribed-notifications callbacks header
  *
  * @copyright
- * Copyright (c) 2019 - 2023 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2023 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2025 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2025 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
 /**
  * @brief Argument of the sysrepo notification dispatch callback.
  * */
-struct np2srv_sub_ntf_arg {
+struct np_sub_ntf_arg {
     struct nc_session *ncs;
     uint32_t sub_id;
 };
@@ -33,7 +33,7 @@ struct np2srv_sub_ntf_arg {
 /**
  * @brief Operational information about the subscriptions in addition to that provided by sysrepo.
  */
-struct np2srv_sub_ntf_state {
+struct np_sub_ntf_state {
     pthread_rwlock_t lock;
     struct np2srv_sub_ntf {
         uint32_t nc_id;
@@ -43,27 +43,22 @@ struct np2srv_sub_ntf_state {
         char *xpath_filter;
         int is_yp;
         int terminated;                     /**< subscription was terminated and will be freed once the notification is received */
-        struct np2srv_sub_ntf_arg *cb_arg;
+        struct np_sub_ntf_arg *cb_arg;
     } *subs;
     uint32_t count;
 };
 
-void np2srv_sub_ntf_session_destroy(struct nc_session *ncs);
+void np_sub_ntf_session_destroy(struct nc_session *ncs);
 
-int np2srv_rpc_establish_sub_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path,
-        const struct lyd_node *input, sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
+struct nc_server_reply *np2srv_rpc_establish_sub_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess);
 
-int np2srv_rpc_modify_sub_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,
-        sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
+struct nc_server_reply *np2srv_rpc_modify_sub_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess);
 
-int np2srv_rpc_delete_sub_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,
-        sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
+struct nc_server_reply *np2srv_rpc_delete_sub_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess);
 
-int np2srv_rpc_kill_sub_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,
-        sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
+struct nc_server_reply *np2srv_rpc_kill_sub_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess);
 
-int np2srv_rpc_resync_sub_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *op_path, const struct lyd_node *input,
-        sr_event_t event, uint32_t request_id, struct lyd_node *output, void *private_data);
+struct nc_server_reply *np2srv_rpc_resync_sub_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess);
 
 int np2srv_config_sub_ntf_filters_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
         const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);

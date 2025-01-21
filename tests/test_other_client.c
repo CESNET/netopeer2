@@ -168,8 +168,9 @@ test_missing_attribute(void **state)
             "<error-type>protocol</error-type>"
             "<error-tag>missing-attribute</error-tag>"
             "<error-severity>error</error-severity>"
-            "<error-message xml:lang=\"en\">Missing \"select\" attribute</error-message>"
-            "<error-info><bad-element>filter</bad-element></error-info></rpc-error></rpc-reply>", sess->msgid);
+            "<error-message xml:lang=\"en\">An expected attribute is missing.</error-message>"
+            "<error-info><bad-attribute>select</bad-attribute>"
+            "<bad-element>filter</bad-element></error-info></rpc-error></rpc-reply>", sess->msgid);
     assert_string_equal(msg, exp);
     free(exp);
 }
@@ -290,18 +291,14 @@ test_missing_element(void **state)
     asprintf(&exp,
             "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\"><rpc-error>"
             "<error-type>protocol</error-type>"
-            "<error-tag>missing-element</error-tag>"
+            "<error-tag>data-missing</error-tag>"
             "<error-severity>error</error-severity>"
-            "<error-message xml:lang=\"en\">Mandatory choice \"edit-content\" data do not exist."
-            " (path \"/ietf-netconf-nmda:edit-data\")</error-message>"
-            "<error-info><bad-element>edit-content</bad-element></error-info>"
-            "</rpc-error>"
-            "<rpc-error>"
-            "<error-type>application</error-type>"
-            "<error-tag>operation-failed</error-tag>"
-            "<error-severity>error</error-severity>"
-            "<error-message xml:lang=\"en\">RPC input validation failed.</error-message>"
-            "</rpc-error></rpc-reply>", sess->msgid);
+            "<error-app-tag>mandatory-choice</error-app-tag>"
+            "<error-path>/ietf-netconf-nmda:edit-data</error-path>"
+            "<error-message xml:lang=\"en\">Missing mandatory choice.</error-message>"
+            "<error-info>"
+            "<missing-choice xmlns=\"urn:ietf:params:xml:ns:yang:1\">edit-content</missing-choice>"
+            "</error-info></rpc-error></rpc-reply>", sess->msgid);
     assert_string_equal(msg, exp);
     free(exp);
 
@@ -320,15 +317,9 @@ test_missing_element(void **state)
             "<error-type>protocol</error-type>"
             "<error-tag>missing-element</error-tag>"
             "<error-severity>error</error-severity>"
-            "<error-message xml:lang=\"en\">Mandatory node \"identifier\" instance does not exist."
-            " (path \"/ietf-netconf-monitoring:get-schema\")</error-message>"
+            "<error-path>/ietf-netconf-monitoring:get-schema</error-path>"
+            "<error-message xml:lang=\"en\">An expected element is missing.</error-message>"
             "<error-info><bad-element>identifier</bad-element></error-info>"
-            "</rpc-error>"
-            "<rpc-error>"
-            "<error-type>application</error-type>"
-            "<error-tag>operation-failed</error-tag>"
-            "<error-severity>error</error-severity>"
-            "<error-message xml:lang=\"en\">RPC input validation failed.</error-message>"
             "</rpc-error></rpc-reply>", sess->msgid);
     assert_string_equal(msg, exp);
     free(exp);
@@ -347,18 +338,13 @@ test_missing_element(void **state)
     assert_int_equal(rc, 0);
     asprintf(&exp,
             "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\"><rpc-error>"
-            "<error-type>application</error-type>"
-            "<error-tag>missing-element</error-tag>"
+            "<error-type>protocol</error-type>"
+            "<error-tag>data-missing</error-tag>"
             "<error-severity>error</error-severity>"
-            "<error-message xml:lang=\"en\">Mandatory choice \"config-source\" data do not exist."
-            " (path \"/ietf-netconf:get-config/source\")</error-message>"
-            "<error-info><bad-element>config-source</bad-element></error-info>"
-            "</rpc-error>"
-            "<rpc-error>"
-            "<error-type>application</error-type>"
-            "<error-tag>operation-failed</error-tag>"
-            "<error-severity>error</error-severity>"
-            "<error-message xml:lang=\"en\">RPC input validation failed.</error-message>"
+            "<error-app-tag>mandatory-choice</error-app-tag>"
+            "<error-path>/ietf-netconf:get-config/source</error-path>"
+            "<error-message xml:lang=\"en\">Missing mandatory choice.</error-message>"
+            "<error-info><missing-choice xmlns=\"urn:ietf:params:xml:ns:yang:1\">config-source</missing-choice></error-info>"
             "</rpc-error></rpc-reply>", sess->msgid);
     assert_string_equal(msg, exp);
     free(exp);

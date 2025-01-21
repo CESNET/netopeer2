@@ -27,7 +27,6 @@
 
 #include "common.h"
 #include "compat.h"
-#include "err_netconf.h"
 #include "log.h"
 
 struct ncm stats;
@@ -412,33 +411,25 @@ error:
     return SR_ERR_INTERNAL;
 }
 
-int
-np2srv_rpc_getschema_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(op_path),
-        const struct lyd_node *input, sr_event_t event, uint32_t UNUSED(request_id), struct lyd_node *output,
-        void *UNUSED(private_data))
+struct nc_server_reply *
+np2srv_rpc_getschema_cb(const struct lyd_node *rpc, struct np_user_sess *UNUSED(user_sess))
 {
+    struct nc_server_reply *reply = NULL;
     const char *identifier = NULL, *revision = NULL, *format = NULL;
-    const struct ly_ctx *ly_ctx = NULL;
-    int rc = SR_ERR_OK;
     char *model_data = NULL;
     struct ly_out *out;
     const struct lys_module *module = NULL;
     const struct lysp_submodule *submodule = NULL;
-    struct lyd_node *node;
+    struct lyd_node *node, *output = NULL;
     LYS_OUTFORMAT outformat = 0;
 
-    if (np_ignore_rpc(session, event, &rc)) {
-        /* ignore in this case */
-        return rc;
-    }
-
     /* identifier */
-    if (!lyd_find_path(input, "identifier", 0, &node)) {
+    if (!lyd_find_path(rpc, "identifier", 0, &node)) {
         identifier = lyd_get_value(node);
     }
 
     /* revision */
-    if (!lyd_find_path(input, "version", 0, &node)) {
+    if (!lyd_find_path(rpc, "version", 0, &node)) {
         revision = lyd_get_value(node);
         if (!strlen(revision)) {
             revision = NULL;
@@ -446,7 +437,7 @@ np2srv_rpc_getschema_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     }
 
     /* format */
-    if (!lyd_find_path(input, "format", 0, &node)) {
+    if (!lyd_find_path(rpc, "format", 0, &node)) {
         /* get the identity name directly */
         format = ((struct lyd_node_term *)node)->value.ident->name;
     }
@@ -454,31 +445,28 @@ np2srv_rpc_getschema_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
 
     /* check revision */
     if (revision && (strlen(revision) != 10) && strcmp(revision, "1.0")) {
-        np_err_invalid_value(session, "The requested version is not supported.", NULL);
-        rc = SR_ERR_INVAL_ARG;
+        reply = np_reply_err_invalid_val(LYD_CTX(rpc), "The requested version is not supported.", "version");
         goto cleanup;
     }
 
-    ly_ctx = sr_acquire_context(np2srv.sr_conn);
     if (revision) {
         /* get specific module */
-        module = ly_ctx_get_module(ly_ctx, identifier, revision);
+        module = ly_ctx_get_module(LYD_CTX(rpc), identifier, revision);
         if (!module) {
-            submodule = ly_ctx_get_submodule(ly_ctx, identifier, revision);
+            submodule = ly_ctx_get_submodule(LYD_CTX(rpc), identifier, revision);
         }
     } else {
         /* try to get implemented, then latest module */
-        module = ly_ctx_get_module_implemented(ly_ctx, identifier);
+        module = ly_ctx_get_module_implemented(LYD_CTX(rpc), identifier);
         if (!module) {
-            module = ly_ctx_get_module_latest(ly_ctx, identifier);
+            module = ly_ctx_get_module_latest(LYD_CTX(rpc), identifier);
         }
         if (!module) {
-            submodule = ly_ctx_get_submodule_latest(ly_ctx, identifier);
+            submodule = ly_ctx_get_submodule_latest(LYD_CTX(rpc), identifier);
         }
     }
     if (!module && !submodule) {
-        np_err_invalid_value(session, "The requested module was not found.", NULL);
-        rc = SR_ERR_INVAL_ARG;
+        reply = np_reply_err_invalid_val(LYD_CTX(rpc), "The requested module was not found.", "identifier");
         goto cleanup;
     }
 
@@ -488,8 +476,7 @@ np2srv_rpc_getschema_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     } else if (!strcmp(format, "yin")) {
         outformat = LYS_OUT_YIN;
     } else {
-        np_err_invalid_value(session, "The requested format is not supported.", NULL);
-        rc = SR_ERR_INVAL_ARG;
+        reply = np_reply_err_invalid_val(LYD_CTX(rpc), "The requested format is not supported.", "format");
         goto cleanup;
     }
 
@@ -502,21 +489,26 @@ np2srv_rpc_getschema_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
     }
     ly_out_free(out, NULL, 0);
     if (!model_data) {
-        rc = SR_ERR_INTERNAL;
+        EMEM;
+        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), "Memory allocation failed.");
         goto cleanup;
     }
 
-    /* add output */
+    /* generate output */
+    if (lyd_dup_single(rpc, NULL, LYD_DUP_WITH_PARENTS, &output)) {
+        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
+        goto cleanup;
+    }
     if (lyd_new_any(output, NULL, "data", model_data, LYD_ANYDATA_STRING, LYD_NEW_ANY_USE_VALUE | LYD_NEW_VAL_OUTPUT, NULL)) {
-        rc = SR_ERR_LY;
+        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
         goto cleanup;
     }
     model_data = NULL;
+    reply = np_reply_success(rpc, output);
+    output = NULL;
 
 cleanup:
-    if (ly_ctx) {
-        sr_release_context(np2srv.sr_conn);
-    }
     free(model_data);
-    return rc;
+    lyd_free_siblings(output);
+    return reply;
 }
