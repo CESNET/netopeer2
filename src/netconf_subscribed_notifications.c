@@ -79,6 +79,10 @@ sub_ntf_error(const struct ly_ctx *ly_ctx, int sr_err, const char *fmt, ...)
     case SR_ERR_OPERATION_FAILED:
         e = nc_err(ly_ctx, NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
         break;
+    default:
+        EINT;
+        free(msg);
+        return NULL;
     }
     nc_err_set_msg(e, msg, NULL);
     free(msg);
