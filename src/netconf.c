@@ -579,7 +579,8 @@ np2srv_rpc_un_lock_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess
     /* sysrepo API */
     if (!strcmp(rpc->schema->name, "lock")) {
         r = sr_lock(user_sess->sess, NULL, 0);
-    } else if (!strcmp(rpc->schema->name, "unlock")) {
+    } else {
+        assert(!strcmp(rpc->schema->name, "unlock"));
         r = sr_unlock(user_sess->sess, NULL);
     }
     if (r) {
