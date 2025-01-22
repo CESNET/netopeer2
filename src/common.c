@@ -1006,16 +1006,16 @@ np_op_export_url(const struct ly_ctx *ly_ctx, const char *url, struct lyd_node *
         r = curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
     }
     if (!r) {
-        curl_easy_setopt(curl, CURLOPT_READFUNCTION, url_readdata);
+        r = curl_easy_setopt(curl, CURLOPT_READFUNCTION, url_readdata);
     }
     if (!r) {
-        curl_easy_setopt(curl, CURLOPT_READDATA, &mem_data);
+        r = curl_easy_setopt(curl, CURLOPT_READDATA, &mem_data);
     }
     if (!r) {
-        curl_easy_setopt(curl, CURLOPT_INFILESIZE, (long)mem_data.size);
+        r = curl_easy_setopt(curl, CURLOPT_INFILESIZE, (long)mem_data.size);
     }
     if (!r) {
-        curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
+        r = curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
     }
     if (r) {
         ERR("Failed to set a curl option.");
