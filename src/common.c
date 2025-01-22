@@ -967,6 +967,7 @@ np_op_export_url(const struct ly_ctx *ly_ctx, const char *url, struct lyd_node *
     struct nc_server_reply *reply = NULL;
     CURL *curl;
     struct np_url_mem mem_data;
+    CURLcode r = 0;
     char curl_buffer[CURL_ERROR_SIZE], *str_data = NULL;
     struct lyd_node *config;
 
@@ -998,14 +999,31 @@ np_op_export_url(const struct ly_ctx *ly_ctx, const char *url, struct lyd_node *
     curl_global_init(URL_INIT_FLAGS);
     curl = curl_easy_init();
     url_set_protocols(curl);
-    curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-    curl_easy_setopt(curl, CURLOPT_READFUNCTION, url_readdata);
-    curl_easy_setopt(curl, CURLOPT_READDATA, &mem_data);
-    curl_easy_setopt(curl, CURLOPT_INFILESIZE, (long)mem_data.size);
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
+    if (!r) {
+        r = curl_easy_setopt(curl, CURLOPT_URL, url);
+    }
+    if (!r) {
+        r = curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+    }
+    if (!r) {
+        curl_easy_setopt(curl, CURLOPT_READFUNCTION, url_readdata);
+    }
+    if (!r) {
+        curl_easy_setopt(curl, CURLOPT_READDATA, &mem_data);
+    }
+    if (!r) {
+        curl_easy_setopt(curl, CURLOPT_INFILESIZE, (long)mem_data.size);
+    }
+    if (!r) {
+        curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
+    }
+    if (r) {
+        ERR("Failed to set a curl option.");
+        reply = np_reply_err_op_failed(NULL, ly_ctx, "Failed to set a curl option.");
+        goto cleanup;
+    }
 
-    if (curl_easy_perform(curl) != CURLE_OK) {
+    if (curl_easy_perform(curl)) {
         ERR("Failed to upload data (curl: %s).", curl_buffer);
         reply = np_reply_err_op_failed(NULL, ly_ctx, curl_buffer);
         goto cleanup;
