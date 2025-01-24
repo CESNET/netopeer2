@@ -1049,57 +1049,168 @@ np_url_setcap(void)
 struct nc_server_reply *
 np_op_parse_config(struct lyd_node_any *node, uint32_t parse_options, struct lyd_node **config)
 {
+    struct nc_server_reply *reply = NULL;
     const struct ly_ctx *ly_ctx;
+    const struct lys_module *ly_mod;
+    sr_data_t *sr_ln2_nc_server = NULL;
+    struct lyd_node *ignored_mod;
+    char *xpath = NULL, *msg;
+    struct ly_set *set = NULL;
 
     assert(node && node->schema && (node->schema->nodetype & LYD_NODE_ANY));
 
     if (!node->value.str) {
         /* nothing to do, no data */
-        return NULL;
+        goto cleanup;
     }
 
     ly_ctx = LYD_CTX(node);
 
+    /* get/parse the data */
     switch (node->value_type) {
     case LYD_ANYDATA_STRING:
     case LYD_ANYDATA_XML:
         if (lyd_parse_data_mem(ly_ctx, node->value.str, LYD_XML, parse_options, 0, config)) {
-            return np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+            reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+            goto cleanup;
         }
         break;
     case LYD_ANYDATA_DATATREE:
         if (lyd_dup_siblings(node->value.tree, NULL, LYD_DUP_RECURSIVE, config)) {
-            return np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+            reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+            goto cleanup;
         }
         if (!(parse_options & (LYD_PARSE_ONLY | LYD_PARSE_OPAQ))) {
             /* separate validation if requested */
             if (lyd_validate_all(config, NULL, LYD_VALIDATE_NO_STATE, NULL)) {
-                return np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+                reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+                goto cleanup;
             }
         }
         break;
     case LYD_ANYDATA_LYB:
         if (lyd_parse_data_mem(ly_ctx, node->value.mem, LYD_LYB, parse_options, 0, config)) {
-            return np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+            reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+            goto cleanup;
         }
         break;
     case LYD_ANYDATA_JSON:
         EINT;
-        return np_reply_err_op_failed(NULL, ly_ctx, "Internal error.");
+        reply = np_reply_err_op_failed(NULL, ly_ctx, "Internal error.");
+        goto cleanup;
     }
 
-    return NULL;
+    if (*config) {
+        /* get the list of ignored modules, skip NACM */
+        if (sr_get_data(np2srv.sr_sess, "/libnetconf2-netconf-server:ln2-netconf-server/ignored-hello-module", 0,
+                np2srv.sr_timeout, 0, &sr_ln2_nc_server)) {
+            reply = np_reply_err_sr(np2srv.sr_sess, "get");
+            goto cleanup;
+        }
+
+        if (sr_ln2_nc_server) {
+            LY_LIST_FOR(lyd_child(sr_ln2_nc_server->tree), ignored_mod) {
+                if (strcmp(LYD_NAME(ignored_mod), "ignored-hello-module")) {
+                    continue;
+                }
+
+                ly_mod = ly_ctx_get_module_implemented(ly_ctx, lyd_get_value(ignored_mod));
+                if (!ly_mod) {
+                    /* module not implemented or not in the context */
+                    continue;
+                }
+
+                /* find any module data */
+                if (asprintf(&xpath, "/%s:*", ly_mod->name) == -1) {
+                    reply = np_reply_err_op_failed(NULL, ly_ctx, "Memory allocation failed.");
+                    goto cleanup;
+                }
+                if (lyd_find_xpath(*config, xpath, &set)) {
+                    reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+                    goto cleanup;
+                }
+
+                if (set->count) {
+                    /* invalid data */
+                    if (asprintf(&msg, "Config includes data of the module \"%s\" that is not supported by NETCONF.",
+                            ly_mod->name) == -1) {
+                        msg = NULL;
+                    }
+                    reply = np_reply_err_invalid_val(ly_ctx, msg, LYD_NAME(set->dnodes[0]));
+                    free(msg);
+                    goto cleanup;
+                }
+
+                /* next iter */
+                free(xpath);
+                xpath = NULL;
+                ly_set_free(set, NULL);
+                set = NULL;
+            }
+        }
+    }
+
+cleanup:
+    sr_release_data(sr_ln2_nc_server);
+    free(xpath);
+    ly_set_free(set, NULL);
+    return reply;
+}
+
+/**
+ * @brief Remove any data referencing or belonging to a module that should be ignored for NETCONF.
+ *
+ * @param[in,out] data Data tree to modify.
+ * @param[in] ignored_mod Name of the ignored module.
+ */
+static void
+np_op_filter_data_ignored_mod(struct lyd_node **data, const char *ignored_mod)
+{
+    const struct lys_module *ly_mod;
+    struct ly_set *set = NULL;
+    char *xpath = NULL;
+    uint32_t i;
+
+    ly_mod = ly_ctx_get_module_implemented(LYD_CTX(*data), ignored_mod);
+    if (!ly_mod) {
+        /* module not implemented or not in the context */
+        goto cleanup;
+    }
+
+    /* remove from ietf-yang-library data and the module's data directly */
+    if (asprintf(&xpath, "/ietf-yang-library:yang-library/module-set/module[name='%s'] | "
+            "/ietf-yang-library:modules-state/module[conformance-type='implement'][name='%s'] | "
+            "/sysrepo-monitoring:sysrepo-state/module[name='%s'] |"
+            "/ietf-netconf-monitoring:netconf-state/schemas/schema[identifier='%s'] |"
+            "/%s:*", ly_mod->name, ly_mod->name, ly_mod->name, ly_mod->name, ly_mod->name) == -1) {
+        goto cleanup;
+    }
+    if (lyd_find_xpath(*data, xpath, &set)) {
+        goto cleanup;
+    }
+
+    /* just free all the found nodes */
+    for (i = 0; i < set->count; ++i) {
+        if (set->dnodes[i] == *data) {
+            *data = (*data)->next;
+        }
+        lyd_free_tree(set->dnodes[i]);
+    }
+
+cleanup:
+    free(xpath);
+    ly_set_free(set, NULL);
 }
 
 struct nc_server_reply *
 np_op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_options_t get_opts, const char *xp_filter,
         struct lyd_node **data)
 {
-    sr_data_t *sr_data = NULL;
-    struct lyd_node *e;
+    sr_data_t *sr_data = NULL, *sr_ln2_nc_server = NULL;
+    struct lyd_node *e, *ignored_mod;
     const sr_error_info_t *err_info;
     const sr_error_info_err_t *err;
-    struct nc_server_reply *reply;
+    struct nc_server_reply *reply = NULL;
     int r;
 
     if (!xp_filter) {
@@ -1124,21 +1235,41 @@ np_op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_opti
             /* other error */
             reply = np_reply_err_sr(session, "get");
         }
-        return reply;
+        goto cleanup;
     }
 
     if (sr_data) {
+        /* get the list of ignored modules, skip NACM */
+        if (sr_get_data(np2srv.sr_sess, "/libnetconf2-netconf-server:ln2-netconf-server/ignored-hello-module", 0,
+                np2srv.sr_timeout, 0, &sr_ln2_nc_server)) {
+            reply = np_reply_err_sr(np2srv.sr_sess, "get");
+            goto cleanup;
+        }
+        if (sr_ln2_nc_server) {
+            LY_LIST_FOR(lyd_child(sr_ln2_nc_server->tree), ignored_mod) {
+                if (strcmp(LYD_NAME(ignored_mod), "ignored-hello-module")) {
+                    continue;
+                }
+
+                /* remove data connected with the module */
+                np_op_filter_data_ignored_mod(&sr_data->tree, lyd_get_value(ignored_mod));
+            }
+        }
+
         /* merge */
         r = lyd_merge_siblings(data, sr_data->tree, LYD_MERGE_DESTRUCT);
         sr_data->tree = NULL;
         sr_release_data(sr_data);
         if (r) {
             /* other error */
-            return np_reply_err_op_failed(session, NULL, ly_last_logmsg());
+            reply = np_reply_err_op_failed(session, NULL, ly_last_logmsg());
+            goto cleanup;
         }
     }
 
-    return NULL;
+cleanup:
+    sr_release_data(sr_ln2_nc_server);
+    return reply;
 }
 
 struct nc_server_reply *
