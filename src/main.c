@@ -904,11 +904,12 @@ server_data_subscribe(void)
     }
 
     /*
-     * ietf-netconf-server, ietf-keystore and ietf-trustore handled by ln2
+     * ietf-netconf-server, ietf-keystore, ietf-trustore, and libnetconf2-netconf-server handled by ln2
      */
     SR_CONFIG_SUBSCR("ietf-netconf-server", NULL, np2srv_libnetconf2_config_cb);
     SR_CONFIG_SUBSCR("ietf-keystore", NULL, np2srv_libnetconf2_config_cb);
     SR_CONFIG_SUBSCR("ietf-truststore", NULL, np2srv_libnetconf2_config_cb);
+    SR_CONFIG_SUBSCR("libnetconf2-netconf-server", NULL, np2srv_libnetconf2_config_cb);
 
     /*
      * ietf-netconf-acm
