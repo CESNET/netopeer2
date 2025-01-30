@@ -60,7 +60,7 @@ np_get_rpc_data(sr_session_ctx_t *session, const char *xp_filter, struct lyd_nod
 
     if (!xp_filter) {
         /* empty filter matches no data */
-        return SR_ERR_OK;
+        goto cleanup;
     }
 
     /* get base data from running */
