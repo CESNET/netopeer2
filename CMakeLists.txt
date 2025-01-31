@@ -80,6 +80,8 @@ option(NETOPEER2_LIB_TESTS "Include server tests in netopeer2 library" ON)
 set(SSH_AUTHORIZED_KEYS_FORMAT "%h/.ssh/authorized_keys" CACHE STRING "sshd-like pattern (with '%h', '%u', '%U') for determining path to users' SSH authorized_keys file.")
 set(THREAD_COUNT 3 CACHE STRING "Number of threads accepting new sessions and handling requests")
 set(POLL_IO_TIMEOUT 10 CACHE STRING "Timeout in milliseconds of polling sessions for new data. It is also used for synchronization of low level IO such as sending a reply while a notification is being sent")
+set(PS_BACKOFF_SLEEP 30 CACHE STRING "Timeout in milliseconds of polling sessions backoff sleep")
+
 set(YANG_MODULE_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/yang/modules/netopeer2" CACHE STRING "Directory where to copy the YANG modules to")
 set(DATA_DIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/netopeer2" CACHE STRING "Directory with shared netopeer2 data")
 

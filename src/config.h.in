@@ -59,7 +59,7 @@
 /** @brief Timeout for PS structure accessing in
  * case there is too much contention (ms).
  */
-#define NP2SRV_PS_BACKOFF_SLEEP 30
+#define NP2SRV_PS_BACKOFF_SLEEP @PS_BACKOFF_SLEEP@
 
 /** @brief Sleep time when terminating sub-ntf subscriptions
  * to give a chance for another threads to wake up (ms).
