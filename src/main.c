@@ -310,9 +310,13 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
 
             /* error reply */
             reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+        } else if (output) {
+            /* data reply */
+            reply = np_reply_success(rpc, output->tree);
+            output->tree = NULL;
         } else {
-            /* OK/data reply */
-            reply = np_reply_success(rpc, output ? output->tree : NULL);
+            /* OK reply */
+            reply = np_reply_success(rpc, NULL);
         }
     }
 
