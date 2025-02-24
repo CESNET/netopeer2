@@ -150,7 +150,7 @@ test_min_elem(void **state)
             "  <error-tag>operation-failed</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
             "  <error-app-tag>too-few-elements</error-app-tag>\n"
-            "  <error-path>/errors:cont2/l3</error-path>\n"
+            "  <error-path>/errors:cont2/l3[.='value']</error-path>\n"
             "  <error-message xml:lang=\"en\">Too few elements.</error-message>\n"
             "</rpc-error>\n");
     FREE_TEST_VARS(st);
