@@ -1244,8 +1244,11 @@ np_op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_opti
 
     if (sr_data) {
         /* get the list of ignored modules, skip NACM */
-        if (sr_get_data(np2srv.sr_sess, "/libnetconf2-netconf-server:ln2-netconf-server/ignored-hello-module", 0,
-                np2srv.sr_timeout, 0, &sr_ln2_nc_server)) {
+        r = sr_get_data(np2srv.sr_sess, "/libnetconf2-netconf-server:ln2-netconf-server/ignored-hello-module", 0,
+                np2srv.sr_timeout, 0, &sr_ln2_nc_server);
+        if (r == SR_ERR_NOT_FOUND) {
+            WRN("Failed to get ignored <hello> modules.");
+        } else if (r) {
             reply = np_reply_err_sr(np2srv.sr_sess, "get");
             goto cleanup;
         }
