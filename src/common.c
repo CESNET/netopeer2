@@ -1056,6 +1056,7 @@ np_op_parse_config(struct lyd_node_any *node, uint32_t parse_options, struct lyd
     struct lyd_node *ignored_mod;
     char *xpath = NULL, *msg;
     struct ly_set *set = NULL;
+    int r;
 
     assert(node && node->schema && (node->schema->nodetype & LYD_NODE_ANY));
 
@@ -1102,8 +1103,11 @@ np_op_parse_config(struct lyd_node_any *node, uint32_t parse_options, struct lyd
 
     if (*config) {
         /* get the list of ignored modules, skip NACM */
-        if (sr_get_data(np2srv.sr_sess, "/libnetconf2-netconf-server:ln2-netconf-server/ignored-hello-module", 0,
-                np2srv.sr_timeout, 0, &sr_ln2_nc_server)) {
+        r = sr_get_data(np2srv.sr_sess, "/libnetconf2-netconf-server:ln2-netconf-server/ignored-hello-module", 0,
+                np2srv.sr_timeout, 0, &sr_ln2_nc_server);
+        if (r == SR_ERR_NOT_FOUND) {
+            WRN("Failed to get ignored <hello> modules.");
+        } else if (r) {
             reply = np_reply_err_sr(np2srv.sr_sess, "get");
             goto cleanup;
         }
