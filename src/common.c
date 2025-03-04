@@ -1677,8 +1677,10 @@ np_reply_err_sr(sr_session_ctx_t *session, const char *rpc_name)
             free(err_info_elem);
             free(err_info_val);
         } else {
+            err_msg = err_info->err[i].message ? err_info->err[i].message : sr_strerror(err_info->err[i].err_code);
+
             /* get path */
-            if ((ptr = strstr(err_info->err[i].message, "(path \""))) {
+            if ((ptr = strstr(err_msg, "(path \""))) {
                 ptr += 7;
             }
             if (ptr) {
@@ -1686,7 +1688,7 @@ np_reply_err_sr(sr_session_ctx_t *session, const char *rpc_name)
             }
 
             /* sysrepo/libyang error, create a NETCONF error if possible */
-            e = np_err(ly_ctx, err_info->err[i].message, err_info->err[i].err_code, path, rpc_name);
+            e = np_err(ly_ctx, err_msg, err_info->err[i].err_code, path, rpc_name);
             free(path);
             path = NULL;
         }
