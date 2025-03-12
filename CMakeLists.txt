@@ -41,7 +41,7 @@ endif()
 # Generic version of not only the library. Major version is reserved for really big changes of the project,
 # minor version changes with added functionality (new tool, functionality of the tool or library, ...) and
 # micro version is changed with a set of small changes or bugfixes anywhere in the project.
-set(NP2SRV_VERSION 2.3.3)
+set(NP2SRV_VERSION 2.3.4)
 
 # libyang required version
 set(LIBYANG_DEP_VERSION 3.9.0)
