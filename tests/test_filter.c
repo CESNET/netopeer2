@@ -1414,6 +1414,44 @@ test_keyless_list(void **state)
     FREE_TEST_VARS(st);
 }
 
+static void
+test_depth(void **state)
+{
+    struct np2_test *st = *state;
+    char *filter, *expected;
+
+    filter = "/example2:top/protocols/ospf";
+    GET_DATA_FILTER(st, "ietf-datastores:running", filter, NULL, NULL, 0, 0, 2, 0, NC_WD_ALL);
+    expected =
+            "<get-data xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-nmda\">\n"
+            "  <data>\n"
+            "    <top xmlns=\"ex2\">\n"
+            "      <protocols>\n"
+            "        <ospf>\n"
+            "          <area>\n"
+            "            <name>0.0.0.0</name>\n"
+            "          </area>\n"
+            "          <area>\n"
+            "            <name>192.168.0.0</name>\n"
+            "          </area>\n"
+            "        </ospf>\n"
+            "      </protocols>\n"
+            "    </top>\n"
+            "  </data>\n"
+            "</get-data>\n";
+    assert_string_equal(st->str, expected);
+    FREE_TEST_VARS(st);
+
+    GET_DATA_FILTER(st, "ietf-datastores:running", filter, NULL, NULL, 0, 0, 1, 0, NC_WD_ALL);
+    expected =
+            "<get-data xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-nmda\">\n"
+            "  <data>\n"
+            "  </data>\n"
+            "</get-data>\n";
+    assert_string_equal(st->str, expected);
+    FREE_TEST_VARS(st);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -1435,6 +1473,7 @@ main(int argc, char **argv)
         cmocka_unit_test(test_get_oper_data2),
         cmocka_unit_test(test_getdata_oper_data),
         cmocka_unit_test(test_keyless_list),
+        cmocka_unit_test(test_depth),
     };
 
     nc_verbosity(NC_VERB_WARNING);

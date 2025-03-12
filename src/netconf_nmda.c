@@ -156,7 +156,10 @@ np2srv_rpc_getdata_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess
 
     /* depth */
     if (!lyd_find_path(rpc, "max-depth", 0, &node) && strcmp(lyd_get_value(node), "unbounded")) {
-        max_depth = ((struct lyd_node_term *)node)->value.uint16;
+        leaf = (struct lyd_node_term *)node;
+
+        assert(leaf->value.realtype->basetype == LY_TYPE_UNION);
+        max_depth = leaf->value.subvalue->value.uint16;
     }
 
     /* origin */
