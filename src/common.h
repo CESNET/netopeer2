@@ -440,4 +440,13 @@ struct nc_server_reply *np_reply_err_bad_elem(const struct ly_ctx *ly_ctx, const
  */
 struct nc_server_reply *np_reply_err_in_use(const struct ly_ctx *ly_ctx, const char *msg, uint32_t sr_id);
 
+/**
+ * @brief Transform a datastore into a string identity.
+ *
+ * @param[in] str Identity.
+ * @param[out] ds Datastore.
+ * @return Sysrepo error value.
+ */
+const char *sub_ntf_ds2ident(sr_datastore_t ds);
+
 #endif /* NP2SRV_COMMON_H_ */

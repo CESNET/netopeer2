@@ -1824,3 +1824,22 @@ np_reply_err_in_use(const struct ly_ctx *ly_ctx, const char *msg, uint32_t sr_id
     }
     return nc_server_reply_err(e);
 }
+
+const char *
+sub_ntf_ds2ident(sr_datastore_t ds)
+{
+    switch (ds) {
+    case SR_DS_STARTUP:
+        return "ietf-datastores:startup";
+    case SR_DS_RUNNING:
+        return "ietf-datastores:running";
+    case SR_DS_CANDIDATE:
+        return "ietf-datastores:candidate";
+    case SR_DS_OPERATIONAL:
+        return "ietf-datastores:operational";
+    case SR_DS_FACTORY_DEFAULT:
+        return "ietf-factory-default:factory-default";
+    }
+
+    return NULL;
+}

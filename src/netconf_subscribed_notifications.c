@@ -812,32 +812,6 @@ cleanup:
 }
 
 /**
- * @brief Transform a datastore into a string identity.
- *
- * @param[in] str Identity.
- * @param[out] ds Datastore.
- * @return Sysrepo error value.
- */
-static const char *
-sub_ntf_ds2ident(sr_datastore_t ds)
-{
-    switch (ds) {
-    case SR_DS_STARTUP:
-        return "ietf-datastores:startup";
-    case SR_DS_RUNNING:
-        return "ietf-datastores:running";
-    case SR_DS_CANDIDATE:
-        return "ietf-datastores:candidate";
-    case SR_DS_OPERATIONAL:
-        return "ietf-datastores:operational";
-    case SR_DS_FACTORY_DEFAULT:
-        return "ietf-factory-default:factory-default";
-    }
-
-    return NULL;
-}
-
-/**
  * @brief Transform yang-push operation into string.
  *
  * @param[in] chg yang-push change.

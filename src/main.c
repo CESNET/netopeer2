@@ -57,6 +57,21 @@
 /** @brief flag for main loop */
 ATOMIC_T loop_continue;
 
+struct notification_capabilities {
+    const char *name;
+    const char *value;
+};
+
+/* Defines https://datatracker.ietf.org/doc/html/rfc9196#section-5 */
+static const struct notification_capabilities notif_capas[] = {
+    {"max-nodes-per-update", "4294967295"},
+    {"periodic-notifications-supported", "config-changes state-changes"},
+    {"minimum-update-period", "0"},
+    {"on-change-supported", "config-changes state-changes"},
+    {"minimum-dampening-period", "0"},
+    {"supported-excluded-change-type", "all"}
+};
+
 static void *worker_thread(void *arg);
 
 /**
@@ -448,6 +463,124 @@ np2srv_sm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char
 
 cleanup:
     lyd_free_siblings(data);
+    sr_session_release_context(session);
+    return rc;
+}
+
+/**
+ * @brief Add subscription capabilities to a node
+ * @param[in,out] node is a part of ietf-system-capabilities.
+ * @param[in] ly_ctx a libyang context.
+ */
+static int
+np2srv_add_subscription_capabilities(struct lyd_node *node, const struct ly_ctx *ly_ctx)
+{
+    const struct lys_module *notc_mod;
+    struct lyd_node *subs_capas;
+    int rc = SR_ERR_OK;
+    uint32_t c;
+
+    notc_mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-notification-capabilities");
+    if (!notc_mod) {
+        ERR("Module \"ietf-notification-capabilities\" not implemented in sysrepo.");
+        rc = -1;
+        goto cleanup;
+    }
+
+    /* subscription-capabilities */
+    if (lyd_new_path(node, ly_ctx, "ietf-notification-capabilities:subscription-capabilities",
+            NULL, 0, &subs_capas)) {
+        ERR("Failed to create subscription-capabilities.");
+        rc = -1;
+        goto cleanup;
+    }
+
+    /* notification capabilities */
+    for (c = 0; c < sizeof(notif_capas) / sizeof(*notif_capas); c++) {
+        if (lyd_new_term(subs_capas, notc_mod, notif_capas[c].name, notif_capas[c].value, 0,
+                NULL)) {
+            ERR("Failed to create %s.", notif_capas[c].name);
+            rc = -1;
+            goto cleanup;
+        }
+    }
+cleanup:
+    return rc;
+}
+
+/**
+ * @brief SR operational get callback for system-capabilities data.
+ */
+static int
+np2srv_capabilities_oper_cb(sr_session_ctx_t *session, uint32_t sub_id,
+        const char *module_name, const char *path, const char *request_xpath,
+        uint32_t request_id, struct lyd_node **parent, void *private_data)
+{
+    struct lyd_node *sys_capas, *datastore_capas, *per_node_capas;
+    const struct ly_ctx *ly_ctx;
+    int rc = SR_ERR_OK;
+    uint32_t ds;
+
+    (void)sub_id;
+    (void)module_name;
+    (void)path;
+    (void)request_xpath;
+    (void)request_id;
+    (void)private_data;
+
+    /* context is locked while the callback is executing */
+    ly_ctx = sr_session_acquire_context(session);
+    if (!ly_ctx) {
+        ERR("Failed to acquire sysrepo context.");
+        rc = -1;
+        goto cleanup;
+    }
+
+    if (lyd_new_path(NULL, ly_ctx, "/ietf-system-capabilities:system-capabilities",
+            NULL, 0, &sys_capas)) {
+        ERR("Failed to create system-capabilities.");
+        rc = -1;
+        goto cleanup;
+    }
+
+    /* datastore-capabilities */
+    for (ds = 0; ds < SR_DS_COUNT; ds++) {
+        if (lyd_new_list(sys_capas, NULL, "datastore-capabilities",
+                0, &datastore_capas, sub_ntf_ds2ident(ds))) {
+            ERR("Failed to create datastore-capabilities.");
+            rc = -1;
+            goto cleanup;
+        }
+
+        if (lyd_new_list(datastore_capas, NULL, "per-node-capabilities",
+                0, &per_node_capas, '/')) {
+            ERR("Failed to create per-node-capabilities.");
+            rc = -1;
+            goto cleanup;
+        }
+
+        /* per datastore capabilities */
+        if (np2srv_add_subscription_capabilities(per_node_capas, ly_ctx)) {
+            ERR("Failed to add per node subscription-capabilities.");
+            rc = -1;
+            goto cleanup;
+        }
+    }
+
+    /* global capabilities */
+    if (np2srv_add_subscription_capabilities(sys_capas, ly_ctx)) {
+        ERR("Failed to add global subscription-capabilities.");
+        rc = -1;
+        goto cleanup;
+    }
+
+cleanup:
+    if (rc) {
+        lyd_free_tree(sys_capas);
+    } else {
+        *parent = sys_capas;
+    }
+
     sr_session_release_context(session);
     return rc;
 }
@@ -870,6 +1003,15 @@ server_data_subscribe(void)
 
     mod_name = "nc-notifications";
     SR_OPER_SUBSCR(mod_name, "/nc-notifications:netconf", np2srv_nc_ntf_oper_cb);
+
+    mod_name = "ietf-system-capabilities";
+    rc = sr_oper_get_subscribe(np2srv.sr_sess, mod_name,
+            "/ietf-system-capabilities:system-capabilities", np2srv_capabilities_oper_cb, NULL,
+            SR_SUBSCR_OPER_MERGE, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for providing \"%s\" state data failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
 
 #ifdef NC_ENABLED_SSH_TLS
     /* set callbacks for supported algorithms oper data */
