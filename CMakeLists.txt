@@ -152,20 +152,22 @@ set(FORMAT_SRC
 find_package(PkgConfig)
 if(PkgConfig_FOUND)
     # find libnetconf2 pkg
-    pkg_check_modules(PKG_LN2 REQUIRED libnetconf2)
+    pkg_check_modules(PKG_LN2 libnetconf2)
 
-    # libnetconf2 thread count check
-    pkg_get_variable(LN2_THREAD_COUNT libnetconf2 "LN2_MAX_THREAD_COUNT")
-    if(LN2_THREAD_COUNT)
-        if(LN2_THREAD_COUNT LESS THREAD_COUNT)
-            message(FATAL_ERROR "libnetconf2 was compiled with support up to ${LN2_THREAD_COUNT} threads, server is configured with ${THREAD_COUNT}.")
-        else()
-            message(STATUS "libnetconf2 was compiled with support of up to ${LN2_THREAD_COUNT} threads")
+    if(PKG_LN2_FOUND)
+        # libnetconf2 thread count check
+        pkg_get_variable(LN2_THREAD_COUNT libnetconf2 "LN2_MAX_THREAD_COUNT")
+        if(LN2_THREAD_COUNT)
+            if(LN2_THREAD_COUNT LESS THREAD_COUNT)
+                message(FATAL_ERROR "libnetconf2 was compiled with support up to ${LN2_THREAD_COUNT} threads, server is configured with ${THREAD_COUNT}.")
+            else()
+                message(STATUS "libnetconf2 was compiled with support of up to ${LN2_THREAD_COUNT} threads")
+            endif()
         endif()
-    endif()
 
-    # get libnetconf2 module directory, use it later when installing modules
-    pkg_get_variable(LN2_YANG_MODULE_DIR libnetconf2 "LN2_SCHEMAS_DIR")
+        # get libnetconf2 module directory, use it later when installing modules
+        pkg_get_variable(LN2_YANG_MODULE_DIR libnetconf2 "LN2_SCHEMAS_DIR")
+    endif()
 endif()
 
 # } PKGCONFIG
