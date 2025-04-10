@@ -516,7 +516,7 @@ np2srv_capabilities_oper_cb(sr_session_ctx_t *session, uint32_t sub_id,
         const char *module_name, const char *path, const char *request_xpath,
         uint32_t request_id, struct lyd_node **parent, void *private_data)
 {
-    struct lyd_node *sys_capas, *datastore_capas, *per_node_capas;
+    struct lyd_node *sys_capas = NULL, *datastore_capas, *per_node_capas;
     const struct ly_ctx *ly_ctx;
     int rc = SR_ERR_OK;
     uint32_t ds;
