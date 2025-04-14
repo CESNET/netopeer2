@@ -32,6 +32,7 @@
 #include "np2_test.h"
 #include "np2_test_config.h"
 
+#ifdef NP2SRV_URL_FILE_PROTO
 static int
 setup_nacm_rules(void **state)
 {
@@ -426,10 +427,12 @@ test_edit_config(void **state)
 
     FREE_TEST_VARS(st);
 }
+#endif /* NP2SRV_URL_FILE_PROTO */
 
 int
 main(int argc, char **argv)
 {
+#ifdef NP2SRV_URL_FILE_PROTO
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_validate),
         cmocka_unit_test_teardown(test_copy_config, teardown_data),
@@ -438,6 +441,7 @@ main(int argc, char **argv)
         cmocka_unit_test(test_copy_config_url2url),
         cmocka_unit_test_teardown(test_edit_config, teardown_data),
     };
+#endif
 
     if (np2_is_nacm_recovery()) {
         puts("Running as NACM_RECOVERY_USER. Tests will not run correctly as this user bypases NACM. Skipping.");
@@ -445,11 +449,13 @@ main(int argc, char **argv)
     }
 
 #ifndef NP2SRV_URL_FILE_PROTO
+    (void) argc;
+    (void) argv;
     puts("File protocol disabled, no tests to run. Skipping.");
     return 0;
-#endif
-
+#else
     nc_verbosity(NC_VERB_WARNING);
     parse_arg(argc, argv);
     return cmocka_run_group_tests(tests, local_setup, local_teardown);
+#endif
 }
