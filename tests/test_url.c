@@ -241,6 +241,7 @@ test_copy_config_into_file(void **state)
     /* Get file size */
     fseek(file, 0, SEEK_END);
     size = ftell(file);
+    assert_true(size > 0);
     rewind(file);
 
     /* Allcate buffer */
@@ -332,6 +333,7 @@ test_copy_config_url2url(void **state)
     /* Get file size */
     fseek(file, 0, SEEK_END);
     size = ftell(file);
+    assert_true(size > 0);
     rewind(file);
 
     /* Allcate buffer */
