@@ -819,11 +819,11 @@ url_readdata(void *ptr, size_t size, size_t nmemb, void *userdata)
  *
  * @param[in] curl CURL struct to modify.
  */
-static void
+static CURLcode
 url_set_protocols(CURL *curl)
 {
 #if CURL_AT_LEAST_VERSION(7, 85, 0)
-    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, np2srv.url_protocols);
+    return curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, np2srv.url_protocols);
 #else
     long proto = 0;
     char *ptr, *ptr2;
@@ -854,7 +854,7 @@ url_set_protocols(CURL *curl)
         ptr = ptr2 + 1;
     } while (ptr2[0]);
 
-    curl_easy_setopt(curl, CURLOPT_PROTOCOLS, proto);
+    return curl_easy_setopt(curl, CURLOPT_PROTOCOLS, proto);
 #endif
 }
 
@@ -871,7 +871,8 @@ url_get(const struct ly_ctx *ly_ctx, const char *url, char **url_data)
 {
     struct nc_server_reply *reply = NULL;
     CURL *curl;
-    char curl_buffer[CURL_ERROR_SIZE];
+    CURLcode res;
+    char curl_buffer[CURL_ERROR_SIZE] = {0};
     struct np_url_mem mem_data = {0};
 
     if (!np2srv.url_protocols) {
@@ -884,14 +885,26 @@ url_get(const struct ly_ctx *ly_ctx, const char *url, char **url_data)
     /* set up libcurl */
     curl_global_init(URL_INIT_FLAGS);
     curl = curl_easy_init();
-    url_set_protocols(curl);
-    curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, url_writedata);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &mem_data);
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
+    res = url_set_protocols(curl);
+    if (res == CURLE_OK) {
+        res = curl_easy_setopt(curl, CURLOPT_URL, url);
+    }
+    if (res == CURLE_OK) {
+        res = curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, url_writedata);
+    }
+    if (res == CURLE_OK) {
+        res = curl_easy_setopt(curl, CURLOPT_WRITEDATA, &mem_data);
+    }
+    if (res == CURLE_OK) {
+        res = curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curl_buffer);
+    }
 
-    /* download data */
-    if (curl_easy_perform(curl) != CURLE_OK) {
+    if (res == CURLE_OK) {
+        /* download data */
+        res = curl_easy_perform(curl);
+    }
+
+    if (res != CURLE_OK) {
         ERR("Failed to download data (curl: %s).", curl_buffer);
         reply = np_reply_err_op_failed(NULL, ly_ctx, curl_buffer);
         goto cleanup;
@@ -968,7 +981,7 @@ np_op_export_url(const struct ly_ctx *ly_ctx, const char *url, struct lyd_node *
     CURL *curl;
     struct np_url_mem mem_data;
     CURLcode r = 0;
-    char curl_buffer[CURL_ERROR_SIZE], *str_data = NULL;
+    char curl_buffer[CURL_ERROR_SIZE] = {0}, *str_data = NULL;
     struct lyd_node *config;
 
     if (!np2srv.url_protocols) {
@@ -998,7 +1011,7 @@ np_op_export_url(const struct ly_ctx *ly_ctx, const char *url, struct lyd_node *
     /* set up libcurl */
     curl_global_init(URL_INIT_FLAGS);
     curl = curl_easy_init();
-    url_set_protocols(curl);
+    r = url_set_protocols(curl);
     if (!r) {
         r = curl_easy_setopt(curl, CURLOPT_URL, url);
     }
