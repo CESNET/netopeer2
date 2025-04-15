@@ -429,6 +429,7 @@ test_edit_config(void **state)
 
     FREE_TEST_VARS(st);
 }
+
 #endif /* NP2SRV_URL_FILE_PROTO */
 
 int
