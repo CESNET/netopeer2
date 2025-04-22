@@ -1390,34 +1390,39 @@ np_err_reply_get_quoted_string(const char *msg, uint32_t index)
  * @param[in] error_info_elem Array of NETCONF error-info elements.
  * @param[in] error_info_val Array of NETCONF error-info element values.
  * @param[in] error_info_count Count of items in @p error_info_elem and @p error_info_val.
- * @return NC rpc-error opaque node tree.
+ * @return NC rpc-error node tree.
  */
 static struct lyd_node *
 np_err_create(const struct ly_ctx *ly_ctx, const char *error_type, const char *error_tag, const char *error_app_tag,
         const char *error_path, const char *error_message, const char **error_info_elem, const char **error_info_val,
         uint32_t error_info_count)
 {
+    const struct lys_module *nc_mod;
     struct lyd_node *e_first = NULL, *e, *err_info;
     const char *ns;
     uint32_t i;
 
+    /* get ietf-netconf module */
+    nc_mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-netconf");
+    assert(nc_mod);
+
     /* rpc-error */
-    if (lyd_new_opaq2(NULL, ly_ctx, "rpc-error", NULL, NULL, NC_NS_BASE, &e)) {
+    if (lyd_new_inner(NULL, nc_mod, "rpc-error", 0, &e)) {
         goto error;
     }
 
     /* error-type */
-    if (lyd_new_opaq2(e, NULL, "error-type", error_type, NULL, NC_NS_BASE, NULL)) {
+    if (lyd_new_term(e, NULL, "error-type", error_type, 0, NULL)) {
         goto error;
     }
 
     /* error-tag */
-    if (lyd_new_opaq2(e, NULL, "error-tag", error_tag, NULL, NC_NS_BASE, NULL)) {
+    if (lyd_new_term(e, NULL, "error-tag", error_tag, 0, NULL)) {
         goto error;
     }
 
     /* error-severity */
-    if (lyd_new_opaq2(e, NULL, "error-severity", "error", NULL, NC_NS_BASE, NULL)) {
+    if (lyd_new_term(e, NULL, "error-severity", "error", 0, NULL)) {
         goto error;
     }
 

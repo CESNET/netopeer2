@@ -294,7 +294,7 @@ test_missing_element(void **state)
             "<error-tag>data-missing</error-tag>"
             "<error-severity>error</error-severity>"
             "<error-app-tag>mandatory-choice</error-app-tag>"
-            "<error-path>/ietf-netconf-nmda:edit-data</error-path>"
+            "<error-path xmlns:ncds=\"urn:ietf:params:xml:ns:yang:ietf-netconf-nmda\">/ncds:edit-data</error-path>"
             "<error-message xml:lang=\"en\">Missing mandatory choice.</error-message>"
             "<error-info>"
             "<missing-choice xmlns=\"urn:ietf:params:xml:ns:yang:1\">edit-content</missing-choice>"
@@ -317,7 +317,7 @@ test_missing_element(void **state)
             "<error-type>protocol</error-type>"
             "<error-tag>missing-element</error-tag>"
             "<error-severity>error</error-severity>"
-            "<error-path>/ietf-netconf-monitoring:get-schema</error-path>"
+            "<error-path xmlns:ncm=\"urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring\">/ncm:get-schema</error-path>"
             "<error-message xml:lang=\"en\">An expected element is missing.</error-message>"
             "<error-info><bad-element>identifier</bad-element></error-info>"
             "</rpc-error></rpc-reply>", sess->msgid);
@@ -342,7 +342,7 @@ test_missing_element(void **state)
             "<error-tag>data-missing</error-tag>"
             "<error-severity>error</error-severity>"
             "<error-app-tag>mandatory-choice</error-app-tag>"
-            "<error-path>/ietf-netconf:get-config/source</error-path>"
+            "<error-path xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">/nc:get-config/nc:source</error-path>"
             "<error-message xml:lang=\"en\">Missing mandatory choice.</error-message>"
             "<error-info><missing-choice xmlns=\"urn:ietf:params:xml:ns:yang:1\">config-source</missing-choice></error-info>"
             "</rpc-error></rpc-reply>", sess->msgid);

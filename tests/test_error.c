@@ -127,7 +127,7 @@ test_max_elem(void **state)
             "  <error-tag>operation-failed</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
             "  <error-app-tag>too-many-elements</error-app-tag>\n"
-            "  <error-path>/errors:cont/l2[k='key3']</error-path>\n"
+            "  <error-path xmlns:e=\"urn:errors\">/e:cont/e:l2[e:k='key3']</error-path>\n"
             "  <error-message xml:lang=\"en\">Too many elements.</error-message>\n"
             "</rpc-error>\n");
     FREE_TEST_VARS(st);
@@ -150,7 +150,7 @@ test_min_elem(void **state)
             "  <error-tag>operation-failed</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
             "  <error-app-tag>too-few-elements</error-app-tag>\n"
-            "  <error-path>/errors:cont2/l3[.='value']</error-path>\n"
+            "  <error-path xmlns:e=\"urn:errors\">/e:cont2/e:l3[.='value']</error-path>\n"
             "  <error-message xml:lang=\"en\">Too few elements.</error-message>\n"
             "</rpc-error>\n");
     FREE_TEST_VARS(st);
@@ -173,7 +173,7 @@ test_must(void **state)
             "  <error-tag>operation-failed</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
             "  <error-app-tag>must-violation</error-app-tag>\n"
-            "  <error-path>/errors:l4</error-path>\n"
+            "  <error-path xmlns:e=\"urn:errors\">/e:l4</error-path>\n"
             "  <error-message xml:lang=\"en\">Must condition \"/cont/l/k = 'key'\" not satisfied.</error-message>\n"
             "</rpc-error>\n");
     FREE_TEST_VARS(st);
@@ -196,7 +196,7 @@ test_require_instance(void **state)
             "  <error-tag>data-missing</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
             "  <error-app-tag>instance-required</error-app-tag>\n"
-            "  <error-path>/errors:l5</error-path>\n"
+            "  <error-path xmlns:e=\"urn:errors\">/e:l5</error-path>\n"
             "  <error-message xml:lang=\"en\">Required leafref target with value \"val\" missing.</error-message>\n"
             "</rpc-error>\n");
     FREE_TEST_VARS(st);
@@ -211,7 +211,7 @@ test_require_instance(void **state)
             "  <error-tag>data-missing</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
             "  <error-app-tag>instance-required</error-app-tag>\n"
-            "  <error-path>/errors:l6</error-path>\n"
+            "  <error-path xmlns:e=\"urn:errors\">/e:l6</error-path>\n"
             "  <error-message xml:lang=\"en\">Required instance-identifier \"/errors:target\" missing.</error-message>\n"
             "</rpc-error>\n");
     FREE_TEST_VARS(st);
@@ -234,7 +234,7 @@ test_mandatory_choice(void **state)
             "  <error-tag>data-missing</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
             "  <error-app-tag>mandatory-choice</error-app-tag>\n"
-            "  <error-path>/errors:cont3</error-path>\n"
+            "  <error-path xmlns:e=\"urn:errors\">/e:cont3</error-path>\n"
             "  <error-message xml:lang=\"en\">Missing mandatory choice.</error-message>\n"
             "  <error-info>\n"
             "    <missing-choice xmlns=\"urn:ietf:params:xml:ns:yang:1\">ch</missing-choice>\n"
@@ -387,7 +387,7 @@ test_bad_element(void **state)
             "  <error-type>application</error-type>\n"
             "  <error-tag>bad-element</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
-            "  <error-path>/errors:num</error-path>\n"
+            "  <error-path xmlns:e=\"urn:errors\">/e:num</error-path>\n"
             "  <error-message xml:lang=\"en\">Invalid non-number-encoded uint16 value \"string\".</error-message>\n"
             "  <error-info>\n"
             "    <bad-element>num</bad-element>\n"
@@ -404,7 +404,7 @@ test_bad_element(void **state)
             "  <error-type>application</error-type>\n"
             "  <error-tag>bad-element</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
-            "  <error-path>/errors:num</error-path>\n"
+            "  <error-path xmlns:e=\"urn:errors\">/e:num</error-path>\n"
             "  <error-message xml:lang=\"en\">Unsatisfied range - value \"5\" is out of the allowed range.</error-message>\n"
             "  <error-info>\n"
             "    <bad-element>num</bad-element>\n"
@@ -421,7 +421,7 @@ test_bad_element(void **state)
             "  <error-type>application</error-type>\n"
             "  <error-tag>bad-element</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
-            "  <error-path>/errors:num</error-path>\n"
+            "  <error-path xmlns:e=\"urn:errors\">/e:num</error-path>\n"
             "  <error-message xml:lang=\"en\">Value \"100000\" is out of type uint16 min/max bounds.</error-message>\n"
             "  <error-info>\n"
             "    <bad-element>num</bad-element>\n"
@@ -438,7 +438,7 @@ test_bad_element(void **state)
             "  <error-type>application</error-type>\n"
             "  <error-tag>bad-element</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
-            "  <error-path>/errors:str</error-path>\n"
+            "  <error-path xmlns:e=\"urn:errors\">/e:str</error-path>\n"
             "  <error-message xml:lang=\"en\">Unsatisfied pattern - \"bb\" does not conform to \"a*\".</error-message>\n"
             "  <error-info>\n"
             "    <bad-element>str</bad-element>\n"

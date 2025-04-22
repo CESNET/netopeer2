@@ -313,7 +313,7 @@ test_kill(void **state)
             "    <error-type>protocol</error-type>\n"
             "    <error-tag>access-denied</error-tag>\n"
             "    <error-severity>error</error-severity>\n"
-            "    <error-path>/ietf-netconf:kill-session</error-path>\n"
+            "    <error-path xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">/nc:kill-session</error-path>\n"
             "    <error-message xml:lang=\"en\">Executing the operation is denied "
             "because \"%s\" NACM authorization failed.</error-message>\n"
             "  </rpc-error>\n"
