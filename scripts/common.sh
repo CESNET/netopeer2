@@ -36,7 +36,7 @@ LN2_MODULES=(
 "ietf-tls-common@2023-12-28.yang -e tls10 -e tls11 -e tls12 -e tls13 -e hello-params"
 "ietf-tls-server@2023-12-28.yang -e server-ident-x509-cert -e client-auth-supported -e client-auth-x509-cert"
 "ietf-netconf-server@2023-12-28.yang -e ssh-listen -e tls-listen -e ssh-call-home -e tls-call-home -e central-netconf-server-supported"
-"libnetconf2-netconf-server@2025-01-23.yang"
+"libnetconf2-netconf-server@2025-06-02.yang"
 )
 
 # get path to the sysrepocfg executable
