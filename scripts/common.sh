@@ -45,11 +45,11 @@ function SYSREPOCFG_GET_PATH() {
         # from env
         SYSREPOCFG="$SYSREPOCFG_EXECUTABLE"
     elif [ $(id -u) -eq 0 ] && [ -n "$USER" ] && [ $(command -v su) ]; then
-        # running as root, avoid problems with sudo PATH ("|| true" used because "set -e" is applied)
-        SYSREPOCFG=$(su -c 'command -v sysrepocfg' -l "$USER") || true
+        # running as root, avoid problems with sudo PATH
+        SYSREPOCFG=$(su -c 'command -v sysrepocfg' -l "$USER")
     else
         # normal user
-        SYSREPOCFG=$(command -v sysrepocfg) || true
+        SYSREPOCFG=$(command -v sysrepocfg)
     fi
 
     if [ -z "$SYSREPOCFG" ]; then
@@ -65,10 +65,10 @@ function SYSREPOCTL_GET_PATH() {
         SYSREPOCTL="$SYSREPOCTL_EXECUTABLE"
     elif [ $(id -u) -eq 0 ] && [ -n "$USER" ] && [ $(command -v su) ]; then
         # running as root, avoid problems with sudo PATH
-        SYSREPOCTL=$(su -c 'command -v sysrepoctl' -l "$USER") || true
+        SYSREPOCTL=$(su -c 'command -v sysrepoctl' -l "$USER")
     else
         # normal user
-        SYSREPOCTL=$(command -v sysrepoctl) || true
+        SYSREPOCTL=$(command -v sysrepoctl)
     fi
 
     if [ -z "$SYSREPOCTL" ]; then
@@ -84,10 +84,10 @@ function MBEDTLS_GET_PATH() {
         MBEDTLS="$MBEDTLS_EXECUTABLE"
     elif [ $(id -u) -eq 0 ] && [ -n "$USER" ] && [ $(command -v su) ]; then
         # running as root, avoid problems with sudo PATH
-        MBEDTLS=$(su -c 'command -v gen_key' -l "$USER") || true
+        MBEDTLS=$(su -c 'command -v gen_key' -l "$USER")
     else
         # normal user
-        MBEDTLS=$(command -v gen_key) || true
+        MBEDTLS=$(command -v gen_key)
     fi
 }
 
@@ -98,10 +98,10 @@ function OPENSSL_GET_PATH() {
         OPENSSL="$OPENSSL_EXECUTABLE"
     elif [ $(id -u) -eq 0 ] && [ -n "$USER" ] && [ $(command -v su) ]; then
         # running as root, avoid problems with sudo PATH
-        OPENSSL=$(su -c 'command -v openssl' -l "$USER") || true
+        OPENSSL=$(su -c 'command -v openssl' -l "$USER")
     else
         # normal user
-        OPENSSL=$(command -v openssl) || true
+        OPENSSL=$(command -v openssl)
     fi
 }
 

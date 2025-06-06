@@ -6,8 +6,14 @@ set -e
 script_directory=$(dirname "$0")
 source "${script_directory}/common.sh"
 
+# temporarily disable "set -e", the script will still exit if sysrepocfg is not found
+set +e
+
 # get path to sysrepocfg executable, this will be stored in $SYSREPOCFG
 SYSREPOCFG_GET_PATH
+
+# re-enable "set -e"
+set -e
 
 # check that there is no listen/Call Home configuration yet
 SERVER_CONFIG=$($SYSREPOCFG -X -x "/ietf-netconf-server:netconf-server/listen/endpoints/endpoint | /ietf-netconf-server:netconf-server/call-home/netconf-client")
