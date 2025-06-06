@@ -1052,6 +1052,11 @@ server_data_subscribe(void)
     /*
      * ietf-netconf-server, ietf-keystore, ietf-trustore, and libnetconf2-netconf-server handled by ln2
      */
+
+    /* always first configure the keys and certs, only then server configuration so that references work correctly */
+    sr_module_change_set_order(np2srv.sr_conn, "ietf-keystore", SR_DS_RUNNING, 5);
+    sr_module_change_set_order(np2srv.sr_conn, "ietf-truststore", SR_DS_RUNNING, 5);
+
     SR_CONFIG_SUBSCR("ietf-netconf-server", NULL, np2srv_libnetconf2_config_cb);
     SR_CONFIG_SUBSCR("ietf-keystore", NULL, np2srv_libnetconf2_config_cb);
     SR_CONFIG_SUBSCR("ietf-truststore", NULL, np2srv_libnetconf2_config_cb);
