@@ -77,7 +77,21 @@ function SYSREPOCTL_GET_PATH() {
     fi
 }
 
-# get path to the openssl executable
+# get path to the mbedtls executable - store in $MBEDTLS
+function MBEDTLS_GET_PATH() {
+    if [ -n "$MBEDTLS_EXECUTABLE" ]; then
+        # from env
+        MBEDTLS="$MBEDTLS_EXECUTABLE"
+    elif [ $(id -u) -eq 0 ] && [ -n "$USER" ] && [ $(command -v su) ]; then
+        # running as root, avoid problems with sudo PATH
+        MBEDTLS=$(su -c 'command -v gen_key' -l "$USER") || true
+    else
+        # normal user
+        MBEDTLS=$(command -v gen_key) || true
+    fi
+}
+
+# get path to the openssl executable - store in $OPENSSL
 function OPENSSL_GET_PATH() {
     if [ -n "$OPENSSL_EXECUTABLE" ]; then
         # from env
@@ -89,9 +103,14 @@ function OPENSSL_GET_PATH() {
         # normal user
         OPENSSL=$(command -v openssl) || true
     fi
+}
 
-    if [ -z "$OPENSSL" ]; then
-        echo "$0: Unable to find openssl executable." >&2
+# get paths to the crypto key generation executables - store in $MBEDTLS and $OPENSSL
+function CRYPTO_KEYGEN_GET_PATHS() {
+    MBEDTLS_GET_PATH
+    OPENSSL_GET_PATH
+    if [ -z "$MBEDTLS" ] && [ -z "$OPENSSL" ]; then
+        echo "$0: Unable to find mbedtls nor openssl executable." >&2
         exit 1
     fi
 }
