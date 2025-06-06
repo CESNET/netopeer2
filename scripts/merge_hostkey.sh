@@ -6,17 +6,25 @@ set -e
 script_directory=$(dirname "$0")
 source "${script_directory}/common.sh"
 
+
+# temporarily disable "set -e", the script will still exit if any of the executables is not found
+set +e
+
 # get path to sysrepocfg executable - stored in $SYSREPOCFG
 SYSREPOCFG_GET_PATH
+
+# get paths to crypto key generation executables - stored in $MBEDTLS and $OPENSSL
+CRYPTO_KEYGEN_GET_PATHS
+
+# re-enable "set -e"
+set -e
+
 
 # check that there is no SSH key with this name yet, if so just exit
 KEYSTORE_KEY=$($SYSREPOCFG -X -x "/ietf-keystore:keystore/asymmetric-keys/asymmetric-key[name='genkey']")
 if [ -n "$KEYSTORE_KEY" ]; then
     exit 0
 fi
-
-# get paths to crypto key generation executables - stored in $MBEDTLS and $OPENSSL
-CRYPTO_KEYGEN_GET_PATHS
 
 # save the current umask and set it to 077, so that the private key is not readable by others
 OLD_UMASK=$(umask)
