@@ -6,9 +6,8 @@ set -e
 script_directory=$(dirname "$0")
 source "${script_directory}/common.sh"
 
-# get path to sysrepocfg and openssl executables, these will be stored in $SYSREPOCFG and $OPENSSL, respectively
+# get path to sysrepocfg executable - stored in $SYSREPOCFG
 SYSREPOCFG_GET_PATH
-OPENSSL_GET_PATH
 
 # check that there is no SSH key with this name yet, if so just exit
 KEYSTORE_KEY=$($SYSREPOCFG -X -x "/ietf-keystore:keystore/asymmetric-keys/asymmetric-key[name='genkey']")
@@ -16,8 +15,42 @@ if [ -n "$KEYSTORE_KEY" ]; then
     exit 0
 fi
 
-# generate a new key
-PRIVPEM=$($OPENSSL genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform PEM 2>/dev/null)
+# get paths to crypto key generation executables - stored in $MBEDTLS and $OPENSSL
+CRYPTO_KEYGEN_GET_PATHS
+
+# save the current umask and set it to 077, so that the private key is not readable by others
+OLD_UMASK=$(umask)
+umask 077
+
+# attempt to generate a private key using mbedtls first
+if [ -n "$MBEDTLS" ]; then
+    PRIVATE_KEY_FILE="netopeer2_key.pem"
+    if "$MBEDTLS" type=rsa rsa_keysize=2048 filename="$PRIVATE_KEY_FILE" format=pem 2>/dev/null; then
+        if [ -s "$PRIVATE_KEY_FILE" ]; then
+            # key generated successfully, read it
+            PRIVPEM=$(cat "$PRIVATE_KEY_FILE")
+            # clean up the file
+            rm -f "$PRIVATE_KEY_FILE"
+        fi
+    else
+        # cleanup the file on failure
+        echo "Failed to generate RSA key with mbedtls." >&2
+        rm -f "$PRIVATE_KEY_FILE"
+    fi
+fi
+
+# restore the original umask
+umask "$OLD_UMASK"
+
+# if mbedtls failed or is not available, use openssl
+if [ -z "$PRIVPEM" ] && [ -n "$OPENSSL" ]; then
+    PRIVPEM=$($OPENSSL genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform PEM 2>/dev/null)
+    if [ -z "$PRIVPEM" ]; then
+        echo "Failed to generate RSA key with openssl." >&2
+        exit 1
+    fi
+fi
+
 # remove header/footer and newlines
 PRIVKEY=$(echo "$PRIVPEM" | grep -v -- "-----" | tr -d "\n")
 
