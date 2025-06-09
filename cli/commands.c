@@ -2072,11 +2072,7 @@ parse_cert(const char *name, const char *path)
     BIO_printf(bio_out, "\n");
 
     BIO_printf(bio_out, "Valid until: ");
-#if OPENSSL_VERSION_NUMBER < 0x10100000L // < 1.1.0
-    ASN1_TIME_print(bio_out, X509_get_notAfter(cert));
-#else
     ASN1_TIME_print(bio_out, X509_get0_notAfter(cert));
-#endif
     BIO_printf(bio_out, "\n");
 
     has_san = 0;
@@ -2097,18 +2093,10 @@ parse_cert(const char *name, const char *path)
                     first_san = 0;
                 }
                 if (san_name->type == GEN_EMAIL) {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L // < 1.1.0
-                    BIO_printf(bio_out, "RFC822:%s", (char *) ASN1_STRING_data(san_name->d.rfc822Name));
-#else
                     BIO_printf(bio_out, "RFC822:%s", (char *) ASN1_STRING_get0_data(san_name->d.rfc822Name));
-#endif
                 }
                 if (san_name->type == GEN_DNS) {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L // < 1.1.0
-                    BIO_printf(bio_out, "DNS:%s", (char *) ASN1_STRING_data(san_name->d.dNSName));
-#else
                     BIO_printf(bio_out, "DNS:%s", (char *) ASN1_STRING_get0_data(san_name->d.dNSName));
-#endif
                 }
                 if (san_name->type == GEN_IPADD) {
                     BIO_printf(bio_out, "IP:");
