@@ -41,12 +41,18 @@ if(LIBNETCONF2_ENABLED_SSH_TLS)
     target_link_libraries(netopeer2-cli ${LIBSSH_LIBRARIES})
     include_directories(${LIBSSH_INCLUDE_DIRS})
 
-    # - openssl
-    if(NOT OPENSSL_FOUND)
-        message(FATAL_ERROR "libnetconf2 supports TLS but OpenSSL was not found, CLI compilation failed!")
+    # - SSL library
+    if (MBEDTLS_FOUND)
+        # - MbedTLS (has priority over OpenSSL)
+        target_link_libraries(netopeer2-cli ${MBEDTLS_LIBRARIES})
+        include_directories(${MBEDTLS_INCLUDE_DIRS})
+    elseif(OPENSSL_FOUND)
+        # - OpenSSL
+        target_link_libraries(netopeer2-cli ${OPENSSL_LIBRARIES})
+        include_directories(${OPENSSL_INCLUDE_DIR})
+    else()
+        message(FATAL_ERROR "libnetconf2 supports TLS but neither MbedTLS nor OpenSSL were found, CLI compilation failed!")
     endif()
-    target_link_libraries(netopeer2-cli ${OPENSSL_LIBRARIES})
-    include_directories(${OPENSSL_INCLUDE_DIR})
 endif()
 
 # compat checks

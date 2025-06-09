@@ -34,11 +34,6 @@
 #include <libyang/libyang.h>
 #include <nc_client.h>
 
-#ifdef NC_ENABLED_SSH_TLS
-#   include <openssl/pem.h>
-#   include <openssl/x509v3.h>
-#endif
-
 #ifndef HAVE_EACCESS
 #define eaccess access
 #endif
@@ -47,6 +42,16 @@
 #include "compat.h"
 #include "completion.h"
 #include "configuration.h"
+
+#ifdef NC_ENABLED_SSH_TLS
+#ifdef HAVE_MBEDTLS
+#   include <mbedtls/x509.h>
+#   include <mbedtls/x509_crt.h>
+#else
+#   include <openssl/pem.h>
+#   include <openssl/x509v3.h>
+#endif
+#endif
 
 #define CLI_CH_TIMEOUT 60 /* 1 minute */
 #define CLI_RPC_REPLY_TIMEOUT 5 /* 5 seconds */
@@ -1819,6 +1824,211 @@ out_error:
     return -1;
 }
 
+#ifdef HAVE_MBEDTLS
+
+/**
+ * @brief Converts a Distinguished Name to a string.
+ *
+ * @param[in] dn Internal mbedTLS DN representation.
+ * @return DN string on success, NULL of fail.
+ */
+static char *
+cli_dn2str(const mbedtls_x509_name *dn)
+{
+    char *str;
+    size_t len = 64;
+    int r;
+    void *tmp;
+
+    str = malloc(len);
+    if (!str) {
+        ERROR("dn2str", "Memory allocation failed for DN string conversion");
+        return NULL;
+    }
+
+    while ((r = mbedtls_x509_dn_gets(str, len, dn)) == MBEDTLS_ERR_X509_BUFFER_TOO_SMALL) {
+        len <<= 1;
+        tmp = realloc(str, len);
+        if (!tmp) {
+            free(str);
+            ERROR("dn2str", "Memory reallocation failed for DN string conversion");
+            return NULL;
+        }
+        str = tmp;
+    }
+    if (r < 1) {
+        free(str);
+        ERROR("dn2str", "Failed to convert DN to string");
+        return NULL;
+    }
+
+    return str;
+}
+
+/**
+ * @brief Converts a single Subject Alternative Name (SAN) to a string.
+ *
+ * @param[in] san_buf Internal mbedTLS SAN representation.
+ * @return SAN string on success, NULL on failure.
+ */
+static char *
+cli_san2str(const mbedtls_x509_buf *san_buf)
+{
+    char *buf;
+
+    buf = malloc(san_buf->len + 1);
+    if (!buf) {
+        ERROR("san2str", "Memory allocation failed for SAN string conversion");
+        return NULL;
+    }
+    memcpy(buf, san_buf->p, san_buf->len);
+    buf[san_buf->len] = '\0';
+    return buf;
+}
+
+static void
+parse_cert(const char *name, const char *path)
+{
+    int r, has_san, first_san;
+    char *subject = NULL, *issuer = NULL, *san_buf = NULL;
+    size_t i;
+    mbedtls_x509_crt cert;
+    mbedtls_x509_sequence *san_list;
+    mbedtls_x509_subject_alternative_name san = {0};
+    mbedtls_x509_sequence *cur;
+    const mbedtls_x509_buf *ip;
+
+    mbedtls_x509_crt_init(&cert);
+
+    r = mbedtls_x509_crt_parse_file(&cert, path);
+    if (r) {
+        ERROR("parse_cert", "Unable to parse certificate: %s", path);
+        goto cleanup;
+    }
+
+    /* print the serial number */
+    printf("-----%s----- serial: ", name);
+    for (i = 0; i < cert.serial.len; i++) {
+        printf("%02x", cert.serial.p[i]);
+    }
+    printf("\n");
+
+    /* print the subject */
+    printf("Subject: ");
+    subject = cli_dn2str(&cert.subject);
+    if (!subject) {
+        goto cleanup;
+    }
+    printf("%s\n", subject);
+
+    /* issuer */
+    printf("Issuer:  ");
+    issuer = cli_dn2str(&cert.issuer);
+    if (!issuer) {
+        goto cleanup;
+    }
+    printf("%s\n", issuer);
+
+    /* validity to */
+    printf("Valid until: ");
+    printf("%04d-%02d-%02d %02d:%02d:%02d",
+            cert.valid_to.year, cert.valid_to.mon, cert.valid_to.day,
+            cert.valid_to.hour, cert.valid_to.min, cert.valid_to.sec);
+    printf("\n");
+
+    /* parse Subject Alternative Names */
+    has_san = 0;
+    first_san = 1;
+
+    san_list = &cert.subject_alt_names;
+    if (san_list->buf.p) {
+        cur = san_list;
+
+        while (cur) {
+            r = mbedtls_x509_parse_subject_alt_name(&cur->buf, &san);
+            if (r && (r != MBEDTLS_ERR_X509_FEATURE_UNAVAILABLE)) {
+                ERROR("parse_cert", "Failed to parse Subject Alternative Name: %s", path);
+                goto cleanup;
+            }
+
+            switch (san.type) {
+            case MBEDTLS_X509_SAN_DNS_NAME:
+                if (!has_san) {
+                    printf("X509v3 Subject Alternative Name:\n\t");
+                    has_san = 1;
+                }
+                if (!first_san) {
+                    printf(", ");
+                }
+                first_san = 0;
+                san_buf = cli_san2str(&san.san.unstructured_name);
+                if (!san_buf) {
+                    goto cleanup;
+                }
+                printf("DNS:%s", san_buf);
+                free(san_buf);
+                break;
+            case MBEDTLS_X509_SAN_RFC822_NAME:
+                if (!has_san) {
+                    printf("X509v3 Subject Alternative Name:\n\t");
+                    has_san = 1;
+                }
+                if (!first_san) {
+                    printf(", ");
+                }
+                first_san = 0;
+                san_buf = cli_san2str(&san.san.unstructured_name);
+                if (!san_buf) {
+                    goto cleanup;
+                }
+                printf("RFC822:%s", san_buf);
+                free(san_buf);
+                break;
+            case MBEDTLS_X509_SAN_IP_ADDRESS:
+                if (!has_san) {
+                    printf("X509v3 Subject Alternative Name:\n\t");
+                    has_san = 1;
+                }
+                if (!first_san) {
+                    printf(", ");
+                }
+                first_san = 0;
+                ip = &san.san.unstructured_name;
+                if (ip->len == 4) {
+                    printf("IP:%d.%d.%d.%d", ip->p[0], ip->p[1], ip->p[2], ip->p[3]);
+                } else if (ip->len == 16) {
+                    printf("IP:");
+                    for (i = 0; i < ip->len; ++i) {
+                        if ((i > 0) && (i < 15) && (i % 2 == 1)) {
+                            printf("%02x:", ip->p[i]);
+                        } else {
+                            printf("%02x", ip->p[i]);
+                        }
+                    }
+                }
+                break;
+            default:
+                /* unsupported SAN type, skip */
+                break;
+            }
+            mbedtls_x509_free_subject_alt_name(&san);
+            cur = cur->next;
+        }
+    }
+
+    if (has_san) {
+        printf("\n");
+    }
+    printf("\n");
+
+cleanup:
+    mbedtls_x509_crt_free(&cert);
+    free(subject);
+    free(issuer);
+}
+
+#else
+
 static void
 parse_cert(const char *name, const char *path)
 {
@@ -1928,6 +2138,8 @@ parse_cert(const char *name, const char *path)
     BIO_vfree(bio_out);
     fclose(fp);
 }
+
+#endif
 
 static int
 cmd_cert(const char *arg, char **UNUSED(tmp_config_file))
