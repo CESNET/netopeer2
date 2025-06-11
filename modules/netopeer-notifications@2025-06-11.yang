@@ -4,6 +4,10 @@ module netopeer-notifications {
 
     yang-version 1.1;
 
+    import ietf-yang-types {
+        prefix yang;
+    }
+
     import ietf-datastores {
         prefix ds;
     }
@@ -21,6 +25,11 @@ module netopeer-notifications {
 
     description
         "Netopeer2 NETCONF server YANG notifications.";
+
+    revision "2025-06-11" {
+        description
+            "Added 'filter-type' choice.";
+    }
 
     revision "2025-01-15" {
         description
@@ -179,6 +188,20 @@ module netopeer-notifications {
             type ds:datastore-ref;
             description
                 "Affected datastore by the RPC, if relevant.";
+        }
+
+        choice filter-type {
+            description
+                "Used filter, if any.";
+            anyxml subtree-filter {
+                description
+                    "Subtree filter used by the RPC.";
+            }
+            leaf xpath-filter {
+                type yang:xpath1.0;
+                description
+                    "XPath filter used by the RPC.";
+            }
         }
     }
 

@@ -581,7 +581,7 @@ cleanup:
 
 int
 np_send_notif_rpc(sr_session_ctx_t *sr_session, enum np_rpc_exec_stage stage, const char *rpc_name, const char *ds_str,
-        uint32_t sr_timeout)
+        const struct lyd_node *filter_subtree, const char *filter_xpath, uint32_t sr_timeout)
 {
     int rc = 0, r;
     const struct ly_ctx *ly_ctx;
@@ -634,6 +634,19 @@ np_send_notif_rpc(sr_session_ctx_t *sr_session, enum np_rpc_exec_stage stage, co
     if (ds_str && lyd_new_term(notif, NULL, "datastore", ds_str, 0, NULL)) {
         rc = -1;
         goto cleanup;
+    }
+
+    /* filter */
+    if (filter_subtree) {
+        if (lyd_new_any(notif, NULL, "subtree-filter", filter_subtree, LYD_ANYDATA_DATATREE, 0, NULL)) {
+            rc = -1;
+            goto cleanup;
+        }
+    } else if (filter_xpath) {
+        if (lyd_new_term(notif, NULL, "xpath-filter", filter_xpath, 0, NULL)) {
+            rc = -1;
+            goto cleanup;
+        }
     }
 
     /* send the notification */

@@ -196,6 +196,48 @@ np_rpc_get_ds(const struct lyd_node *rpc)
 }
 
 /**
+ * @brief Get the used filter in the RPC, if any.
+ *
+ * @param[in] rpc RPC to use.
+ * @param[out] filter_subtree Subtree filter node.
+ * @param[out] filter_xpath XPath filter string.
+ */
+static void
+np_rpc_get_filter(const struct lyd_node *rpc, const struct lyd_node **filter_subtree, const char **filter_xpath)
+{
+    struct lyd_node *node;
+    struct lyd_meta *meta;
+    uint32_t temp_lo = 0;
+
+    *filter_subtree = NULL;
+    *filter_xpath = NULL;
+
+    /* no logging */
+    ly_temp_log_options(&temp_lo);
+
+    if (!lyd_find_path(rpc, "filter", 0, &node)) {
+        /* learn filter type */
+        meta = lyd_find_meta(node->meta, NULL, "ietf-netconf:type");
+        if (meta && !strcmp(lyd_get_meta_value(meta), "xpath")) {
+            meta = lyd_find_meta(node->meta, NULL, "ietf-netconf:select");
+        } else {
+            meta = NULL;
+        }
+
+        if (!meta) {
+            /* subtree */
+            assert(((struct lyd_node_any *)node)->value_type == LYD_ANYDATA_DATATREE);
+            *filter_subtree = ((struct lyd_node_any *)node)->value.tree;
+        } else {
+            /* xpath */
+            *filter_xpath = lyd_get_meta_value(meta);
+        }
+    }
+
+    ly_temp_log_options(NULL);
+}
+
+/**
  * @brief Callback for libnetconf2 handling all the RPCs.
  *
  * @param[in] rpc Received RPC to process.
@@ -209,7 +251,8 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
     struct nc_server_reply *reply = NULL;
     sr_data_t *output = NULL, *op_data = NULL;
     struct nc_server_reply *(*rpc_cb)(const struct lyd_node *rpc, struct np_user_sess *user_sess) = NULL;
-    const char *ds_str;
+    const struct lyd_node *filter_subtree;
+    const char *ds_str, *filter_xpath;
     NC_RPL rpl_type;
     int rc;
 
@@ -304,8 +347,12 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         /* get DS, if any */
         ds_str = np_rpc_get_ds(rpc);
 
+        /* get filter, if any */
+        np_rpc_get_filter(rpc, &filter_subtree, &filter_xpath);
+
         /* pre-NETCONF RPC */
-        np_send_notif_rpc(user_sess->sess, NP_RPC_STAGE_PRE, LYD_NAME(rpc), ds_str, np2srv.sr_timeout);
+        np_send_notif_rpc(user_sess->sess, NP_RPC_STAGE_PRE, LYD_NAME(rpc), ds_str, filter_subtree, filter_xpath,
+                np2srv.sr_timeout);
 
         /* netopeer2 RPC execution */
         reply = rpc_cb(rpc, user_sess);
@@ -316,7 +363,7 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         /* post-NETCONF RPC */
         rpl_type = nc_server_reply_type(reply);
         np_send_notif_rpc(user_sess->sess, (rpl_type == NC_RPL_ERROR) ? NP_RPC_STAGE_POST_FAIL : NP_RPC_STAGE_POST_SUCCESS,
-                LYD_NAME(rpc), ds_str, np2srv.sr_timeout);
+                LYD_NAME(rpc), ds_str, filter_subtree, filter_xpath, np2srv.sr_timeout);
     } else {
         /* sysrepo RPC, use the default timeout or slightly higher than the configured one */
         rc = sr_rpc_send_tree(user_sess->sess, rpc, np2srv.sr_timeout ? np2srv.sr_timeout + 2000 : 0, &output);
