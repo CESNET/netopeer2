@@ -580,8 +580,9 @@ cleanup:
 }
 
 int
-np_send_notif_rpc(sr_session_ctx_t *sr_session, enum np_rpc_exec_stage stage, const char *rpc_name, const char *ds_str,
-        const struct lyd_node *filter_subtree, const char *filter_xpath, uint32_t sr_timeout)
+np_send_notif_rpc(sr_session_ctx_t *sr_session, enum np_rpc_exec_stage stage, const char *rpc_name,
+        const char *netconf_user, const char *ds_str, const struct lyd_node *filter_subtree, const char *filter_xpath,
+        const char *sub_stream, uint32_t sr_timeout)
 {
     int rc = 0, r;
     const struct ly_ctx *ly_ctx;
@@ -630,6 +631,12 @@ np_send_notif_rpc(sr_session_ctx_t *sr_session, enum np_rpc_exec_stage stage, co
         goto cleanup;
     }
 
+    /* NETCONF user */
+    if (lyd_new_term(notif, NULL, "netconf-user", netconf_user, 0, NULL)) {
+        rc = -1;
+        goto cleanup;
+    }
+
     /* datastore */
     if (ds_str && lyd_new_term(notif, NULL, "datastore", ds_str, 0, NULL)) {
         rc = -1;
@@ -647,6 +654,12 @@ np_send_notif_rpc(sr_session_ctx_t *sr_session, enum np_rpc_exec_stage stage, co
             rc = -1;
             goto cleanup;
         }
+    }
+
+    /* subscription stream */
+    if (sub_stream && lyd_new_term(notif, NULL, "subscription-stream", sub_stream, 0, NULL)) {
+        rc = -1;
+        goto cleanup;
     }
 
     /* send the notification */

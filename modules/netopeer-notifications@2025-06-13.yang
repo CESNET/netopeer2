@@ -26,6 +26,11 @@ module netopeer-notifications {
     description
         "Netopeer2 NETCONF server YANG notifications.";
 
+    revision "2025-06-13" {
+        description
+            "Added 'netconf-user' and 'notification-stream' nodes.";
+    }
+
     revision "2025-06-11" {
         description
             "Added 'filter-type' choice.";
@@ -184,6 +189,13 @@ module netopeer-notifications {
                 "Name of the executed RPC.";
         }
 
+        leaf netconf-user {
+            type string;
+            mandatory true;
+            description
+                "NETCONF user executing the RPC.";
+        }
+
         leaf datastore {
             type ds:datastore-ref;
             description
@@ -202,6 +214,12 @@ module netopeer-notifications {
                 description
                     "XPath filter used by the RPC.";
             }
+        }
+
+        leaf subscription-stream {
+            type string;
+            description
+                "Subscription stream of the RPC, if relevant.";
         }
     }
 

@@ -238,6 +238,30 @@ np_rpc_get_filter(const struct lyd_node *rpc, const struct lyd_node **filter_sub
 }
 
 /**
+ * @brief Get the used stream in the RPC, if any.
+ *
+ * @param[in] rpc RPC to use.
+ * @param[out] sub_stream Subscription stream.
+ */
+static void
+np_rpc_get_stream(const struct lyd_node *rpc, const char **sub_stream)
+{
+    struct lyd_node *node;
+    uint32_t temp_lo = 0;
+
+    *sub_stream = NULL;
+
+    /* no logging */
+    ly_temp_log_options(&temp_lo);
+
+    if (!lyd_find_path(rpc, "stream", 0, &node)) {
+        *sub_stream = lyd_get_value(node);
+    }
+
+    ly_temp_log_options(NULL);
+}
+
+/**
  * @brief Callback for libnetconf2 handling all the RPCs.
  *
  * @param[in] rpc Received RPC to process.
@@ -252,7 +276,7 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
     sr_data_t *output = NULL, *op_data = NULL;
     struct nc_server_reply *(*rpc_cb)(const struct lyd_node *rpc, struct np_user_sess *user_sess) = NULL;
     const struct lyd_node *filter_subtree;
-    const char *ds_str, *filter_xpath;
+    const char *ds_str, *filter_xpath, *sub_stream;
     NC_RPL rpl_type;
     int rc;
 
@@ -350,9 +374,12 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         /* get filter, if any */
         np_rpc_get_filter(rpc, &filter_subtree, &filter_xpath);
 
+        /* get subscription stream, if any */
+        np_rpc_get_stream(rpc, &sub_stream);
+
         /* pre-NETCONF RPC */
-        np_send_notif_rpc(user_sess->sess, NP_RPC_STAGE_PRE, LYD_NAME(rpc), ds_str, filter_subtree, filter_xpath,
-                np2srv.sr_timeout);
+        np_send_notif_rpc(user_sess->sess, NP_RPC_STAGE_PRE, LYD_NAME(rpc), nc_session_get_username(ncs), ds_str,
+                filter_subtree, filter_xpath, sub_stream, np2srv.sr_timeout);
 
         /* netopeer2 RPC execution */
         reply = rpc_cb(rpc, user_sess);
@@ -363,7 +390,8 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         /* post-NETCONF RPC */
         rpl_type = nc_server_reply_type(reply);
         np_send_notif_rpc(user_sess->sess, (rpl_type == NC_RPL_ERROR) ? NP_RPC_STAGE_POST_FAIL : NP_RPC_STAGE_POST_SUCCESS,
-                LYD_NAME(rpc), ds_str, filter_subtree, filter_xpath, np2srv.sr_timeout);
+                LYD_NAME(rpc), nc_session_get_username(ncs), ds_str, filter_subtree, filter_xpath, sub_stream,
+                np2srv.sr_timeout);
     } else {
         /* sysrepo RPC, use the default timeout or slightly higher than the configured one */
         rc = sr_rpc_send_tree(user_sess->sess, rpc, np2srv.sr_timeout ? np2srv.sr_timeout + 2000 : 0, &output);
