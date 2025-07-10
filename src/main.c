@@ -982,7 +982,7 @@ np2srv_libnetconf2_config_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id),
     diff = sr_get_change_diff(session);
     rc = nc_server_config_setup_diff(diff);
     if (rc) {
-        ERR("Configuring NETCONF server failed.");
+        /* return value ignored anyway */
         return rc;
     }
 
