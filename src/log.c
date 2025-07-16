@@ -33,10 +33,10 @@
 #include "common.h"
 #include "compat.h"
 
-volatile uint8_t np2_verbose_level;
-uint8_t np2_libssh_verbose_level;
-uint8_t np2_sr_verbose_level;
-uint8_t np2_stderr_log;
+volatile uint8_t np2_verbose_level = NC_VERB_ERROR;
+uint8_t np2_libssh_verbose_level = 0;
+uint8_t np2_sr_verbose_level = SR_LL_ERR;
+uint8_t np2_stderr_log = 0;
 
 static void
 np2log(int priority, const char *src, const char *fmt, ...)
