@@ -1128,12 +1128,6 @@ np_op_parse_config(struct lyd_node_any *node, uint32_t parse_options, struct lyd
             }
         }
         break;
-    case LYD_ANYDATA_LYB:
-        if (lyd_parse_data_mem(ly_ctx, node->value.mem, LYD_LYB, parse_options, 0, config)) {
-            reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
-            goto cleanup;
-        }
-        break;
     case LYD_ANYDATA_JSON:
         EINT;
         reply = np_reply_err_op_failed(NULL, ly_ctx, "Internal error.");

@@ -237,8 +237,7 @@ struct np2_test {
 #define NOTIF_PARSE(state, data) \
     assert_int_equal(ly_in_new_memory(data, &state->in), LY_SUCCESS); \
     assert_int_equal(lyd_parse_op(state->ctx, NULL, state->in, LYD_XML, \
-                                  LYD_TYPE_NOTIF_YANG, &state->node, NULL), \
-                                  LY_SUCCESS); \
+            LYD_TYPE_NOTIF_YANG, LYD_PARSE_STRICT, &state->node, NULL), LY_SUCCESS); \
     ly_in_free(state->in, 0);
 
 #define RECV_NOTIF_PARAM(nc_sess, timeout_ms, state) \
