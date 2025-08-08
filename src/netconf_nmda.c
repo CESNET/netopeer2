@@ -100,11 +100,10 @@ np2srv_rpc_getdata_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess
     struct lyd_node_term *leaf;
     struct lyd_node *node, *data = NULL, *output = NULL;
     char *xp_filter = NULL, *msg;
-    uint32_t i, max_depth = 0;
+    uint32_t i, max_depth = 0, get_opts = 0;
     struct ly_set *nodeset;
     sr_datastore_t ds;
     NC_WD_MODE nc_wd;
-    sr_get_options_t get_opts = 0;
 
     /* get default value for with-defaults */
     nc_server_get_capab_withdefaults(&nc_wd, NULL);

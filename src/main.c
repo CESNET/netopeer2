@@ -778,8 +778,14 @@ server_init(void)
 {
     int rc;
 
+    /* disable printed context to keep parsed modules */
+    sr_context_options(SR_CTX_NO_PRINTED);
+
+    /* enable cache */
+    sr_cache_running(1);
+
     /* connect to sysrepo */
-    if ((rc = sr_connect(SR_CONN_CACHE_RUNNING, &np2srv.sr_conn))) {
+    if ((rc = sr_connect(0, &np2srv.sr_conn))) {
         ERR("Connecting to sysrepo failed (%s).", sr_strerror(rc));
         goto error;
     }

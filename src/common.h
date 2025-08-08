@@ -344,7 +344,7 @@ struct nc_server_reply *np_op_parse_config(struct lyd_node_any *node, uint32_t p
  * @param[out] data Retrieved data.
  * @return Error reply on error, NULL on success.
  */
-struct nc_server_reply *np_op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_options_t get_opts,
+struct nc_server_reply *np_op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, uint32_t get_opts,
         const char *xp_filter, struct lyd_node **data);
 
 /**

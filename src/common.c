@@ -1240,7 +1240,7 @@ cleanup:
 }
 
 struct nc_server_reply *
-np_op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, sr_get_options_t get_opts, const char *xp_filter,
+np_op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, uint32_t get_opts, const char *xp_filter,
         struct lyd_node **data)
 {
     sr_data_t *sr_data = NULL, *sr_ln2_nc_server = NULL;
