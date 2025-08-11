@@ -422,6 +422,7 @@ np2srv_rpc_getschema_cb(const struct lyd_node *rpc, struct np_user_sess *UNUSED(
     const struct lysp_submodule *submodule = NULL;
     struct lyd_node *node, *output = NULL;
     LYS_OUTFORMAT outformat = 0;
+    LY_ERR lyrc;
 
     /* identifier */
     if (!lyd_find_path(rpc, "identifier", 0, &node)) {
@@ -483,14 +484,13 @@ np2srv_rpc_getschema_cb(const struct lyd_node *rpc, struct np_user_sess *UNUSED(
     /* print */
     ly_out_new_memory(&model_data, 0, &out);
     if (module) {
-        lys_print_module(out, module, outformat, 0, 0);
+        lyrc = lys_print_module(out, module, outformat, 0, 0);
     } else {
-        lys_print_submodule(out, submodule, outformat, 0, 0);
+        lyrc = lys_print_submodule(out, submodule, outformat, 0, 0);
     }
     ly_out_free(out, NULL, 0);
-    if (!model_data) {
-        EMEM;
-        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), "Memory allocation failed.");
+    if (lyrc) {
+        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
         goto cleanup;
     }
 
