@@ -401,9 +401,24 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
             /* error reply */
             reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
         } else if (output) {
-            /* data reply */
-            reply = np_reply_success(rpc, output->tree);
-            output->tree = NULL;
+            struct lyd_node *child = NULL;
+            int has_non_default = 0;
+
+            LY_LIST_FOR(lyd_child(output->tree), child) {
+                if (!(child->flags & LYD_DEFAULT)) {
+                    has_non_default = 1;
+                    break;
+                }
+            }
+
+            if (has_non_default) {
+                /* data reply */
+                reply = np_reply_success(rpc, output->tree);
+                output->tree = NULL;
+            } else {
+                /* OK reply */
+                reply = np_reply_success(rpc, NULL);
+            }
         } else {
             /* OK reply */
             reply = np_reply_success(rpc, NULL);
