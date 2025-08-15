@@ -501,18 +501,13 @@ module ietf-routing {
     }
   }
 
-  /*
-   * The subsequent data nodes are obviated and obsoleted
-   * by the Network Management Datastore Architecture
-   * as described in RFC 8342.
-   */
   container routing-state {
     config false;
-    status obsolete;
+
     description
       "State data of the routing subsystem.";
     uses router-id {
-      status obsolete;
+
       description
         "Global router ID.
 
@@ -520,24 +515,24 @@ module ietf-routing {
          the implementation.";
     }
     container interfaces {
-      status obsolete;
+
       description
         "Network-layer interfaces used for routing.";
       leaf-list interface {
         type if:interface-state-ref;
-        status obsolete;
+
         description
           "Each entry is a reference to the name of a configured
            network-layer interface.";
       }
     }
     container control-plane-protocols {
-      status obsolete;
+
       description
         "Container for the list of routing protocol instances.";
       list control-plane-protocol {
         key "type name";
-        status obsolete;
+
         description
           "State data of a control-plane protocol instance.
 
@@ -549,13 +544,13 @@ module ietf-routing {
           type identityref {
             base control-plane-protocol;
           }
-          status obsolete;
+
           description
             "Type of the control-plane protocol.";
         }
         leaf name {
           type string;
-          status obsolete;
+
           description
             "The name of the control-plane protocol instance.
 
@@ -566,13 +561,13 @@ module ietf-routing {
       }
     }
     container ribs {
-      status obsolete;
+
       description
         "Container for RIBs.";
       list rib {
         key "name";
         min-elements 1;
-        status obsolete;
+
         description
           "Each entry represents a RIB identified by the 'name'
            key.  All routes in a RIB MUST belong to the same address
@@ -582,12 +577,12 @@ module ietf-routing {
            default RIB for each supported address family.";
         leaf name {
           type string;
-          status obsolete;
+
           description
             "The name of the RIB.";
         }
         uses address-family {
-          status obsolete;
+
           description
             "The address family of the RIB.";
         }
@@ -595,7 +590,7 @@ module ietf-routing {
           if-feature "multiple-ribs";
           type boolean;
           default "true";
-          status obsolete;
+
           description
             "This flag has the value of 'true' if and only if the
              RIB is the default RIB for the given address family.
@@ -604,18 +599,18 @@ module ietf-routing {
              in the default RIBs.";
         }
         container routes {
-          status obsolete;
+
           description
             "Current contents of the RIB.";
           list route {
-            status obsolete;
+
             description
               "A RIB route entry.  This data node MUST be augmented
                with information specific to routes of each address
                family.";
             leaf route-preference {
               type route-preference;
-              status obsolete;
+
               description
                 "This route attribute, also known as 'administrative
                  distance', allows for selecting the preferred route
@@ -624,24 +619,24 @@ module ietf-routing {
                  more preferred.";
             }
             container next-hop {
-              status obsolete;
+
               description
                 "Route's next-hop attribute.";
               uses next-hop-state-content {
-                status obsolete;
+
                 description
                   "Route's next-hop attribute operational state.";
               }
             }
             uses route-metadata {
-              status obsolete;
+
               description
                 "Route metadata.";
             }
           }
         }
         action active-route {
-          status obsolete;
+
           description
             "Return the active RIB route that is used for the
              destination address.
@@ -650,7 +645,7 @@ module ietf-routing {
              parameters with a leaf named 'destination-address'.";
           output {
             container route {
-              status obsolete;
+
               description
                 "The active RIB route for the specified
                  destination.
@@ -661,17 +656,17 @@ module ietf-routing {
                  Address-family-specific modules MUST augment this
                  container with appropriate route contents.";
               container next-hop {
-                status obsolete;
+
                 description
                   "Route's next-hop attribute.";
                 uses next-hop-state-content {
-                  status obsolete;
+
                   description
                     "Active route state data.";
                 }
               }
               uses route-metadata {
-                status obsolete;
+
                 description
                   "Active route metadata.";
               }

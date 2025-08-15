@@ -254,12 +254,12 @@ module ietf-ipv4-unicast-routing {
       description
         "This augment is valid only for IPv4 unicast.";
     }
-    status obsolete;
+
     description
       "This leaf augments an IPv4 unicast route.";
     leaf destination-prefix {
       type inet:ipv4-prefix;
-      status obsolete;
+
       description
         "IPv4 destination prefix.";
     }
@@ -271,12 +271,12 @@ module ietf-ipv4-unicast-routing {
       description
         "This augment is valid only for IPv4 unicast.";
     }
-    status obsolete;
+
     description
       "Augments the 'simple-next-hop' case in IPv4 unicast routes.";
     leaf next-hop-address {
       type inet:ipv4-address;
-      status obsolete;
+
       description
         "IPv4 address of the next hop.";
     }
@@ -289,13 +289,13 @@ module ietf-ipv4-unicast-routing {
       description
         "This augment is valid only for IPv4 unicast.";
     }
-    status obsolete;
+
     description
       "This leaf augments the 'next-hop-list' case of IPv4 unicast
        routes.";
     leaf address {
       type inet:ipv4-address;
-      status obsolete;
+
       description
         "IPv4 address of the next hop.";
     }
@@ -307,13 +307,13 @@ module ietf-ipv4-unicast-routing {
       description
         "This augment is valid only for IPv4 unicast RIBs.";
     }
-    status obsolete;
+
     description
       "This augment adds the input parameter of the 'active-route'
        action.";
     leaf destination-address {
       type inet:ipv4-address;
-      status obsolete;
+
       description
         "IPv4 destination address.";
     }
@@ -325,13 +325,13 @@ module ietf-ipv4-unicast-routing {
       description
         "This augment is valid only for IPv4 unicast.";
     }
-    status obsolete;
+
     description
       "This augment adds the destination prefix to the reply of the
        'active-route' action.";
     leaf destination-prefix {
       type inet:ipv4-prefix;
-      status obsolete;
+
       description
         "IPv4 destination prefix.";
     }
@@ -344,13 +344,13 @@ module ietf-ipv4-unicast-routing {
       description
         "This augment is valid only for IPv4 unicast.";
     }
-    status obsolete;
+
     description
       "Augments the 'simple-next-hop' case in the reply to the
        'active-route' action.";
     leaf next-hop-address {
       type inet:ipv4-address;
-      status obsolete;
+
       description
         "IPv4 address of the next hop.";
     }
@@ -363,13 +363,13 @@ module ietf-ipv4-unicast-routing {
       description
         "This augment is valid only for IPv4 unicast.";
     }
-    status obsolete;
+
     description
       "Augments the 'next-hop-list' case in the reply to the
        'active-route' action.";
     leaf next-hop-address {
       type inet:ipv4-address;
-      status obsolete;
+
       description
         "IPv4 address of the next hop.";
     }
