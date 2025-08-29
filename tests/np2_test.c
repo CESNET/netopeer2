@@ -431,7 +431,7 @@ child_error:
 
     /* set the default configuration */
     if (sr_set_item_str(st->sr_sess, "/ietf-netconf-server:netconf-server/listen/endpoints/endpoint[name='unix-socket']/"
-                "libnetconf2-netconf-server:unix/path", sock_path, NULL, 0)) {
+            "libnetconf2-netconf-server:unix/path", sock_path, NULL, 0)) {
         SETUP_FAIL_LOG;
         return 1;
     }
