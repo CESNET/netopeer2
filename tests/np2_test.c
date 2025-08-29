@@ -197,6 +197,10 @@ np2_glob_test_setup_sess_ctx(struct nc_session *sess, const char **modules)
         SETUP_FAIL_LOG;
         return 1;
     }
+    if (!ly_ctx_load_module(ctx, "ietf-origin", "2018-02-14", NULL)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
     if (!ly_ctx_load_module(ctx, "ietf-datastores", "2018-02-14", NULL)) {
         SETUP_FAIL_LOG;
         return 1;
@@ -243,11 +247,8 @@ np2_glob_test_setup_sess_ctx(struct nc_session *sess, const char **modules)
         }
     }
 
-    /* schema-mount, uses the final context */
-    if (nc_client_set_new_session_context_schema_mount(sess)) {
-        SETUP_FAIL_LOG;
-        return 1;
-    }
+    /* schema-mount callback */
+    ly_ctx_set_ext_data_clb(ctx, sr_ly_ext_data_clb, NULL);
 
     return 0;
 }
@@ -304,6 +305,25 @@ np2_glob_test_setup_server(void **state, const char *test_name, const char **mod
     }
 #endif
 
+    /* create test state structure, up to teardown now to free it */
+    st = calloc(1, sizeof *st);
+    if (!st) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    *state = st;
+
+    /* create connection and install modules */
+    if (sr_connect(SR_CONN_DEFAULT, &st->conn)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (modules && sr_install_modules(st->conn, modules, NULL, NULL)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+
+    /* set test abort on fail */
     if (setenv("CMOCKA_TEST_ABORT", "1", 0)) {
         SETUP_FAIL_LOG;
         return 1;
@@ -395,26 +415,10 @@ child_error:
         return 1;
     }
 
-    /* create test state structure, up to teardown now to free it */
-    st = calloc(1, sizeof *st);
-    if (!st) {
-        SETUP_FAIL_LOG;
-        return 1;
-    }
-    *state = st;
+    /* fill members */
     st->server_pid = pid;
     memcpy(st->socket_path, sock_path, sizeof st->socket_path);
     memcpy(st->test_name, test_name, sizeof st->test_name);
-
-    /* create connection and install modules */
-    if (sr_connect(SR_CONN_DEFAULT, &st->conn)) {
-        SETUP_FAIL_LOG;
-        return 1;
-    }
-    if (modules && sr_install_modules(st->conn, modules, NULL, NULL)) {
-        SETUP_FAIL_LOG;
-        return 1;
-    }
 
     /* start session */
     if (sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess)) {

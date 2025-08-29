@@ -520,44 +520,6 @@ np2srv_content_id_cb(void *UNUSED(user_data))
 }
 
 /**
- * @brief SR operational get callback for schema-mounts data. They are obtained from the file provided
- * by a parameter.
- */
-static int
-np2srv_sm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
-        const char *UNUSED(path), const char *UNUSED(request_xpath), uint32_t UNUSED(request_id),
-        struct lyd_node **parent, void *UNUSED(private_data))
-{
-    int rc = SR_ERR_OK;
-    const struct ly_ctx *ly_ctx = sr_session_acquire_context(session);
-    struct lyd_node *data = NULL, *sm;
-
-    /* parse the data file */
-    if (lyd_parse_data_path(ly_ctx, np2srv.ext_data_path, 0, LYD_PARSE_STRICT, LYD_VALIDATE_PRESENT, &data)) {
-        rc = SR_ERR_LY;
-        goto cleanup;
-    }
-
-    /* find the schema-mount data */
-    if (lyd_find_path(data, "/ietf-yang-schema-mount:schema-mounts", 0, &sm)) {
-        rc = SR_ERR_LY;
-        goto cleanup;
-    }
-
-    /* return them */
-    lyd_unlink_tree(sm);
-    if (sm == data) {
-        data = data->next;
-    }
-    *parent = sm;
-
-cleanup:
-    lyd_free_siblings(data);
-    sr_session_release_context(session);
-    return rc;
-}
-
-/**
  * @brief Add subscription capabilities to a node
  * @param[in,out] node is a part of ietf-system-capabilities.
  * @param[in] ly_ctx a libyang context.
@@ -768,6 +730,68 @@ cleanup:
 #endif /* NC_ENABLED_SSH_TLS */
 
 /**
+ * @brief Set ext-data as push operational data.
+ *
+ * @param[in] sess Session to use.
+ * @param[in] ext_data_path File to load and set.
+ * @return 0 on success;
+ * @return -1 on error.
+ */
+static int
+server_init_ext_data(sr_session_ctx_t *sess, const char *ext_data_path)
+{
+    int rc = 0;
+    const struct ly_ctx *ly_ctx = NULL;
+    const struct lys_module *sm_mod;
+    struct lyd_node *sm_data = NULL;
+
+    ly_ctx = sr_session_acquire_context(sess);
+
+    /* parse the schema-mount data file without validation */
+    if (lyd_parse_data_path(ly_ctx, ext_data_path, 0, LYD_PARSE_STRICT | LYD_PARSE_ONLY, 0, &sm_data)) {
+        rc = -1;
+        goto cleanup;
+    }
+
+    /* validate only schema-mounts data */
+    sm_mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-yang-schema-mount");
+    assert(sm_mod);
+    if (lyd_validate_module(&sm_data, sm_mod, 0, NULL)) {
+        rc = -1;
+        goto cleanup;
+    }
+
+    /* prepare it */
+    sr_session_switch_ds(sess, SR_DS_OPERATIONAL);
+    if (sr_edit_batch(sess, sm_data, "merge")) {
+        rc = -1;
+        goto cleanup;
+    }
+
+    /* free data and release the context so it can be updated */
+    lyd_free_siblings(sm_data);
+    sm_data = NULL;
+    sr_session_release_context(sess);
+    ly_ctx = NULL;
+
+    /* apply the changes */
+    if (sr_apply_changes(sess, 0)) {
+        rc = -1;
+        goto cleanup;
+    }
+
+cleanup:
+    lyd_free_siblings(sm_data);
+    if (ly_ctx) {
+        sr_session_release_context(sess);
+    }
+    if (rc) {
+        ERR("Failed to use ext-data file \"%s\".", ext_data_path);
+    }
+    return rc;
+}
+
+/**
  * @brief Initialize the server,
  *
  * @return 0 on succes;
@@ -849,6 +873,11 @@ server_init(void)
 
     /* set libnetconf2 global PRC callback */
     nc_set_global_rpc_clb(np2srv_rpc_cb);
+
+    /* ext-data (schema-mount) file to provide */
+    if (np2srv.ext_data_path && server_init_ext_data(np2srv.sr_sess, np2srv.ext_data_path)) {
+        goto error;
+    }
 
     /* UNIX socket */
     if (np2srv.unix_path) {
@@ -1065,8 +1094,8 @@ np2srv_ssh_algs_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
 static int
 server_data_subscribe(void)
 {
-    const char *mod_name, *xpath;
     int rc;
+    const char *mod_name, *xpath;
 
 #define SR_OPER_SUBSCR(mod_name, xpath, cb) \
     rc = sr_oper_get_subscribe(np2srv.sr_sess, mod_name, xpath, cb, NULL, 0, &np2srv.sr_data_sub); \
@@ -1087,11 +1116,6 @@ server_data_subscribe(void)
     if (np2srv.sr_data_sub) {
         EINT;
         goto error;
-    }
-
-    if (np2srv.ext_data_path) {
-        mod_name = "ietf-yang-schema-mount";
-        SR_OPER_SUBSCR(mod_name, "/ietf-yang-schema-mount:schema-mounts", np2srv_sm_oper_cb);
     }
 
     mod_name = "ietf-netconf-monitoring";
