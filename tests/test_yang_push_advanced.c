@@ -49,7 +49,7 @@ local_setup(void **state)
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np2_glob_test_setup_server(state, test_name, modules, 0);
+    rc = np2_glob_test_setup_server(state, test_name, modules, NULL, 0);
     assert_int_equal(rc, 0);
     st = *state;
 
@@ -357,14 +357,14 @@ test_periodic_modify_period(void **state)
     const char *template;
     char *ntf;
 
-    /* Establish periodic push */
+    /* establish periodic push */
     st->rpc = nc_rpc_establishpush_periodic("ietf-datastores:running", "/edit1:*", NULL, NULL, 50, NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     ASSERT_OK_SUB_NTF(st);
     FREE_TEST_VARS(st);
 
-    /* Receive a notification */
+    /* receive a notification */
     RECV_NOTIF(st);
     template =
             "<push-update xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
@@ -376,26 +376,24 @@ test_periodic_modify_period(void **state)
     free(ntf);
     FREE_TEST_VARS(st);
 
-    /* Modify the period */
+    /* modify the period */
     st->rpc = nc_rpc_modifypush_periodic(st->ntf_id, "ietf-datastores:running", NULL, NULL, 1000, NULL,
             NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
     RECV_SUBMOD_NOTIF(st);
 
-    /* Receive a notification */
+    /* receive a notification (there are some running data, ignore them) */
     RECV_NOTIF(st);
     template =
             "<push-update xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
-            "  <id>%d</id>\n"
-            "  <datastore-contents/>\n"
-            "</push-update>\n";
+            "  <id>%d</id>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
+    assert_true(!strncmp(st->str, ntf, strlen(ntf)));
     free(ntf);
     FREE_TEST_VARS(st);
 
-    /* No notification should arrive in timeout since the period is too long */
+    /* no notification should arrive in timeout since the period is too long */
     ASSERT_NO_NOTIF(st);
 }
 

@@ -67,11 +67,6 @@ struct np2srv {
     sr_subscription_ctx_t *sr_nacm_stats_sub;   /**< sysrepo NACM global stats subscription context */
     sr_subscription_ctx_t *sr_notif_sub;    /**< sysrepo notification subscription context */
 
-    const char *unix_path;          /**< path to the UNIX socket to listen on */
-    mode_t unix_mode;               /**< UNIX socket mode */
-    uid_t unix_uid;                 /**< UNIX socket UID */
-    gid_t unix_gid;                 /**< UNIX socket GID */
-
     uint32_t sr_timeout;            /**< timeout in ms for all sysrepo functions */
     const char *ext_data_path;      /**< path to the data file with data for LY ext data callback */
 

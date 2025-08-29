@@ -35,7 +35,7 @@
 static int
 local_setup(void **state)
 {
-    char test_name[256];
+    char test_name[256], extdata_path[256];
     const char *modules[] = {
         NP_TEST_MODULE_DIR "/edit1.yang",
         NP_TEST_MODULE_DIR "/sm.yang",
@@ -50,8 +50,11 @@ local_setup(void **state)
     rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
 
+    /* generate path to the schema-mount ext data */
+    sprintf(extdata_path, "%s/%s", NP_TEST_MODULE_DIR, NP_EXT_DATA_FILE);
+
     /* setup netopeer2 server */
-    rc = np2_glob_test_setup_server(state, test_name, modules, 0);
+    rc = np2_glob_test_setup_server(state, test_name, modules, extdata_path, 0);
     assert_int_equal(rc, 0);
 
     /* setup NACM */

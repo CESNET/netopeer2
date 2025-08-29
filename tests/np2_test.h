@@ -300,7 +300,8 @@ void np2_glob_test_setup_test_name(char *buf);
 int np2_glob_test_setup_env(const char *test_name);
 
 #define NP_GLOB_SETUP_OTHER_CLIENT 0x1
-int np2_glob_test_setup_server(void **state, const char *test_name, const char **modules, uint32_t flags);
+int np2_glob_test_setup_server(void **state, const char *test_name, const char **modules, const char *extdata_path,
+        uint32_t flags);
 
 int np2_glob_test_teardown_notif(const char *test_name);
 

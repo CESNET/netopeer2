@@ -16,21 +16,20 @@
 
 #define _GNU_SOURCE
 
+#include "np2_other_client.h"
+
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
 
-#include "libnetconf2/netconf.h"
-#include "np2_other_client.h"
+#include <libnetconf2/netconf.h>
+#include <libnetconf2/proxy_unix.h>
 
 #define OC_FAIL_LOG \
     fprintf(stderr, "Netconf client fail in %s:%d.\n", __FILE__, __LINE__)
@@ -235,7 +234,6 @@ oc_hello_handshake(struct np_other_client *oc_sess)
 struct np_other_client *
 oc_connect_unix(const char *address)
 {
-    struct sockaddr_un sun;
     struct np_other_client *oc_sess = NULL;
     int rc;
 
@@ -245,22 +243,8 @@ oc_connect_unix(const char *address)
         goto error;
     }
 
-    oc_sess->unixsock = socket(AF_UNIX, SOCK_STREAM, 0);
+    oc_sess->unixsock = nc_proxy_unix_connect(address, NULL);
     if (oc_sess->unixsock < 0) {
-        OC_FAIL_LOG;
-        goto error;
-    }
-
-    memset(&sun, 0, sizeof(sun));
-    sun.sun_family = AF_UNIX;
-    snprintf(sun.sun_path, sizeof(sun.sun_path), "%s", address);
-
-    if (connect(oc_sess->unixsock, (struct sockaddr *)&sun, sizeof(sun)) < 0) {
-        OC_FAIL_LOG;
-        goto error;
-    }
-
-    if (fcntl(oc_sess->unixsock, F_SETFL, O_NONBLOCK) < 0) {
         OC_FAIL_LOG;
         goto error;
     }

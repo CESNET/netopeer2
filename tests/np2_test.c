@@ -254,11 +254,12 @@ np2_glob_test_setup_sess_ctx(struct nc_session *sess, const char **modules)
 }
 
 int
-np2_glob_test_setup_server(void **state, const char *test_name, const char **modules, uint32_t flags)
+np2_glob_test_setup_server(void **state, const char *test_name, const char **modules, const char *extdata_path,
+        uint32_t flags)
 {
     struct np2_test *st;
     pid_t pid = 0;
-    char server_dir[256], extdata_path[256], sock_path[256], pidfile_path[256];
+    char server_dir[256], sock_path[256], pidfile_path[256];
     int pipefd[2], buf;
     struct ly_ctx *ly_ctx;
 
@@ -346,9 +347,6 @@ np2_glob_test_setup_server(void **state, const char *test_name, const char **mod
     /* generate path to server-files */
     sprintf(server_dir, "%s/%s", NP_TEST_DIR, test_name);
 
-    /* generate path to the schema-mount ext data */
-    sprintf(extdata_path, "%s/%s", NP_TEST_MODULE_DIR, NP_EXT_DATA_FILE);
-
     /* create the test server dir */
     if (mkpath(server_dir, 00700) == -1) {
         SETUP_FAIL_LOG;
@@ -389,8 +387,13 @@ np2_glob_test_setup_server(void **state, const char *test_name, const char **mod
         close(fd);
 
         /* exec the server */
-        execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", "-p", pidfile_path,
-                "-U", sock_path, "-m 600", "-f", server_dir, "-x", extdata_path, NULL);
+        if (extdata_path) {
+            execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", "-p",
+                    pidfile_path, "-f", server_dir, "-x", extdata_path, NULL);
+        } else {
+            execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", "-p",
+                    pidfile_path, "-f", server_dir, NULL);
+        }
 
 child_error:
         printf("Child execution failed\n");
@@ -422,6 +425,17 @@ child_error:
 
     /* start session */
     if (sr_session_start(st->conn, SR_DS_RUNNING, &st->sr_sess)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+
+    /* set the default configuration */
+    if (sr_set_item_str(st->sr_sess, "/ietf-netconf-server:netconf-server/listen/endpoints/endpoint[name='unix-socket']/"
+                "libnetconf2-netconf-server:unix/path", sock_path, NULL, 0)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (sr_apply_changes(st->sr_sess, 0)) {
         SETUP_FAIL_LOG;
         return 1;
     }

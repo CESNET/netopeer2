@@ -46,7 +46,7 @@ local_setup(void **state)
     assert_int_equal(rc, 0);
 
     /* setup netopeer2 server */
-    rc = np2_glob_test_setup_server(state, test_name, modules, 0);
+    rc = np2_glob_test_setup_server(state, test_name, modules, NULL, 0);
     assert_int_equal(rc, 0);
 
     /* setup NACM */

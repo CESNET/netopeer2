@@ -50,7 +50,7 @@
 #include "log.h"
 #include "netconf_monitoring.h"
 
-struct np2srv np2srv = {.unix_mode = -1, .unix_uid = -1, .unix_gid = -1};
+struct np2srv np2srv;
 
 int
 np_sleep(uint32_t ms)
