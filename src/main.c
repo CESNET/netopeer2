@@ -1148,6 +1148,9 @@ server_data_subscribe(void)
     SR_OPER_SUBSCR(mod_name, "/iana-ssh-mac-algs:supported-algorithms", np2srv_ssh_algs_oper_cb);
 #endif /* NC_ENABLED_SSH_TLS */
 
+    /* subscriptions to running DS */
+    sr_session_switch_ds(np2srv.sr_sess, SR_DS_RUNNING);
+
     /*
      * ietf-subscribed-notifications
      */
