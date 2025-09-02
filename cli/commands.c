@@ -6222,6 +6222,7 @@ cmd_establishpush(const char *arg, char **tmp_config_file)
             ERROR(__func__, "Failed to create notification thread.");
             goto fail;
         }
+        output = NULL;
     }
 
     ret = cli_send_recv(rpc, stdout, 0, timeout);
