@@ -61,21 +61,24 @@ static char *
 notif_cc_event(const char *event, uint32_t ssid)
 {
     char *msg = NULL;
+    int r;
 
     /* Check data without 'timeout' leaf */
     if (!strcmp("timeout", event)) {
-        asprintf(&msg,
+        r = asprintf(&msg,
                 "<netconf-confirmed-commit xmlns="TCC_NOTIF_XMLNS ">\n"
                 "  <confirm-event>timeout</confirm-event>\n"
                 "</netconf-confirmed-commit>\n");
+        assert_int_not_equal(r, -1);
     } else {
-        asprintf(&msg,
+        r = asprintf(&msg,
                 "<netconf-confirmed-commit xmlns="TCC_NOTIF_XMLNS ">\n"
                 "  <username>%s</username>\n"
                 "  <session-id>%" PRIu32 "</session-id>\n"
                 "  <confirm-event>%s</confirm-event>\n"
                 "</netconf-confirmed-commit>\n",
                 np2_get_user(), ssid, event);
+        assert_int_not_equal(r, -1);
     }
 
     return msg;

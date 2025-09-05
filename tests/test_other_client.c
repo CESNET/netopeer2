@@ -77,10 +77,11 @@ test_message_id(void **state)
     struct np_other_client *sess = st->oc_sess;
 
     /* send malformed message */
-    asprintf(&msg,
+    rc = asprintf(&msg,
             "<rpc xmlns=\"urn&ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\">"
             "  <discard-changes/>"
             "</rpc>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     rc = oc_send_msg(sess, msg);
     assert_int_equal(rc, 0);
     free(msg);
@@ -88,17 +89,19 @@ test_message_id(void **state)
     assert_int_equal(rc, 0);
 
     /* then send valid message */
-    asprintf(&msg,
+    rc = asprintf(&msg,
             "<rpc xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\">"
             "  <discard-changes/>"
             "</rpc>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     rc = oc_send_msg(sess, msg);
     assert_int_equal(rc, 0);
     free(msg);
     rc = oc_recv_msg(sess, &msg);
     assert_int_equal(rc, 0);
-    asprintf(&exp, "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\""
+    rc = asprintf(&exp, "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\""
             " message-id=\"%" PRIu64 "\"><ok/></rpc-reply>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     assert_string_equal(msg, exp);
     free(exp);
 }
@@ -130,10 +133,11 @@ test_missing_attribute(void **state)
             "</error-info></rpc-error></rpc-reply>");
 
     /* missing attribute 'xmlns' in the rpc layer */
-    asprintf(&msg,
+    rc = asprintf(&msg,
             "<rpc message-id=\"%" PRIu64 "\">"
             "  <discard-changes/>"
             "</rpc>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     rc = oc_send_msg(sess, msg);
     assert_int_equal(rc, 0);
     free(msg);
@@ -149,7 +153,7 @@ test_missing_attribute(void **state)
             "</rpc-error></rpc-reply>");
 
     /* missing attribute 'select' in the protocol layer */
-    asprintf(&msg,
+    rc = asprintf(&msg,
             "<rpc xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\">"
             "  <get-config>"
             "    <source>"
@@ -158,12 +162,13 @@ test_missing_attribute(void **state)
             "    <filter type=\"xpath\"/>"
             "  </get-config>"
             "</rpc>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     rc = oc_send_msg(sess, msg);
     assert_int_equal(rc, 0);
     free(msg);
     rc = oc_recv_msg(sess, &msg);
     assert_int_equal(rc, 0);
-    asprintf(&exp,
+    rc = asprintf(&exp,
             "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\"><rpc-error>"
             "<error-type>protocol</error-type>"
             "<error-tag>missing-attribute</error-tag>"
@@ -171,6 +176,7 @@ test_missing_attribute(void **state)
             "<error-message xml:lang=\"en\">An expected attribute is missing.</error-message>"
             "<error-info><bad-attribute>select</bad-attribute>"
             "<bad-element>filter</bad-element></error-info></rpc-error></rpc-reply>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     assert_string_equal(msg, exp);
     free(exp);
 }
@@ -186,32 +192,35 @@ test_unknown_attribute(void **state)
     /* unknown attribute 'att' in the rpc layer,
      * but in this case it's ok because rfc 6241 is benevolent towards attributes.
      */
-    asprintf(&msg,
+    rc = asprintf(&msg,
             "<rpc att=\"4\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\">"
             "  <discard-changes/>"
             "</rpc>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     rc = oc_send_msg(sess, msg);
     assert_int_equal(rc, 0);
     free(msg);
     rc = oc_recv_msg(sess, &msg);
     assert_int_equal(rc, 0);
-    asprintf(&exp,
+    rc = asprintf(&exp,
             "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" att=\"4\" message-id=\"%" PRIu64 "\">"
             "<ok/></rpc-reply>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     assert_string_equal(msg, exp);
     free(exp);
 
     /* unknown attribute 'att' in the protocol layer: annotation not found */
-    asprintf(&msg,
+    rc = asprintf(&msg,
             "<rpc xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\">"
             "  <discard-changes xmlns:el=\"urn:ietf:params:xml:ns:netconf:base:1.0\" el:att=\"4\"/>"
             "</rpc>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     rc = oc_send_msg(sess, msg);
     assert_int_equal(rc, 0);
     free(msg);
     rc = oc_recv_msg(sess, &msg);
     assert_int_equal(rc, 0);
-    asprintf(&exp,
+    rc = asprintf(&exp,
             "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\"><rpc-error>"
             "<error-type>protocol</error-type>"
             "<error-tag>unknown-attribute</error-tag>"
@@ -220,20 +229,22 @@ test_unknown_attribute(void **state)
             "<error-info><bad-attribute>att</bad-attribute>"
             "<bad-element>discard-changes</bad-element></error-info>"
             "</rpc-error></rpc-reply>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     assert_string_equal(msg, exp);
     free(exp);
 
     /* unknown attribute 'att' in the protocol layer: missing prefix */
-    asprintf(&msg,
+    rc = asprintf(&msg,
             "<rpc xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\">"
             "  <discard-changes att=\"4\"/>"
             "</rpc>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     rc = oc_send_msg(sess, msg);
     assert_int_equal(rc, 0);
     free(msg);
     rc = oc_recv_msg(sess, &msg);
     assert_int_equal(rc, 0);
-    asprintf(&exp,
+    rc = asprintf(&exp,
             "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\"><rpc-error>"
             "<error-type>protocol</error-type>"
             "<error-tag>unknown-attribute</error-tag>"
@@ -242,20 +253,22 @@ test_unknown_attribute(void **state)
             "<error-info><bad-attribute>att</bad-attribute>"
             "<bad-element>discard-changes</bad-element></error-info>"
             "</rpc-error></rpc-reply>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     assert_string_equal(msg, exp);
     free(exp);
 
     /* unknown attribute 'att' in the protocol layer: unknown XML prefix */
-    asprintf(&msg,
+    rc = asprintf(&msg,
             "<rpc xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\">"
             "  <discard-changes el:att=\"4\"/>"
             "</rpc>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     rc = oc_send_msg(sess, msg);
     assert_int_equal(rc, 0);
     free(msg);
     rc = oc_recv_msg(sess, &msg);
     assert_int_equal(rc, 0);
-    asprintf(&exp,
+    rc = asprintf(&exp,
             "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\"><rpc-error>"
             "<error-type>protocol</error-type>"
             "<error-tag>unknown-attribute</error-tag>"
@@ -264,6 +277,7 @@ test_unknown_attribute(void **state)
             "<error-info><bad-attribute>att</bad-attribute>"
             "<bad-element>discard-changes</bad-element></error-info>"
             "</rpc-error></rpc-reply>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     assert_string_equal(msg, exp);
     free(exp);
 }
@@ -277,18 +291,19 @@ test_missing_element(void **state)
     struct np_other_client *sess = st->oc_sess;
 
     /* missing element in 'edit-content' in the protocol layer: missing mandatory node in the choice-stmt */
-    asprintf(&msg,
+    rc = asprintf(&msg,
             "<rpc xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\">"
             "  <edit-data xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-nmda\">"
             "    <datastore xmlns:ds=\"urn:ietf:params:xml:ns:yang:ietf-datastores\">ds:running</datastore>"
             "  </edit-data>"
             "</rpc>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     rc = oc_send_msg(sess, msg);
     assert_int_equal(rc, 0);
     free(msg);
     rc = oc_recv_msg(sess, &msg);
     assert_int_equal(rc, 0);
-    asprintf(&exp,
+    rc = asprintf(&exp,
             "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\"><rpc-error>"
             "<error-type>protocol</error-type>"
             "<error-tag>data-missing</error-tag>"
@@ -299,20 +314,22 @@ test_missing_element(void **state)
             "<error-info>"
             "<missing-choice xmlns=\"urn:ietf:params:xml:ns:yang:1\">edit-content</missing-choice>"
             "</error-info></rpc-error></rpc-reply>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     assert_string_equal(msg, exp);
     free(exp);
 
     /* missing element 'identifier' in the protocol layer */
-    asprintf(&msg,
+    rc = asprintf(&msg,
             "<rpc xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\">"
             "  <get-schema xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring\"/>"
             "</rpc>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     rc = oc_send_msg(sess, msg);
     assert_int_equal(rc, 0);
     free(msg);
     rc = oc_recv_msg(sess, &msg);
     assert_int_equal(rc, 0);
-    asprintf(&exp,
+    rc = asprintf(&exp,
             "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\"><rpc-error>"
             "<error-type>protocol</error-type>"
             "<error-tag>missing-element</error-tag>"
@@ -321,22 +338,24 @@ test_missing_element(void **state)
             "<error-message xml:lang=\"en\">An expected element is missing.</error-message>"
             "<error-info><bad-element>identifier</bad-element></error-info>"
             "</rpc-error></rpc-reply>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     assert_string_equal(msg, exp);
     free(exp);
 
     /* missing element in 'config-choice' in the application layer: missing mandatory node in the choice-stmt */
-    asprintf(&msg,
+    rc = asprintf(&msg,
             "<rpc xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\">"
             "  <get-config>"
             "    <source/>"
             "  </get-config>"
             "</rpc>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     rc = oc_send_msg(sess, msg);
     assert_int_equal(rc, 0);
     free(msg);
     rc = oc_recv_msg(sess, &msg);
     assert_int_equal(rc, 0);
-    asprintf(&exp,
+    rc = asprintf(&exp,
             "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\"><rpc-error>"
             "<error-type>protocol</error-type>"
             "<error-tag>data-missing</error-tag>"
@@ -346,6 +365,7 @@ test_missing_element(void **state)
             "<error-message xml:lang=\"en\">Missing mandatory choice.</error-message>"
             "<error-info><missing-choice xmlns=\"urn:ietf:params:xml:ns:yang:1\">config-source</missing-choice></error-info>"
             "</rpc-error></rpc-reply>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     assert_string_equal(msg, exp);
     free(exp);
 }
@@ -359,10 +379,11 @@ test_malformed_message(void **state)
     struct np_other_client *sess = st->oc_sess;
 
     /* malformed-message xmlns in the rpc layer */
-    asprintf(&msg,
+    rc = asprintf(&msg,
             "<rpc xmlns=\"urn&ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\">"
             "  <discard-changes/>"
             "</rpc>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     rc = oc_send_msg(sess, msg);
     assert_int_equal(rc, 0);
     free(msg);
@@ -378,16 +399,17 @@ test_malformed_message(void **state)
             "</rpc-error></rpc-reply>");
 
     /* malformed-message in the non-rpc layer */
-    asprintf(&msg,
+    rc = asprintf(&msg,
             "<rpc xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\">"
             "  <discard-cha&ges/>"
             "</rpc>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     rc = oc_send_msg(sess, msg);
     assert_int_equal(rc, 0);
     free(msg);
     rc = oc_recv_msg(sess, &msg);
     assert_int_equal(rc, 0);
-    asprintf(&exp,
+    rc = asprintf(&exp,
             "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" message-id=\"%" PRIu64 "\">"
             "<rpc-error>"
             "<error-type>rpc</error-type>"
@@ -396,6 +418,7 @@ test_malformed_message(void **state)
             "<error-message xml:lang=\"en\">Invalid character sequence \"&amp;ges/&gt;&lt;/rpc&gt;\","
             " expected element tag end ('&gt;' or '/&gt;') or an attribute.</error-message>"
             "</rpc-error></rpc-reply>", sess->msgid);
+    assert_int_not_equal(rc, -1);
     assert_string_equal(msg, exp);
     free(exp);
 }

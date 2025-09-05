@@ -180,7 +180,10 @@ np2_glob_test_setup_sess_ctx(struct nc_session *sess, const char **modules)
     ctx = (struct ly_ctx *)nc_session_get_ctx(sess);
 
     /* server YANG dir searchdir */
-    asprintf(&path, "%s/yang", getenv("SYSREPO_REPOSITORY_PATH"));
+    if (asprintf(&path, "%s/yang", getenv("SYSREPO_REPOSITORY_PATH")) == -1) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
     ly_ctx_set_searchdir(ctx, path);
     free(path);
 

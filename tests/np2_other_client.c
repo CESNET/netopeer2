@@ -283,8 +283,7 @@ oc_send_msg(struct np_other_client *oc_sess, const char *msg)
     oc_sess->msgid = (oc_sess->msgid != 1) ? oc_sess->msgid + 1 : oc_sess->msgid;
 
     msglen = strlen(msg);
-    asprintf(&starttag, "\n#%" PRIu64 "\n", msglen);
-    if (!starttag) {
+    if (asprintf(&starttag, "\n#%" PRIu64 "\n", msglen) == -1) {
         OC_FAIL_LOG;
         return -1;
     }
