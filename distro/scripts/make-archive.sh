@@ -1,7 +1,7 @@
 #!/bin/bash
 # create archive from current source using git
 
-VERSION=$(git log --oneline -n1 --grep="^VERSION" | rev | cut -d' ' -f1 | rev)
+VERSION=$(grep set\(NP2SRV_VERSION CMakeLists.txt | cut -d ' ' -f 2 | tr -d ')')
 
 NAMEVER=netopeer2-$VERSION
 ARCHIVE=$NAMEVER.tar.gz
