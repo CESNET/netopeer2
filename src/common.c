@@ -580,7 +580,7 @@ cleanup:
 }
 
 int
-np_send_notif_rpc(sr_session_ctx_t *sr_session, enum np_rpc_exec_stage stage, const char *rpc_name,
+np_send_notif_rpc(sr_session_ctx_t *sr_session, enum np_rpc_exec_stage stage, const char *rpc_name, uint32_t netconf_sid,
         const char *netconf_user, const char *ds_str, const struct lyd_node *filter_subtree, const char *filter_xpath,
         const char *sub_stream, uint32_t sr_timeout)
 {
@@ -627,6 +627,12 @@ np_send_notif_rpc(sr_session_ctx_t *sr_session, enum np_rpc_exec_stage stage, co
 
     /* name */
     if (lyd_new_term(notif, NULL, "name", rpc_name, 0, NULL)) {
+        rc = -1;
+        goto cleanup;
+    }
+
+    /* NETCONF SID */
+    if (lyd_new_term_bin(notif, NULL, "netconf-sid", &netconf_sid, sizeof netconf_sid * 8, 0, NULL)) {
         rc = -1;
         goto cleanup;
     }

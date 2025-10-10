@@ -250,6 +250,7 @@ enum np_rpc_exec_stage {
  * @param[in] sr_session Sysrepo session.
  * @param[in] stage RPC execution stage.
  * @param[in] rpc_name Executed RPC name.
+ * @param[in] netconf_sid NETCONF SID of the session that executed the RPC.
  * @param[in] netconf_user NETCONF user that executed the RPC.
  * @param[in] ds_str Optional relevant RPC datastore.
  * @param[in] filter_subtree Optional RPC subtree filter.
@@ -260,8 +261,8 @@ enum np_rpc_exec_stage {
  * @return -1 on error.
  */
 int np_send_notif_rpc(sr_session_ctx_t *sr_session, enum np_rpc_exec_stage stage, const char *rpc_name,
-        const char *netconf_user, const char *ds_str, const struct lyd_node *filter_subtree, const char *filter_xpath,
-        const char *sub_stream, uint32_t sr_timeout);
+        uint32_t netconf_sid, const char *netconf_user, const char *ds_str, const struct lyd_node *filter_subtree,
+        const char *filter_xpath, const char *sub_stream, uint32_t sr_timeout);
 
 /**
  * @brief NP2 callback for acquiring context.

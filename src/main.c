@@ -378,8 +378,8 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         np_rpc_get_stream(rpc, &sub_stream);
 
         /* pre-NETCONF RPC */
-        np_send_notif_rpc(user_sess->sess, NP_RPC_STAGE_PRE, LYD_NAME(rpc), nc_session_get_username(ncs), ds_str,
-                filter_subtree, filter_xpath, sub_stream, np2srv.sr_timeout);
+        np_send_notif_rpc(user_sess->sess, NP_RPC_STAGE_PRE, LYD_NAME(rpc), nc_session_get_id(ncs),
+                nc_session_get_username(ncs), ds_str, filter_subtree, filter_xpath, sub_stream, np2srv.sr_timeout);
 
         /* netopeer2 RPC execution */
         reply = rpc_cb(rpc, user_sess);
@@ -390,8 +390,8 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         /* post-NETCONF RPC */
         rpl_type = nc_server_reply_type(reply);
         np_send_notif_rpc(user_sess->sess, (rpl_type == NC_RPL_ERROR) ? NP_RPC_STAGE_POST_FAIL : NP_RPC_STAGE_POST_SUCCESS,
-                LYD_NAME(rpc), nc_session_get_username(ncs), ds_str, filter_subtree, filter_xpath, sub_stream,
-                np2srv.sr_timeout);
+                LYD_NAME(rpc), nc_session_get_id(ncs), nc_session_get_username(ncs), ds_str, filter_subtree,
+                filter_xpath, sub_stream, np2srv.sr_timeout);
     } else {
         /* sysrepo RPC, use the default timeout or slightly higher than the configured one */
         rc = sr_rpc_send_tree(user_sess->sess, rpc, np2srv.sr_timeout ? np2srv.sr_timeout + 2000 : 0, &output);

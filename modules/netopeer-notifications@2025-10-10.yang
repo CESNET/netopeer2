@@ -26,6 +26,11 @@ module netopeer-notifications {
     description
         "Netopeer2 NETCONF server YANG notifications.";
 
+    revision "2025-10-10" {
+        description
+            "Added 'netconf-sid' node.";
+    }
+
     revision "2025-06-13" {
         description
             "Added 'netconf-user' and 'notification-stream' nodes.";
@@ -187,6 +192,13 @@ module netopeer-notifications {
             mandatory true;
             description
                 "Name of the executed RPC.";
+        }
+
+        leaf netconf-sid {
+            type uint32;
+            mandatory true;
+            description
+                "NETCONF ID of the session executing the PRC.";
         }
 
         leaf netconf-user {
