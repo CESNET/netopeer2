@@ -803,7 +803,7 @@ server_init(void)
     int rc;
 
     /* disable printed context to keep parsed modules */
-    sr_context_options(SR_CTX_NO_PRINTED);
+    sr_context_options(SR_CTX_NO_PRINTED, NULL);
 
     /* enable cache */
     sr_cache_running(1);
