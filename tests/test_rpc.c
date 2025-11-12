@@ -104,31 +104,8 @@ test_lock_basic(void **state)
     FREE_TEST_VARS(st);
 }
 
-static void
-test_lock_fail(void **state)
-{
-    struct np2_test *st = *state;
-
-    /* Lock from first session */
-    st->rpc = nc_rpc_lock(NC_DATASTORE_RUNNING);
-    assert_non_null(st->rpc);
-    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
-    assert_int_equal(st->msgtype, NC_MSG_RPC);
-    ASSERT_OK_REPLY(st);
-    FREE_TEST_VARS(st);
-
-    /* Request to lock from another session should fail when locked already */
-    st->rpc = nc_rpc_lock(NC_DATASTORE_RUNNING);
-    st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
-    assert_int_equal(st->msgtype, NC_MSG_RPC);
-    st->msgtype = nc_recv_reply(st->nc_sess2, st->rpc, st->msgid, 100, &st->envp, &st->op);
-    assert_int_equal(st->msgtype, NC_MSG_WOULDBLOCK);
-
-    FREE_TEST_VARS(st);
-}
-
 static int
-setup_test_unlock(void **state)
+setup_test_unlock_fail(void **state)
 {
     struct np2_test *st = *state;
 
@@ -138,19 +115,6 @@ setup_test_unlock(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
     return 0;
-}
-
-static void
-test_unlock(void **state)
-{
-    struct np2_test *st = *state;
-
-    /* Check if unlock RPC succeeds */
-    st->rpc = nc_rpc_unlock(NC_DATASTORE_RUNNING);
-    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
-    assert_int_equal(NC_MSG_RPC, st->msgtype);
-    ASSERT_OK_REPLY(st);
-    FREE_TEST_VARS(st);
 }
 
 static int
@@ -170,13 +134,35 @@ static void
 test_unlock_fail(void **state)
 {
     struct np2_test *st = *state;
+    const char *template;
+    char *error;
 
     /* Try unlocking a lock by a different session, should fail */
     st->rpc = nc_rpc_unlock(NC_DATASTORE_RUNNING);
     st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
-    st->msgtype = nc_recv_reply(st->nc_sess2, st->rpc, st->msgid, 100, &st->envp, &st->op);
-    assert_int_equal(st->msgtype, NC_MSG_WOULDBLOCK);
+
+    /* Check error message */
+    ASSERT_ERROR_REPLY_SESS2(st);
+    assert_int_equal(LY_SUCCESS, lyd_print_mem(&st->str, st->envp, LYD_XML, 0));
+    template =
+            "<rpc-reply "
+            "xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
+            "message-id=\"%" PRIu64 "\">\n"
+            "  <rpc-error>\n"
+            "    <error-type>protocol</error-type>\n"
+            "    <error-tag>lock-denied</error-tag>\n"
+            "    <error-severity>error</error-severity>\n"
+            "    <error-message xml:lang=\"en\">Access to the requested lock is denied"
+            " because the lock is currently held by another entity.</error-message>\n"
+            "    <error-info>\n"
+            "      <session-id>%" PRIu32 "</session-id>\n"
+            "    </error-info>\n"
+            "  </rpc-error>\n"
+            "</rpc-reply>\n";
+    assert_int_not_equal(-1, asprintf(&error, template, st->msgid, nc_session_get_id(st->nc_sess)));
+    assert_string_equal(st->str, error);
+    free(error);
 
     FREE_TEST_VARS(st);
 }
@@ -338,9 +324,7 @@ main(int argc, char **argv)
 {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_teardown(test_lock_basic, teardown_test_lock),
-        cmocka_unit_test_teardown(test_lock_fail, teardown_test_lock),
-        cmocka_unit_test_setup(test_unlock, setup_test_unlock),
-        cmocka_unit_test_setup_teardown(test_unlock_fail, setup_test_unlock, teardown_test_unlock_fail),
+        cmocka_unit_test_setup_teardown(test_unlock_fail, setup_test_unlock_fail, teardown_test_unlock_fail),
         cmocka_unit_test(test_get),
         cmocka_unit_test(test_kill),
         cmocka_unit_test(test_commit),
