@@ -83,7 +83,9 @@ CONFIG="<netconf-server xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-server\
                 <name>default-ssh</name>
                 <ssh>
                     <tcp-server-parameters>
-                        <local-address>0.0.0.0</local-address>
+                        <local-bind>
+                            <local-address>0.0.0.0</local-address>
+                        </local-bind>
                     </tcp-server-parameters>
                     <ssh-server-parameters>
                         <server-identity>
