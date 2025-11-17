@@ -1041,38 +1041,108 @@ np2srv_ssh_algs_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), cons
         const char *UNUSED(request_xpath), uint32_t UNUSED(request_id), struct lyd_node **parent,
         void *UNUSED(private_data))
 {
-    int ret = 0;
     const struct ly_ctx *ly_ctx;
-
-    (void) path;
 
     /* context is locked by the callback anyway */
     ly_ctx = sr_session_acquire_context(session);
     sr_session_release_context(session);
 
     /* get oper data based on the module */
-    if (!strcmp(module_name, "iana-ssh-public-key-algs")) {
-        assert(!strcmp(path, "/iana-ssh-public-key-algs:supported-algorithms"));
-        ret = nc_server_config_oper_get_hostkey_algs(ly_ctx, parent);
-    } else if (!strcmp(module_name, "iana-ssh-key-exchange-algs")) {
-        assert(!strcmp(path, "/iana-ssh-key-exchange-algs:supported-algorithms"));
-        ret = nc_server_config_oper_get_kex_algs(ly_ctx, parent);
-    } else if (!strcmp(module_name, "iana-ssh-encryption-algs")) {
-        assert(!strcmp(path, "/iana-ssh-encryption-algs:supported-algorithms"));
-        ret = nc_server_config_oper_get_encryption_algs(ly_ctx, parent);
-    } else if (!strcmp(module_name, "iana-ssh-mac-algs")) {
-        assert(!strcmp(path, "/iana-ssh-mac-algs:supported-algorithms"));
-        ret = nc_server_config_oper_get_mac_algs(ly_ctx, parent);
+    if (!strcmp(module_name, "ietf-ssh-common") && !strcmp(path, "/ietf-ssh-common:supported-algorithms")) {
+        if (nc_server_config_oper_get_supported_ssh_algs(ly_ctx, parent)) {
+            return SR_ERR_INTERNAL;
+        }
     } else {
-        ERR("Unable to get supported SSH algorithms (module %s not supported).", module_name);
-        return SR_ERR_INTERNAL;
-    }
-    if (ret) {
-        ERR("Getting supported SSH algorithms failed.");
+        ERR("Unable to get supported SSH algorithms for unknown module \"%s\" and path \"%s\".", module_name, path);
         return SR_ERR_INTERNAL;
     }
 
     return SR_ERR_OK;
+}
+
+/**
+ * @brief Callback for providing TLS cipher suites operational data.
+ */
+static int
+np2srv_tls_algs_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *module_name, const char *path,
+        const char *UNUSED(request_xpath), uint32_t UNUSED(request_id), struct lyd_node **parent,
+        void *UNUSED(private_data))
+{
+    const struct ly_ctx *ly_ctx;
+
+    /* context is locked by the callback anyway */
+    ly_ctx = sr_session_acquire_context(session);
+    sr_session_release_context(session);
+
+    /* get oper data based on the module */
+    if (!strcmp(module_name, "ietf-tls-common") && !strcmp(path, "/ietf-tls-common:supported-algorithms")) {
+        if (nc_server_config_oper_get_supported_tls_algs(ly_ctx, parent)) {
+            return SR_ERR_INTERNAL;
+        }
+    } else {
+        ERR("Unable to get supported TLS cipher suites for unknown module \"%s\" and path \"%s\".", module_name, path);
+        return SR_ERR_INTERNAL;
+    }
+
+    return SR_ERR_OK;
+}
+
+/**
+ * @brief Callback for providing password last-modified operational data.
+ */
+static int
+np2srv_password_last_modified_oper_cb(sr_session_ctx_t *UNUSED(session), uint32_t UNUSED(sub_id),
+        const char *module_name, const char *UNUSED(path), const char *UNUSED(request_xpath),
+        uint32_t UNUSED(request_id), struct lyd_node **parent, void *UNUSED(private_data))
+{
+    int rc = SR_ERR_OK;
+    char *time_str = NULL;
+    const char *ch_client = NULL, *endpoint = NULL, *username = NULL;
+    struct lyd_node *tree;
+    time_t last_modified;
+
+    if (strcmp(module_name, "ietf-netconf-server")) {
+        ERR("Unable to get password last-modified for unknown module \"%s\".", module_name);
+        return SR_ERR_INTERNAL;
+    }
+
+    /* extract keys from the parent */
+    tree = *parent;
+    while (tree->parent) {
+        if (!strcmp(LYD_NAME(tree), "call-home")) {
+            ch_client = lyd_get_value(lyd_child(tree));
+        } else if (!strcmp(LYD_NAME(tree), "endpoint")) {
+            endpoint = lyd_get_value(lyd_child(tree));
+        } else if (!strcmp(LYD_NAME(tree), "user")) {
+            username = lyd_get_value(lyd_child(tree));
+        }
+        tree = lyd_parent(tree);
+    }
+
+    if (!endpoint || !username) {
+        ERR("Not enough information to get password last-modified.");
+        return SR_ERR_INTERNAL;
+    }
+
+    /* get the last modified time */
+    if (nc_server_config_oper_get_user_password_last_modified(ch_client, endpoint, username, &last_modified)) {
+        return SR_ERR_INTERNAL;
+    }
+
+    /* format the time */
+    if (ly_time_time2str(last_modified, NULL, &time_str)) {
+        return SR_ERR_INTERNAL;
+    }
+
+    /* add a new child to parent */
+    if (lyd_new_term(*parent, NULL, "last-modified", time_str, 0, NULL)) {
+        rc = SR_ERR_INTERNAL;
+        goto cleanup;
+    }
+
+cleanup:
+    free(time_str);
+    return rc;
 }
 
 #endif /* NC_ENABLED_SSH_TLS */
@@ -1126,18 +1196,19 @@ server_data_subscribe(void)
     }
 
 #ifdef NC_ENABLED_SSH_TLS
-    /* set callbacks for supported algorithms oper data */
-    mod_name = "iana-ssh-public-key-algs";
-    SR_OPER_SUBSCR(mod_name, "/iana-ssh-public-key-algs:supported-algorithms", np2srv_ssh_algs_oper_cb);
+    /* set callbacks for supported SSH algorithms and TLS cipher suites oper data */
+    mod_name = "ietf-ssh-common";
+    SR_OPER_SUBSCR(mod_name, "/ietf-ssh-common:supported-algorithms", np2srv_ssh_algs_oper_cb);
 
-    mod_name = "iana-ssh-key-exchange-algs";
-    SR_OPER_SUBSCR(mod_name, "/iana-ssh-key-exchange-algs:supported-algorithms", np2srv_ssh_algs_oper_cb);
+    mod_name = "ietf-tls-common";
+    SR_OPER_SUBSCR(mod_name, "/ietf-tls-common:supported-algorithms", np2srv_tls_algs_oper_cb);
 
-    mod_name = "iana-ssh-encryption-algs";
-    SR_OPER_SUBSCR(mod_name, "/iana-ssh-encryption-algs:supported-algorithms", np2srv_ssh_algs_oper_cb);
-
-    mod_name = "iana-ssh-mac-algs";
-    SR_OPER_SUBSCR(mod_name, "/iana-ssh-mac-algs:supported-algorithms", np2srv_ssh_algs_oper_cb);
+    /* password last modified oper data for both listen + call-home SSH users */
+    mod_name = "ietf-netconf-server";
+    SR_OPER_SUBSCR(mod_name, "/ietf-netconf-server:netconf-server/listen/endpoints/endpoint/ssh/"
+            "ssh-server-parameters/client-authentication/users/user/password/last-modified", np2srv_password_last_modified_oper_cb);
+    SR_OPER_SUBSCR(mod_name, "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh/"
+            "ssh-server-parameters/client-authentication/users/user/password/last-modified", np2srv_password_last_modified_oper_cb);
 #endif /* NC_ENABLED_SSH_TLS */
 
     /* subscriptions to running DS */
