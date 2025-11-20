@@ -141,7 +141,7 @@ struct np2_test {
     if (err_tag) { \
         assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), err_tag); \
     } else { \
-        assert_int_equal(LY_SUCCESS, lyd_print_mem(&state->str, lyd_child(state->envp), LYD_XML, LYD_PRINT_WITHSIBLINGS)); \
+        assert_int_equal(LY_SUCCESS, lyd_print_mem(&state->str, lyd_child(state->envp), LYD_XML, LYD_PRINT_SIBLINGS)); \
     }
 
 #define ASSERT_ERROR_REPLY(state) \

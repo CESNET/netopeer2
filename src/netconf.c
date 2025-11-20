@@ -435,7 +435,7 @@ np2srv_rpc_copyconfig_cb(const struct lyd_node *rpc, struct np_user_sess *user_s
             }
         }
 
-        if ((reply = np_op_export_url(LYD_CTX(rpc), trg_url, config, LYD_PRINT_WITHSIBLINGS | lyp_wd_flag))) {
+        if ((reply = np_op_export_url(LYD_CTX(rpc), trg_url, config, LYD_PRINT_SIBLINGS | lyp_wd_flag))) {
             goto cleanup;
         }
     } else

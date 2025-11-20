@@ -227,7 +227,7 @@ cli_ntf_clb(struct nc_session *UNUSED(session), const struct lyd_node *envp, con
     for (top = op; top->parent; top = lyd_parent(top)) {}
 
     fprintf(output, "notification (%s)\n", ((struct lyd_node_opaq *)lyd_child(envp))->value);
-    lyd_print_file(output, top, opts.output_format, LYD_PRINT_WITHSIBLINGS | opts.output_flag);
+    lyd_print_file(output, top, opts.output_format, LYD_PRINT_SIBLINGS | opts.output_flag);
     fprintf(output, "\n");
     fflush(output);
 
@@ -364,7 +364,7 @@ recv_reply:
                 fputs(any->value.str, output);
                 break;
             case LYD_ANYDATA_DATATREE:
-                lyd_print_mem(&model_data, any->value.tree, LYD_XML, LYD_PRINT_WITHSIBLINGS);
+                lyd_print_mem(&model_data, any->value.tree, LYD_XML, LYD_PRINT_SIBLINGS);
                 fputs(model_data, output);
                 free(model_data);
                 break;
@@ -402,7 +402,7 @@ recv_reply:
                 break;
             }
 
-            lyd_print_file(output, lyd_child(op), opts.output_format, LYD_PRINT_WITHSIBLINGS | ly_wd | opts.output_flag);
+            lyd_print_file(output, lyd_child(op), opts.output_format, LYD_PRINT_SIBLINGS | ly_wd | opts.output_flag);
             if (output == stdout) {
                 fprintf(output, "\n");
             }
@@ -443,7 +443,7 @@ recv_reply:
             info = lyd_child(err);
             while (!lyd_find_sibling_opaq_next(info, "error-info", &info)) {
                 fprintf(output, "\tinfo:\n");
-                lyd_print_file(stdout, lyd_child(info), LYD_XML, LYD_PRINT_WITHSIBLINGS);
+                lyd_print_file(stdout, lyd_child(info), LYD_XML, LYD_PRINT_SIBLINGS);
 
                 info = info->next;
             }
