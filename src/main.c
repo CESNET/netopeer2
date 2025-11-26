@@ -1396,6 +1396,7 @@ print_usage(char *progname)
     fprintf(stdout, " -x PATH    Path to a data file with data for libyang ext data callback. They are required for\n");
     fprintf(stdout, "            supporting some extensions such as schema-mount, in which case the ietf-yang-schema-mount\n");
     fprintf(stdout, "            operational data are expected to be in the file.\n");
+    fprintf(stdout, " -U ENDPT:PATH Set UNIX socket path for a specific endpoint.\n");
     fprintf(stdout, " -v LEVEL   Verbose output level:\n");
     fprintf(stdout, "                0 - errors\n");
     fprintf(stdout, "                1 - errors and warnings\n");
@@ -1457,7 +1458,7 @@ main(int argc, char *argv[])
 
     /* process command line options */
     optind = 0;
-    while ((c = getopt(argc, argv, "dFhVp:f:t:x:v:c:")) != -1) {
+    while ((c = getopt(argc, argv, "dFhVp:f:t:x:v:c:U:")) != -1) {
         switch (c) {
         case 'd':
             daemonize = 0;
@@ -1520,6 +1521,25 @@ main(int argc, char *argv[])
             break;
         case 'x':
             np2srv.ext_data_path = optarg;
+            break;
+        case 'U':
+            /* parse endpoint_name:unix_socket_path */
+            ptr = strchr(optarg, ':');
+            if (!ptr) {
+                ERR("Invalid format for -U parameter \"%s\". Expected format: <endpoint_name>:<unix_socket_path>", optarg);
+                return EXIT_FAILURE;
+            }
+
+            /* terminate the endpoint name string */
+            *ptr = '\0';
+
+            /* * optarg now points to endpoint_name, (ptr + 1) points to unix_socket_path */
+            if (strlen(optarg) == 0 || strlen(ptr + 1) == 0) {
+                ERR("Empty endpoint name or socket path provided in -U parameter.");
+                return EXIT_FAILURE;
+            }
+
+            nc_server_set_unix_socket_path(optarg, ptr + 1);
             break;
         case 'c':
 #ifndef NDEBUG
