@@ -262,7 +262,7 @@ np2_glob_test_setup_server(void **state, const char *test_name, const char **mod
 {
     struct np2_test *st;
     pid_t pid = 0;
-    char server_dir[256], sock_path[256], pidfile_path[256];
+    char server_dir[256], sock_path[256], sock_param[300], pidfile_path[256];
     int pipefd[2], buf;
     struct ly_ctx *ly_ctx;
 
@@ -347,6 +347,9 @@ np2_glob_test_setup_server(void **state, const char *test_name, const char **mod
     /* generate path to socket */
     sprintf(sock_path, "%s/%s/%s", NP_TEST_DIR, test_name, NP_SOCKET_FILE);
 
+    /* generate UNIX sock param value for the server */
+    sprintf(sock_param, "unix-socket:%s", sock_path);
+
     /* generate path to server-files */
     sprintf(server_dir, "%s/%s", NP_TEST_DIR, test_name);
 
@@ -392,10 +395,10 @@ np2_glob_test_setup_server(void **state, const char *test_name, const char **mod
         /* exec the server */
         if (extdata_path) {
             execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", "-p",
-                    pidfile_path, "-f", server_dir, "-x", extdata_path, NULL);
+                    pidfile_path, "-f", server_dir, "-U", sock_param, "-x", extdata_path, NULL);
         } else {
             execl(NP_BINARY_DIR "/netopeer2-server", NP_BINARY_DIR "/netopeer2-server", "-d", "-v3", "-t10", "-p",
-                    pidfile_path, "-f", server_dir, NULL);
+                    pidfile_path, "-f", server_dir, "-U", sock_param, NULL);
         }
 
 child_error:
@@ -434,7 +437,7 @@ child_error:
 
     /* set the default configuration */
     if (sr_set_item_str(st->sr_sess, "/ietf-netconf-server:netconf-server/listen/endpoints/endpoint[name='unix-socket']/"
-            "libnetconf2-netconf-server:unix/path", sock_path, NULL, 0)) {
+            "libnetconf2-netconf-server:unix/hidden-path", NULL, NULL, 0)) {
         SETUP_FAIL_LOG;
         return 1;
     }
