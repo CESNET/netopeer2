@@ -1534,7 +1534,7 @@ main(int argc, char *argv[])
             *ptr = '\0';
 
             /* * optarg now points to endpoint_name, (ptr + 1) points to unix_socket_path */
-            if (strlen(optarg) == 0 || strlen(ptr + 1) == 0) {
+            if ((strlen(optarg) == 0) || (strlen(ptr + 1) == 0)) {
                 ERR("Empty endpoint name or socket path provided in -U parameter.");
                 return EXIT_FAILURE;
             }
