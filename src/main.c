@@ -1158,6 +1158,8 @@ server_data_subscribe(void)
 {
     int rc;
     const char *mod_name, *xpath;
+    const struct lys_module *mod;
+    const struct ly_ctx *ly_ctx;
 
 #define SR_OPER_SUBSCR(mod_name, xpath, cb) \
     rc = sr_oper_get_subscribe(np2srv.sr_sess, mod_name, xpath, cb, NULL, 0, &np2srv.sr_data_sub); \
@@ -1203,12 +1205,19 @@ server_data_subscribe(void)
     mod_name = "ietf-tls-common";
     SR_OPER_SUBSCR(mod_name, "/ietf-tls-common:supported-algorithms", np2srv_tls_algs_oper_cb);
 
-    /* password last modified oper data for both listen + call-home SSH users */
-    mod_name = "ietf-netconf-server";
-    SR_OPER_SUBSCR(mod_name, "/ietf-netconf-server:netconf-server/listen/endpoints/endpoint/ssh/"
-            "ssh-server-parameters/client-authentication/users/user/password/last-modified", np2srv_password_last_modified_oper_cb);
-    SR_OPER_SUBSCR(mod_name, "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh/"
-            "ssh-server-parameters/client-authentication/users/user/password/last-modified", np2srv_password_last_modified_oper_cb);
+    ly_ctx = sr_acquire_context(np2srv.sr_conn);
+    mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-ssh-server");
+    sr_release_context(np2srv.sr_conn);
+    if (!lys_feature_value(mod, "local-users-supported")) {
+        /* password last modified oper data for both listen + call-home SSH users */
+        mod_name = "ietf-netconf-server";
+        SR_OPER_SUBSCR(mod_name, "/ietf-netconf-server:netconf-server/listen/endpoints/endpoint/ssh/"
+                "ssh-server-parameters/client-authentication/users/user/password/last-modified",
+                np2srv_password_last_modified_oper_cb);
+        SR_OPER_SUBSCR(mod_name, "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/endpoint/ssh/"
+                "ssh-server-parameters/client-authentication/users/user/password/last-modified",
+                np2srv_password_last_modified_oper_cb);
+    }
 #endif /* NC_ENABLED_SSH_TLS */
 
     /* subscriptions to running DS */
