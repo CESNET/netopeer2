@@ -232,7 +232,7 @@ np2_glob_test_setup_sess_ctx(struct nc_session *sess, const char **modules)
         SETUP_FAIL_LOG;
         return 1;
     }
-    if (!ly_ctx_load_module(ctx, "netopeer-notifications", "2025-10-10", NULL)) {
+    if (!ly_ctx_load_module(ctx, "netopeer-notifications", "2026-01-05", NULL)) {
         SETUP_FAIL_LOG;
         return 1;
     }
