@@ -727,6 +727,62 @@ cleanup:
     return ret;
 }
 
+/**
+ * @brief Callback for sending CH endpoint fail notifications.
+ */
+static void
+np2srv_new_session_fail_cb(const char *client_name, const char *endpt_name, uint8_t max_attempts, uint8_t cur_attempt,
+        void *user_data)
+{
+    sr_session_ctx_t *sr_sess = user_data;
+    const struct ly_ctx *ly_ctx = NULL;
+    int rc;
+    struct lyd_node *ntf = NULL;
+
+    if (cur_attempt < max_attempts) {
+        /* not the last attempt yet */
+        return;
+    }
+
+    ly_ctx = sr_session_acquire_context(sr_sess);
+    if (!ly_ctx) {
+        ERR("Failed to acquire sysrepo context.");
+        goto cleanup;
+    }
+
+    /* create the notification */
+    rc = lyd_new_path(NULL, ly_ctx, "/netopeer-notifications:netconf-call-home-endpoint-fail", NULL, 0, &ntf);
+    if (rc) {
+        ERR("Failed to create a notification.");
+        goto cleanup;
+    }
+
+    rc = lyd_new_term(ntf, NULL, "client-name", client_name, 0, NULL);
+    if (rc) {
+        ERR("Failed to create a notification leaf.");
+        goto cleanup;
+    }
+
+    rc = lyd_new_term(ntf, NULL, "endpoint-name", endpt_name, 0, NULL);
+    if (rc) {
+        ERR("Failed to create a notification leaf.");
+        goto cleanup;
+    }
+
+    /* send the notification */
+    rc = sr_notif_send_tree(sr_sess, ntf, 0, 0);
+    if (rc) {
+        ERR("Failed to send certificate expiration notification.");
+        goto cleanup;
+    }
+
+cleanup:
+    lyd_free_tree(ntf);
+    if (ly_ctx) {
+        sr_session_release_context(sr_sess);
+    }
+}
+
 #endif /* NC_ENABLED_SSH_TLS */
 
 /**
@@ -845,6 +901,7 @@ server_init(void)
 #ifdef NC_ENABLED_SSH_TLS
     /* set ln2 call home call backs and data */
     nc_server_ch_set_dispatch_data(np_acquire_ctx_cb, np_release_ctx_cb, np2srv.sr_conn, np_new_session_cb, NULL);
+    nc_server_ch_set_new_session_fail_cb(np2srv_new_session_fail_cb, np2srv.sr_sess);
 
     /* if PAM is not supported, the function will return an error, but don't check it, because PAM is not required */
     nc_server_ssh_set_pam_conf_filename("netopeer2.conf");
