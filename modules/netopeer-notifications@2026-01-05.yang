@@ -26,6 +26,11 @@ module netopeer-notifications {
     description
         "Netopeer2 NETCONF server YANG notifications.";
 
+    revision "2026-01-05" {
+        description
+            "Added 'netconf-call-home-endpoint-fail' notification.";
+    }
+
     revision "2025-10-10" {
         description
             "Added 'netconf-sid' node.";
@@ -232,6 +237,25 @@ module netopeer-notifications {
             type string;
             description
                 "Subscription stream of the RPC, if relevant.";
+        }
+    }
+
+    notification netconf-call-home-endpoint-fail {
+        description
+            "NETCONF Call Home client endpoint has failed to create a session
+             the configured maximum number of attempts.";
+        leaf client-name {
+            mandatory true;
+            type string;
+            description
+                "Affected Call-Home client name.";
+        }
+
+        leaf endpoint-name {
+            mandatory true;
+            type string;
+            description
+                "Affected Call-Home endpoint name.";
         }
     }
 
