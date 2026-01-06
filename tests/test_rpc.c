@@ -302,8 +302,18 @@ test_schema_mount(void **state)
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
+    SEND_EDIT_RPC(st,
+            "<root3 xmlns=\"urn:sm\">"
+            "  <ls>"
+            "    <name>key</name>"
+            "    <first xmlns=\"ed1\">AnotherFirst</first>"
+            "  </ls>"
+            "</root3>");
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
     /* read back the configuration */
-    GET_CONFIG_FILTER(st, "/sm:root/*");
+    GET_CONFIG_FILTER(st, "/sm:*");
     assert_string_equal(st->str,
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
@@ -314,6 +324,12 @@ test_schema_mount(void **state)
             "        <third>25</third>\n"
             "      </cont>\n"
             "    </root>\n"
+            "    <root3 xmlns=\"urn:sm\">\n"
+            "      <ls>\n"
+            "        <name>key</name>\n"
+            "        <first xmlns=\"ed1\">AnotherFirst</first>\n"
+            "      </ls>\n"
+            "    </root3>\n"
             "  </data>\n"
             "</get-config>\n");
     FREE_TEST_VARS(st);

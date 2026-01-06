@@ -4,6 +4,11 @@
         <label>root</label>
         <shared-schema/>
     </mount-point>
+    <mount-point>
+        <module>sm</module>
+        <label>mnt-root</label>
+        <shared-schema/>
+    </mount-point>
 </schema-mounts>
 <root xmlns="urn:sm">
     <yang-library xmlns="urn:ietf:params:xml:ns:yang:ietf-yang-library">
@@ -29,3 +34,30 @@
         <content-id>1</content-id>
     </yang-library>
 </root>
+<root3 xmlns="urn:sm">
+    <ls>
+        <name>key</name>
+        <yang-library xmlns="urn:ietf:params:xml:ns:yang:ietf-yang-library">
+            <module-set>
+                <name>mp</name>
+                <module>
+                    <name>ietf-yang-library</name>
+                    <namespace>urn:ietf:params:xml:ns:yang:ietf-yang-library</namespace>
+                </module>
+                <module>
+                    <name>ietf-netconf</name>
+                    <namespace>urn:ietf:params:xml:ns:netconf:base:1.0</namespace>
+                </module>
+                <module>
+                    <name>ietf-origin</name>
+                    <namespace>urn:ietf:params:xml:ns:yang:ietf-origin</namespace>
+                </module>
+                <module>
+                    <name>edit1</name>
+                    <namespace>ed1</namespace>
+                </module>
+            </module-set>
+            <content-id>1</content-id>
+        </yang-library>
+    </ls>
+</root3>
