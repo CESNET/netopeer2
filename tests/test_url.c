@@ -136,7 +136,7 @@ teardown_data(void **state)
         return 1;
     }
 
-    data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
+    data = "<first xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
 
     SR_EDIT(st, data);
 
@@ -167,7 +167,7 @@ test_copy_config(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">TestFirst</first>\n"
+            "    <first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "  </data>\n"
             "</get-config>\n";
 
@@ -204,7 +204,7 @@ setup_data(void **state)
     struct np2_test *st = *state;
     const char *data;
 
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
 
     SR_EDIT(st, data);
 
@@ -345,7 +345,7 @@ test_copy_config_url2url(void **state)
 
     expected =
             "<config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <first xmlns=\"ed1\">TestFirst</first>\n"
+            "  <first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "</config>\n";
 
     assert_string_equal(config, expected);

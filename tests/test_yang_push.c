@@ -69,11 +69,11 @@ teardown_common(void **state)
     nc_session_free(st->nc_sess, NULL);
 
     /* Remove the data */
-    data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
+    data = "<first xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
-    data = "<top xmlns=\"ed2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
+    data = "<top xmlns=\"urn:ed2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -132,7 +132,7 @@ test_periodic_basic(void **state)
     FREE_TEST_VARS(st);
 
     /* put some data into the datastore */
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -150,7 +150,7 @@ test_periodic_basic(void **state)
             "<push-update xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
             "  <id>%d</id>\n"
             "  <datastore-contents>\n"
-            "    <first xmlns=\"ed1\">TestFirst</first>\n"
+            "    <first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "  </datastore-contents>\n"
             "</push-update>\n";
     free(ntf);
@@ -182,7 +182,7 @@ test_on_change_basic(void **state)
     ASSERT_NO_NOTIF(st);
 
     /* Put some data into the datastore */
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -199,7 +199,7 @@ test_on_change_basic(void **state)
             "        <operation>create</operation>\n"
             "        <target>/edit1:first</target>\n"
             "        <value>\n"
-            "          <first xmlns=\"ed1\">TestFirst</first>\n"
+            "          <first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "        </value>\n"
             "      </edit>\n"
             "    </yang-patch>\n"
@@ -232,7 +232,7 @@ test_on_change_multiple(void **state)
     ASSERT_NO_NOTIF(st);
 
     /* Put some data into the datastore */
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -249,7 +249,7 @@ test_on_change_multiple(void **state)
             "        <operation>create</operation>\n"
             "        <target>/edit1:first</target>\n"
             "        <value>\n"
-            "          <first xmlns=\"ed1\">TestFirst</first>\n"
+            "          <first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "        </value>\n"
             "      </edit>\n"
             "    </yang-patch>\n"
@@ -261,7 +261,7 @@ test_on_change_multiple(void **state)
     FREE_TEST_VARS(st);
 
     /* Change the data */
-    data = "<first xmlns=\"ed1\">TestSecond</first>";
+    data = "<first xmlns=\"urn:ed1\">TestSecond</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -278,7 +278,7 @@ test_on_change_multiple(void **state)
             "        <operation>replace</operation>\n"
             "        <target>/edit1:first</target>\n"
             "        <value>\n"
-            "          <first xmlns=\"ed1\">TestSecond</first>\n"
+            "          <first xmlns=\"urn:ed1\">TestSecond</first>\n"
             "        </value>\n"
             "      </edit>\n"
             "    </yang-patch>\n"
@@ -290,7 +290,7 @@ test_on_change_multiple(void **state)
     FREE_TEST_VARS(st);
 
     /* Remove the data */
-    data = "<first xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xmlns=\"ed1\" xc:operation=\"remove\">TestFirst</first>";
+    data = "<first xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xmlns=\"urn:ed1\" xc:operation=\"remove\">TestFirst</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -365,7 +365,7 @@ test_on_change_dampening_time(void **state)
     FREE_TEST_VARS(st);
 
     /* Put some data into the datastore */
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -382,7 +382,7 @@ test_on_change_dampening_time(void **state)
             "        <operation>create</operation>\n"
             "        <target>/edit1:first</target>\n"
             "        <value>\n"
-            "          <first xmlns=\"ed1\">TestFirst</first>\n"
+            "          <first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "        </value>\n"
             "      </edit>\n"
             "    </yang-patch>\n"
@@ -395,7 +395,7 @@ test_on_change_dampening_time(void **state)
 
     /* Put some data into the datastore */
     data =
-            "<top xmlns=\"ed2\">\n"
+            "<top xmlns=\"urn:ed2\">\n"
             "  <name>Test</name>\n"
             "</top>\n";
     SR_EDIT(st, data);
@@ -403,7 +403,7 @@ test_on_change_dampening_time(void **state)
 
     /* Put some more data into the datastore */
     data =
-            "<top xmlns=\"ed2\">\n"
+            "<top xmlns=\"urn:ed2\">\n"
             "  <num>123</num>\n"
             "</top>\n";
     SR_EDIT(st, data);
@@ -422,7 +422,7 @@ test_on_change_dampening_time(void **state)
             "        <operation>create</operation>\n"
             "        <target>/edit2:top/name</target>\n"
             "        <value>\n"
-            "          <name xmlns=\"ed2\">Test</name>\n"
+            "          <name xmlns=\"urn:ed2\">Test</name>\n"
             "        </value>\n"
             "      </edit>\n"
             "      <edit>\n"
@@ -430,7 +430,7 @@ test_on_change_dampening_time(void **state)
             "        <operation>create</operation>\n"
             "        <target>/edit2:top/num</target>\n"
             "        <value>\n"
-            "          <num xmlns=\"ed2\">123</num>\n"
+            "          <num xmlns=\"urn:ed2\">123</num>\n"
             "        </value>\n"
             "      </edit>\n"
             "    </yang-patch>\n"
@@ -461,7 +461,7 @@ test_on_change_dampening_time_same_node(void **state)
     FREE_TEST_VARS(st);
 
     /* Put some data into the datastore */
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -478,7 +478,7 @@ test_on_change_dampening_time_same_node(void **state)
             "        <operation>create</operation>\n"
             "        <target>/edit1:first</target>\n"
             "        <value>\n"
-            "          <first xmlns=\"ed1\">TestFirst</first>\n"
+            "          <first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "        </value>\n"
             "      </edit>\n"
             "    </yang-patch>\n"
@@ -490,12 +490,12 @@ test_on_change_dampening_time_same_node(void **state)
     FREE_TEST_VARS(st);
 
     /* Put some data into the datastore */
-    data = "<first xmlns=\"ed1\">TestSecond</first>";
+    data = "<first xmlns=\"urn:ed1\">TestSecond</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
     /* Put some more data into the datastore */
-    data = "<first xmlns=\"ed1\">TestThird</first>";
+    data = "<first xmlns=\"urn:ed1\">TestThird</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -512,7 +512,7 @@ test_on_change_dampening_time_same_node(void **state)
             "        <operation>replace</operation>\n"
             "        <target>/edit1:first</target>\n"
             "        <value>\n"
-            "          <first xmlns=\"ed1\">TestThird</first>\n"
+            "          <first xmlns=\"urn:ed1\">TestThird</first>\n"
             "        </value>\n"
             "      </edit>\n"
             "    </yang-patch>\n"
@@ -543,7 +543,7 @@ test_on_change_dampening_time_create_delete(void **state)
     FREE_TEST_VARS(st);
 
     /* Put some data into the datastore */
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -560,7 +560,7 @@ test_on_change_dampening_time_create_delete(void **state)
             "        <operation>create</operation>\n"
             "        <target>/edit1:first</target>\n"
             "        <value>\n"
-            "          <first xmlns=\"ed1\">TestFirst</first>\n"
+            "          <first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "        </value>\n"
             "      </edit>\n"
             "    </yang-patch>\n"
@@ -573,7 +573,7 @@ test_on_change_dampening_time_create_delete(void **state)
 
     /* Put some data into the datastore */
     data =
-            "<top xmlns=\"ed2\">\n"
+            "<top xmlns=\"urn:ed2\">\n"
             "  <name>Test</name>\n"
             "</top>\n";
     SR_EDIT(st, data);
@@ -581,7 +581,7 @@ test_on_change_dampening_time_create_delete(void **state)
 
     /* Remove the data from the datastore */
     data =
-            "<top xmlns=\"ed2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "<top xmlns=\"urn:ed2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <name xc:operation=\"remove\">Test</name>\n"
             "</top>\n";
     SR_EDIT(st, data);
@@ -632,7 +632,7 @@ test_on_change_excluded(void **state)
     ASSERT_NO_NOTIF(st);
 
     /* Put some data into the datastore */
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -640,7 +640,7 @@ test_on_change_excluded(void **state)
     ASSERT_NO_NOTIF(st);
 
     /* Modify the data */
-    data = "<first xmlns=\"ed1\">TestSecond</first>";
+    data = "<first xmlns=\"urn:ed1\">TestSecond</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -657,7 +657,7 @@ test_on_change_excluded(void **state)
             "        <operation>replace</operation>\n"
             "        <target>/edit1:first</target>\n"
             "        <value>\n"
-            "          <first xmlns=\"ed1\">TestSecond</first>\n"
+            "          <first xmlns=\"urn:ed1\">TestSecond</first>\n"
             "        </value>\n"
             "      </edit>\n"
             "    </yang-patch>\n"
@@ -704,7 +704,7 @@ setup_test_sync_on_start_non_empty(void **state)
     const char *data;
 
     /* Put some data into the datastore */
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -732,7 +732,7 @@ test_sync_on_start_non_empty(void **state)
             "<push-update xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
             "  <id>%d</id>\n"
             "  <datastore-contents>\n"
-            "    <first xmlns=\"ed1\">TestFirst</first>\n"
+            "    <first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "  </datastore-contents>\n"
             "</push-update>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
@@ -796,7 +796,7 @@ test_resync_id_reset(void **state)
     FREE_TEST_VARS(st);
 
     /* Put some data into the datastore */
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -813,7 +813,7 @@ test_resync_id_reset(void **state)
             "        <operation>create</operation>\n"
             "        <target>/edit1:first</target>\n"
             "        <value>\n"
-            "          <first xmlns=\"ed1\">TestFirst</first>\n"
+            "          <first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "        </value>\n"
             "      </edit>\n"
             "    </yang-patch>\n"
@@ -834,7 +834,7 @@ test_resync_id_reset(void **state)
             "<push-update xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
             "  <id>%d</id>\n"
             "  <datastore-contents>\n"
-            "    <first xmlns=\"ed1\">TestFirst</first>\n"
+            "    <first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "  </datastore-contents>\n"
             "</push-update>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
@@ -846,7 +846,7 @@ test_resync_id_reset(void **state)
     FREE_TEST_VARS(st);
 
     /* Replace the data */
-    data = "<first xmlns=\"ed1\">TestSecond</first>";
+    data = "<first xmlns=\"urn:ed1\">TestSecond</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -863,7 +863,7 @@ test_resync_id_reset(void **state)
             "        <operation>replace</operation>\n"
             "        <target>/edit1:first</target>\n"
             "        <value>\n"
-            "          <first xmlns=\"ed1\">TestSecond</first>\n"
+            "          <first xmlns=\"urn:ed1\">TestSecond</first>\n"
             "        </value>\n"
             "      </edit>\n"
             "    </yang-patch>\n"

@@ -293,8 +293,8 @@ test_schema_mount(void **state)
     /* send RPC editing module edit1 on the same session, should succeed */
     SEND_EDIT_RPC(st,
             "<root xmlns=\"urn:sm\">"
-            "  <first xmlns=\"ed1\">TestFirst</first>"
-            "  <cont xmlns=\"ed1\">"
+            "  <first xmlns=\"urn:ed1\">TestFirst</first>"
+            "  <cont xmlns=\"urn:ed1\">"
             "    <second/>"
             "    <third>25</third>"
             "  </cont>"
@@ -306,7 +306,7 @@ test_schema_mount(void **state)
             "<root3 xmlns=\"urn:sm\">"
             "  <ls>"
             "    <name>key</name>"
-            "    <first xmlns=\"ed1\">AnotherFirst</first>"
+            "    <first xmlns=\"urn:ed1\">AnotherFirst</first>"
             "  </ls>"
             "</root3>");
     ASSERT_OK_REPLY(st);
@@ -318,8 +318,8 @@ test_schema_mount(void **state)
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
             "    <root xmlns=\"urn:sm\">\n"
-            "      <first xmlns=\"ed1\">TestFirst</first>\n"
-            "      <cont xmlns=\"ed1\">\n"
+            "      <first xmlns=\"urn:ed1\">TestFirst</first>\n"
+            "      <cont xmlns=\"urn:ed1\">\n"
             "        <second/>\n"
             "        <third>25</third>\n"
             "      </cont>\n"
@@ -327,7 +327,7 @@ test_schema_mount(void **state)
             "    <root3 xmlns=\"urn:sm\">\n"
             "      <ls>\n"
             "        <name>key</name>\n"
-            "        <first xmlns=\"ed1\">AnotherFirst</first>\n"
+            "        <first xmlns=\"urn:ed1\">AnotherFirst</first>\n"
             "      </ls>\n"
             "    </root3>\n"
             "  </data>\n"

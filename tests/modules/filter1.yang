@@ -1,5 +1,5 @@
 module filter1 {
-  namespace f1;
+  namespace urn:f1;
   prefix f1;
 
   import ietf-inet-types {
