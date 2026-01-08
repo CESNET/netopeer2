@@ -81,12 +81,12 @@ teardown_common(void **state)
     const char *data;
 
     data =
-            "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>\n"
-            "<top xmlns=\"ed2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>\n"
-            "<top xmlns=\"ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>\n"
-            "<top xmlns=\"ex1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>\n"
-            "<top xmlns=\"ex2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"/>\n"
-            "<top xmlns=\"ed4\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"/>\n";
+            "<first xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>\n"
+            "<top xmlns=\"urn:ed2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>\n"
+            "<top xmlns=\"urn:ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>\n"
+            "<top xmlns=\"urn:ex1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>\n"
+            "<top xmlns=\"urn:ex2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"/>\n"
+            "<top xmlns=\"urn:ed4\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"/>\n";
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
@@ -100,7 +100,7 @@ test_merge_edit1(void **state)
     const char *data;
 
     /* Send RPC editing module edit1 */
-    data = "<first xmlns=\"ed1\">TestFirst</first>\n";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>\n";
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
@@ -119,7 +119,7 @@ test_merge_edit2(void **state)
 
     /* Send RPC editing module edit2 */
     data =
-            "<top xmlns=\"ed2\">\n"
+            "<top xmlns=\"urn:ed2\">\n"
             "  <name>TestSecond</name>\n"
             "  <num>123</num>\n"
             "</top>\n";
@@ -141,7 +141,7 @@ test_merge_edit2_fail(void **state)
 
     /* Send invalid RPC editing module edit2 */
     data =
-            "<top xmlns=\"ed2\">\n"
+            "<top xmlns=\"urn:ed2\">\n"
             "  <name>TestSecond</name>\n"
             "  <num>ClearlyNotANumericValue</num>\n"
             "</top>\n";
@@ -156,7 +156,7 @@ setup_test_delete_edit1(void **state)
     struct np2_test *st = *state;
     const char *data;
 
-    data = "<first xmlns=\"ed1\">TestFirst</first>\n";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>\n";
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
@@ -170,7 +170,7 @@ test_delete_edit1(void **state)
     const char *data;
 
     /* Send rpc deleting config in module edit1 */
-    data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"/>\n";
+    data = "<first xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"/>\n";
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
@@ -187,7 +187,7 @@ setup_test_delete_edit2(void **state)
 
     /* Send RPC editing module edit2 */
     data =
-            "<top xmlns=\"ed2\">\n"
+            "<top xmlns=\"urn:ed2\">\n"
             "  <name>TestSecond</name>\n"
             "  <num>123</num>\n"
             "</top>\n";
@@ -204,7 +204,7 @@ test_delete_edit2(void **state)
     const char *data;
 
     /* Send rpc deleting config in module edit2 */
-    data = "<top xmlns=\"ed2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"/>\n";
+    data = "<top xmlns=\"urn:ed2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"/>\n";
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
@@ -221,7 +221,7 @@ setup_test_delete_edit3(void **state)
 
     /* send RPC editing module example1 */
     data =
-            "<top xmlns=\"ex1\">\n"
+            "<top xmlns=\"urn:ex1\">\n"
             "  <interface>\n"
             "    <mtu>1024</mtu>\n"
             "    <address>\n"
@@ -243,7 +243,7 @@ test_delete_edit3(void **state)
 
     /* send rpc deleting config in module edit2 with non-existing nodes */
     data =
-            "<top xmlns=\"ex1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "<top xmlns=\"urn:ex1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <interface xc:operation=\"delete\">\n"
             "    <name>my-name</name>\n"
             "  </interface>\n"
@@ -260,7 +260,7 @@ test_delete_edit3(void **state)
     FREE_TEST_VARS(st);
 
     data =
-            "<top xmlns=\"ex1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "<top xmlns=\"urn:ex1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <interface xc:operation=\"delete\">\n"
             "    <mtu>2048</mtu>\n"
             "    <address>\n"
@@ -280,7 +280,7 @@ test_delete_edit3(void **state)
     FREE_TEST_VARS(st);
 
     data =
-            "<top xmlns=\"ex1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "<top xmlns=\"urn:ex1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <interface xc:operation=\"delete\">\n"
             "    <mtu>2048</mtu>\n"
             "    <address>\n"
@@ -301,7 +301,7 @@ test_delete_edit3(void **state)
 
     /* send valid rpc deleting config in module edit2 */
     data =
-            "<top xmlns=\"ex1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "<top xmlns=\"urn:ex1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <interface xc:operation=\"delete\">\n"
             "    <mtu>2048</mtu>\n"
             "    <address/>\n"
@@ -319,7 +319,7 @@ test_delete_empty(void **state)
     const char *data;
 
     /* Try deleting a non-existent config, should fail */
-    data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"/>\n";
+    data = "<first xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"delete\"/>\n";
     SEND_EDIT_RPC(st, data);
     ASSERT_ERROR_REPLY(st);
     FREE_TEST_VARS(st);
@@ -330,7 +330,7 @@ test_merge_partial(void **state)
 {
     struct np2_test *st = *state;
     const char *expected, *data =
-            "<top xmlns=\"ed2\">\n"
+            "<top xmlns=\"urn:ed2\">\n"
             "  <name>TestSecond</name>\n"
             "</top>\n";
 
@@ -344,7 +344,7 @@ test_merge_partial(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ed2\">\n"
+            "    <top xmlns=\"urn:ed2\">\n"
             "      <name>TestSecond</name>\n"
             "    </top>\n"
             "  </data>\n"
@@ -358,7 +358,7 @@ setup_test_merge_into_existing(void **state)
 {
     struct np2_test *st = *state;
     const char *data =
-            "<top xmlns=\"ed2\">\n"
+            "<top xmlns=\"urn:ed2\">\n"
             "  <name>TestSecond</name>\n"
             "</top>\n";
 
@@ -373,7 +373,7 @@ test_merge_into_existing(void **state)
 {
     struct np2_test *st = *state;
     const char *expected, *data =
-            "<top xmlns=\"ed2\">\n"
+            "<top xmlns=\"urn:ed2\">\n"
             "  <num>123</num>\n"
             "</top>\n";
 
@@ -386,7 +386,7 @@ test_merge_into_existing(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ed2\">\n"
+            "    <top xmlns=\"urn:ed2\">\n"
             "      <name>TestSecond</name>\n"
             "      <num>123</num>\n"
             "    </top>\n"
@@ -401,7 +401,7 @@ setup_test_merge_overwrite(void **state)
 {
     struct np2_test *st = *state;
     const char *data =
-            "<top xmlns=\"ed2\">\n"
+            "<top xmlns=\"urn:ed2\">\n"
             "  <name>TestSecond</name>\n"
             "  <num>123</num>\n"
             "</top>\n";
@@ -417,7 +417,7 @@ test_merge_overwrite(void **state)
 {
     struct np2_test *st = *state;
     const char *expected, *data =
-            "<top xmlns=\"ed2\">\n"
+            "<top xmlns=\"urn:ed2\">\n"
             "  <num>456</num>\n"
             "</top>\n";
 
@@ -430,7 +430,7 @@ test_merge_overwrite(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ed2\">\n"
+            "    <top xmlns=\"urn:ed2\">\n"
             "      <name>TestSecond</name>\n"
             "      <num>456</num>\n"
             "    </top>\n"
@@ -445,7 +445,7 @@ setup_test_replace(void **state)
 {
     struct np2_test *st = *state;
     const char *data =
-            "<top xmlns=\"ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"replace\">\n"
+            "<top xmlns=\"urn:ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"replace\">\n"
             "  <name>TestThird</name>\n"
             "  <num>123</num>\n"
             "</top>\n";
@@ -461,7 +461,7 @@ test_replace(void **state)
 {
     struct np2_test *st = *state;
     const char *expected, *data =
-            "<top xmlns=\"ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"replace\">\n"
+            "<top xmlns=\"urn:ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"replace\">\n"
             "  <name>TestThird</name>\n"
             "  <num>456</num>\n"
             "</top>\n";
@@ -475,7 +475,7 @@ test_replace(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ed3\">\n"
+            "    <top xmlns=\"urn:ed3\">\n"
             "      <name>TestThird</name>\n"
             "      <num>456</num>\n"
             "    </top>\n"
@@ -490,7 +490,7 @@ test_replace_create(void **state)
 {
     struct np2_test *st = *state;
     const char *expected, *data =
-            "<top xmlns=\"ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"replace\">\n"
+            "<top xmlns=\"urn:ed3\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"replace\">\n"
             "  <name>TestThird</name>\n"
             "  <num>456</num>\n"
             "</top>\n";
@@ -504,7 +504,7 @@ test_replace_create(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ed3\">\n"
+            "    <top xmlns=\"urn:ed3\">\n"
             "      <name>TestThird</name>\n"
             "      <num>456</num>\n"
             "    </top>\n"
@@ -519,7 +519,7 @@ test_create(void **state)
 {
     struct np2_test *st = *state;
     const char *expected, *data =
-            "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"create\">"
+            "<first xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"create\">"
             "TestFourth"
             "</first>\n";
 
@@ -532,7 +532,7 @@ test_create(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">TestFourth</first>\n"
+            "    <first xmlns=\"urn:ed1\">TestFourth</first>\n"
             "  </data>\n"
             "</get-config>\n";
     assert_string_equal(st->str, expected);
@@ -544,7 +544,7 @@ setup_test_create_fail(void **state)
 {
     struct np2_test *st = *state;
     const char *data =
-            "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"create\">"
+            "<first xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"create\">"
             "TestFourth"
             "</first>\n";
 
@@ -559,7 +559,7 @@ test_create_fail(void **state)
 {
     struct np2_test *st = *state;
     const char *data =
-            "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"create\">"
+            "<first xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"create\">"
             "TestFourth"
             "</first>\n";
 
@@ -572,7 +572,7 @@ static int
 setup_test_remove(void **state)
 {
     struct np2_test *st = *state;
-    const char *data = "<first xmlns=\"ed1\">TestFirst</first>\n";
+    const char *data = "<first xmlns=\"urn:ed1\">TestFirst</first>\n";
 
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
@@ -584,7 +584,7 @@ static void
 test_remove(void **state)
 {
     struct np2_test *st = *state;
-    const char *data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"></first>\n";
+    const char *data = "<first xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"></first>\n";
 
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
@@ -596,7 +596,7 @@ static void
 test_remove_empty(void **state)
 {
     struct np2_test *st = *state;
-    const char *data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"></first>\n";
+    const char *data = "<first xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"></first>\n";
 
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
@@ -609,7 +609,7 @@ setup_test_ex1(void **state)
 {
     struct np2_test *st = *state;
     const char *data =
-            "<top xmlns=\"ex1\">\n"
+            "<top xmlns=\"urn:ex1\">\n"
             "  <interface>\n"
             "    <name>Ethernet0/0</name>\n"
             "    <mtu>1500</mtu>\n"
@@ -630,7 +630,7 @@ test_ex1(void **state)
     const char *expected, *data;
 
     data =
-            "<top xmlns=\"ex1\">\n"
+            "<top xmlns=\"urn:ex1\">\n"
             "  <interface operation=\"replace\"\n>\n"
             "    <name>Ethernet0/0</name>\n"
             "    <mtu>1500</mtu>\n"
@@ -649,7 +649,7 @@ test_ex1(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ex1\">\n"
+            "    <top xmlns=\"urn:ex1\">\n"
             "      <interface>\n"
             "        <name>Ethernet0/0</name>\n"
             "        <mtu>1500</mtu>\n"
@@ -670,7 +670,7 @@ setup_test_ex2(void **state)
 {
     struct np2_test *st = *state;
     const char *data =
-            "<top xmlns=\"ex2\">\n"
+            "<top xmlns=\"urn:ex2\">\n"
             "  <protocols>\n"
             "    <ospf>\n"
             "      <area>\n"
@@ -700,7 +700,7 @@ test_ex2(void **state)
     /* Second example for edit-config from rfc 6241 section 7.2 */
     struct np2_test *st = *state;
     const char *expected, *data =
-            "<top xmlns=\"ex2\">\n"
+            "<top xmlns=\"urn:ex2\">\n"
             "  <protocols>\n"
             "    <ospf>\n"
             "      <area>\n"
@@ -723,7 +723,7 @@ test_ex2(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ex2\">\n"
+            "    <top xmlns=\"urn:ex2\">\n"
             "      <protocols>\n"
             "        <ospf>\n"
             "          <area>\n"
@@ -751,7 +751,7 @@ test_autodel_case(void **state)
 
     /* create case #1 */
     data =
-            "<top xmlns=\"ed4\">\n"
+            "<top xmlns=\"urn:ed4\">\n"
             "  <l1>value</l1>\n"
             "  <l2/>\n"
             "</top>\n";
@@ -767,7 +767,7 @@ test_autodel_case(void **state)
 
     /* create case #2 */
     data =
-            "<top xmlns=\"ed4\">\n"
+            "<top xmlns=\"urn:ed4\">\n"
             "  <c2>58</c2>\n"
             "</top>\n";
     SEND_EDIT_RPC(st, data);
@@ -783,7 +783,7 @@ test_autodel_case(void **state)
 
     /* create case #3 */
     data =
-            "<top xmlns=\"ed4\">\n"
+            "<top xmlns=\"urn:ed4\">\n"
             "  <cont>\n"
             "    <l3>-256</l3>\n"
             "  </cont>\n"
@@ -800,7 +800,7 @@ test_autodel_case(void **state)
 
     /* create case #4 */
     data =
-            "<top xmlns=\"ed4\">\n"
+            "<top xmlns=\"urn:ed4\">\n"
             "  <l4>a</l4>\n"
             "  <l5>b</l5>\n"
             "</top>\n";

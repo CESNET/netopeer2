@@ -28,7 +28,7 @@
             </module>
             <module>
                 <name>edit1</name>
-                <namespace>ed1</namespace>
+                <namespace>urn:ed1</namespace>
             </module>
         </module-set>
         <content-id>1</content-id>
@@ -54,7 +54,7 @@
                 </module>
                 <module>
                     <name>edit1</name>
-                    <namespace>ed1</namespace>
+                    <namespace>urn:ed1</namespace>
                 </module>
             </module-set>
             <content-id>1</content-id>

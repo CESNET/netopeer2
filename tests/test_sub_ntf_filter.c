@@ -137,7 +137,7 @@ test_basic_xpath_pass(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -162,7 +162,7 @@ test_basic_xpath_no_pass(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -180,14 +180,14 @@ test_basic_subtree_pass(void **state)
     const char *data;
 
     /* Establish subscription */
-    data = "<n1 xmlns=\"n1\"/>";
+    data = "<n1 xmlns=\"urn:n1\"/>";
     SEND_RPC_ESTABSUB(st, data, "notif1", NULL, NULL);
     ASSERT_OK_SUB_NTF(st);
     FREE_TEST_VARS(st);
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -207,7 +207,7 @@ test_basic_subtree_no_pass(void **state)
 
     /* Establish subscription */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Alt</first>\n"
             "</n1>\n";
     SEND_RPC_ESTABSUB(st, data, "notif1", NULL, NULL);
@@ -216,7 +216,7 @@ test_basic_subtree_no_pass(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -270,7 +270,7 @@ test_ref_xpath_pass(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -295,7 +295,7 @@ test_ref_xpath_no_pass(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -319,7 +319,7 @@ test_ref_subtree_pass(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -344,7 +344,7 @@ test_ref_subtree_no_pass(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -369,7 +369,7 @@ test_filter_change(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -418,7 +418,7 @@ test_filter_remove(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);

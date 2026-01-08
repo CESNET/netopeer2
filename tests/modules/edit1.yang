@@ -1,5 +1,5 @@
 module edit1 {
-  namespace ed1;
+  namespace urn:ed1;
   prefix ed1;
 
   leaf stateLeaf {

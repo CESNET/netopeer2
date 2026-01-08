@@ -1,5 +1,5 @@
 module notif1 {
-  namespace "n1";
+  namespace "urn:n1";
   prefix "n1";
 
   notification n1 {

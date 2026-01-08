@@ -1,5 +1,5 @@
 module example2 {
-  namespace ex2;
+  namespace urn:ex2;
   prefix ex2;
 
   import ietf-inet-types {

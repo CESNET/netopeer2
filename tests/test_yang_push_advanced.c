@@ -76,11 +76,11 @@ teardown_common(void **state)
     assert_non_null(st->nc_sess);
 
     /* Remove the data */
-    data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
+    data = "<first xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
-    data = "<top xmlns=\"ed2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
+    data = "<top xmlns=\"urn:ed2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -138,7 +138,7 @@ test_on_change_stop_time(void **state)
     FREE_TEST_VARS(st);
 
     /* Insert some data */
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -167,7 +167,7 @@ test_on_change_modify_fail(void **state)
     assert_int_equal(ly_time_ts2str(&ts, &stop_time), LY_SUCCESS);
 
     /* Modify the stop_time, should fail since wrong rpc is used */
-    SEND_RPC_MODSUB(st, st->ntf_id, "<first xmlns=\"ed1\"/>", stop_time);
+    SEND_RPC_MODSUB(st, st->ntf_id, "<first xmlns=\"urn:ed1\"/>", stop_time);
     ASSERT_ERROR_REPLY(st);
     FREE_TEST_VARS(st);
     free(stop_time);
@@ -214,7 +214,7 @@ test_on_change_modify_stoptime(void **state)
     FREE_TEST_VARS(st);
 
     /* Insert some data */
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -246,7 +246,7 @@ test_on_change_modify_filter(void **state)
     RECV_SUBMOD_NOTIF(st);
 
     /* Insert some data */
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
@@ -263,7 +263,7 @@ test_on_change_modify_filter(void **state)
             "        <operation>create</operation>\n"
             "        <target>/edit1:first</target>\n"
             "        <value>\n"
-            "          <first xmlns=\"ed1\">TestFirst</first>\n"
+            "          <first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "        </value>\n"
             "      </edit>\n"
             "    </yang-patch>\n"
@@ -276,7 +276,7 @@ test_on_change_modify_filter(void **state)
 
     /* Insert some data */
     data =
-            "<top xmlns=\"ed2\">\n"
+            "<top xmlns=\"urn:ed2\">\n"
             "  <name>Test</name>\n"
             "</top>\n";
     SR_EDIT(st, data);
@@ -293,7 +293,7 @@ setup_test_periodic_modify_filter(void **state)
     const char *data;
 
     data =
-            "<top xmlns=\"ed2\">\n"
+            "<top xmlns=\"urn:ed2\">\n"
             "  <name>Test</name>\n"
             "</top>\n";
     SR_EDIT(st, data);
@@ -320,7 +320,7 @@ test_periodic_modify_filter(void **state)
             "<push-update xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
             "  <id>%d</id>\n"
             "  <datastore-contents>\n"
-            "    <top xmlns=\"ed2\">\n"
+            "    <top xmlns=\"urn:ed2\">\n"
             "      <name>Test</name>\n"
             "    </top>\n"
             "  </datastore-contents>\n"
@@ -331,7 +331,7 @@ test_periodic_modify_filter(void **state)
     FREE_TEST_VARS(st);
 
     /* Modify the filter */
-    st->rpc = nc_rpc_modifypush_periodic(st->ntf_id, "ietf-datastores:running", "<first xmlns=\"ed1\"/>", NULL, 50,
+    st->rpc = nc_rpc_modifypush_periodic(st->ntf_id, "ietf-datastores:running", "<first xmlns=\"urn:ed1\"/>", NULL, 50,
             NULL, NC_PARAMTYPE_CONST);
     st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
     assert_int_equal(st->msgtype, NC_MSG_RPC);
@@ -481,7 +481,7 @@ test_onchange_deletesub(void **state)
     FREE_TEST_VARS(st);
 
     /* Insert some data */
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 

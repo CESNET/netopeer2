@@ -181,7 +181,7 @@ static int
 setup_common(void **state)
 {
     struct np2_test *st = *state;
-    const char *data = "<first xmlns=\"ed1\">Test</first>";
+    const char *data = "<first xmlns=\"urn:ed1\">Test</first>";
 
     SR_EDIT_SESSION(st, st->sr_sess2, data);
     FREE_TEST_VARS(st);
@@ -194,8 +194,8 @@ teardown_common(void **state)
 {
     struct np2_test *st = *state;
     const char *data =
-            "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>"
-            "<cont xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
+            "<first xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>"
+            "<cont xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
 
     SR_EDIT_SESSION(st, st->sr_sess, data);
     FREE_TEST_VARS(st);
@@ -234,7 +234,7 @@ test_sameas_commit(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">Test</first>\n"
+            "    <first xmlns=\"urn:ed1\">Test</first>\n"
             "  </data>\n"
             "</get-config>\n";
     assert_string_equal(st->str, expected);
@@ -293,7 +293,7 @@ test_timeout_runout(void **state)
     expected =
             "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">Test</first>\n"
+            "    <first xmlns=\"urn:ed1\">Test</first>\n"
             "  </data>\n"
             "</get>\n";
     assert_string_equal(st->str, expected);
@@ -354,7 +354,7 @@ test_timeout_confirm(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">Test</first>\n"
+            "    <first xmlns=\"urn:ed1\">Test</first>\n"
             "  </data>\n"
             "</get-config>\n";
     assert_string_equal(st->str, expected);
@@ -415,14 +415,14 @@ test_timeout_confirm_modify(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">Test</first>\n"
+            "    <first xmlns=\"urn:ed1\">Test</first>\n"
             "  </data>\n"
             "</get-config>\n";
     assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
 
     /* Modify candidate to see if confirm-commit only cancels the timer */
-    data = "<first xmlns=\"ed1\">Alt</first>";
+    data = "<first xmlns=\"urn:ed1\">Alt</first>";
     SR_EDIT_SESSION(st, st->sr_sess2, data);
     FREE_TEST_VARS(st);
 
@@ -447,7 +447,7 @@ test_timeout_confirm_modify(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">Alt</first>\n"
+            "    <first xmlns=\"urn:ed1\">Alt</first>\n"
             "  </data>\n"
             "</get-config>\n";
     assert_string_equal(st->str, expected);
@@ -477,7 +477,7 @@ test_timeout_followup(void **state)
     FREE_TEST_VARS(st);
 
     /* modify candidate */
-    data = "<first xmlns=\"ed1\">Test2</first>";
+    data = "<first xmlns=\"urn:ed1\">Test2</first>";
     SR_EDIT_SESSION(st, st->sr_sess2, data);
     FREE_TEST_VARS(st);
 
@@ -499,7 +499,7 @@ test_timeout_followup(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">Test2</first>\n"
+            "    <first xmlns=\"urn:ed1\">Test2</first>\n"
             "  </data>\n"
             "</get-config>\n";
     assert_string_equal(st->str, expected);
@@ -539,7 +539,7 @@ test_cancel(void **state)
     ASSERT_NO_NOTIF(st);
 
     /* edit running */
-    data = "<first xmlns=\"ed1\">val</first><cont xmlns=\"ed1\"><second/><third>5</third></cont>";
+    data = "<first xmlns=\"urn:ed1\">val</first><cont xmlns=\"urn:ed1\"><second/><third>5</third></cont>";
     SR_EDIT_SESSION(st, st->sr_sess, data);
     FREE_TEST_VARS(st);
 
@@ -563,7 +563,7 @@ test_cancel(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">Test</first>\n"
+            "    <first xmlns=\"urn:ed1\">Test</first>\n"
             "  </data>\n"
             "</get-config>\n";
     assert_string_equal(st->str, expected);
@@ -588,8 +588,8 @@ test_cancel(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">val</first>\n"
-            "    <cont xmlns=\"ed1\">\n"
+            "    <first xmlns=\"urn:ed1\">val</first>\n"
+            "    <cont xmlns=\"urn:ed1\">\n"
             "      <second/>\n"
             "      <third>5</third>\n"
             "    </cont>\n"
@@ -634,7 +634,7 @@ test_rollback_disconnect(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">Test</first>\n"
+            "    <first xmlns=\"urn:ed1\">Test</first>\n"
             "  </data>\n"
             "</get-config>\n";
     assert_string_equal(st->str, expected);
@@ -690,7 +690,7 @@ test_rollback_locked(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">Test</first>\n"
+            "    <first xmlns=\"urn:ed1\">Test</first>\n"
             "  </data>\n"
             "</get-config>\n";
     assert_string_equal(st->str, expected);
@@ -761,7 +761,7 @@ test_confirm_persist(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">Test</first>\n"
+            "    <first xmlns=\"urn:ed1\">Test</first>\n"
             "  </data>\n"
             "</get-config>\n";
     assert_string_equal(st->str, expected);
@@ -821,7 +821,7 @@ test_cancel_persist(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">Test</first>\n"
+            "    <first xmlns=\"urn:ed1\">Test</first>\n"
             "  </data>\n"
             "</get-config>\n";
     assert_string_equal(st->str, expected);

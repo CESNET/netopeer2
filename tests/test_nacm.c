@@ -88,9 +88,9 @@ teardown_common(void **state)
 {
     struct np2_test *st = *state;
     const char *data =
-            "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
+            "<first xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
             "xc:operation=\"remove\"></first>\n"
-            "<top xmlns=\"ex2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
+            "<top xmlns=\"urn:ex2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
             "xc:operation=\"remove\"></top>\n"
             "<top xmlns=\"urn:nt1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
             "xc:operation=\"remove\"></top>\n"
@@ -112,7 +112,7 @@ teardown_common(void **state)
     FREE_TEST_VARS(st);
 
     data =
-            "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
+            "<first xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
             "xc:operation=\"remove\"></first>\n"
             "<top xmlns=\"urn:nt1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
             "xc:operation=\"remove\"></top>\n";
@@ -203,7 +203,7 @@ setup_test_read_default_allow_path(void **state)
 {
     struct np2_test *st = *state;
     const char *data =
-            "<first xmlns=\"ed1\">TestFirst</first>\n"
+            "<first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <read-default>deny</read-default>\n"
             "  <rule-list>\n"
@@ -212,7 +212,7 @@ setup_test_read_default_allow_path(void **state)
             "    <rule>\n"
             "      <name>allow-first</name>\n"
             "      <module-name>edit1</module-name>\n"
-            "      <path xmlns:ed1=\"ed1\">/ed1:first</path>\n"
+            "      <path xmlns:ed1=\"urn:ed1\">/ed1:first</path>\n"
             "      <access-operations>read</access-operations>\n"
             "      <action>permit</action>\n"
             "    </rule>\n"
@@ -231,7 +231,7 @@ test_read_default_allow_path(void **state)
     const char *expected =
             "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">TestFirst</first>\n"
+            "    <first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "  </data>\n"
             "</get>\n";
 
@@ -246,7 +246,7 @@ setup_test_get_config(void **state)
 {
     struct np2_test *st = *state;
     const char *data =
-            "<first xmlns=\"ed1\">TestFirst</first>\n"
+            "<first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <rule-list>\n"
             "     <name>rule1</name>\n"
@@ -254,7 +254,7 @@ setup_test_get_config(void **state)
             "     <rule>\n"
             "       <name>disallow-first</name>\n"
             "       <module-name>edit1</module-name>\n"
-            "       <path xmlns:ed1=\"ed1\">/ed1:first</path>\n"
+            "       <path xmlns:ed1=\"urn:ed1\">/ed1:first</path>\n"
             "       <access-operations>read</access-operations>\n"
             "       <action>deny</action>\n"
             "     </rule>\n"
@@ -407,7 +407,7 @@ setup_test_rule_wildcard_groups(void **state)
 {
     struct np2_test *st = *state;
     const char *data =
-            "<first xmlns=\"ed1\">TestFirst</first>\n"
+            "<first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <read-default>deny</read-default>\n"
             "  <rule-list>\n"
@@ -416,7 +416,7 @@ setup_test_rule_wildcard_groups(void **state)
             "    <rule>\n"
             "      <name>allow-first</name>\n"
             "      <module-name>edit1</module-name>\n"
-            "      <path xmlns:ed1=\"ed1\">/ed1:first</path>\n"
+            "      <path xmlns:ed1=\"urn:ed1\">/ed1:first</path>\n"
             "      <access-operations>read</access-operations>\n"
             "      <action>permit</action>\n"
             "    </rule>\n"
@@ -436,7 +436,7 @@ test_rule_wildcard_groups(void **state)
     const char *expected =
             "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">TestFirst</first>\n"
+            "    <first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "  </data>\n"
             "</get>\n";
 
@@ -480,7 +480,7 @@ static void
 test_edit_config(void **state)
 {
     struct np2_test *st = *state;
-    const char *data = "<first xmlns=\"ed1\">TestFirst</first>\n";
+    const char *data = "<first xmlns=\"urn:ed1\">TestFirst</first>\n";
 
     SEND_EDIT_RPC(st, data);
     ASSERT_ERROR_REPLY(st);
@@ -494,7 +494,7 @@ setup_test_edit_config_permit(void **state)
 {
     struct np2_test *st = *state;
     const char *data =
-            "<first xmlns=\"ed1\">TestFirst</first>\n"
+            "<first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "<nacm xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-acm\">\n"
             "  <write-default>deny</write-default>\n"
             "  <rule-list>\n"
@@ -503,7 +503,7 @@ setup_test_edit_config_permit(void **state)
             "     <rule>\n"
             "       <name>allow-first</name>\n"
             "       <module-name>edit1</module-name>\n"
-            "       <path xmlns:ed1=\"ed1\">/ed1:first</path>\n"
+            "       <path xmlns:ed1=\"urn:ed1\">/ed1:first</path>\n"
             "       <access-operations>create</access-operations>\n"
             "       <action>permit</action>\n"
             "     </rule>\n"
@@ -519,7 +519,7 @@ static void
 test_edit_config_permit(void **state)
 {
     struct np2_test *st = *state;
-    const char *data = "<first xmlns=\"ed1\">TestFirst</first>\n";
+    const char *data = "<first xmlns=\"urn:ed1\">TestFirst</first>\n";
 
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
@@ -539,7 +539,7 @@ setup_test_edit_config_update(void **state)
             "     <rule>\n"
             "       <name>allow-first</name>\n"
             "       <module-name>edit1</module-name>\n"
-            "       <path xmlns:ed1=\"ed1\">/ed1:first</path>\n"
+            "       <path xmlns:ed1=\"urn:ed1\">/ed1:first</path>\n"
             "       <access-operations>update</access-operations>\n"
             "       <action>permit</action>\n"
             "     </rule>\n"
@@ -555,7 +555,7 @@ static void
 test_edit_config_update(void **state)
 {
     struct np2_test *st = *state;
-    const char *expected, *data = "<first xmlns=\"ed1\">Test</first>\n";
+    const char *expected, *data = "<first xmlns=\"urn:ed1\">Test</first>\n";
 
     /* Creating is not permited */
     SEND_EDIT_RPC(st, data);
@@ -578,7 +578,7 @@ test_edit_config_update(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">Alt</first>\n"
+            "    <first xmlns=\"urn:ed1\">Alt</first>\n"
             "  </data>\n"
             "</get-config>\n";
     assert_string_equal(st->str, expected);
@@ -590,7 +590,7 @@ setup_test_edit_config_subtree(void **state)
 {
     struct np2_test *st = *state;
     const char *data =
-            "<top xmlns=\"ex2\">\n"
+            "<top xmlns=\"urn:ex2\">\n"
             "  <protocols>\n"
             "    <ospf>\n"
             "      <area>\n"
@@ -606,7 +606,7 @@ setup_test_edit_config_subtree(void **state)
             "     <rule>\n"
             "       <name>allow-examle2-name</name>\n"
             "       <module-name>example2</module-name>\n"
-            "       <path xmlns:ex2=\"ex2\">"
+            "       <path xmlns:ex2=\"urn:ex2\">"
             "/ex2:top/ex2:protocols/ex2:ospf/ex2:area/ex2:interfaces/ex2:interface</path>\n"
             "       <access-operations>create</access-operations>\n"
             "       <action>permit</action>\n"
@@ -614,7 +614,7 @@ setup_test_edit_config_subtree(void **state)
             "     <rule>\n"
             "       <name>allow-examle2-remove</name>\n"
             "       <module-name>example2</module-name>\n"
-            "       <path xmlns:ex2=\"ex2\">"
+            "       <path xmlns:ex2=\"urn:ex2\">"
             "/ex2:top/ex2:protocols/ex2:ospf/ex2:area</path>\n"
             "       <access-operations>delete</access-operations>\n"
             "       <action>permit</action>\n"
@@ -632,7 +632,7 @@ test_edit_config_subtree(void **state)
 {
     struct np2_test *st = *state;
     const char *data =
-            "<top xmlns=\"ex2\">\n"
+            "<top xmlns=\"urn:ex2\">\n"
             "  <protocols>\n"
             "    <ospf>\n"
             "      <area>\n"
@@ -653,7 +653,7 @@ test_edit_config_subtree(void **state)
     FREE_TEST_VARS(st);
 
     data =
-            "<top xmlns=\"ex2\">\n"
+            "<top xmlns=\"urn:ex2\">\n"
             "  <protocols>\n"
             "    <ospf>\n"
             "      <area>\n"
@@ -671,7 +671,7 @@ test_edit_config_subtree(void **state)
     FREE_TEST_VARS(st);
 
     data =
-            "<top xmlns=\"ex2\">\n"
+            "<top xmlns=\"urn:ex2\">\n"
             "  <protocols>\n"
             "    <ospf>\n"
             "      <area xmlns:pref=\"urn:ietf:params:xml:ns:netconf:base:1.0\" pref:operation=\"remove\">\n"
@@ -778,7 +778,7 @@ setup_test_copy_config_ds2ds_fail_read(void **state)
             "     <rule>\n"
             "       <name>disallow-read-first</name>\n"
             "       <module-name>edit1</module-name>\n"
-            "       <path xmlns:ed1=\"ed1\">/ed1:first</path>\n"
+            "       <path xmlns:ed1=\"urn:ed1\">/ed1:first</path>\n"
             "       <access-operations>read</access-operations>\n"
             "       <action>deny</action>\n"
             "     </rule>\n"
@@ -808,7 +808,7 @@ setup_test_copy_config_ds2ds_fail_write(void **state)
             "     <rule>\n"
             "       <name>disallow-read-first</name>\n"
             "       <module-name>edit1</module-name>\n"
-            "       <path xmlns:ed1=\"ed1\">/ed1:first</path>\n"
+            "       <path xmlns:ed1=\"urn:ed1\">/ed1:first</path>\n"
             "       <access-operations>read</access-operations>\n"
             "       <action>deny</action>\n"
             "     </rule>\n"
@@ -818,7 +818,7 @@ setup_test_copy_config_ds2ds_fail_write(void **state)
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
-    data = "<first xmlns=\"ed1\">TestFirst</first>\n";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>\n";
     SR_EDIT_SESSION(st, st->sr_sess2, data);
     FREE_TEST_VARS(st);
 
@@ -984,7 +984,7 @@ setup_test_discard_changes(void **state)
             "     <rule>\n"
             "       <name>disallow-first</name>\n"
             "       <module-name>edit1</module-name>\n"
-            "       <path xmlns:ed1=\"ed1\">/ed1:first</path>\n"
+            "       <path xmlns:ed1=\"urn:ed1\">/ed1:first</path>\n"
             "       <access-operations>delete</access-operations>\n"
             "       <action>deny</action>\n"
             "     </rule>\n"

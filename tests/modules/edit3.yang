@@ -1,5 +1,5 @@
 module edit3 {
-  namespace ed3;
+  namespace urn:ed3;
   prefix ed3;
 
   container top {

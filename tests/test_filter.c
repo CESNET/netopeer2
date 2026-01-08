@@ -38,7 +38,7 @@ setup_data(void **state)
     char *data;
 
     data =
-            "<top xmlns=\"ex2\">\n"
+            "<top xmlns=\"urn:ex2\">\n"
             "  <protocols>\n"
             "    <ospf>\n"
             "      <area>\n"
@@ -73,7 +73,7 @@ setup_data(void **state)
     FREE_TEST_VARS(st);
 
     data =
-            "<top xmlns=\"x1\">\n"
+            "<top xmlns=\"urn:x1\">\n"
             "  <item>\n"
             "    <price>2</price>\n"
             "  </item>\n"
@@ -97,7 +97,7 @@ setup_data(void **state)
     FREE_TEST_VARS(st);
 
     data =
-            "<hardware xmlns=\"i1\">\n"
+            "<hardware xmlns=\"urn:i1\">\n"
             "  <component>\n"
             "    <name>ComponentName</name>\n"
             "    <class>O-RAN-RADIO</class>\n"
@@ -110,7 +110,7 @@ setup_data(void **state)
     FREE_TEST_VARS(st);
 
     data =
-            "<top xmlns=\"f1\">\n"
+            "<top xmlns=\"urn:f1\">\n"
             "  <devices>\n"
             "    <servers>\n"
             "      <server>\n"
@@ -165,7 +165,7 @@ setup_data(void **state)
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
-    data = "<first xmlns=\"ed1\">Test</first>\n";
+    data = "<first xmlns=\"urn:ed1\">Test</first>\n";
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 }
@@ -363,7 +363,7 @@ test_xpath_basic(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ex2\">\n"
+            "    <top xmlns=\"urn:ex2\">\n"
             "      <protocols>\n"
             "        <ospf>\n"
             "          <area>\n"
@@ -425,7 +425,7 @@ test_xpath_boolean_operator(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"x1\">\n"
+            "    <top xmlns=\"urn:x1\">\n"
             "      <item>\n"
             "        <price>3</price>\n"
             "      </item>\n"
@@ -449,7 +449,7 @@ test_xpath_boolean_operator(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"x1\">\n"
+            "    <top xmlns=\"urn:x1\">\n"
             "      <item>\n"
             "        <price>2</price>\n"
             "      </item>\n"
@@ -480,7 +480,7 @@ test_xpath_union(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ex2\">\n"
+            "    <top xmlns=\"urn:ex2\">\n"
             "      <protocols>\n"
             "        <ospf>\n"
             "          <area>\n"
@@ -497,7 +497,7 @@ test_xpath_union(void **state)
             "        </ospf>\n"
             "      </protocols>\n"
             "    </top>\n"
-            "    <hardware xmlns=\"i1\">\n"
+            "    <hardware xmlns=\"urn:i1\">\n"
             "      <component>\n"
             "        <name>ComponentName</name>\n"
             "        <class>O-RAN-RADIO</class>\n"
@@ -525,7 +525,7 @@ test_xpath_namespaces(void **state)
             "<get-config "
             "xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ex2\">\n"
+            "    <top xmlns=\"urn:ex2\">\n"
             "      <protocols>\n"
             "        <ospf>\n"
             "          <area>\n"
@@ -542,7 +542,7 @@ test_xpath_namespaces(void **state)
             "        </ospf>\n"
             "      </protocols>\n"
             "    </top>\n"
-            "    <hardware xmlns=\"i1\">\n"
+            "    <hardware xmlns=\"urn:i1\">\n"
             "      <component>\n"
             "        <name>ComponentName</name>\n"
             "        <class>O-RAN-RADIO</class>\n"
@@ -565,7 +565,7 @@ test_xpath_namespaces(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ex2\">\n"
+            "    <top xmlns=\"urn:ex2\">\n"
             "      <protocols>\n"
             "        <ospf>\n"
             "          <area>\n"
@@ -596,7 +596,7 @@ test_xpath_namespaces(void **state)
             "        </ospf>\n"
             "      </protocols>\n"
             "    </top>\n"
-            "    <top xmlns=\"f1\">\n"
+            "    <top xmlns=\"urn:f1\">\n"
             "      <devices>\n"
             "        <desktops>\n"
             "          <desktop>\n"
@@ -648,7 +648,7 @@ test_xpath_namespaces(void **state)
             "        <val xmlns:f1i=\"urn:f1i\">f1i:ident-val2</val>\n"
             "      </some-list>\n"
             "    </top>\n"
-            "    <top xmlns=\"x1\">\n"
+            "    <top xmlns=\"urn:x1\">\n"
             "      <item>\n"
             "        <price>2</price>\n"
             "      </item>\n"
@@ -686,7 +686,7 @@ test_xpath_top_level_leaf_match(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">Test</first>\n"
+            "    <first xmlns=\"urn:ed1\">Test</first>\n"
             "  </data>\n"
             "</get-config>\n";
 
@@ -702,7 +702,7 @@ test_subtree_content_match(void **state)
     const char *filter, *expected;
 
     filter =
-            "<top xmlns=\"ex2\">\n"
+            "<top xmlns=\"urn:ex2\">\n"
             "  <protocols>\n"
             "    <ospf>\n"
             "      <area>\n"
@@ -717,7 +717,7 @@ test_subtree_content_match(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ex2\">\n"
+            "    <top xmlns=\"urn:ex2\">\n"
             "      <protocols>\n"
             "        <ospf>\n"
             "          <area>\n"
@@ -742,7 +742,7 @@ test_subtree_content_match(void **state)
     FREE_TEST_VARS(st);
 
     filter =
-            "<top xmlns=\"f1\" xmlns:f1i=\"urn:f1i\">\n"
+            "<top xmlns=\"urn:f1\" xmlns:f1i=\"urn:f1i\">\n"
             "  <some-list>\n"
             "    <val>f1i:ident-val1</val>\n"
             "  </some-list>\n"
@@ -753,7 +753,7 @@ test_subtree_content_match(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"f1\">\n"
+            "    <top xmlns=\"urn:f1\">\n"
             "      <some-list>\n"
             "        <k>a</k>\n"
             "        <val xmlns:f1i=\"urn:f1i\">f1i:ident-val1</val>\n"
@@ -773,12 +773,12 @@ test_subtree_content_match_top_level_leaf(void **state)
     const char *expected;
     struct np2_test *st = *state;
 
-    GET_CONFIG_FILTER(st, "<first xmlns=\"ed1\">Test</first>");
+    GET_CONFIG_FILTER(st, "<first xmlns=\"urn:ed1\">Test</first>");
 
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">Test</first>\n"
+            "    <first xmlns=\"urn:ed1\">Test</first>\n"
             "  </data>\n"
             "</get-config>\n";
 
@@ -794,7 +794,7 @@ test_subtree_selection_node(void **state)
     char *filter, *expected;
 
     filter =
-            "<top xmlns=\"f1\">\n"
+            "<top xmlns=\"urn:f1\">\n"
             "  <devices>\n"
             "    <servers/>\n"
             "  </devices>\n"
@@ -805,7 +805,7 @@ test_subtree_selection_node(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"f1\">\n"
+            "    <top xmlns=\"urn:f1\">\n"
             "      <devices>\n"
             "        <servers>\n"
             "          <server>\n"
@@ -854,7 +854,7 @@ test_subtree_nested_selection_node(void **state)
     char *filter, *expected;
 
     filter =
-            "<top xmlns=\"f1\">\n"
+            "<top xmlns=\"urn:f1\">\n"
             "  <devices>\n"
             "    <servers>\n"
             "      <server>\n"
@@ -872,7 +872,7 @@ test_subtree_nested_selection_node(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"f1\">\n"
+            "    <top xmlns=\"urn:f1\">\n"
             "      <devices>\n"
             "        <servers>\n"
             "          <server>\n"
@@ -903,7 +903,7 @@ test_subtree_no_namespace(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ex2\">\n"
+            "    <top xmlns=\"urn:ex2\">\n"
             "      <protocols>\n"
             "        <ospf>\n"
             "          <area>\n"
@@ -934,7 +934,7 @@ test_subtree_no_namespace(void **state)
             "        </ospf>\n"
             "      </protocols>\n"
             "    </top>\n"
-            "    <top xmlns=\"f1\">\n"
+            "    <top xmlns=\"urn:f1\">\n"
             "      <devices>\n"
             "        <desktops>\n"
             "          <desktop>\n"
@@ -986,7 +986,7 @@ test_subtree_no_namespace(void **state)
             "        <val xmlns:f1i=\"urn:f1i\">f1i:ident-val2</val>\n"
             "      </some-list>\n"
             "    </top>\n"
-            "    <top xmlns=\"x1\">\n"
+            "    <top xmlns=\"urn:x1\">\n"
             "      <item>\n"
             "        <price>2</price>\n"
             "      </item>\n"
@@ -1028,7 +1028,7 @@ test_subtree_no_namespace(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"f1\">\n"
+            "    <top xmlns=\"urn:f1\">\n"
             "      <devices>\n"
             "        <servers>\n"
             "          <server>\n"
@@ -1069,7 +1069,7 @@ test_get_selection_node(void **state)
     char *filter, *expected;
 
     filter =
-            "<hardware xmlns=\"i1\">\n"
+            "<hardware xmlns=\"urn:i1\">\n"
             "  <component>\n"
             "    <serial-num/>"
             "  </component>\n"
@@ -1080,7 +1080,7 @@ test_get_selection_node(void **state)
     expected =
             "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <hardware xmlns=\"i1\">\n"
+            "    <hardware xmlns=\"urn:i1\">\n"
             "      <component>\n"
             "        <name>ComponentName</name>\n"
             "        <serial-num>1234</serial-num>\n"
@@ -1100,14 +1100,14 @@ test_get_containment_node(void **state)
     struct np2_test *st = *state;
     char *filter, *expected;
 
-    filter = "<hardware xmlns=\"i1\"/>\n";
+    filter = "<hardware xmlns=\"urn:i1\"/>\n";
 
     GET_FILTER(st, filter);
 
     expected =
             "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <hardware xmlns=\"i1\">\n"
+            "    <hardware xmlns=\"urn:i1\">\n"
             "      <component>\n"
             "        <name>ComponentName</name>\n"
             "        <class>O-RAN-RADIO</class>\n"
@@ -1132,7 +1132,7 @@ test_get_content_match_node(void **state)
     char *filter, *expected;
 
     filter =
-            "<hardware xmlns=\"i1\">\n"
+            "<hardware xmlns=\"urn:i1\">\n"
             "  <component>\n"
             "    <class>O-RAN-RADIO</class>\n"
             "    <feature/>\n"
@@ -1145,7 +1145,7 @@ test_get_content_match_node(void **state)
     expected =
             "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <hardware xmlns=\"i1\">\n"
+            "    <hardware xmlns=\"urn:i1\">\n"
             "      <component>\n"
             "        <name>ComponentName</name>\n"
             "        <class>O-RAN-RADIO</class>\n"
@@ -1170,7 +1170,7 @@ test_get_oper_data(void **state)
     char *filter, *expected;
 
     filter =
-            "<hardware xmlns=\"i1\">\n"
+            "<hardware xmlns=\"urn:i1\">\n"
             "  <component>\n"
             "    <class>O-RAN-RADIO</class>\n"
             "    <serial-num>1234</serial-num>\n"
@@ -1185,7 +1185,7 @@ test_get_oper_data(void **state)
     expected =
             "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <hardware xmlns=\"i1\">\n"
+            "    <hardware xmlns=\"urn:i1\">\n"
             "      <component>\n"
             "        <name>ComponentName</name>\n"
             "        <class>O-RAN-RADIO</class>\n"
@@ -1238,7 +1238,7 @@ test_getdata_oper_data(void **state)
     char *filter, *expected;
 
     filter =
-            "<hardware xmlns=\"i1\">\n"
+            "<hardware xmlns=\"urn:i1\">\n"
             "  <component>\n"
             "    <class>O-RAN-RADIO</class>\n"
             "    <serial-num>1234</serial-num>\n"
@@ -1253,7 +1253,7 @@ test_getdata_oper_data(void **state)
     expected =
             "<get-data xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-nmda\">\n"
             "  <data>\n"
-            "    <hardware xmlns=\"i1\">\n"
+            "    <hardware xmlns=\"urn:i1\">\n"
             "      <component>\n"
             "        <name>ComponentName</name>\n"
             "        <class>O-RAN-RADIO</class>\n"
@@ -1425,7 +1425,7 @@ test_depth(void **state)
     expected =
             "<get-data xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-nmda\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ex2\">\n"
+            "    <top xmlns=\"urn:ex2\">\n"
             "      <protocols>\n"
             "        <ospf>\n"
             "          <area>\n"

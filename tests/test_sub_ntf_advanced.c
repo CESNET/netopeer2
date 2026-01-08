@@ -114,14 +114,14 @@ test_filter_pass(void **state)
     struct np2_test *st = *state;
     const char *filter, *data;
 
-    filter = "<n1 xmlns=\"n1\"/>";
+    filter = "<n1 xmlns=\"urn:n1\"/>";
     SEND_RPC_ESTABSUB(st, filter, "notif1", NULL, NULL);
     ASSERT_OK_SUB_NTF(st);
     FREE_TEST_VARS(st);
 
     /* Parse notification into lyd_node */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -139,14 +139,14 @@ test_filter_no_pass(void **state)
     struct np2_test *st = *state;
     const char *filter, *data;
 
-    filter = "<n1 xmlns=\"n1\"><first>Different</first></n1>";
+    filter = "<n1 xmlns=\"urn:n1\"><first>Different</first></n1>";
     SEND_RPC_ESTABSUB(st, filter, "notif1", NULL, NULL);
     ASSERT_OK_SUB_NTF(st);
     FREE_TEST_VARS(st);
 
     /* Parse notification into lyd_node */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -164,14 +164,14 @@ test_modifysub_filter(void **state)
     const char *filter, *data, *template;
     char *ntf;
 
-    filter = "<n1 xmlns=\"n1\"/>";
+    filter = "<n1 xmlns=\"urn:n1\"/>";
     SEND_RPC_ESTABSUB(st, filter, "notif1", NULL, NULL);
     ASSERT_OK_SUB_NTF(st);
     FREE_TEST_VARS(st);
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -181,14 +181,14 @@ test_modifysub_filter(void **state)
     FREE_TEST_VARS(st);
 
     /* Modify the filter so that notifications do no pass */
-    filter = "<n1 xmlns=\"n1\"><first>Different</first></n1>";
+    filter = "<n1 xmlns=\"urn:n1\"><first>Different</first></n1>";
     SEND_RPC_MODSUB(st, st->ntf_id, filter, NULL);
     RECV_NOTIF(st);
     template =
             "<subscription-modified xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
             "  <id>%d</id>\n"
             "  <stream-subtree-filter>\n"
-            "    <n1 xmlns=\"n1\">\n"
+            "    <n1 xmlns=\"urn:n1\">\n"
             "      <first>Different</first>\n"
             "    </n1>\n"
             "  </stream-subtree-filter>\n"
@@ -203,7 +203,7 @@ test_modifysub_filter(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -231,7 +231,7 @@ test_modifysub_stop_time(void **state)
 
     /* Modify the stop_time to now, session should end */
     assert_int_equal(LY_SUCCESS, ly_time_time2str(time(NULL) + 1, NULL, &stop_time));
-    SEND_RPC_MODSUB(st, st->ntf_id, "<n1 xmlns=\"n1\"/>", stop_time);
+    SEND_RPC_MODSUB(st, st->ntf_id, "<n1 xmlns=\"urn:n1\"/>", stop_time);
     free(stop_time);
     RECV_NOTIF(st);
     /* Checking the content of the notification would depend on having precise timestamp */
@@ -254,7 +254,7 @@ test_modifysub_stop_time(void **state)
 
     /* No notification should arrive now */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -269,7 +269,7 @@ test_modifysub_fail_no_such_sub(void **state)
     struct np2_test *st = *state;
 
     /* Try modifying a non-existent subscription */
-    SEND_RPC_MODSUB(st, 1, "<n1 xmlns=\"n1\"/>", NULL);
+    SEND_RPC_MODSUB(st, 1, "<n1 xmlns=\"urn:n1\"/>", NULL);
     ASSERT_ERROR_REPLY(st);
     /* Check if correct error-tag */
     assert_string_equal(lyd_get_value(lyd_child(lyd_child(st->envp))->next), "invalid-value");
@@ -307,7 +307,7 @@ test_deletesub(void **state)
     FREE_TEST_VARS(st);
 
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -346,7 +346,7 @@ test_deletesub_fail_diff_sess(void **state)
 
     /* Send notification, should arrive */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -444,7 +444,7 @@ test_ds_subscriptions_sent_event(void **state)
 
     /* Send 3 notifications */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     for (uint8_t i = 0; i < 3; i++) {
@@ -486,14 +486,14 @@ test_ds_subscriptions_excluded_event(void **state)
             "</get>\n";
 
     /* Establish a subscription */
-    filter = "<n1 xmlns=\"n1\"><first>Different</first></n1>";
+    filter = "<n1 xmlns=\"urn:n1\"><first>Different</first></n1>";
     SEND_RPC_ESTABSUB(st, filter, "notif1", NULL, NULL);
     ASSERT_OK_SUB_NTF(st);
     FREE_TEST_VARS(st);
 
     /* Send 2 notifications, one should pass the filter, the other should not */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Different</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -501,7 +501,7 @@ test_ds_subscriptions_excluded_event(void **state)
     RECV_NOTIF(st);
     FREE_TEST_VARS(st);
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -628,7 +628,7 @@ test_multiple_subscriptions_notif(void **state)
 
     /* Send one notification, should arrive for all subscriptions */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -657,7 +657,7 @@ setup_notif2_data(void **state)
     const char *data;
 
     data =
-            "<devices xmlns=\"n2\">\n"
+            "<devices xmlns=\"urn:n2\">\n"
             "  <device>\n"
             "    <name>Main</name>\n"
             "  </device>\n"
@@ -681,7 +681,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
 
     /* Send one notification to the first session and check it */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -693,7 +693,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
 
     /* Send another notification to the first session */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test2</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -715,7 +715,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
 
     /* Send last notification to the first session */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test3</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -724,7 +724,7 @@ test_multiple_subscriptions_notif_interlaced(void **state)
 
     /* Send notification to the second session */
     data2 =
-            "<devices xmlns=\"n2\">\n"
+            "<devices xmlns=\"urn:n2\">\n"
             "  <device>\n"
             "    <name>Main</name>\n"
             "    <power-on>\n"
@@ -843,7 +843,7 @@ test_killsub_same_sess(void **state)
 
     /* Send notification, should arrive */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -872,7 +872,7 @@ test_killsub_same_sess(void **state)
 
     /* Send notification, should NOT arrive */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -897,7 +897,7 @@ test_killsub_diff_sess(void **state)
 
     /* Send notification, should arrive */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -934,7 +934,7 @@ test_killsub_diff_sess(void **state)
 
     /* Send notification, should NOT arrive */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);

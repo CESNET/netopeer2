@@ -84,7 +84,7 @@ setup_candidate(void **state)
     struct np2_test *st = *state;
     const char *data;
 
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
 
     SR_EDIT_SESSION(st, st->sr_sess2, data);
 
@@ -113,7 +113,7 @@ empty_running(void **state)
     const char *data;
 
     data =
-            "<first xmlns=\"ed1\""
+            "<first xmlns=\"urn:ed1\""
             "xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\""
             "xc:operation=\"remove\"/>";
 
@@ -130,7 +130,7 @@ test_edit_basic(void **state)
     char *data, *expected;
 
     /* Get a simple config into candidate */
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
 
     SEND_EDIT_RPC_DS(st, NC_DATASTORE_CANDIDATE, data);
 
@@ -144,7 +144,7 @@ test_edit_basic(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">TestFirst</first>\n"
+            "    <first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "  </data>\n"
             "</get-config>\n";
 
@@ -153,7 +153,7 @@ test_edit_basic(void **state)
     FREE_TEST_VARS(st);
 
     /* Remove it from the configuration */
-    data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
+    data = "<first xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"/>";
 
     SEND_EDIT_RPC_DS(st, NC_DATASTORE_CANDIDATE, data);
 
@@ -169,7 +169,7 @@ test_commit(void **state)
     char *data, *expected;
 
     /* Get some data into candidate */
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
 
     SR_EDIT_SESSION(st, st->sr_sess2, data);
 
@@ -200,7 +200,7 @@ test_commit(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <first xmlns=\"ed1\">TestFirst</first>\n"
+            "    <first xmlns=\"urn:ed1\">TestFirst</first>\n"
             "  </data>\n"
             "</get-config>\n";
 
@@ -232,7 +232,7 @@ test_discard_changes(void **state)
     FREE_TEST_VARS(st);
 
     /* edit candidate */
-    SEND_EDIT_RPC_DS(st, NC_DATASTORE_CANDIDATE, "<first xmlns=\"ed1\">TestFirst</first>");
+    SEND_EDIT_RPC_DS(st, NC_DATASTORE_CANDIDATE, "<first xmlns=\"urn:ed1\">TestFirst</first>");
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
 
@@ -288,7 +288,7 @@ test_validate_invalid(void **state)
     const char *data;
 
     data =
-            "<top xmlns=\"ed2\">"
+            "<top xmlns=\"urn:ed2\">"
             "  <name>TestSecond</name>"
             "  <num>ClearlyNotANumericValue</num>"
             "</top>";
@@ -311,7 +311,7 @@ setup_discard_changes_advanced(void **state)
 
     /* Merge config into running */
     data =
-            "<top xmlns=\"ed2\">"
+            "<top xmlns=\"urn:ed2\">"
             "  <name>TestSecond</name>"
             "</top>";
 
@@ -321,7 +321,7 @@ setup_discard_changes_advanced(void **state)
 
     /* Merge config into candidate */
     data =
-            "<top xmlns=\"ed2\">"
+            "<top xmlns=\"urn:ed2\">"
             "  <name>TestSecond</name>"
             "  <num>12</num>"
             "</top>";
@@ -389,7 +389,7 @@ setup_lock_modified_candidate(void **state)
     const char *data;
 
     /* Modify candidate in any way */
-    data = "<first xmlns=\"ed1\">TestFirst</first>";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>";
 
     SR_EDIT_SESSION(st, st->sr_sess2, data);
 
@@ -405,7 +405,7 @@ teardown_lock_modified_candidate(void **state)
     const char *data;
 
     /* Remove anything */
-    data = "<first xmlns=\"ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"></first>";
+    data = "<first xmlns=\"urn:ed1\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"></first>";
 
     SR_EDIT_SESSION(st, st->sr_sess2, data);
 
@@ -436,7 +436,7 @@ teardown_discard_changes_advanced(void **state)
     const char *data;
 
     /* Remove config from running */
-    data = "<top xmlns=\"ed2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"></top>";
+    data = "<top xmlns=\"urn:ed2\" xmlns:xc=\"urn:ietf:params:xml:ns:netconf:base:1.0\" xc:operation=\"remove\"></top>";
 
     SR_EDIT(st, data);
 
@@ -462,7 +462,7 @@ test_discard_changes_advanced(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ed2\">\n"
+            "    <top xmlns=\"urn:ed2\">\n"
             "      <name>TestSecond</name>\n"
             "    </top>\n"
             "  </data>\n"
@@ -478,7 +478,7 @@ test_discard_changes_advanced(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ed2\">\n"
+            "    <top xmlns=\"urn:ed2\">\n"
             "      <name>TestSecond</name>\n"
             "      <num>12</num>\n"
             "    </top>\n"
@@ -504,7 +504,7 @@ test_discard_changes_advanced(void **state)
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ed2\">\n"
+            "    <top xmlns=\"urn:ed2\">\n"
             "      <name>TestSecond</name>\n"
             "    </top>\n"
             "  </data>\n"
@@ -523,7 +523,7 @@ test_locked_discard_changes(void **state)
 
     /* modify running */
     data =
-            "<top xmlns=\"ed2\">"
+            "<top xmlns=\"urn:ed2\">"
             "  <name>TestSecond</name>"
             "</top>";
     SEND_EDIT_RPC_DS(st, NC_DATASTORE_RUNNING, data)
@@ -539,7 +539,7 @@ test_locked_discard_changes(void **state)
 
     /* modify candidate */
     data =
-            "<top xmlns=\"ed2\">"
+            "<top xmlns=\"urn:ed2\">"
             "  <name>TestSecond</name>"
             "  <num>12</num>"
             "</top>";
@@ -569,7 +569,7 @@ test_locked_discard_changes(void **state)
     data =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
             "  <data>\n"
-            "    <top xmlns=\"ed2\">\n"
+            "    <top xmlns=\"urn:ed2\">\n"
             "      <name>TestSecond</name>\n"
             "    </top>\n"
             "  </data>\n"

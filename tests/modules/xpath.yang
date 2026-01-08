@@ -1,5 +1,5 @@
 module xpath {
-  namespace "x1";
+  namespace "urn:x1";
   prefix "x1";
   description "Module to test boolean operators for xpath";
 

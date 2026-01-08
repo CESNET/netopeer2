@@ -251,7 +251,7 @@ test_basic_replay(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -291,7 +291,7 @@ test_replay_real_time(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>First</first>\n"
             "</n1>\n";
     expected = data;
@@ -304,7 +304,7 @@ test_replay_real_time(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Second</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -324,7 +324,7 @@ test_replay_real_time(void **state)
     /* Check for real time notification */
     RECV_NOTIF(st);
     expected =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Second</first>\n"
             "</n1>\n";
     assert_string_equal(expected, st->str);
@@ -349,7 +349,7 @@ test_stop_time(void **state)
 
     /* Parse notification into lyd_node */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     expected = data;
@@ -387,7 +387,7 @@ test_stop_time(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Another</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -447,7 +447,7 @@ test_stop_time_sub_end(void **state)
     /* try sending a notfication real time on new session */
     /* send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Second</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -506,7 +506,7 @@ test_stream_no_pass(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -528,7 +528,7 @@ test_stream_pass(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
@@ -554,7 +554,7 @@ test_stream_no_pass_start_time(void **state)
 
     /* Send the notification */
     data =
-            "<n1 xmlns=\"n1\">\n"
+            "<n1 xmlns=\"urn:n1\">\n"
             "  <first>Test</first>\n"
             "</n1>\n";
     NOTIF_PARSE(st, data);
