@@ -569,7 +569,7 @@ test_edit_config_update(void **state)
     FREE_TEST_VARS(st);
 
     /* Updating an existing node is permited */
-    data = "<first xmlns=\"ed1\">Alt</first>\n";
+    data = "<first xmlns=\"urn:ed1\">Alt</first>\n";
     SEND_EDIT_RPC(st, data);
     ASSERT_OK_REPLY(st);
     FREE_TEST_VARS(st);
@@ -788,7 +788,7 @@ setup_test_copy_config_ds2ds_fail_read(void **state)
     SR_EDIT(st, data);
     FREE_TEST_VARS(st);
 
-    data = "<first xmlns=\"ed1\">TestFirst</first>\n";
+    data = "<first xmlns=\"urn:ed1\">TestFirst</first>\n";
     SR_EDIT_SESSION(st, st->sr_sess2, data);
     FREE_TEST_VARS(st);
 
@@ -995,7 +995,7 @@ setup_test_discard_changes(void **state)
     FREE_TEST_VARS(st)
 
     /* Merge into candidate */
-    data = "<first xmlns=\"ed1\">Test</first>";
+    data = "<first xmlns=\"urn:ed1\">Test</first>";
     SR_EDIT_SESSION(st, st->sr_sess2, data);
     FREE_TEST_VARS(st);
     return 0;
