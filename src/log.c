@@ -169,6 +169,7 @@ np2log_cb_sr(sr_log_level_t level, const char *msg)
         priority = LOG_WARNING;
         break;
     case SR_LL_INF:
+    case SR_LL_VRB:
         priority = LOG_INFO;
         break;
     case SR_LL_DBG:
