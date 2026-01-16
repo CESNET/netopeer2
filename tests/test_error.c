@@ -439,7 +439,7 @@ test_bad_element(void **state)
             "  <error-tag>bad-element</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
             "  <error-path xmlns:e=\"urn:errors\">/e:str</error-path>\n"
-            "  <error-message xml:lang=\"en\">Unsatisfied pattern - \"bb\" does not conform to \"a*\".</error-message>\n"
+            "  <error-message xml:lang=\"en\">Unsatisfied pattern - \"bb\" does not match \"a*\".</error-message>\n"
             "  <error-info>\n"
             "    <bad-element>str</bad-element>\n"
             "  </error-info>\n"
