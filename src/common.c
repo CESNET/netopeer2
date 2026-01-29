@@ -1330,7 +1330,7 @@ np_reply_success(const struct lyd_node *rpc, struct lyd_node *output)
         if (!strcmp(rpc->schema->module->name, "ietf-netconf")) {
             /* augment */
             lyd_find_path(rpc, "ietf-netconf-with-defaults:with-defaults", 0, &node);
-        } else if (!lys_find_child(rpc->schema, rpc->schema->module, "with-defaults", 0, LYS_LEAF, 0)) {
+        } else if (!lys_find_child(NULL, rpc->schema, rpc->schema->module, NULL, 0, "with-defaults", 0, 0)) {
             /* no with-defaults mode */
             node = NULL;
         } else {
