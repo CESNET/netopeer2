@@ -4,8 +4,8 @@
  * @brief Various configuration constants for netopeer2-server
  *
  * @copyright
- * Copyright (c) 2019 - 2023 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2023 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2026 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2026 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -45,6 +45,10 @@
 /** @brief Timeout for nc_ps_poll() call
  */
 #define NP2SRV_POLL_IO_TIMEOUT @POLL_IO_TIMEOUT@
+
+/** @brief Timeout for DS lock in the <lock> operation
+ */
+#define NP2SRV_DS_LOCK_TIMEOUT @DS_LOCK_TIMEOUT@
 
 /** @brief Starting allocated length for a message
  */
