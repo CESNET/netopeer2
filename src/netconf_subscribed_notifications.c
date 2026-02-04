@@ -446,7 +446,7 @@ sub_ntf_filter2xpath(sr_session_ctx_t *session, const char *filter_name_search_f
     if (subtree_filter) {
         /* subtree */
         if (((struct lyd_node_any *)subtree_filter)->value_type == LYD_ANYDATA_DATATREE) {
-            if (srsn_filter_subtree2xpath(((struct lyd_node_any *)subtree_filter)->value.tree, session, xpath)) {
+            if (srsn_filter_subtree2xpath(((struct lyd_node_any *)subtree_filter)->child, session, xpath)) {
                 if (err_reply) {
                     *err_reply = np_reply_err_sr(session, "get");
                 } else if (err_sess) {
@@ -766,7 +766,8 @@ sub_ntf_append_params_filter(struct lyd_node *parent, const struct np2srv_sub_nt
         } else if (sub->subtree_filter) {
             /* stream-subtree-filter */
             any = (struct lyd_node_any *)sub->subtree_filter;
-            if (lyd_new_any(parent, NULL, "stream-subtree-filter", any->value.tree, any->value_type, 0, NULL)) {
+            if (lyd_new_any(parent, NULL, "stream-subtree-filter", any->child ? any->child : (void *)any->value,
+                    any->value_type, 0, NULL)) {
                 rc = -1;
                 goto cleanup;
             }
@@ -787,7 +788,8 @@ sub_ntf_append_params_filter(struct lyd_node *parent, const struct np2srv_sub_nt
         } else if (sub->subtree_filter) {
             /* datastore-subtree-filter */
             any = (struct lyd_node_any *)sub->subtree_filter;
-            if (lyd_new_any(parent, yp_mod, "datastore-subtree-filter", any->value.tree, any->value_type, 0, NULL)) {
+            if (lyd_new_any(parent, yp_mod, "datastore-subtree-filter", any->child ? any->child : (void *)any->value,
+                    any->value_type, 0, NULL)) {
                 rc = -1;
                 goto cleanup;
             }

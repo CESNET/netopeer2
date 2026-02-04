@@ -156,14 +156,14 @@ np2srv_rpc_get_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess)
         if (!meta) {
             /* subtree */
             if (((struct lyd_node_any *)node)->value_type == LYD_ANYDATA_DATATREE) {
-                if (((struct lyd_node_any *)node)->value.tree) {
-                    if (srsn_filter_subtree2xpath(((struct lyd_node_any *)node)->value.tree, user_sess->sess, &xp_filter)) {
+                if (((struct lyd_node_any *)node)->child) {
+                    if (srsn_filter_subtree2xpath(((struct lyd_node_any *)node)->child, user_sess->sess, &xp_filter)) {
                         reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
                         goto cleanup;
                     }
                 }
             } else {
-                ERR("Invalid subtree filter:\n  %s", ((struct lyd_node_any *)node)->value.str);
+                ERR("Invalid subtree filter:\n  %s", ((struct lyd_node_any *)node)->value);
                 goto cleanup;
             }
         } else {
@@ -836,7 +836,7 @@ np2srv_rpc_subscribe_cb(const struct lyd_node *rpc, struct np_user_sess *user_se
         if (!meta) {
             /* subtree */
             if (((struct lyd_node_any *)node)->value_type == LYD_ANYDATA_DATATREE) {
-                if (srsn_filter_subtree2xpath(((struct lyd_node_any *)node)->value.tree, user_sess->sess, &xp_filter)) {
+                if (srsn_filter_subtree2xpath(((struct lyd_node_any *)node)->child, user_sess->sess, &xp_filter)) {
                     reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
                     goto cleanup;
                 }

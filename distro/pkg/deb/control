@@ -12,7 +12,7 @@ Build-Depends: cmake,
                libssh-dev,
                libssl-dev,
                libsysrepo-dev (>= 2.0.0),
-               libyang-dev (>= 2.0.0),
+               libyang-dev (>= 5.0.0),
                pkg-config,
                sysrepo-tools (>= 2.0.0),
                libcurl4-openssl-dev (>= 7.30.0)

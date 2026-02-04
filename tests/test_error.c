@@ -463,7 +463,7 @@ test_unknown_element(void **state)
             "  <error-type>application</error-type>\n"
             "  <error-tag>unknown-element</error-tag>\n"
             "  <error-severity>error</error-severity>\n"
-            "  <error-message xml:lang=\"en\">Node \"numero\" not found in the \"errors\" module. (path \"/\")</error-message>\n"
+            "  <error-message xml:lang=\"en\">Node \"numero\" not found in the \"errors\" module.</error-message>\n"
             "  <error-info>\n"
             "    <bad-element>numero</bad-element>\n"
             "  </error-info>\n"

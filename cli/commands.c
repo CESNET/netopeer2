@@ -361,10 +361,10 @@ recv_reply:
             switch (any->value_type) {
             case LYD_ANYDATA_STRING:
             case LYD_ANYDATA_XML:
-                fputs(any->value.str, output);
+                fputs(any->value, output);
                 break;
             case LYD_ANYDATA_DATATREE:
-                lyd_print_mem(&model_data, any->value.tree, LYD_XML, LYD_PRINT_SIBLINGS);
+                lyd_print_mem(&model_data, any->child, LYD_XML, LYD_PRINT_SIBLINGS);
                 fputs(model_data, output);
                 free(model_data);
                 break;

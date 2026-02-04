@@ -9,7 +9,7 @@ License: BSD-3-Clause
 
 BuildRequires: gcc
 BuildRequires: cmake
-BuildRequires: pkgconfig(libyang) >= 2.1.87
+BuildRequires: pkgconfig(libyang) >= 5.0.0
 BuildRequires: pkgconfig(libnetconf2) >= 3.0.0
 BuildRequires: pkgconfig(sysrepo) >= 2.2.111
 BuildRequires: sysrepo-tools
@@ -26,7 +26,7 @@ Requires: %{name}-cli%{?_isa} = %{version}-%{release}
 %package server
 Summary: netopeer2 NETCONF server
 
-Requires: libyang >= 2.0.231
+Requires: libyang >= 5.0.0
 # needed by script merge_hostkey.sh (run in post)
 Requires: openssl
 # needed by script setup.sh (run in post)
