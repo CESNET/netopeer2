@@ -227,7 +227,7 @@ np_rpc_get_filter(const struct lyd_node *rpc, const struct lyd_node **filter_sub
         if (!meta) {
             /* subtree */
             assert(((struct lyd_node_any *)node)->value_type == LYD_ANYDATA_DATATREE);
-            *filter_subtree = ((struct lyd_node_any *)node)->value.tree;
+            *filter_subtree = ((struct lyd_node_any *)node)->child;
         } else {
             /* xpath */
             *filter_xpath = lyd_get_meta_value(meta);

@@ -1105,7 +1105,7 @@ np_op_parse_config(struct lyd_node_any *node, uint32_t parse_options, struct lyd
 
     assert(node && node->schema && (node->schema->nodetype & LYD_NODE_ANY));
 
-    if (!node->value.str) {
+    if (!node->value && !node->child) {
         /* nothing to do, no data */
         goto cleanup;
     }
@@ -1116,13 +1116,13 @@ np_op_parse_config(struct lyd_node_any *node, uint32_t parse_options, struct lyd
     switch (node->value_type) {
     case LYD_ANYDATA_STRING:
     case LYD_ANYDATA_XML:
-        if (lyd_parse_data_mem(ly_ctx, node->value.str, LYD_XML, parse_options, 0, config)) {
+        if (lyd_parse_data_mem(ly_ctx, node->value, LYD_XML, parse_options, 0, config)) {
             reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
             goto cleanup;
         }
         break;
     case LYD_ANYDATA_DATATREE:
-        if (lyd_dup_siblings(node->value.tree, NULL, LYD_DUP_RECURSIVE, config)) {
+        if (lyd_dup_siblings(node->child, NULL, LYD_DUP_RECURSIVE, config)) {
             reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
             goto cleanup;
         }
