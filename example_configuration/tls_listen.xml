@@ -5,7 +5,9 @@
                 <name>default-tls</name>
                 <tls>
                     <tcp-server-parameters>
-                        <local-address>0.0.0.0</local-address>
+                        <local-bind>
+                            <local-address>0.0.0.0</local-address>
+                        </local-bind>
                     </tcp-server-parameters>
                     <tls-server-parameters>
                         <server-identity>
