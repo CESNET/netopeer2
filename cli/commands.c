@@ -76,6 +76,7 @@ extern int done;
 struct nc_session *session;
 volatile int interleave;
 int timed, monitor;
+LY_LOG_LEVEL verb_ly;
 
 static int cmd_disconnect(const char *arg, char **tmp_config_file);
 
@@ -2716,21 +2717,25 @@ cmd_verb(const char *arg, char **UNUSED(tmp_config_file))
     verb = arg + 5;
     if (!strcmp(verb, "error") || !strcmp(verb, "0")) {
         nc_verbosity(0);
+        verb_ly = 0;
 #ifdef NC_ENABLED_SSH_TLS
         nc_libssh_thread_verbosity(0);
 #endif
     } else if (!strcmp(verb, "warning") || !strcmp(verb, "1")) {
         nc_verbosity(1);
+        verb_ly = 1;
 #ifdef NC_ENABLED_SSH_TLS
         nc_libssh_thread_verbosity(1);
 #endif
     } else if (!strcmp(verb, "verbose") || !strcmp(verb, "2")) {
         nc_verbosity(2);
+        verb_ly = 2;
 #ifdef NC_ENABLED_SSH_TLS
         nc_libssh_thread_verbosity(2);
 #endif
     } else if (!strcmp(verb, "debug") || !strcmp(verb, "3")) {
         nc_verbosity(3);
+        verb_ly = 3;
 #ifdef NC_ENABLED_SSH_TLS
         nc_libssh_thread_verbosity(3);
 #endif

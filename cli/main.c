@@ -41,6 +41,7 @@
 int done;
 extern struct nc_session *session;
 extern int monitor;
+extern LY_LOG_LEVEL verb_ly;
 
 static void
 lnc2_print_clb(const struct nc_session *UNUSED(session), NC_VERB_LEVEL level, const char *msg)
@@ -69,6 +70,10 @@ lnc2_print_clb(const struct nc_session *UNUSED(session), NC_VERB_LEVEL level, co
 static void
 ly_print_clb(LY_LOG_LEVEL level, const char *msg, const char *data_path, const char *schema_path, uint64_t UNUSED(line))
 {
+    if (verb_ly < level) {
+        return;
+    }
+
     linenoiseBackgroundPrintStart();
 
     switch (level) {
