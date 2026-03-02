@@ -445,7 +445,7 @@ sub_ntf_filter2xpath(sr_session_ctx_t *session, const char *filter_name_search_f
 
     if (subtree_filter) {
         /* subtree */
-        if (((struct lyd_node_any *)subtree_filter)->value_type == LYD_ANYDATA_DATATREE) {
+        if (((struct lyd_node_any *)subtree_filter)->child) {
             if (srsn_filter_subtree2xpath(((struct lyd_node_any *)subtree_filter)->child, session, xpath)) {
                 if (err_reply) {
                     *err_reply = np_reply_err_sr(session, "get");
@@ -752,6 +752,7 @@ sub_ntf_append_params_filter(struct lyd_node *parent, const struct np2srv_sub_nt
 {
     int rc = 0;
     struct lyd_node_any *any;
+    struct lyd_node *node;
     const struct lys_module *yp_mod;
 
     yp_mod = ly_ctx_get_module_implemented(LYD_CTX(parent), "ietf-yang-push");
@@ -766,11 +767,11 @@ sub_ntf_append_params_filter(struct lyd_node *parent, const struct np2srv_sub_nt
         } else if (sub->subtree_filter) {
             /* stream-subtree-filter */
             any = (struct lyd_node_any *)sub->subtree_filter;
-            if (lyd_new_any(parent, NULL, "stream-subtree-filter", any->child ? any->child : (void *)any->value,
-                    any->value_type, 0, NULL)) {
+            if (lyd_new_any(parent, NULL, "stream-subtree-filter", any->child, any->value, 0, &node)) {
                 rc = -1;
                 goto cleanup;
             }
+            ((struct lyd_node_any *)node)->hints = any->hints;
         } else if (sub->xpath_filter) {
             /* stream-xpath-filter */
             if (lyd_new_term(parent, NULL, "stream-xpath-filter", sub->xpath_filter, 0, NULL)) {
@@ -788,11 +789,11 @@ sub_ntf_append_params_filter(struct lyd_node *parent, const struct np2srv_sub_nt
         } else if (sub->subtree_filter) {
             /* datastore-subtree-filter */
             any = (struct lyd_node_any *)sub->subtree_filter;
-            if (lyd_new_any(parent, yp_mod, "datastore-subtree-filter", any->child ? any->child : (void *)any->value,
-                    any->value_type, 0, NULL)) {
+            if (lyd_new_any(parent, yp_mod, "datastore-subtree-filter", any->child, any->value, 0, &node)) {
                 rc = -1;
                 goto cleanup;
             }
+            ((struct lyd_node_any *)node)->hints = any->hints;
         } else if (sub->xpath_filter) {
             /* datastore-xpath-filter */
             if (lyd_new_term(parent, yp_mod, "datastore-xpath-filter", sub->xpath_filter, 0, NULL)) {

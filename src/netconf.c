@@ -155,14 +155,12 @@ np2srv_rpc_get_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess)
 
         if (!meta) {
             /* subtree */
-            if (((struct lyd_node_any *)node)->value_type == LYD_ANYDATA_DATATREE) {
-                if (((struct lyd_node_any *)node)->child) {
-                    if (srsn_filter_subtree2xpath(((struct lyd_node_any *)node)->child, user_sess->sess, &xp_filter)) {
-                        reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
-                        goto cleanup;
-                    }
+            if (((struct lyd_node_any *)node)->child) {
+                if (srsn_filter_subtree2xpath(((struct lyd_node_any *)node)->child, user_sess->sess, &xp_filter)) {
+                    reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+                    goto cleanup;
                 }
-            } else {
+            } else if (((struct lyd_node_any *)node)->value) {
                 ERR("Invalid subtree filter:\n  %s", ((struct lyd_node_any *)node)->value);
                 goto cleanup;
             }
@@ -197,7 +195,7 @@ np2srv_rpc_get_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess)
         reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
         goto cleanup;
     }
-    if (lyd_new_any(output, NULL, "data", data_get, LYD_ANYDATA_DATATREE, LYD_NEW_ANY_USE_VALUE | LYD_NEW_VAL_OUTPUT, NULL)) {
+    if (lyd_new_any(output, NULL, "data", data_get, NULL, LYD_NEW_ANY_USE_VALUE | LYD_NEW_VAL_OUTPUT, NULL)) {
         reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
         goto cleanup;
     }
@@ -835,7 +833,7 @@ np2srv_rpc_subscribe_cb(const struct lyd_node *rpc, struct np_user_sess *user_se
 
         if (!meta) {
             /* subtree */
-            if (((struct lyd_node_any *)node)->value_type == LYD_ANYDATA_DATATREE) {
+            if (((struct lyd_node_any *)node)->child) {
                 if (srsn_filter_subtree2xpath(((struct lyd_node_any *)node)->child, user_sess->sess, &xp_filter)) {
                     reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
                     goto cleanup;

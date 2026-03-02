@@ -359,21 +359,12 @@ recv_reply:
                 fprintf(output, "MODULE\n");
             }
             any = (struct lyd_node_any *)lyd_child(op);
-            switch (any->value_type) {
-            case LYD_ANYDATA_STRING:
-            case LYD_ANYDATA_XML:
+            if (any->value) {
                 fputs(any->value, output);
-                break;
-            case LYD_ANYDATA_DATATREE:
+            } else {
                 lyd_print_mem(&model_data, any->child, LYD_XML, LYD_PRINT_SIBLINGS);
                 fputs(model_data, output);
                 free(model_data);
-                break;
-            default:
-                /* none of the others can appear here */
-                ERROR(__func__, "Unexpected anydata value format.");
-                ret = -1;
-                goto cleanup;
             }
 
             if (output == stdout) {

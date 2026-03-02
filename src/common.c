@@ -651,7 +651,7 @@ np_send_notif_rpc(sr_session_ctx_t *sr_session, enum np_rpc_exec_stage stage, co
 
     /* filter */
     if (filter_subtree) {
-        if (lyd_new_any(notif, NULL, "subtree-filter", filter_subtree, LYD_ANYDATA_DATATREE, 0, NULL)) {
+        if (lyd_new_any(notif, NULL, "subtree-filter", filter_subtree, NULL, 0, NULL)) {
             rc = -1;
             goto cleanup;
         }
@@ -1113,15 +1113,12 @@ np_op_parse_config(struct lyd_node_any *node, uint32_t parse_options, struct lyd
     ly_ctx = LYD_CTX(node);
 
     /* get/parse the data */
-    switch (node->value_type) {
-    case LYD_ANYDATA_STRING:
-    case LYD_ANYDATA_XML:
+    if (node->value) {
         if (lyd_parse_data_mem(ly_ctx, node->value, LYD_XML, parse_options, 0, config)) {
             reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
             goto cleanup;
         }
-        break;
-    case LYD_ANYDATA_DATATREE:
+    } else {
         if (lyd_dup_siblings(node->child, NULL, LYD_DUP_RECURSIVE, config)) {
             reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
             goto cleanup;
@@ -1133,11 +1130,6 @@ np_op_parse_config(struct lyd_node_any *node, uint32_t parse_options, struct lyd
                 goto cleanup;
             }
         }
-        break;
-    case LYD_ANYDATA_JSON:
-        EINT;
-        reply = np_reply_err_op_failed(NULL, ly_ctx, "Internal error.");
-        goto cleanup;
     }
 
     if (*config) {
