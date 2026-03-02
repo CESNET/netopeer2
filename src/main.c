@@ -226,7 +226,6 @@ np_rpc_get_filter(const struct lyd_node *rpc, const struct lyd_node **filter_sub
 
         if (!meta) {
             /* subtree */
-            assert(((struct lyd_node_any *)node)->value_type == LYD_ANYDATA_DATATREE);
             *filter_subtree = ((struct lyd_node_any *)node)->child;
         } else {
             /* xpath */
@@ -962,7 +961,7 @@ server_destroy(void)
     /* remove all CH clients so they do not reconnect */
     ly_ctx = sr_acquire_context(np2srv.sr_conn);
     ly_temp_log_options(&temp_lo);
-    if (!lyd_new_path2(NULL, ly_ctx, "/ietf-netconf-server:netconf-server/call-home", NULL, 0, 0, 0, &data, &node)) {
+    if (!lyd_new_path2(NULL, ly_ctx, "/ietf-netconf-server:netconf-server/call-home", NULL, 0, 0, &data, &node)) {
         lyd_new_meta(ly_ctx, data, NULL, "yang:operation", "none", 0, NULL);
         lyd_new_meta(ly_ctx, node, NULL, "yang:operation", "delete", 0, NULL);
         nc_server_config_setup_diff(data);

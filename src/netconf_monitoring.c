@@ -499,7 +499,7 @@ np2srv_rpc_getschema_cb(const struct lyd_node *rpc, struct np_user_sess *UNUSED(
         reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
         goto cleanup;
     }
-    if (lyd_new_any(output, NULL, "data", model_data, LYD_ANYDATA_STRING, LYD_NEW_ANY_USE_VALUE | LYD_NEW_VAL_OUTPUT, NULL)) {
+    if (lyd_new_any(output, NULL, "data", NULL, model_data, LYD_NEW_ANY_USE_VALUE | LYD_NEW_VAL_OUTPUT, NULL)) {
         reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
         goto cleanup;
     }
