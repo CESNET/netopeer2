@@ -195,7 +195,7 @@ np2srv_rpc_get_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess)
         reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
         goto cleanup;
     }
-    if (lyd_new_any(output, NULL, "data", data_get, NULL, LYD_NEW_ANY_USE_VALUE | LYD_NEW_VAL_OUTPUT, NULL)) {
+    if (lyd_new_any(output, NULL, "data", data_get, NULL, 0, LYD_NEW_ANY_USE_VALUE | LYD_NEW_VAL_OUTPUT, NULL)) {
         reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
         goto cleanup;
     }
