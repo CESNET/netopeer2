@@ -651,7 +651,7 @@ np_send_notif_rpc(sr_session_ctx_t *sr_session, enum np_rpc_exec_stage stage, co
 
     /* filter */
     if (filter_subtree) {
-        if (lyd_new_any(notif, NULL, "subtree-filter", filter_subtree, NULL, 0, NULL)) {
+        if (lyd_new_any(notif, NULL, "subtree-filter", filter_subtree, NULL, 0, 0, NULL)) {
             rc = -1;
             goto cleanup;
         }

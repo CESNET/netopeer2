@@ -767,7 +767,7 @@ sub_ntf_append_params_filter(struct lyd_node *parent, const struct np2srv_sub_nt
         } else if (sub->subtree_filter) {
             /* stream-subtree-filter */
             any = (struct lyd_node_any *)sub->subtree_filter;
-            if (lyd_new_any(parent, NULL, "stream-subtree-filter", any->child, any->value, 0, &node)) {
+            if (lyd_new_any(parent, NULL, "stream-subtree-filter", any->child, any->value, any->hints, 0, &node)) {
                 rc = -1;
                 goto cleanup;
             }
@@ -789,7 +789,7 @@ sub_ntf_append_params_filter(struct lyd_node *parent, const struct np2srv_sub_nt
         } else if (sub->subtree_filter) {
             /* datastore-subtree-filter */
             any = (struct lyd_node_any *)sub->subtree_filter;
-            if (lyd_new_any(parent, yp_mod, "datastore-subtree-filter", any->child, any->value, 0, &node)) {
+            if (lyd_new_any(parent, yp_mod, "datastore-subtree-filter", any->child, any->value, any->hints, 0, &node)) {
                 rc = -1;
                 goto cleanup;
             }
