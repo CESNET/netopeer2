@@ -604,8 +604,15 @@ np2srv_capabilities_oper_cb(sr_session_ctx_t *session, uint32_t sub_id,
         }
 
         if (lyd_new_list(datastore_capas, NULL, "per-node-capabilities",
-                0, &per_node_capas, '/')) {
+                0, &per_node_capas, "")) {
             ERR("Failed to create per-node-capabilities.");
+            rc = -1;
+            goto cleanup;
+        }
+
+        if (lyd_new_term(per_node_capas, NULL, "node-selector", "/",
+                0, NULL)) {
+            ERR("Failed to create node-selector.");
             rc = -1;
             goto cleanup;
         }
