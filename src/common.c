@@ -588,6 +588,7 @@ np_send_notif_rpc(sr_session_ctx_t *sr_session, enum np_rpc_exec_stage stage, co
     const struct ly_ctx *ly_ctx;
     const struct lys_module *mod;
     struct lyd_node *notif = NULL;
+    char nc_sid_str[11];
 
     /* get module */
     ly_ctx = sr_session_acquire_context(sr_session);
@@ -632,7 +633,8 @@ np_send_notif_rpc(sr_session_ctx_t *sr_session, enum np_rpc_exec_stage stage, co
     }
 
     /* NETCONF SID */
-    if (lyd_new_term_bin(notif, NULL, "netconf-sid", &netconf_sid, sizeof netconf_sid * 8, 0, NULL)) {
+    sprintf(nc_sid_str, "%" PRIu32, netconf_sid);
+    if (lyd_new_term(notif, NULL, "netconf-sid", nc_sid_str, 0, NULL)) {
         rc = -1;
         goto cleanup;
     }
