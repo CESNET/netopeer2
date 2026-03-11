@@ -1287,6 +1287,16 @@ server_data_subscribe(void)
     sr_session_switch_ds(np2srv.sr_sess, SR_DS_RUNNING);
 
     /*
+     * ietf-netconf-acm (need to sub before any sess is created, that happens after ietf-netconf-server sub)
+     */
+    if (sr_nacm_init(np2srv.sr_sess, 0, &np2srv.sr_data_sub)) {
+        goto error;
+    }
+    if (sr_nacm_glob_stats_subscribe(np2srv.sr_sess, 0, &np2srv.sr_nacm_stats_sub)) {
+        goto error;
+    }
+
+    /*
      * ietf-subscribed-notifications
      */
     mod_name = "ietf-subscribed-notifications";
@@ -1320,16 +1330,6 @@ server_data_subscribe(void)
     SR_CONFIG_SUBSCR("ietf-truststore", NULL, np2srv_libnetconf2_config_cb);
     SR_CONFIG_SUBSCR("ietf-netconf-server", NULL, np2srv_libnetconf2_config_cb);
     SR_CONFIG_SUBSCR("libnetconf2-netconf-server", NULL, np2srv_libnetconf2_config_cb);
-
-    /*
-     * ietf-netconf-acm
-     */
-    if (sr_nacm_init(np2srv.sr_sess, 0, &np2srv.sr_data_sub)) {
-        goto error;
-    }
-    if (sr_nacm_glob_stats_subscribe(np2srv.sr_sess, 0, &np2srv.sr_nacm_stats_sub)) {
-        goto error;
-    }
 
     return 0;
 
