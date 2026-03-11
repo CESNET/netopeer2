@@ -1445,8 +1445,7 @@ test_depth(void **state)
     GET_DATA_FILTER(st, "ietf-datastores:running", filter, NULL, NULL, 0, 0, 1, 0, NC_WD_ALL);
     expected =
             "<get-data xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-nmda\">\n"
-            "  <data>\n"
-            "  </data>\n"
+            "  <data/>\n"
             "</get-data>\n";
     assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
