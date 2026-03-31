@@ -482,6 +482,12 @@ np_getschema_print_yang(const struct lys_module *mod, const struct lysp_submodul
         goto cleanup;
     }
     len = ftell(f);
+    if (len == -1) {
+        asprintf(&msg, "Failed to ftell in \"%s\" (%s).", filepath, strerror(errno));
+        reply = np_reply_err_op_failed(NULL, ctx, msg);
+        free(msg);
+        goto cleanup;
+    }
     fseek(f, 0, SEEK_SET);
 
     /* read the data */
@@ -490,7 +496,12 @@ np_getschema_print_yang(const struct lys_module *mod, const struct lysp_submodul
         reply = np_reply_err_op_failed(NULL, ctx, "Memory allocation failed.");
         goto cleanup;
     }
-    fread(*yang_data, 1, len, f);
+    if (fread(*yang_data, 1, len, f) != (unsigned)len) {
+        asprintf(&msg, "Failed to read from \"%s\" (%s).", filepath, strerror(errno));
+        reply = np_reply_err_op_failed(NULL, ctx, msg);
+        free(msg);
+        goto cleanup;
+    }
     (*yang_data)[len] = '\0';
 
 cleanup:
