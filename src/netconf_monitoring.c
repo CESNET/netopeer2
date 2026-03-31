@@ -16,6 +16,7 @@
 
 #include "netconf_monitoring.h"
 
+#include <errno.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -321,16 +322,18 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
         lyd_new_term(list, NULL, "namespace", mod->ns, 0, NULL);
         lyd_new_term(list, NULL, "location", "NETCONF", 0, NULL);
 
-        LY_ARRAY_FOR(mod->parsed->includes, u) {
-            submod = mod->parsed->includes[u].submodule;
+        if (mod->parsed) {
+            LY_ARRAY_FOR(mod->parsed->includes, u) {
+                submod = mod->parsed->includes[u].submodule;
 
-            lyd_new_list(cont, NULL, "schema", 0, &list, submod->name, submod->revs ? submod->revs[0].date : "", "yang");
-            lyd_new_term(list, NULL, "namespace", mod->ns, 0, NULL);
-            lyd_new_term(list, NULL, "location", "NETCONF", 0, NULL);
+                lyd_new_list(cont, NULL, "schema", 0, &list, submod->name, submod->revs ? submod->revs[0].date : "", "yang");
+                lyd_new_term(list, NULL, "namespace", mod->ns, 0, NULL);
+                lyd_new_term(list, NULL, "location", "NETCONF", 0, NULL);
 
-            lyd_new_list(cont, NULL, "schema", 0, &list, submod->name, submod->revs ? submod->revs[0].date : "", "yin");
-            lyd_new_term(list, NULL, "namespace", mod->ns, 0, NULL);
-            lyd_new_term(list, NULL, "location", "NETCONF", 0, NULL);
+                lyd_new_list(cont, NULL, "schema", 0, &list, submod->name, submod->revs ? submod->revs[0].date : "", "yin");
+                lyd_new_term(list, NULL, "namespace", mod->ns, 0, NULL);
+                lyd_new_term(list, NULL, "location", "NETCONF", 0, NULL);
+            }
         }
     }
 
@@ -411,18 +414,91 @@ error:
     return SR_ERR_INTERNAL;
 }
 
+/**
+ * @brief Print YANG (sub)module data.
+ *
+ * @param[in] mod Module to print, if @p submod not set.
+ * @param[in] submod Submodule to print, if set.
+ * @param[out] yang_data Printed YANG data.
+ * @return NULL on success;
+ * @return server reply on error.
+ */
+static struct nc_server_reply *
+np_getschema_print_yang(const struct lys_module *mod, const struct lysp_submodule *submod, char **yang_data)
+{
+    struct nc_server_reply *reply = NULL;
+    const struct ly_ctx *ctx;
+    const struct lys_module *m;
+    const char *filepath, *name, *revision;
+    char *path = NULL, *msg;
+    FILE *f = NULL;
+    uint32_t idx;
+    int len;
+
+    ctx = mod ? mod->ctx : submod->mod->ctx;
+
+    if (submod && submod->filepath) {
+        filepath = submod->filepath;
+    } else if (mod && mod->filepath) {
+        filepath = mod->filepath;
+    } else {
+        /* find a module with filepath */
+        idx = ly_ctx_internal_modules_count(ctx);
+        while ((m = ly_ctx_get_module_iter(ctx, &idx))) {
+            if (m->filepath) {
+                break;
+            }
+        }
+        if (!m) {
+            reply = np_reply_err_op_failed(NULL, ctx, "Failed to find a module with filepath.");
+            free(msg);
+            goto cleanup;
+        }
+
+        /* create the path to the file */
+        len = strrchr(m->filepath, '/') - m->filepath;
+        name = submod ? submod->name : mod->name;
+        revision = submod ? (submod->revs ? submod->revs[0].date : NULL) : mod->revision;
+        asprintf(&path, "%.*s/%s%s%s.yang", len, m->filepath, name, revision ? "@" : "", revision ? revision : "");
+        filepath = path;
+    }
+
+    /* open the file */
+    f = fopen(filepath, "r");
+    if (!f) {
+        asprintf(&msg, "Failed to open \"%s\" (%s).", filepath, strerror(errno));
+        reply = np_reply_err_op_failed(NULL, ctx, msg);
+        free(msg);
+        goto cleanup;
+    }
+
+    /* learn file size */
+    fseek(f, 0, SEEK_END);
+    len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    /* read the data */
+    *yang_data = malloc(len + 1);
+    fread(*yang_data, 1, len, f);
+    (*yang_data)[len] = '\0';
+
+cleanup:
+    if (f) {
+        fclose(f);
+    }
+    free(path);
+    return reply;
+}
+
 struct nc_server_reply *
 np2srv_rpc_getschema_cb(const struct lyd_node *rpc, struct np_user_sess *UNUSED(user_sess))
 {
     struct nc_server_reply *reply = NULL;
     const char *identifier = NULL, *revision = NULL, *format = NULL;
-    char *model_data = NULL;
-    struct ly_out *out;
+    char *module_data = NULL;
     const struct lys_module *module = NULL;
     const struct lysp_submodule *submodule = NULL;
     struct lyd_node *node, *output = NULL;
-    LYS_OUTFORMAT outformat = 0;
-    LY_ERR lyrc;
 
     /* identifier */
     if (!lyd_find_path(rpc, "identifier", 0, &node)) {
@@ -472,25 +548,13 @@ np2srv_rpc_getschema_cb(const struct lyd_node *rpc, struct np_user_sess *UNUSED(
     }
 
     /* check format */
-    if (!format || !strcmp(format, "yang")) {
-        outformat = LYS_OUT_YANG;
-    } else if (!strcmp(format, "yin")) {
-        outformat = LYS_OUT_YIN;
-    } else {
+    if (format && strcmp(format, "yang")) {
         reply = np_reply_err_invalid_val(LYD_CTX(rpc), "The requested format is not supported.", "format");
         goto cleanup;
     }
 
-    /* print */
-    ly_out_new_memory(&model_data, 0, &out);
-    if (module) {
-        lyrc = lys_print_module(out, module, outformat, 0, 0);
-    } else {
-        lyrc = lys_print_submodule(out, submodule, outformat, 0, 0);
-    }
-    ly_out_free(out, NULL, 0);
-    if (lyrc) {
-        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
+    /* get module data */
+    if ((reply = np_getschema_print_yang(module, submodule, &module_data))) {
         goto cleanup;
     }
 
@@ -499,16 +563,16 @@ np2srv_rpc_getschema_cb(const struct lyd_node *rpc, struct np_user_sess *UNUSED(
         reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
         goto cleanup;
     }
-    if (lyd_new_any(output, NULL, "data", NULL, model_data, 0, LYD_NEW_ANY_USE_VALUE | LYD_NEW_VAL_OUTPUT, NULL)) {
+    if (lyd_new_any(output, NULL, "data", NULL, module_data, 0, LYD_NEW_ANY_USE_VALUE | LYD_NEW_VAL_OUTPUT, NULL)) {
         reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
         goto cleanup;
     }
-    model_data = NULL;
+    module_data = NULL;
     reply = np_reply_success(rpc, output);
     output = NULL;
 
 cleanup:
-    free(model_data);
+    free(module_data);
     lyd_free_siblings(output);
     return reply;
 }
