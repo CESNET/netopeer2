@@ -458,7 +458,10 @@ np_getschema_print_yang(const struct lys_module *mod, const struct lysp_submodul
         len = strrchr(m->filepath, '/') - m->filepath;
         name = submod ? submod->name : mod->name;
         revision = submod ? (submod->revs ? submod->revs[0].date : NULL) : mod->revision;
-        asprintf(&path, "%.*s/%s%s%s.yang", len, m->filepath, name, revision ? "@" : "", revision ? revision : "");
+        if (asprintf(&path, "%.*s/%s%s%s.yang", len, m->filepath, name, revision ? "@" : "", revision ? revision : "") == -1) {
+            reply = np_reply_err_op_failed(NULL, ctx, "Memory allocation failed.");
+            goto cleanup;
+        }
         filepath = path;
     }
 
@@ -472,12 +475,21 @@ np_getschema_print_yang(const struct lys_module *mod, const struct lysp_submodul
     }
 
     /* learn file size */
-    fseek(f, 0, SEEK_END);
+    if (fseek(f, 0, SEEK_END) == -1) {
+        asprintf(&msg, "Failed to fseek in \"%s\" (%s).", filepath, strerror(errno));
+        reply = np_reply_err_op_failed(NULL, ctx, msg);
+        free(msg);
+        goto cleanup;
+    }
     len = ftell(f);
     fseek(f, 0, SEEK_SET);
 
     /* read the data */
     *yang_data = malloc(len + 1);
+    if (!*yang_data) {
+        reply = np_reply_err_op_failed(NULL, ctx, "Memory allocation failed.");
+        goto cleanup;
+    }
     fread(*yang_data, 1, len, f);
     (*yang_data)[len] = '\0';
 
