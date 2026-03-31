@@ -451,7 +451,6 @@ np_getschema_print_yang(const struct lys_module *mod, const struct lysp_submodul
         }
         if (!m) {
             reply = np_reply_err_op_failed(NULL, ctx, "Failed to find a module with filepath.");
-            free(msg);
             goto cleanup;
         }
 
