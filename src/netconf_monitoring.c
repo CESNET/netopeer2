@@ -429,25 +429,13 @@ np_getschema_print_yang(const struct lys_module *mod, const struct lysp_submodul
     struct nc_server_reply *reply = NULL;
     const struct ly_ctx *ctx;
     const struct lys_module *m;
-    const char *filepath, *name, *revision, *int_yang_data;
+    const char *filepath, *name, *revision;
     char *path = NULL, *msg;
     FILE *f = NULL;
     uint32_t idx;
     int len;
 
     ctx = mod ? mod->ctx : submod->mod->ctx;
-
-    if (mod && !lys_internal_module_get_yang(mod->name, mod->revision, &int_yang_data)) {
-        /* internal libyang module */
-        *yang_data = strdup(int_yang_data);
-        if (!*yang_data) {
-            reply = np_reply_err_op_failed(NULL, ctx, "Memory allocation failed.");
-            goto cleanup;
-        }
-
-        /* success */
-        goto cleanup;
-    }
 
     if (submod && submod->filepath) {
         filepath = submod->filepath;
