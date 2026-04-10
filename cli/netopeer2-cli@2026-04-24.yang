@@ -1,0 +1,158 @@
+module netopeer2-cli {
+    namespace "urn:cesnet:netopeer2-cli";
+    prefix cli;
+
+    yang-version 1.1;
+
+    organization
+        "CESNET";
+
+    contact
+        "Author: Petr Hanzlik
+                 <phanzlik@cesnet.cz>";
+
+    description
+        "This module contains the configuration data for the Netopeer2 NETCONF
+         Command Line Interface (CLI) client.";
+
+    revision "2026-04-24" {
+        description
+            "Initial revision.";
+    }
+
+    typedef auth-preference {
+        type union {
+            type uint16;
+            type enumeration {
+                enum disabled {
+                    description "Authentication method is disabled.";
+                }
+            }
+        }
+        description
+            "Specifies the preference level for an authentication method.
+             A higher number indicates a higher priority.";
+    }
+
+    container netconf-client {
+        description
+            "Global configuration and settings for the Netopeer2 CLI client.";
+
+        leaf output-format {
+            type enumeration {
+                enum xml;
+                enum json;
+            }
+            default "xml";
+            description
+                "Determines the data format in which the server's replies will be displayed.";
+        }
+
+        leaf shrink {
+            type boolean;
+            default false;
+            description
+                "If set to true, the client will print the output minimized,
+                 removing extra whitespaces and indentation.";
+        }
+
+        leaf editor {
+            type string;
+            description
+                "Specifies the path or command for the preferred text editor
+                 to be used for interactive inputs (e.g., 'vim', 'nano').";
+        }
+
+        leaf search-path {
+            type string;
+            description
+                "Specifies the directory path where the client will search
+                 for required YANG schemas.";
+        }
+
+        container authentication {
+            description
+                "Configuration related to the SSH/TLS authentication methods
+                 used by the client to connect to a NETCONF server.";
+
+            container method-preference {
+                description
+                    "Preferences for different SSH authentication methods.
+                     The client will attempt methods in the order of their preference.";
+
+                leaf publickey {
+                    type auth-preference;
+                    default 3;
+                    description
+                        "Preference level for public key authentication.";
+                }
+
+                leaf password {
+                    type auth-preference;
+                    default 2;
+                    description
+                        "Preference level for password authentication.";
+                }
+
+                leaf interactive {
+                    type auth-preference;
+                    default 1;
+                    description
+                        "Preference level for keyboard-interactive authentication.";
+                }
+            }
+
+            container keys {
+                description
+                    "Configuration of cryptographic key pairs used for client authentication.";
+
+                list pair {
+                    key public;
+                    description
+                        "A list of associated public and private key pairs.";
+
+                    leaf public {
+                        type string;
+                        description
+                            "File path to the public key (e.g., '~/.ssh/id_rsa.pub').";
+                    }
+
+                    leaf private {
+                        type string;
+                        mandatory true;
+                        description
+                            "File path to the corresponding private key (e.g., '~/.ssh/id_rsa').";
+                    }
+                }
+            }
+
+            leaf knownhost-mode {
+                type enumeration {
+                    enum accept {
+                        description "Client automatically trusts and saves the presented server key into the known_hosts file,
+                        overwriting any previously stored key for that host.";
+                    }
+                    enum accept-new {
+                        description "Client automatically saves keys for first-time connections
+                        but rejects the connection if an already known server presents a different key.";
+                    }
+                    enum ask {
+                        description "Client pauses the connection to interactively prompt the user for
+                        manual verification of any unknown or changed server keys.";
+                    }
+                    enum skip {
+                        description "Client completely bypasses all server identity checks and
+                        connects without verifying or updating the known_hosts file.";
+                    }
+                    enum strict {
+                        description "Client requires the server's key to be pre-stored in the known_hosts file
+                        and immediately rejects the connection if it is missing or mismatched.";
+                    }
+                }
+                description
+                    "Specifies the mode for handling known host keys.
+                    If does not exist, the client will use library defaults.";
+            }
+        }
+    }
+}
