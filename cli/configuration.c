@@ -14,6 +14,7 @@
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
+
 #define _GNU_SOURCE
 #include <assert.h>
 #include <dirent.h>
@@ -21,6 +22,7 @@
 #include <fcntl.h>
 #include <pwd.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -38,6 +40,7 @@
 #include "compat.h"
 #include "configuration.h"
 #include "linenoise/linenoise.h"
+#include "netopeer2-cli.h"
 
 struct cli_opts opts = {.output_format = LYD_XML};
 
@@ -313,27 +316,32 @@ load_config(void)
             /* <netconf-client> -> <output-format> */
             if (!strcmp(lyd_get_value(child), "json")) {
                 opts.output_format = LYD_JSON;
-                opts.output_flag = 0;
-            } else if (!strcmp(lyd_get_value(child), "json_noformat")) {
-                opts.output_format = LYD_JSON;
-                opts.output_flag = LYD_PRINT_SHRINK;
-            } else if (!strcmp(lyd_get_value(child), "xml_noformat")) {
-                opts.output_format = LYD_XML;
-                opts.output_flag = LYD_PRINT_SHRINK;
+            } /* else default (formatted XML) */
+        } else if (!strcmp(LYD_NAME(child), "shrink")) {
+            /* <netconf-client> -> <shrink> */
+            if (!strcmp(lyd_get_value(child), "true")) {
+                opts.output_flag = 1;
             } /* else default (formatted XML) */
         }
 #ifdef NC_ENABLED_SSH_TLS
         else if (!strcmp(LYD_NAME(child), "authentication")) {
             /* <netconf-client> -> <authentication> */
             LY_LIST_FOR(lyd_child(child), auth_child) {
-                if (!strcmp(LYD_NAME(auth_child), "pref")) {
+                if (!strcmp(LYD_NAME(auth_child), "method-preference")) {
                     LY_LIST_FOR(lyd_child(auth_child), pref_child) {
+                        uint16_t pref_value;
+                        if (!strcmp(lyd_get_value(pref_child), "disabled")) {
+                            pref_value = -1;
+                        } else {
+                            pref_value = strtoul(lyd_get_value(pref_child), NULL, 10);
+                        }
+
                         if (!strcmp(LYD_NAME(pref_child), "publickey")) {
-                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PUBLICKEY, atoi(lyd_get_value(pref_child)));
+                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PUBLICKEY, pref_value);
                         } else if (!strcmp(LYD_NAME(pref_child), "interactive")) {
-                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_INTERACTIVE, atoi(lyd_get_value(pref_child)));
+                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_INTERACTIVE, pref_value);
                         } else if (!strcmp(LYD_NAME(pref_child), "password")) {
-                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PASSWORD, atoi(lyd_get_value(pref_child)));
+                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PASSWORD, pref_value);
                         }
                     }
                 } else if (!strcmp(LYD_NAME(auth_child), "keys")) {
@@ -367,17 +375,38 @@ cleanup:
     free(netconf_dir);
 }
 
+int 
+store_pref(int pref_type, struct lyd_node *pref_parent, const char *pref_name) 
+{
+    int pref_value;
+    char buf[23];
+
+    pref_value = nc_client_ssh_get_auth_pref(pref_type);
+    if (pref_value < 0) {
+        if (lyd_new_term(pref_parent, NULL, pref_name, "disabled", 0, NULL)) {
+            return 1;
+        }
+    } else {
+        sprintf(buf, "%d", pref_value);
+        if (lyd_new_term(pref_parent, NULL, pref_name, buf, 0, NULL)) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 void
 store_config(void)
 {
 #ifdef NC_ENABLED_SSH_TLS
-    char buf[23];
     struct lyd_node *auth, *pref, *keys, *pair;
 #endif /* NC_ENABLED_SSH_TLS */
     char *netconf_dir = NULL, *history_file = NULL, *config_file = NULL;
     struct ly_ctx *ctx = NULL;
     struct lyd_node *root = NULL;
-    const char *str, *ns = "urn:cesnet:netconf-client";
+    struct lys_module *cli = NULL;
+    const char *str;
 
     if (ly_ctx_new(NULL, 0, &ctx)) {
         ERROR(__func__, "Failed to create context.");
@@ -385,59 +414,73 @@ store_config(void)
         goto cleanup;
     }
 
-    if (lyd_new_opaq2(NULL, ctx, "netconf-client", NULL, NULL, ns, &root)) {
+    if (lys_parse_mem(ctx, netopeer2_cli_yang, LYS_IN_YANG, &cli)) {
+        ERROR(__func__, "Failed to load netopeer2-cli YANG module from memory.");
+        goto cleanup;
+    }
+
+    if (lyd_new_inner(NULL, cli, "netconf-client", 0, &root)) {
+        ERROR(__func__, "Failed to create contanier netconf-client.");
         goto cleanup;
     }
 
     /* editor */
-    if (lyd_new_opaq2(root, NULL, "editor", opts.config_editor, NULL, ns, NULL)) {
+    if (lyd_new_term(root, NULL, "editor", opts.config_editor, 0, NULL)) {
+        goto cleanup;
+    }
+
+    /* output-format */
+    if (opts.output_format == LYD_JSON) {
+        str = "json";
+    } else if (opts.output_format == LYD_XML) {
+        str = "xml";
+    } else {
+        ERROR(__func__, "Unknown format.");
+        goto cleanup;
+    }   
+
+    if (lyd_new_term(root, NULL, "output-format", str, 0, NULL)) {
+        goto cleanup;
+    }
+
+    /* shrink*/
+    if (lyd_new_term(root, NULL, "shrink", opts.output_flag ? "true" : "false", 0, NULL)) {
         goto cleanup;
     }
 
     /* search-path */
     if (nc_client_get_schema_searchpath()) {
-        if (lyd_new_opaq2(root, NULL, "searchpath", nc_client_get_schema_searchpath(), NULL, ns, NULL)) {
+        if (lyd_new_term(root, NULL, "searchpath", nc_client_get_schema_searchpath(), 0, NULL)) {
             goto cleanup;
         }
     }
 
-    /* output-format */
-    if (opts.output_format == LYD_JSON) {
-        str = opts.output_flag ? "json_noformat" : "json";
-    } else {
-        str = opts.output_flag ? "xml_noformat" : "xml";
-    }
-    if (lyd_new_opaq2(root, NULL, "output-format", str, NULL, ns, NULL)) {
-        goto cleanup;
-    }
-
 #ifdef NC_ENABLED_SSH_TLS
     /* SSH authentication */
-    if (lyd_new_opaq2(root, NULL, "authentication", NULL, NULL, ns, &auth)) {
+    if (lyd_new_inner(root, NULL, "authentication", 0, &auth)) {
         goto cleanup;
     }
 
     /* pref */
-    if (lyd_new_opaq2(auth, NULL, "pref", NULL, NULL, ns, &pref)) {
+    if (lyd_new_inner(auth, NULL, "method-preference", 0,&pref)) {
         goto cleanup;
     }
-
-    sprintf(buf, "%d", nc_client_ssh_get_auth_pref(NC_SSH_AUTH_PUBLICKEY));
-    if (lyd_new_opaq2(pref, NULL, "publickey", buf, NULL, ns, NULL)) {
+    
+    if (store_pref(NC_SSH_AUTH_PUBLICKEY, pref, "publickey")) {
         goto cleanup;
     }
-    sprintf(buf, "%d", nc_client_ssh_get_auth_pref(NC_SSH_AUTH_PASSWORD));
-    if (lyd_new_opaq2(pref, NULL, "password", buf, NULL, ns, NULL)) {
+    
+    if (store_pref(NC_SSH_AUTH_PASSWORD, pref, "password")) {
         goto cleanup;
     }
-    sprintf(buf, "%d", nc_client_ssh_get_auth_pref(NC_SSH_AUTH_INTERACTIVE));
-    if (lyd_new_opaq2(pref, NULL, "interactive", buf, NULL, ns, NULL)) {
+    
+    if (store_pref(NC_SSH_AUTH_INTERACTIVE, pref, "interactive")) {
         goto cleanup;
     }
 
     /* keys */
     if (nc_client_ssh_get_keypair_count()) {
-        if (lyd_new_opaq2(auth, NULL, "keys", NULL, NULL, ns, &keys)) {
+        if (lyd_new_inner(auth, NULL, "keys", 0, &keys)) {
             goto cleanup;
         }
 
@@ -446,13 +489,10 @@ store_config(void)
             const char *priv_key, *pub_key;
 
             nc_client_ssh_get_keypair(i, &pub_key, &priv_key);
-            if (lyd_new_opaq2(keys, NULL, "pair", NULL, NULL, ns, &pair)) {
+            if (lyd_new_list(keys, NULL, "pair", 0, &pair, pub_key)) {
                 goto cleanup;
             }
-            if (lyd_new_opaq2(pair, NULL, "public", pub_key, NULL, ns, NULL)) {
-                goto cleanup;
-            }
-            if (lyd_new_opaq2(pair, NULL, "private", priv_key, NULL, ns, NULL)) {
+            if (lyd_new_term(pair, NULL, "private", priv_key, 0, NULL)) {
                 goto cleanup;
             }
         }
