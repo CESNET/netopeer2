@@ -254,16 +254,36 @@ cleanup:
     free(history_file);
 }
 
+
+/**
+ * @brief Loads the authentication method preference from the configuration.
+
+ * @param node Node to load from.
+ * @param auth_pref_type Type of the authentication method preference to set.
+ */
+static void
+load_auth_pref(const struct lyd_node *node, int auth_pref_type)
+{
+    int pref_value;
+
+    if (!strcmp(lyd_get_value(node), "disabled")) {
+        pref_value = -1;
+    } else {
+        pref_value = strtoul(lyd_get_value(match), NULL, 10);
+    }
+    nc_client_ssh_set_auth_pref(auth_pref_type, pref_value);
+}
+
 void
 load_config(void)
 {
     char *netconf_dir = NULL, *config_file = NULL;
-    struct lyd_node *config = NULL, *child;
+    struct lyd_node *config = NULL, *match = NULL, *client;
     struct ly_ctx *ctx = NULL;
 
 #ifdef NC_ENABLED_SSH_TLS
     const char *key_pub, *key_priv;
-    struct lyd_node *auth_child, *pref_child, *key_child, *pair_child;
+    struct lyd_node *auth_pref, *parent, *key;
 #endif
 
     if ((netconf_dir = get_netconf_dir()) == NULL) {
@@ -273,6 +293,11 @@ load_config(void)
     if (ly_ctx_new(ly_yang_module_dir(), 0, &ctx)) {
         ERROR(__func__, "Failed to create context.");
         ERROR(__func__, "Unable to load configuration due to the previous error.");
+        goto cleanup;
+    }
+
+    if (lys_parse_mem(ctx, netopeer2_cli_yang, LYS_IN_YANG, NULL)) {
+        ERROR(__func__, "Failed to load netopeer2-cli YANG module from memory.");
         goto cleanup;
     }
 
@@ -286,87 +311,91 @@ load_config(void)
         goto cleanup;
     }
 
-    if (lyd_parse_data_path(ctx, config_file, LYD_XML, LYD_PARSE_ONLY | LYD_PARSE_OPAQ, 0, &config)) {
+    if (lyd_parse_data_path(ctx, config_file, LYD_XML, 0, LYD_VALIDATE_PRESENT, &config)) {
         ERROR(__func__, "Failed to load configuration of NETCONF client (lyxml_read_path failed).");
         goto cleanup;
     }
 
-    if (strcmp(LYD_NAME(config), "netconf-client")) {
+    if (!config || strcmp(LYD_NAME(config), "netconf-client")) {
         ERROR(__func__, "Unknown stored configuration data.");
         goto cleanup;
     }
 
-    LY_LIST_FOR(lyd_child(config), child) {
-        if (!strcmp(LYD_NAME(child), "editor")) {
-            /* <netconf-client> -> <editor> */
-            free(opts.config_editor);
-            opts.config_editor = strdup(lyd_get_value(child));
-        } else if (!strcmp(LYD_NAME(child), "searchpath")) {
-            /* <netconf-client> -> <searchpath> */
-            errno = 0;
-            if (!mkdir(lyd_get_value(child), 00700) || (errno == EEXIST)) {
-                if (errno == 0) {
-                    ERROR(__func__, "Search path \"%s\" did not exist, created.", lyd_get_value(child));
-                }
-                nc_client_set_schema_searchpath(lyd_get_value(child));
-            } else {
-                ERROR(__func__, "Search path \"%s\" cannot be created (%s).", lyd_get_value(child), strerror(errno));
-            }
-        } else if (!strcmp(LYD_NAME(child), "output-format")) {
-            /* <netconf-client> -> <output-format> */
-            if (!strcmp(lyd_get_value(child), "json")) {
-                opts.output_format = LYD_JSON;
-            } /* else default (formatted XML) */
-        } else if (!strcmp(LYD_NAME(child), "shrink")) {
-            /* <netconf-client> -> <shrink> */
-            if (!strcmp(lyd_get_value(child), "true")) {
-                opts.output_flag = 1;
-            } /* else default (formatted XML) */
-        }
-#ifdef NC_ENABLED_SSH_TLS
-        else if (!strcmp(LYD_NAME(child), "authentication")) {
-            /* <netconf-client> -> <authentication> */
-            LY_LIST_FOR(lyd_child(child), auth_child) {
-                if (!strcmp(LYD_NAME(auth_child), "method-preference")) {
-                    LY_LIST_FOR(lyd_child(auth_child), pref_child) {
-                        uint16_t pref_value;
-                        if (!strcmp(lyd_get_value(pref_child), "disabled")) {
-                            pref_value = -1;
-                        } else {
-                            pref_value = strtoul(lyd_get_value(pref_child), NULL, 10);
-                        }
+    client = config;
 
-                        if (!strcmp(LYD_NAME(pref_child), "publickey")) {
-                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PUBLICKEY, pref_value);
-                        } else if (!strcmp(LYD_NAME(pref_child), "interactive")) {
-                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_INTERACTIVE, pref_value);
-                        } else if (!strcmp(LYD_NAME(pref_child), "password")) {
-                            nc_client_ssh_set_auth_pref(NC_SSH_AUTH_PASSWORD, pref_value);
-                        }
-                    }
-                } else if (!strcmp(LYD_NAME(auth_child), "keys")) {
-                    LY_LIST_FOR(lyd_child(auth_child), key_child) {
-                        if (!strcmp(LYD_NAME(key_child), "pair")) {
-                            key_pub = NULL;
-                            key_priv = NULL;
-                            LY_LIST_FOR(lyd_child(key_child), pair_child) {
-                                if (!strcmp(LYD_NAME(pair_child), "public")) {
-                                    key_pub = lyd_get_value(pair_child);
-                                } else if (!strcmp(LYD_NAME(pair_child), "private")) {
-                                    key_priv = lyd_get_value(pair_child);
-                                }
-                            }
-                            if (key_pub && key_priv) {
-                                nc_client_ssh_ch_add_keypair(key_pub, key_priv);
-                                nc_client_ssh_add_keypair(key_pub, key_priv);
-                            }
-                        }
-                    }
-                }
+    /* <netconf-client> -> <editor> */
+    lyd_find_path(client, "editor", 0, &match);
+    if (match) {
+        free(opts.config_editor);
+        opts.config_editor = strdup(lyd_get_value(match));
+    }
+
+    /* <netconf-client> -> <search-path> */
+    lyd_find_path(client, "search-path", 0, &match);
+    if (match) {
+        errno = 0;
+        if (!mkdir(lyd_get_value(match), 00700) || (errno == EEXIST)) {
+            if (errno == 0) {
+                ERROR(__func__, "Search path \"%s\" did not exist, created.", lyd_get_value(match));
+            }
+            nc_client_set_schema_searchpath(lyd_get_value(match));
+        } else {
+            ERROR(__func__, "Search path \"%s\" cannot be created (%s).", lyd_get_value(match), strerror(errno));
+        }
+    }
+
+    /* <netconf-client> -> <output-format> */
+    lyd_find_path(client, "output-format", 0, &match);
+    if (!strcmp(lyd_get_value(match), "json")) {
+        opts.output_format = LYD_JSON;
+    } /* else default (formatted XML) */
+
+    /* <netconf-client> -> <shrink> */
+    lyd_find_path(client, "shrink", 0, &match);
+    if (!strcmp(lyd_get_value(match), "true")) {
+        opts.output_flag = 1;
+    } /* else default (formatted XML) */
+#ifdef NC_ENABLED_SSH_TLS
+    lyd_find_path(client, "authentication", 0, &auth_pref);
+
+    /* <netconf-client> -> <authentication> -> <method-preference>*/
+    lyd_find_path(auth_pref, "method-preference", 0, &parent);
+    lyd_find_path(parent, "publickey", 0, &match);
+    load_auth_pref(match, NC_SSH_AUTH_PUBLICKEY);
+
+    lyd_find_path(parent, "interactive", 0, &match);
+    load_auth_pref(match, NC_SSH_AUTH_INTERACTIVE);
+
+    lyd_find_path(parent, "password", 0, &match);
+    load_auth_pref(match, NC_SSH_AUTH_PASSWORD);
+
+    /* <netconf-client> -> <authentication> -> <keys>*/
+    lyd_find_path(auth_pref, "keys", 0, &parent);
+    if (parent) {
+        LY_LIST_FOR(lyd_child(parent), key) {
+            key_pub = NULL;
+            key_priv = NULL;
+
+            lyd_find_path(key, "public", 0, &match);
+            key_pub = lyd_get_value(match);
+
+            lyd_find_path(key, "private", 0, &match);
+            key_priv = lyd_get_value(match);
+
+            if (key_pub && key_priv) {
+                nc_client_ssh_ch_add_keypair(key_pub, key_priv);
+                nc_client_ssh_add_keypair(key_pub, key_priv);
             }
         }
-#endif /* NC_ENABLED_SSH_TLS */
     }
+
+    /* <netconf-client> -> <authentication> -> <knownhost-mode>*/
+    lyd_find_path(auth_pref, "knownhost-mode", 0, &match);
+    str2knownhosts_mode(lyd_get_value(match), &opts.knownhosts_mode);
+
+    nc_client_ssh_set_knownhosts_mode(opts.knownhosts_mode);
+    nc_client_ssh_ch_set_knownhosts_mode(opts.knownhosts_mode);
+#endif /* NC_ENABLED_SSH_TLS */
 
 cleanup:
     lyd_free_tree(config);
@@ -375,20 +404,30 @@ cleanup:
     free(netconf_dir);
 }
 
-int 
-store_pref(int pref_type, struct lyd_node *pref_parent, const char *pref_name) 
+
+/**
+ * @brief Stores the current configuration of the authentication method preference to a file.
+ *
+ * @param pref_type Type of the authentication method preference to store.
+ * @param auth_parent Parent node for the authentication method.
+ * @param auth_name Name of the authentication method.
+ * @return 0 on success.
+ * @return 1 on failure.
+ */
+static int
+store_auth_pref(int pref_type, struct lyd_node *auth_parent, const char *auth_name)
 {
     int pref_value;
     char buf[23];
 
     pref_value = nc_client_ssh_get_auth_pref(pref_type);
     if (pref_value < 0) {
-        if (lyd_new_term(pref_parent, NULL, pref_name, "disabled", 0, NULL)) {
+        if (lyd_new_term(auth_parent, NULL, auth_name, "disabled", 0, NULL)) {
             return 1;
         }
     } else {
         sprintf(buf, "%d", pref_value);
-        if (lyd_new_term(pref_parent, NULL, pref_name, buf, 0, NULL)) {
+        if (lyd_new_term(auth_parent, NULL, auth_name, buf, 0, NULL)) {
             return 1;
         }
     }
@@ -466,15 +505,15 @@ store_config(void)
         goto cleanup;
     }
     
-    if (store_pref(NC_SSH_AUTH_PUBLICKEY, pref, "publickey")) {
+    if (store_auth_pref(NC_SSH_AUTH_PUBLICKEY, pref, "publickey")) {
         goto cleanup;
     }
     
-    if (store_pref(NC_SSH_AUTH_PASSWORD, pref, "password")) {
+    if (store_auth_pref(NC_SSH_AUTH_PASSWORD, pref, "password")) {
         goto cleanup;
     }
     
-    if (store_pref(NC_SSH_AUTH_INTERACTIVE, pref, "interactive")) {
+    if (store_auth_pref(NC_SSH_AUTH_INTERACTIVE, pref, "interactive")) {
         goto cleanup;
     }
 
