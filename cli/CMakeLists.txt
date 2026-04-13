@@ -7,7 +7,7 @@ include(CheckFunctionExists)
 project(netopeer2-cli C)
 
 # set version
-set(NP2CLI_VERSION 2.0.81)
+set(NP2CLI_VERSION 2.0.82)
 
 # configure CLI prompt
 set(CLI_PROMPT ">" CACHE STRING "Set the CLI prompt (a space is automatically appended at the end)")
