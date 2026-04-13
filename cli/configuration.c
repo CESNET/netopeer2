@@ -267,7 +267,7 @@ load_config(void)
         goto cleanup;
     }
 
-    if (ly_ctx_new(NULL, 0, &ctx)) {
+    if (ly_ctx_new(ly_yang_module_dir(), 0, &ctx)) {
         ERROR(__func__, "Failed to create context.");
         ERROR(__func__, "Unable to load configuration due to the previous error.");
         goto cleanup;
