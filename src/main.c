@@ -909,6 +909,12 @@ server_init(void)
     /* if PAM is not supported, the function will return an error, but don't check it, because PAM is not required */
     nc_server_ssh_set_pam_conf_filename("netopeer2.conf");
 
+    /* set SSH protocol string to send to clients */
+    if (nc_server_ssh_set_protocol_string("netopeer2_" NP2SRV_VERSION)) {
+        ERR("Setting SSH protocol string failed.");
+        goto error;
+    }
+
     /* set authorized_keys path format to by default {client_home}/.ssh/authorized_keys */
     if (nc_server_ssh_set_authkey_path_format(NP2SRV_SSH_AUTHORIZED_KEYS_FORMAT)) {
         ERR("Setting authorized_keys path format failed.");
