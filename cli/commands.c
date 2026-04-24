@@ -284,17 +284,19 @@ cli_difftimespec(const struct timespec *ts1, const struct timespec *ts2)
 }
 
 static int
-cli_send_recv(struct nc_rpc *rpc, FILE *output, NC_WD_MODE wd_mode, int timeout_s)
+cli_send_recv(struct nc_rpc *rpc, const char *msg, FILE *output, NC_WD_MODE wd_mode, int timeout_s)
 {
-    char *model_data;
+    char *model_data, *reply_msg = NULL;
     int ret = 0, mono;
     int32_t msec;
     uint32_t ly_wd;
     uint64_t msgid;
-    struct lyd_node *envp, *op, *err, *node, *info;
+    struct lyd_node *envp = NULL, *op = NULL, *err, *node, *info;
     struct lyd_node_any *any;
     NC_MSG_TYPE msgtype;
     struct timespec ts_start, ts_stop;
+
+    assert((rpc && !msg) || (!rpc && msg));
 
     if (timed) {
         ret = cli_gettimespec(&ts_start, &mono);
@@ -304,7 +306,11 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output, NC_WD_MODE wd_mode, int timeout_
         }
     }
 
-    msgtype = nc_send_rpc(session, rpc, 1000, &msgid);
+    if (rpc) {
+        msgtype = nc_send_rpc(session, rpc, 1000, &msgid);
+    } else {
+        msgtype = nc_send_msg(session, msg, 0, 1000, NULL);
+    }
     if (msgtype == NC_MSG_ERROR) {
         ERROR(__func__, "Failed to send the RPC.");
         if (nc_session_get_status(session) != NC_STATUS_RUNNING) {
@@ -317,7 +323,11 @@ cli_send_recv(struct nc_rpc *rpc, FILE *output, NC_WD_MODE wd_mode, int timeout_
     }
 
 recv_reply:
-    msgtype = nc_recv_reply(session, rpc, msgid, timeout_s * 1000, &envp, &op);
+    if (rpc) {
+        msgtype = nc_recv_reply(session, rpc, msgid, timeout_s * 1000, &envp, &op);
+    } else {
+        msgtype = nc_recv_msg(session, timeout_s * 1000, &reply_msg);
+    }
     if (msgtype == NC_MSG_ERROR) {
         ERROR(__func__, "Failed to receive a reply.");
         if (nc_session_get_status(session) != NC_STATUS_RUNNING) {
@@ -334,7 +344,9 @@ recv_reply:
         /* unexpected message, try reading again to get the correct reply */
         ERROR(__func__, "Unexpected reply received - ignoring and waiting for the correct reply.");
         lyd_free_tree(envp);
+        envp = NULL;
         lyd_free_tree(op);
+        op = NULL;
         goto recv_reply;
     }
 
@@ -346,7 +358,10 @@ recv_reply:
         }
     }
 
-    if (op) {
+    if (reply_msg) {
+        /* raw message */
+        fprintf(output, "RAW REPLY\n%s\n", reply_msg);
+    } else if (op) {
         /* data reply */
         if (nc_rpc_get_type(rpc) == NC_RPC_GETSCHEMA) {
             /* special case */
@@ -447,7 +462,9 @@ recv_reply:
     if (msgtype == NC_MSG_REPLY_ERR_MSGID) {
         ERROR(__func__, "Trying to receive another message...\n");
         lyd_free_tree(envp);
+        envp = NULL;
         lyd_free_tree(op);
+        op = NULL;
         goto recv_reply;
     }
 
@@ -459,6 +476,7 @@ recv_reply:
 cleanup:
     lyd_free_tree(envp);
     lyd_free_tree(op);
+    free(reply_msg);
     return ret;
 }
 
@@ -1245,6 +1263,12 @@ static void
 cmd_userrpc_help(void)
 {
     printf("user-rpc [--help] [--content <file>] [--out <file>] [--rpc-timeout <seconds>]\n");
+}
+
+static void
+cmd_rawxml_help(void)
+{
+    printf("raw-xml [--help] [--content <file>] [--out <file>] [--rpc-timeout <seconds>]\n");
 }
 
 static void
@@ -3114,7 +3138,7 @@ cmd_cancelcommit(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -3205,7 +3229,7 @@ cmd_commit(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -3402,7 +3426,7 @@ cmd_copyconfig(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -3497,7 +3521,7 @@ cmd_deleteconfig(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -3570,7 +3594,7 @@ cmd_discardchanges(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -3774,7 +3798,7 @@ cmd_editconfig(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -3941,9 +3965,9 @@ cmd_get(const char *arg, char **tmp_config_file)
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output, wd, timeout);
+        ret = cli_send_recv(rpc, NULL, output, wd, timeout);
     } else {
-        ret = cli_send_recv(rpc, stdout, wd, timeout);
+        ret = cli_send_recv(rpc, NULL, stdout, wd, timeout);
     }
 
     nc_rpc_free(rpc);
@@ -4134,9 +4158,9 @@ cmd_getconfig(const char *arg, char **tmp_config_file)
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output, wd, timeout);
+        ret = cli_send_recv(rpc, NULL, output, wd, timeout);
     } else {
-        ret = cli_send_recv(rpc, stdout, wd, timeout);
+        ret = cli_send_recv(rpc, NULL, stdout, wd, timeout);
     }
 
     nc_rpc_free(rpc);
@@ -4230,7 +4254,7 @@ cmd_killsession(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -4323,7 +4347,7 @@ cmd_lock(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -4416,7 +4440,7 @@ cmd_unlock(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -4581,7 +4605,7 @@ cmd_validate(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -4784,7 +4808,7 @@ cmd_subscribe(const char *arg, char **tmp_config_file)
     }
     output = NULL;
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
     if (ret) {
         goto fail;
     }
@@ -4905,9 +4929,9 @@ cmd_getschema(const char *arg, char **UNUSED(tmp_config_file))
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output, 0, timeout);
+        ret = cli_send_recv(rpc, NULL, output, 0, timeout);
     } else {
-        ret = cli_send_recv(rpc, stdout, 0, timeout);
+        ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
     }
 
     nc_rpc_free(rpc);
@@ -5145,9 +5169,9 @@ cmd_getdata(const char *arg, char **tmp_config_file)
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output, wd, timeout);
+        ret = cli_send_recv(rpc, NULL, output, wd, timeout);
     } else {
-        ret = cli_send_recv(rpc, stdout, wd, timeout);
+        ret = cli_send_recv(rpc, NULL, stdout, wd, timeout);
     }
 
     nc_rpc_free(rpc);
@@ -5339,7 +5363,7 @@ cmd_editdata(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
 
     nc_rpc_free(rpc);
 
@@ -5552,7 +5576,7 @@ cmd_establishsub(const char *arg, char **tmp_config_file)
     }
     output = NULL;
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
     if (ret) {
         goto fail;
     }
@@ -5738,7 +5762,7 @@ cmd_modifysub(const char *arg, char **tmp_config_file)
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
     if (ret) {
         goto fail;
     }
@@ -5838,7 +5862,7 @@ cmd_deletesub(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
     if (ret) {
         goto fail;
     }
@@ -5936,7 +5960,7 @@ cmd_killsub(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
     if (ret) {
         goto fail;
     }
@@ -6221,7 +6245,7 @@ cmd_establishpush(const char *arg, char **tmp_config_file)
         output = NULL;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
     if (ret) {
         goto fail;
     }
@@ -6493,7 +6517,7 @@ cmd_modifypush(const char *arg, char **tmp_config_file)
         }
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
     if (ret) {
         goto fail;
     }
@@ -6595,7 +6619,7 @@ cmd_resyncsub(const char *arg, char **UNUSED(tmp_config_file))
         goto fail;
     }
 
-    ret = cli_send_recv(rpc, stdout, 0, timeout);
+    ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
     if (ret) {
         goto fail;
     }
@@ -6718,9 +6742,9 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
     /* check if edit configuration data were specified */
     if (!content) {
         /* let user write edit data interactively */
-        content = readinput("Type the content of a configuration datastore.", *tmp_config_file, tmp_config_file);
+        content = readinput("Type the content of an RPC.", *tmp_config_file, tmp_config_file);
         if (!content) {
-            ERROR(__func__, "Reading configuration data failed.");
+            ERROR(__func__, "Reading RPC data failed.");
             goto fail;
         }
     }
@@ -6733,12 +6757,141 @@ cmd_userrpc(const char *arg, char **tmp_config_file)
     }
 
     if (output) {
-        ret = cli_send_recv(rpc, output, 0, timeout);
+        ret = cli_send_recv(rpc, NULL, output, 0, timeout);
     } else {
-        ret = cli_send_recv(rpc, stdout, 0, timeout);
+        ret = cli_send_recv(rpc, NULL, stdout, 0, timeout);
     }
 
     nc_rpc_free(rpc);
+
+fail:
+    clear_arglist(&cmd);
+    if (output) {
+        fclose(output);
+    }
+    free(content);
+    return ret;
+}
+
+static int
+cmd_rawxml(const char *arg, char **tmp_config_file)
+{
+    int c, config_fd, ret = EXIT_FAILURE, timeout = CLI_RPC_REPLY_TIMEOUT;
+    struct stat config_stat;
+    char *content = NULL, *config_m = NULL;
+    FILE *output = NULL;
+    struct arglist cmd;
+    struct option long_options[] = {
+        {"help", 0, 0, 'h'},
+        {"content", 1, 0, 'c'},
+        {"out", 1, 0, 'o'},
+        {"rpc-timeout", 1, 0, 'r'},
+        {0, 0, 0, 0}
+    };
+    int option_index = 0;
+
+    /* set back to start to be able to use getopt() repeatedly */
+    optind = 0;
+
+    init_arglist(&cmd);
+    if (addargs(&cmd, "%s", arg)) {
+        return EXIT_FAILURE;
+    }
+
+    while ((c = getopt_long(cmd.count, cmd.list, "ht:s:c::d:r:", long_options, &option_index)) != -1) {
+        switch (c) {
+        case 'h':
+            cmd_rawxml_help();
+            ret = EXIT_SUCCESS;
+            goto fail;
+        case 'c':
+            if (content) {
+                ERROR(__func__, "Duplicated \"content\" option.");
+                goto fail;
+            }
+            /* open edit configuration data from the file */
+            config_fd = open(optarg, O_RDONLY);
+            if (config_fd == -1) {
+                ERROR(__func__, "Unable to open the local datastore file \"%s\" (%s).", optarg, strerror(errno));
+                goto fail;
+            }
+
+            /* map content of the file into the memory */
+            if (fstat(config_fd, &config_stat) != 0) {
+                ERROR(__func__, "fstat failed (%s).", strerror(errno));
+                close(config_fd);
+                goto fail;
+            }
+            config_m = mmap(NULL, config_stat.st_size, PROT_READ, MAP_PRIVATE, config_fd, 0);
+            if (config_m == MAP_FAILED) {
+                ERROR(__func__, "mmap of the local datastore file failed (%s).", strerror(errno));
+                close(config_fd);
+                goto fail;
+            }
+
+            /* make a copy of the content to allow closing the file */
+            content = strdup(config_m);
+
+            /* unmap local datastore file and close it */
+            munmap(config_m, config_stat.st_size);
+            close(config_fd);
+            break;
+        case 'o':
+            if (output) {
+                ERROR(__func__, "Duplicated \"out\" option.");
+                goto fail;
+            }
+            output = fopen(optarg, "w");
+            if (!output) {
+                ERROR(__func__, "Failed to open file \"%s\" (%s).", optarg, strerror(errno));
+                goto fail;
+            }
+            break;
+        case 'r':
+            timeout = atoi(optarg);
+            if (!timeout) {
+                ERROR(__func__, "Invalid timeout \"%s\".", optarg);
+                goto fail;
+            }
+            break;
+        default:
+            ERROR(__func__, "Unknown option -%c.", c);
+            cmd_userrpc_help();
+            goto fail;
+        }
+    }
+
+    if (cmd.list[optind]) {
+        ERROR(__func__, "Unparsed command arguments.");
+        cmd_userrpc_help();
+        goto fail;
+    }
+
+    if (!session) {
+        ERROR(__func__, "Not connected to a NETCONF server, no RPCs can be sent.");
+        goto fail;
+    }
+
+    if (!interleave) {
+        ERROR(__func__, "NETCONF server does not support interleaving RPCs and notifications.");
+        goto fail;
+    }
+
+    /* check if edit configuration data were specified */
+    if (!content) {
+        /* let user write edit data interactively */
+        content = readinput("Type the XML content.", *tmp_config_file, tmp_config_file);
+        if (!content) {
+            ERROR(__func__, "Reading XML data failed.");
+            goto fail;
+        }
+    }
+
+    if (output) {
+        ret = cli_send_recv(NULL, content, output, 0, timeout);
+    } else {
+        ret = cli_send_recv(NULL, content, stdout, 0, timeout);
+    }
 
 fail:
     clear_arglist(&cmd);
@@ -6828,6 +6981,7 @@ COMMAND commands[] = {
     },
     {"unlock", cmd_unlock, cmd_unlock_help, "ietf-netconf <unlock> operation"},
     {"user-rpc", cmd_userrpc, cmd_userrpc_help, "Send your own content in an RPC envelope"},
+    {"raw-xml", cmd_rawxml, cmd_rawxml_help, "Send your own XML content"},
     {"validate", cmd_validate, cmd_validate_help, "ietf-netconf <validate> operation"},
     {"verb", cmd_verb, cmd_verb_help, "Change verbosity"},
     {"version", cmd_version, NULL, "Print Netopeer2 CLI version"},
