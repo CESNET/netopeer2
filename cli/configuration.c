@@ -14,7 +14,6 @@
  *     https://opensource.org/licenses/BSD-3-Clause
  */
 
-
 #define _GNU_SOURCE
 #include <assert.h>
 #include <dirent.h>
@@ -22,7 +21,6 @@
 #include <fcntl.h>
 #include <pwd.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -40,9 +38,9 @@
 #include "compat.h"
 #include "configuration.h"
 #include "linenoise/linenoise.h"
-#include "netopeer2-cli.h"
+#include "netopeer2_cli_yang.h"
 
-struct cli_opts opts = {.output_format = LYD_XML};
+struct cli_opts opts = {.output_format = LYD_XML, .knownhosts_mode = -1};
 
 /* NetConf Client home (appended to ~/) */
 #define NCC_DIR ".netopeer2-cli"
@@ -254,7 +252,6 @@ cleanup:
     free(history_file);
 }
 
-
 /**
  * @brief Loads the authentication method preference from the configuration.
 
@@ -269,9 +266,34 @@ load_auth_pref(const struct lyd_node *node, int auth_pref_type)
     if (!strcmp(lyd_get_value(node), "disabled")) {
         pref_value = -1;
     } else {
-        pref_value = strtoul(lyd_get_value(match), NULL, 10);
+        pref_value = strtoul(lyd_get_value(node), NULL, 10);
     }
     nc_client_ssh_set_auth_pref(auth_pref_type, pref_value);
+}
+
+/**
+ * @brief Converts a string representation of the knownhosts mode to its corresponding integer value.
+ *
+ * @param mode_str String representation of the knownhosts mode.
+ * @return Corresponding integer value of the knownhosts mode.
+ * @return -1 if the input is invalid.
+ */
+static int
+str2knownhosts_mode(const char *mode_str)
+{
+    if (!strcmp(mode_str, "accept")) {
+        return NC_SSH_KNOWNHOSTS_ACCEPT;
+    } else if (!strcmp(mode_str, "accept-new")) {
+        return NC_SSH_KNOWNHOSTS_ACCEPT_NEW;
+    } else if (!strcmp(mode_str, "skip")) {
+        return NC_SSH_KNOWNHOSTS_SKIP;
+    } else if (!strcmp(mode_str, "strict")) {
+        return NC_SSH_KNOWNHOSTS_STRICT;
+    } else if (!strcmp(mode_str, "ask")) {
+        return NC_SSH_KNOWNHOSTS_ASK;
+    } else {
+        return -1;
+    }
 }
 
 void
@@ -283,7 +305,7 @@ load_config(void)
 
 #ifdef NC_ENABLED_SSH_TLS
     const char *key_pub, *key_priv;
-    struct lyd_node *auth_pref, *parent, *key;
+    struct lyd_node *parent = NULL, *key = NULL, *auth_pref = NULL;
 #endif
 
     if ((netconf_dir = get_netconf_dir()) == NULL) {
@@ -391,10 +413,12 @@ load_config(void)
 
     /* <netconf-client> -> <authentication> -> <knownhost-mode>*/
     lyd_find_path(auth_pref, "knownhost-mode", 0, &match);
-    str2knownhosts_mode(lyd_get_value(match), &opts.knownhosts_mode);
 
-    nc_client_ssh_set_knownhosts_mode(opts.knownhosts_mode);
-    nc_client_ssh_ch_set_knownhosts_mode(opts.knownhosts_mode);
+    if (match) {
+        opts.knownhosts_mode = str2knownhosts_mode(lyd_get_value(match));
+        nc_client_ssh_set_knownhosts_mode(opts.knownhosts_mode);
+        nc_client_ssh_ch_set_knownhosts_mode(opts.knownhosts_mode);
+    }
 #endif /* NC_ENABLED_SSH_TLS */
 
 cleanup:
@@ -403,7 +427,6 @@ cleanup:
     free(config_file);
     free(netconf_dir);
 }
-
 
 /**
  * @brief Stores the current configuration of the authentication method preference to a file.
@@ -433,6 +456,31 @@ store_auth_pref(int pref_type, struct lyd_node *auth_parent, const char *auth_na
     }
 
     return 0;
+}
+
+/**
+ * @brief Converts a knownhosts mode integer value to its corresponding string representation.
+ *
+ * @param mode Integer value of the knownhosts mode.
+ * @return Corresponding string representation of the knownhosts mode.
+ * @return NULL if the input is invalid.
+ */
+static const char *
+knownhosts_mode2str(NC_SSH_KNOWNHOSTS_MODE mode)
+{
+    if (mode == NC_SSH_KNOWNHOSTS_ACCEPT) {
+        return "accept";
+    } else if (mode == NC_SSH_KNOWNHOSTS_ACCEPT_NEW) {
+        return "accept-new";
+    } else if (mode == NC_SSH_KNOWNHOSTS_ASK) {
+        return "ask";
+    } else if (mode == NC_SSH_KNOWNHOSTS_SKIP) {
+        return "skip";
+    } else if (mode == NC_SSH_KNOWNHOSTS_STRICT) {
+        return "strict";
+    } else {
+        return NULL;
+    }
 }
 
 void
@@ -476,7 +524,7 @@ store_config(void)
     } else {
         ERROR(__func__, "Unknown format.");
         goto cleanup;
-    }   
+    }
 
     if (lyd_new_term(root, NULL, "output-format", str, 0, NULL)) {
         goto cleanup;
@@ -501,18 +549,18 @@ store_config(void)
     }
 
     /* pref */
-    if (lyd_new_inner(auth, NULL, "method-preference", 0,&pref)) {
+    if (lyd_new_inner(auth, NULL, "method-preference", 0, &pref)) {
         goto cleanup;
     }
-    
+
     if (store_auth_pref(NC_SSH_AUTH_PUBLICKEY, pref, "publickey")) {
         goto cleanup;
     }
-    
+
     if (store_auth_pref(NC_SSH_AUTH_PASSWORD, pref, "password")) {
         goto cleanup;
     }
-    
+
     if (store_auth_pref(NC_SSH_AUTH_INTERACTIVE, pref, "interactive")) {
         goto cleanup;
     }
@@ -534,6 +582,19 @@ store_config(void)
             if (lyd_new_term(pair, NULL, "private", priv_key, 0, NULL)) {
                 goto cleanup;
             }
+        }
+    }
+
+    /* knownhost-mode */
+    if (opts.knownhosts_mode != -1) {
+        str = knownhosts_mode2str(opts.knownhosts_mode);
+        if (!str) {
+            ERROR(__func__, "Unknown known host mode.");
+            goto cleanup;
+        }
+
+        if (lyd_new_term(auth, NULL, "knownhost-mode", str, 0, NULL)) {
+            goto cleanup;
         }
     }
 #endif /* NC_ENABLED_SSH_TLS */
