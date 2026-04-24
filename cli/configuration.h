@@ -26,6 +26,7 @@ struct cli_opts {
     LYD_FORMAT output_format;
     uint32_t output_flag;
     char *config_editor;
+    int knownhosts_mode;
 };
 
 extern struct cli_opts opts;

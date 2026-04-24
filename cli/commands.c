@@ -1503,8 +1503,11 @@ cmd_knownhosts(const char *arg, char **UNUSED(tmp_config_file))
             goto cleanup;
         }
 
+        opts.knownhosts_mode = knownhosts_mode;
         nc_client_ssh_set_knownhosts_mode(knownhosts_mode);
         nc_client_ssh_ch_set_knownhosts_mode(knownhosts_mode);
+
+        store_config();
         goto cleanup;
     }
 
