@@ -420,7 +420,6 @@ if(SYSREPO_SETUP)
         message(STATUS \"Merging default server listen configuration if there is none (merge_config.sh)...\")
         set(ENV{SYSREPOCTL_EXECUTABLE} \"${SYSREPOCTL_EXECUTABLE}\")
         set(ENV{SYSREPOCFG_EXECUTABLE} \"${SYSREPOCFG_EXECUTABLE}\")
-        set(ENV{NP2_VERSION} \"${NP2SRV_VERSION}\")
         execute_process(COMMAND \"\$ENV{DESTDIR}${DATA_DIR}/scripts/merge_config.sh\"
                 RESULT_VARIABLE CMD_RES
                 OUTPUT_VARIABLE CMD_OUT
