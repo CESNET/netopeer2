@@ -26,6 +26,7 @@
 
 #include <libyang/libyang.h>
 #include <sysrepo.h>
+#include <sysrepo/private_candidate.h>
 #include <sysrepo/subscribed_notifications.h>
 
 #include "common.h"
@@ -180,11 +181,13 @@ np2srv_rpc_getdata_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess
         }
     }
 
-    /* update sysrepo session datastore */
-    sr_session_switch_ds(user_sess->sess, ds);
+    if ((ds == SR_DS_CANDIDATE) && user_sess->use_private_cand) {
+        /* create private candidate if not yet created */
+        NP2_CHECK_PRIVCAND_EXISTS(user_sess, rpc, reply, cleanup);
+    }
 
     /* create the data tree for the data reply */
-    if ((reply = np_op_filter_data_get(user_sess->sess, max_depth, get_opts, xp_filter, &data))) {
+    if ((reply = np_op_filter_data_get(user_sess, ds, max_depth, get_opts, xp_filter, &data))) {
         goto cleanup;
     }
 
@@ -272,16 +275,31 @@ np2srv_rpc_editdata_cb(const struct lyd_node *rpc, struct np_user_sess *user_ses
 #endif
     }
 
-    /* update sysrepo session datastore */
-    sr_session_switch_ds(user_sess->sess, ds);
+    if ((ds == SR_DS_CANDIDATE) && user_sess->use_private_cand) {
+        /* create private candidate if not yet created */
+        NP2_CHECK_PRIVCAND_EXISTS(user_sess, rpc, reply, cleanup);
 
-    /* sysrepo API */
-    if (sr_edit_batch(user_sess->sess, config, defop)) {
-        reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
-    }
-    if (sr_apply_changes(user_sess->sess, np2srv.sr_timeout)) {
-        reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
-        goto cleanup;
+        if (sr_pc_edit_config(user_sess->sess, user_sess->private_ds, config, defop)) {
+            reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+            goto cleanup;
+        }
+
+        if (sr_pc_validate(user_sess->sess, NULL, user_sess->private_ds)) {
+            reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+            goto cleanup;
+        }
+    } else {
+        /* change sysrepo session datastore */
+        sr_session_switch_ds(user_sess->sess, ds);
+
+        /* sysrepo API */
+        if (sr_edit_batch(user_sess->sess, config, defop)) {
+            reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+        }
+        if (sr_apply_changes(user_sess->sess, np2srv.sr_timeout)) {
+            reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+            goto cleanup;
+        }
     }
 
     /* OK reply */

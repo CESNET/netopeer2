@@ -193,6 +193,11 @@ module netopeer-notifications {
                     description
                         "ietf-yang-push resync-subscription RPC";
                 }
+
+                enum update {
+                    description
+                        "ietf-netconf-private-candidate update RPC";
+                }
             }
             mandatory true;
             description

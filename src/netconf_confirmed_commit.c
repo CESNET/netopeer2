@@ -36,6 +36,7 @@
 #include <nc_server.h>
 #include <sysrepo.h>
 #include <sysrepo/netconf_acm.h>
+#include <sysrepo/private_candidate.h>
 
 #include "common.h"
 #include "compat.h"
@@ -504,6 +505,13 @@ ncc_changes_rollback_cb(union sigval sev)
         goto cleanup;
     }
 
+    /* private candidate rollback */
+    if (user_sess && user_sess->use_private_cand && user_sess->private_ds) {
+        VRB("Rolling back private candidate datastore.");
+        sr_pc_restore_privcand(user_sess->private_ds, user_sess->private_ds_backup);
+        user_sess->private_ds_backup = NULL;
+    }
+
     /* just timer clean up */
     ncc_commit_confirmed();
 
@@ -834,6 +842,7 @@ np2srv_confirmed_commit_cb(const struct lyd_node *rpc, struct np_user_sess *user
     struct lyd_node *node = NULL;
     uint32_t timeout;
     uint8_t timeout_changed = 0;
+    sr_pc_conflict_set_t *conflict_set = NULL;
 
     nc_sess = user_sess->ntf_arg.nc_sess;
 
@@ -859,6 +868,16 @@ np2srv_confirmed_commit_cb(const struct lyd_node *rpc, struct np_user_sess *user
         if (ncc_running_backup(LYD_CTX(rpc))) {
             goto cleanup;
         }
+
+        /* private candidate create and store backup */
+        if (user_sess->use_private_cand && user_sess->private_ds) {
+            if (sr_pc_backup_privcand(user_sess->sess, user_sess->private_ds, &user_sess->private_ds_backup)) {
+                reply = np_reply_err_op_failed(user_sess->sess, LYD_CTX(rpc),
+                        "Failed to create backup of private candidate datastore.");
+                goto cleanup;
+            }
+        }
+
     } else {
         if (commit_ctx.persist) {
             if (!persist || strcmp(persist, commit_ctx.persist)) {
@@ -906,18 +925,28 @@ np2srv_confirmed_commit_cb(const struct lyd_node *rpc, struct np_user_sess *user
         np_send_notif_confirmed_commit(nc_sess, user_sess->sess, NP_CC_START, timeout, 0);
     }
 
-    sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING);
-
     /* sysrepo API */
-    if (sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout)) {
-        reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
-        goto cleanup;
+    if (user_sess->use_private_cand) {
+        /* create private candidate if not yet created */
+        NP2_CHECK_PRIVCAND_EXISTS(user_sess, rpc, reply, cleanup);
+
+        if (sr_pc_commit(user_sess->sess, user_sess->private_ds, &conflict_set)) {
+            reply = np_reply_err_conflict(rpc, conflict_set);
+            goto cleanup;
+        }
+    } else {
+        sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING);
+        if (sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout)) {
+            reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+            goto cleanup;
+        }
     }
 
     /* OK reply */
     reply = np_reply_success(rpc, NULL);
 
 cleanup:
+    sr_pc_free_conflicts(conflict_set);
     return reply;
 }
 
@@ -927,6 +956,7 @@ np2srv_rpc_commit_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess)
     struct nc_server_reply *reply = NULL;
     struct lyd_node *node;
     const char *persist_id = NULL, *persist;
+    sr_pc_conflict_set_t *conflict_set = NULL;
 
     /* LOCK */
     pthread_mutex_lock(&commit_ctx.lock);
@@ -962,10 +992,28 @@ np2srv_rpc_commit_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess)
     }
 
     /* sysrepo API */
-    sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING);
-    if (sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout)) {
-        reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
-        goto cleanup;
+    if (user_sess->use_private_cand) {
+        /* create private candidate if not yet created */
+        NP2_CHECK_PRIVCAND_EXISTS(user_sess, rpc, reply, cleanup);
+
+        /* final commit and destroy the backup */
+        if (user_sess->private_ds_backup) {
+            if (sr_pc_destroy_ds(user_sess->sess, user_sess->private_ds_backup)) {
+                reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+                goto cleanup;
+            }
+            user_sess->private_ds_backup = NULL;
+        }
+        if (sr_pc_commit(user_sess->sess, user_sess->private_ds, &conflict_set)) {
+            reply = np_reply_err_conflict(rpc, conflict_set);
+            goto cleanup;
+        }
+    } else {
+        sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING);
+        if (sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout)) {
+            reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+            goto cleanup;
+        }
     }
 
     /* OK reply */
@@ -974,6 +1022,7 @@ np2srv_rpc_commit_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess)
 cleanup:
     /* UNLOCK */
     pthread_mutex_unlock(&commit_ctx.lock);
+    sr_pc_free_conflicts(conflict_set);
     return reply;
 }
 

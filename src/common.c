@@ -740,6 +740,9 @@ np_new_session_cb(const char *UNUSED(client_name), struct nc_session *new_sessio
         goto error;
     }
 
+    user_sess->use_private_cand = nc_session_cpblt(new_session,
+            "urn:ietf:params:netconf:capability:private-candidate:1.0") ? 1 : 0;
+
     /* generate ietf-netconf-notification's netconf-session-start event for sysrepo */
     np_send_notif_session_start(new_session, np2srv.sr_sess, np2srv.sr_timeout);
 
@@ -1240,8 +1243,8 @@ cleanup:
 }
 
 struct nc_server_reply *
-np_op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, uint32_t get_opts, const char *xp_filter,
-        struct lyd_node **data)
+np_op_filter_data_get(struct np_user_sess *user_sess, sr_datastore_t ds, uint32_t max_depth, uint32_t get_opts,
+        const char *xp_filter, struct lyd_node **data)
 {
     sr_data_t *sr_data = NULL, *sr_ln2_nc_server = NULL;
     struct lyd_node *e, *ignored_mod;
@@ -1255,22 +1258,31 @@ np_op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, uint32_t ge
         return NULL;
     }
 
-    /* get the selected data */
-    r = sr_get_data(session, xp_filter, max_depth, np2srv.sr_timeout, get_opts, &sr_data);
+    /* update sysrepo session datastore */
+    sr_session_switch_ds(user_sess->sess, ds);
+
+    if (user_sess->use_private_cand && (ds == SR_DS_CANDIDATE)) {
+        /* use private candidate if supported and requested */
+        r = sr_pc_get_data(user_sess->sess, xp_filter, max_depth, get_opts, user_sess->private_ds, &sr_data);
+    } else {
+        /* get the selected data */
+        r = sr_get_data(user_sess->sess, xp_filter, max_depth, np2srv.sr_timeout, get_opts, &sr_data);
+    }
+
     if (r && (r != SR_ERR_NOT_FOUND)) {
         ERR("Getting data \"%s\" from sysrepo failed (%s).", xp_filter, sr_strerror(r));
 
-        sr_session_get_error(session, &err_info);
+        sr_session_get_error(user_sess->sess, &err_info);
         err = &err_info->err[0];
         if (strstr(err->message, " result is not a node set.")) {
             /* invalid-value */
-            e = nc_err(sr_session_acquire_context(session), NC_ERR_INVALID_VALUE, NC_ERR_TYPE_APP);
-            sr_session_release_context(session);
+            e = nc_err(sr_session_acquire_context(user_sess->sess), NC_ERR_INVALID_VALUE, NC_ERR_TYPE_APP);
+            sr_session_release_context(user_sess->sess);
             nc_err_set_msg(e, err->message, "en");
             reply = nc_server_reply_err(e);
         } else {
             /* other error */
-            reply = np_reply_err_sr(session, "get");
+            reply = np_reply_err_sr(user_sess->sess, "get");
         }
         goto cleanup;
     }
@@ -1302,7 +1314,7 @@ np_op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, uint32_t ge
         sr_release_data(sr_data);
         if (r) {
             /* other error */
-            reply = np_reply_err_op_failed(session, NULL, ly_last_logmsg());
+            reply = np_reply_err_op_failed(user_sess->sess, NULL, ly_last_logmsg());
             goto cleanup;
         }
     }
@@ -1897,4 +1909,138 @@ sub_ntf_ds2ident(sr_datastore_t ds)
     }
 
     return NULL;
+}
+
+/**
+ * @brief Convert private candidate conflict type to string.
+ *
+ * @param[in] type Conflict type to convert.
+ * @return String representation of the conflict type.
+ */
+static const char *
+np_pc_conflict_type2str(sr_pc_conflict_type_t type)
+{
+    switch (type) {
+    case SR_PC_CONFLICT_VALUE_CHANGE:
+        return "value-change";
+    case SR_PC_CONFLICT_LIST_ENTRY:
+        return "list-entry";
+    case SR_PC_CONFLICT_LIST_ORDER:
+        return "list-order";
+    case SR_PC_CONFLICT_PRESENCE_CONTAINER:
+        return "presence-container";
+    case SR_PC_CONFLICT_LEAFLIST_ITEM:
+        return "leaf-list-item";
+    case SR_PC_CONFLICT_LEAFLIST_ORDER:
+        return "leaf-list-order";
+    case SR_PC_CONFLICT_LEAF_EXISTENCE:
+        return "leaf-existence";
+    }
+
+    return NULL;
+}
+
+/**
+ * @brief Get the value of the conflict node.
+ *
+ * @param[in] type Conflict node to get the value from.
+ * @return String value of node. In case of list the keys are returned.
+ */
+static char *
+np_pc_conflict_value(const struct lyd_node *node)
+{
+    char *full_path = NULL, *list_keys = NULL, *result = NULL;
+    const char *val;
+
+    switch (node->schema->nodetype) {
+    case LYS_CONTAINER:
+        /* container does not have value */
+        return NULL;
+
+    case LYS_LIST:
+        full_path = lyd_path(node, LYD_PATH_STD, NULL, 0);
+        if (full_path) {
+            list_keys = strchr(full_path, '[');
+            if (list_keys) {
+                result = strdup(list_keys);
+            }
+            free(full_path);
+        }
+        return result;
+
+    default:
+        val = lyd_get_value(node);
+        return val ? strdup(val) : NULL;
+    }
+}
+
+struct nc_server_reply *
+np_reply_err_conflict(const struct lyd_node *rpc, const sr_pc_conflict_set_t *conflict_set)
+{
+    struct lyd_node *err, *err_info_node = NULL;
+    char *run_val = NULL, *cand_val = NULL, *xpath = NULL;
+    uint32_t i;
+    LY_ERR r = LY_SUCCESS;
+
+    err = nc_err(LYD_CTX(rpc), NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
+    nc_err_set_msg(err, "Update failed due to conflicts between private candidate and running configuration.", NULL);
+
+    if (conflict_set) {
+        for (i = 0; i < conflict_set->conflict_count; i++) {
+
+            /* conflict node */
+            if ((r = lyd_new_opaq2(NULL, LYD_CTX(rpc), "conflict", NULL, NULL,
+                    "urn:ietf:params:xml:ns:yang:ietf-netconf-private-candidate", &err_info_node))) {
+                goto cleanup;
+            }
+
+            /* xpath of the conflicting node */
+            xpath = lyd_path(conflict_set->conflicts[i].run_diff, LYD_PATH_STD, NULL, 0);
+            if ((r = lyd_new_opaq2(err_info_node, LYD_CTX(rpc), "xpath", xpath, NULL,
+                    "urn:ietf:params:xml:ns:yang:ietf-netconf-private-candidate", NULL))) {
+                goto cleanup;
+            }
+
+            /* conflict type */
+            if ((r = lyd_new_opaq2(err_info_node, LYD_CTX(rpc), "conflict-type",
+                    np_pc_conflict_type2str(conflict_set->conflicts[i].type),
+                    NULL, "urn:ietf:params:xml:ns:yang:ietf-netconf-private-candidate", NULL))) {
+                goto cleanup;
+            }
+
+            /* values where the conflict occurs */
+            run_val = np_pc_conflict_value(conflict_set->conflicts[i].run_diff);
+            if (run_val) {
+                r = lyd_new_opaq2(err_info_node, LYD_CTX(rpc), "value-running",
+                        run_val, NULL, "urn:ietf:params:xml:ns:yang:ietf-netconf-private-candidate", NULL);
+                free(run_val);
+                if (r) {
+                    goto cleanup;
+                }
+            }
+
+            cand_val = np_pc_conflict_value(conflict_set->conflicts[i].pc_diff);
+            if (cand_val) {
+                r = lyd_new_opaq2(err_info_node, LYD_CTX(rpc), "value-candidate",
+                        cand_val, NULL, "urn:ietf:params:xml:ns:yang:ietf-netconf-private-candidate", NULL);
+                free(cand_val);
+                if (r) {
+                    goto cleanup;
+                }
+            }
+
+            /* add conflict node into error msg*/
+            nc_err_add_info_other(err, err_info_node);
+            err_info_node = NULL;
+        }
+    }
+
+cleanup:
+    free(xpath);
+    lyd_free_tree(err_info_node);
+    if (r) {
+        return np_reply_err_op_failed(NULL, LYD_CTX(rpc), "Failed to build conflict error message.");
+    }
+
+    return nc_server_reply_err(err);
 }

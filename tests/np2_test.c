@@ -236,6 +236,10 @@ np2_glob_test_setup_sess_ctx(struct nc_session *sess, const char **modules)
         SETUP_FAIL_LOG;
         return 1;
     }
+    if (!ly_ctx_load_module(ctx, "ietf-netconf-private-candidate", "2026-02-03", all_features)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
 
     /* test module searchdir */
     ly_ctx_set_searchdir(ctx, NP_TEST_MODULE_DIR);
