@@ -26,6 +26,7 @@
 
 #include <nc_server.h>
 #include <sysrepo.h>
+#include <sysrepo/private_candidate.h>
 
 #include "compat.h"
 #include "config.h"
@@ -57,6 +58,11 @@ struct np_user_sess {
     pthread_mutex_t lock;
 
     struct np_ntf_arg ntf_arg;
+
+    int use_private_cand;                   /* flag to use private candidate instead of shared candidate */
+    sr_priv_cand_t *private_ds;             /* private candidate structure */
+    sr_priv_cand_t *private_ds_backup;      /* backup of private candidate */
+    int privcand_lock;                      /* flag for tracking the lock state, changed by <lock> and <unlock> RPCs */
 };
 
 /* server internal data */
@@ -78,6 +84,17 @@ struct np2srv {
 };
 
 extern struct np2srv np2srv;
+
+#define NP2_CHECK_PRIVCAND_EXISTS(user_sess, rpc, reply, label)                             \
+    do {                                                                                    \
+        if (!(user_sess)->private_ds) {                                                     \
+        /* create private candidate if not yet created */                               \
+            if (sr_pc_create_ds((user_sess)->sess, 0, NULL, &(user_sess)->private_ds)) {    \
+                (reply) = np_reply_err_sr((user_sess)->sess, LYD_NAME(rpc));                \
+                goto label;                                                                 \
+            }                                                                               \
+        }                                                                                   \
+    } while (0)
 
 /**
  * @brief Sleep in milliseconds.
@@ -333,15 +350,16 @@ struct nc_server_reply *np_op_parse_config(struct lyd_node_any *node, uint32_t p
 /**
  * @brief Get all data matching the NP2 filter.
  *
- * @param[in] session SR session to get the data on.
+ * @param[in] user_sess User session to use for the get operation.
+ * @param[in] ds Datastore to get data from.
  * @param[in] max_depth Max depth fo the retrieved data.
  * @param[in] get_opts SR get options to use.
  * @param[in] xp_filter XPath filter to use.
  * @param[out] data Retrieved data.
  * @return Error reply on error, NULL on success.
  */
-struct nc_server_reply *np_op_filter_data_get(sr_session_ctx_t *session, uint32_t max_depth, uint32_t get_opts,
-        const char *xp_filter, struct lyd_node **data);
+struct nc_server_reply *np_op_filter_data_get(struct np_user_sess *user_sess, sr_datastore_t ds, uint32_t max_depth,
+        uint32_t get_opts, const char *xp_filter, struct lyd_node **data);
 
 /**
  * @brief Create NC data/OK reply.
@@ -449,5 +467,14 @@ struct nc_server_reply *np_reply_err_in_use(const struct ly_ctx *ly_ctx, const c
  * @return Sysrepo error value.
  */
 const char *sub_ntf_ds2ident(sr_datastore_t ds);
+
+/**
+ * @brief Build a NETCONF error message for conflicts between private candidate and running datastore during update.
+ *
+ * @param[in] rpc Executed RPC.
+ * @param[in] conflict_set Set of conflicts.
+ * @return Server reply structure.
+ */
+struct nc_server_reply *np_reply_err_conflict(const struct lyd_node *rpc, const sr_pc_conflict_set_t *conflict_set);
 
 #endif /* NP2SRV_COMMON_H_ */

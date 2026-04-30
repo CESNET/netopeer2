@@ -42,6 +42,8 @@ struct nc_server_reply *np2srv_rpc_discard_cb(const struct lyd_node *rpc, struct
 
 struct nc_server_reply *np2srv_rpc_validate_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess);
 
+struct nc_server_reply *np2srv_rpc_update_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess);
+
 struct nc_server_reply *np2srv_rpc_subscribe_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess);
 
 int np2srv_nc_ntf_oper_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *path,

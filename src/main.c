@@ -34,6 +34,7 @@
 #include <sysrepo.h>
 #include <sysrepo/error_format.h>
 #include <sysrepo/netconf_acm.h>
+#include <sysrepo/private_candidate.h>
 #include <sysrepo/subscribed_notifications.h>
 
 #include "common.h"
@@ -135,8 +136,15 @@ np2srv_del_session_cb(struct nc_session *session)
     /* terminate any subscriptions for the NETCONF session */
     np_sub_ntf_session_destroy(session);
 
-    /* stop sysrepo session subscriptions */
     user_sess = nc_session_get_data(session);
+
+    /* destroy private candidate datastores */
+    sr_pc_destroy_ds(user_sess->sess, user_sess->private_ds);
+    user_sess->private_ds = NULL;
+    sr_pc_destroy_ds(user_sess->sess, user_sess->private_ds_backup);
+    user_sess->private_ds_backup = NULL;
+
+    /* stop sysrepo session subscriptions */
     sr_session_unsubscribe(user_sess->sess);
 
     /* revert any pending confirmed commits */
@@ -353,6 +361,11 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         /* ietf-yang-push */
         if (!strcmp(LYD_NAME(rpc), "resync-subscription")) {
             rpc_cb = np2srv_rpc_resync_sub_cb;
+        }
+    } else if (!strcmp(lyd_owner_module(rpc)->name, "ietf-netconf-private-candidate")) {
+        /* ietf-netconf-private-candidate */
+        if (!strcmp(LYD_NAME(rpc), "update")) {
+            rpc_cb = np2srv_rpc_update_cb;
         }
     }
 
@@ -921,6 +934,7 @@ server_init(void)
         goto error;
     }
 #endif /* NC_ENABLED_SSH_TLS */
+    nc_server_set_capability("urn:ietf:params:netconf:capability:private-candidate:1.0");
 
     /* set capabilities for the NETCONF Notifications */
     nc_server_set_capability("urn:ietf:params:netconf:capability:notification:1.0");

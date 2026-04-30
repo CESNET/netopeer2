@@ -32,6 +32,7 @@
 #include <libyang/libyang.h>
 #include <sysrepo.h>
 #include <sysrepo/netconf_acm.h>
+#include <sysrepo/private_candidate.h>
 #include <sysrepo/subscribed_notifications.h>
 
 #include "common.h"
@@ -41,15 +42,15 @@
 #include "netconf_monitoring.h"
 
 /**
- * @brief Get data for a get RPC.
+ * @brief Acquire data for a get RPC.
  *
- * @param[in] session User SR session.
+ * @param[in] user_sess User session.
  * @param[in] xp_filter XPath filter to use.
  * @param[out] data Retrieved data.
  * @return Error reply on error, NULL on success.
  */
 static struct nc_server_reply *
-np_get_rpc_data(sr_session_ctx_t *session, const char *xp_filter, struct lyd_node **data)
+np_get_rpc_data(struct np_user_sess *user_sess, const char *xp_filter, struct lyd_node **data)
 {
     struct nc_server_reply *reply = NULL;
     struct lyd_node *node, *base_data = NULL;
@@ -64,19 +65,18 @@ np_get_rpc_data(sr_session_ctx_t *session, const char *xp_filter, struct lyd_nod
     }
 
     /* get base data from running */
-    sr_session_switch_ds(session, SR_DS_RUNNING);
-    if ((reply = np_op_filter_data_get(session, 0, SR_GET_NO_FILTER, xp_filter, &base_data))) {
+    if ((reply = np_op_filter_data_get(user_sess, SR_DS_RUNNING, 0, SR_GET_NO_FILTER, xp_filter, &base_data))) {
         goto cleanup;
     }
 
     /* then append base operational data */
-    sr_session_switch_ds(session, SR_DS_OPERATIONAL);
-    if ((reply = np_op_filter_data_get(session, 0, SR_OPER_NO_CONFIG | SR_GET_NO_FILTER, xp_filter, &base_data))) {
+    if ((reply = np_op_filter_data_get(user_sess, SR_DS_OPERATIONAL, 0, SR_OPER_NO_CONFIG | SR_GET_NO_FILTER, xp_filter,
+            &base_data))) {
         goto cleanup;
     }
 
     if (!strcmp(xp_filter, "/*") || !base_data) {
-        /* no filter, use all the data, or no data at all */
+        /* no filter, use all Data, or no data at all */
         *data = base_data;
         base_data = NULL;
         goto cleanup;
@@ -84,13 +84,13 @@ np_get_rpc_data(sr_session_ctx_t *session, const char *xp_filter, struct lyd_nod
 
     /* now filter only the requested data from the created running data + state data */
     if (lyd_find_xpath3(NULL, base_data, xp_filter, LY_VALUE_JSON, NULL, NULL, &set)) {
-        reply = np_reply_err_op_failed(session, NULL, ly_last_logmsg());
+        reply = np_reply_err_op_failed(user_sess->sess, NULL, ly_last_logmsg());
         goto cleanup;
     }
 
     for (i = 0; i < set->count; ++i) {
         if (lyd_dup_single(set->dnodes[i], NULL, LYD_DUP_RECURSIVE | LYD_DUP_WITH_PARENTS | LYD_DUP_WITH_FLAGS, &node)) {
-            reply = np_reply_err_op_failed(session, NULL, ly_last_logmsg());
+            reply = np_reply_err_op_failed(user_sess->sess, NULL, ly_last_logmsg());
             goto cleanup;
         }
 
@@ -102,7 +102,7 @@ np_get_rpc_data(sr_session_ctx_t *session, const char *xp_filter, struct lyd_nod
         /* merge */
         if (lyd_merge_tree(data, node, LYD_MERGE_DESTRUCT)) {
             lyd_free_tree(node);
-            reply = np_reply_err_op_failed(session, NULL, ly_last_logmsg());
+            reply = np_reply_err_op_failed(user_sess->sess, NULL, ly_last_logmsg());
             goto cleanup;
         }
     }
@@ -174,18 +174,20 @@ np2srv_rpc_get_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess)
 
     /* we do not care here about with-defaults mode, it does not change anything */
 
+    if ((ds == SR_DS_CANDIDATE) && user_sess->use_private_cand) {
+        /* create private candidate if not yet created */
+        NP2_CHECK_PRIVCAND_EXISTS(user_sess, rpc, reply, cleanup);
+    }
+
     /* get filtered data */
     if (!strcmp(LYD_NAME(rpc), "get-config")) {
-        /* update sysrepo session datastore */
-        sr_session_switch_ds(user_sess->sess, ds);
-
         /* create the data tree for the data reply */
-        if ((reply = np_op_filter_data_get(user_sess->sess, 0, 0, xp_filter, &data_get))) {
+        if ((reply = np_op_filter_data_get(user_sess, ds, 0, 0, xp_filter, &data_get))) {
             goto cleanup;
         }
     } else {
         /* get properly merged data */
-        if ((reply = np_get_rpc_data(user_sess->sess, xp_filter, &data_get))) {
+        if ((reply = np_get_rpc_data(user_sess, xp_filter, &data_get))) {
             goto cleanup;
         }
     }
@@ -207,6 +209,55 @@ cleanup:
     free(xp_filter);
     lyd_free_siblings(data_get);
     lyd_free_siblings(output);
+    return reply;
+}
+
+/**
+ * @brief Handles the edit-config operation for the Private Candidate datastore.
+ *
+ * @param[in] rpc RPC data tree.
+ * @param[in] user_sess User session.
+ * @param[in] defop Default operation for the edit-config.
+ * @param[in] testop Test option.
+ * @param[in] config Data tree containing configuration changes.
+ * @return Error reply on error, NULL on success.
+ */
+static struct nc_server_reply *
+np2srv_pc_editconfig(const struct lyd_node *rpc, struct np_user_sess *user_sess, const char *defop, const char *testop,
+        const struct lyd_node *config)
+{
+    struct nc_server_reply *reply = NULL;
+    sr_priv_cand_t *dup_privcand = NULL;
+    int test_only = !strcmp(testop, "test-only");
+
+    /* create private candidate if not yet created */
+    NP2_CHECK_PRIVCAND_EXISTS(user_sess, rpc, reply, cleanup);
+
+    if (test_only) {
+        /* duplicate private candidate as backup */
+        if (sr_pc_backup_privcand(user_sess->sess, user_sess->private_ds, &dup_privcand)) {
+            reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+            goto cleanup;
+        }
+    }
+
+    if (sr_pc_edit_config(user_sess->sess, user_sess->private_ds, config, defop)) {
+        reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+        goto cleanup;
+    }
+
+    if (test_only) {
+        /* validate only, revert the changes made */
+        if (sr_pc_validate(user_sess->sess, NULL, user_sess->private_ds)) {
+            reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+            goto cleanup;
+        }
+        sr_pc_restore_privcand(user_sess->private_ds, dup_privcand);
+        dup_privcand = NULL;
+    }
+
+cleanup:
+    sr_pc_destroy_ds(user_sess->sess, dup_privcand);
     return reply;
 }
 
@@ -275,25 +326,32 @@ np2srv_rpc_editconfig_cb(const struct lyd_node *rpc, struct np_user_sess *user_s
     }
     ly_set_free(nodeset, NULL);
 
-    /* update sysrepo session datastore */
-    sr_session_switch_ds(user_sess->sess, ds);
-
-    /* sysrepo API */
-    if (config && sr_edit_batch(user_sess->sess, config, defop)) {
-        reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
-        goto cleanup;
-    }
-
-    if (!strcmp(testop, "test-then-set")) {
-        if (sr_apply_changes(user_sess->sess, np2srv.sr_timeout)) {
-            reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+    /* private candidate */
+    if ((ds == SR_DS_CANDIDATE) && user_sess->use_private_cand) {
+        if ((reply = np2srv_pc_editconfig(rpc, user_sess, defop, testop, config))) {
             goto cleanup;
         }
     } else {
-        assert(!strcmp(testop, "test-only"));
-        if (sr_validate(user_sess->sess, NULL, 0)) {
+        /* update sysrepo session datastore */
+        sr_session_switch_ds(user_sess->sess, ds);
+
+        /* sysrepo API */
+        if (config && sr_edit_batch(user_sess->sess, config, defop)) {
             reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
             goto cleanup;
+        }
+
+        if (!strcmp(testop, "test-then-set")) {
+            if (sr_apply_changes(user_sess->sess, np2srv.sr_timeout)) {
+                reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+                goto cleanup;
+            }
+        } else {
+            assert(!strcmp(testop, "test-only"));
+            if (sr_validate(user_sess->sess, NULL, 0)) {
+                reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+                goto cleanup;
+            }
         }
     }
 
@@ -305,6 +363,78 @@ cleanup:
     sr_discard_changes(user_sess->sess);
 
     lyd_free_siblings(config);
+    return reply;
+}
+
+/**
+ * @brief Handles the copy-config operation for the Private Candidate datastore.
+ *
+ * @param[in] rpc RPC data tree.
+ * @param[in] user_sess User session.
+ * @param[in] ds Target datastore.
+ * @param[in] sds Source datastore.
+ * @param[in] source_is_config Flag indicating if the source is a config data.
+ * @param[in,out] config Data tree containing configuration changes.
+ * @return Error reply on error, NULL on success.
+ */
+static struct nc_server_reply *
+np2srv_pc_copyconfig(const struct lyd_node *rpc, struct np_user_sess *user_sess, const sr_datastore_t ds,
+        const sr_datastore_t sds, const int source_is_config, struct lyd_node **config)
+{
+    struct nc_server_reply *reply = NULL;
+    sr_data_t *sr_data = NULL;
+
+    assert(user_sess->use_private_cand);
+
+    if ((ds == SR_DS_CANDIDATE)) {
+        if (source_is_config) {
+            /* config -> private candidate */
+            if (sr_pc_replace_trg_config(user_sess->sess, user_sess->private_ds, NULL, *config)) {
+                reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+                goto cleanup;
+            }
+        } else {
+            /* conventional datastore -> private candidate */
+            if (sr_get_data(user_sess->sess, "/*", 0, 0, 0, &sr_data)) {
+                reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+                goto cleanup;
+            }
+
+            if (sr_pc_replace_trg_config(user_sess->sess, user_sess->private_ds, NULL, sr_data->tree)) {
+                reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+                goto cleanup;
+            }
+        }
+    } else {
+        assert(sds == SR_DS_CANDIDATE);
+
+        if (source_is_config) {
+            /* config -> conventional datastore */
+            if (sr_replace_config(user_sess->sess, NULL, *config, np2srv.sr_timeout)) {
+                *config = NULL;
+                reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+                goto cleanup;
+            }
+            *config = NULL;
+        } else {
+            /* private candidate -> conventional datastore */
+            if (sr_pc_get_data(user_sess->sess, "/*", 0, 0, user_sess->private_ds, &sr_data)) {
+                reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+                goto cleanup;
+            }
+
+            /* copy from conventional datastore into candidate */
+            if (sr_replace_config(user_sess->sess, NULL, sr_data->tree, np2srv.sr_timeout)) {
+                sr_data->tree = NULL;
+                reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+                goto cleanup;
+            }
+            sr_data->tree = NULL;
+        }
+    }
+
+cleanup:
+    sr_release_data(sr_data);
     return reply;
 }
 
@@ -407,12 +537,23 @@ np2srv_rpc_copyconfig_cb(const struct lyd_node *rpc, struct np_user_sess *user_s
         struct lyd_node *node;
 
         if (!source_is_config) {
-            /* get source datastore data */
-            sr_session_switch_ds(user_sess->sess, sds);
-            if (sr_get_data(user_sess->sess, "/*", 0, np2srv.sr_timeout, 0, &sr_data)) {
-                reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
-                goto cleanup;
+            if ((sds == SR_DS_CANDIDATE) && user_sess->use_private_cand) {
+                /* create private candidate if not yet created */
+                NP2_CHECK_PRIVCAND_EXISTS(user_sess, rpc, reply, cleanup);
+
+                if (sr_pc_get_data(user_sess->sess, "/*", 0, 0, user_sess->private_ds, &sr_data)) {
+                    reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+                    goto cleanup;
+                }
+            } else {
+                /* get source datastore data */
+                sr_session_switch_ds(user_sess->sess, sds);
+                if (sr_get_data(user_sess->sess, "/*", 0, np2srv.sr_timeout, 0, &sr_data)) {
+                    reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+                    goto cleanup;
+                }
             }
+
             config = sr_data->tree;
             sr_data->tree = NULL;
             sr_release_data(sr_data);
@@ -439,30 +580,39 @@ np2srv_rpc_copyconfig_cb(const struct lyd_node *rpc, struct np_user_sess *user_s
     } else
 #endif
     {
-        if (source_is_config) {
-            /* config is spent */
-            if (sr_replace_config(user_sess->sess, NULL, config, np2srv.sr_timeout)) {
-                config = NULL;
-                reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+        if (((ds == SR_DS_CANDIDATE) || (sds == SR_DS_CANDIDATE)) && user_sess->use_private_cand) {
+            /* create private candidate if not yet created */
+            NP2_CHECK_PRIVCAND_EXISTS(user_sess, rpc, reply, cleanup);
+
+            if ((reply = np2srv_pc_copyconfig(rpc, user_sess, ds, sds, source_is_config, &config))) {
                 goto cleanup;
             }
-            config = NULL;
         } else {
-            if (run_to_start) {
-                /* skip NACM check */
-                sr_nacm_set_user(user_sess->sess, NULL);
-            }
+            if (source_is_config) {
+                /* config is spent */
+                if (sr_replace_config(user_sess->sess, NULL, config, np2srv.sr_timeout)) {
+                    config = NULL;
+                    reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+                    goto cleanup;
+                }
+                config = NULL;
+            } else {
+                if (run_to_start) {
+                    /* skip NACM check */
+                    sr_nacm_set_user(user_sess->sess, NULL);
+                }
 
-            if (sr_copy_config(user_sess->sess, NULL, sds, np2srv.sr_timeout)) {
-                /* prevent the error info being overwritten */
-                reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
-            }
+                if (sr_copy_config(user_sess->sess, NULL, sds, np2srv.sr_timeout)) {
+                    /* prevent the error info being overwritten */
+                    reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+                }
 
-            /* set NACM username back */
-            sr_nacm_set_user(user_sess->sess, nc_session_get_username(user_sess->ntf_arg.nc_sess));
+                /* set NACM username back */
+                sr_nacm_set_user(user_sess->sess, nc_session_get_username(user_sess->ntf_arg.nc_sess));
 
-            if (reply) {
-                goto cleanup;
+                if (reply) {
+                    goto cleanup;
+                }
             }
         }
     }
@@ -538,6 +688,33 @@ cleanup:
 }
 
 struct nc_server_reply *
+np2srv_pc_un_lock(const struct lyd_node *rpc, struct np_user_sess *user_sess, struct nc_session *nc_sess)
+{
+    struct nc_server_reply *reply = NULL;
+
+    /* create private candidate if not yet created */
+    NP2_CHECK_PRIVCAND_EXISTS(user_sess, rpc, reply, cleanup);
+
+    if (!strcmp(rpc->schema->name, "lock")) {
+        if (user_sess->privcand_lock) {
+            reply = np_reply_err_lock_denied(LYD_CTX(rpc), "Lock failed, is already locked.", nc_session_get_id(nc_sess));
+            goto cleanup;
+        }
+        user_sess->privcand_lock = 1;
+    } else {
+        assert(!strcmp(rpc->schema->name, "unlock"));
+        if (!user_sess->privcand_lock) {
+            reply = np_reply_err_lock_denied(LYD_CTX(rpc), "Unlock failed, was not locked.", nc_session_get_id(nc_sess));
+            goto cleanup;
+        }
+        user_sess->privcand_lock = 0;
+    }
+
+cleanup:
+    return reply;
+}
+
+struct nc_server_reply *
 np2srv_rpc_un_lock_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess)
 {
     struct nc_server_reply *reply = NULL;
@@ -571,19 +748,27 @@ np2srv_rpc_un_lock_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess
         goto cleanup;
     }
 
-    /* update sysrepo session datastore */
-    sr_session_switch_ds(user_sess->sess, ds);
-
     /* sysrepo API */
-    if (!strcmp(rpc->schema->name, "lock")) {
-        r = sr_lock(user_sess->sess, NULL, NP2SRV_DS_LOCK_TIMEOUT);
+    if ((ds == SR_DS_CANDIDATE) && user_sess->use_private_cand) {
+        /* lock/unlock for private candidate */
+        if ((reply = np2srv_pc_un_lock(rpc, user_sess, nc_sess))) {
+            goto cleanup;
+        }
     } else {
-        assert(!strcmp(rpc->schema->name, "unlock"));
-        r = sr_unlock(user_sess->sess, NULL);
-    }
-    if (r) {
-        reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
-        goto cleanup;
+        /* update sysrepo session datastore */
+        sr_session_switch_ds(user_sess->sess, ds);
+
+        if (!strcmp(rpc->schema->name, "lock")) {
+            r = sr_lock(user_sess->sess, NULL, NP2SRV_DS_LOCK_TIMEOUT);
+        } else {
+            assert(!strcmp(rpc->schema->name, "unlock"));
+            r = sr_unlock(user_sess->sess, NULL);
+        }
+
+        if (r) {
+            reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+            goto cleanup;
+        }
     }
 
     /* OK reply */
@@ -637,13 +822,19 @@ np2srv_rpc_discard_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess
 {
     struct nc_server_reply *reply = NULL;
 
-    /* update sysrepo session datastore */
-    sr_session_switch_ds(user_sess->sess, SR_DS_CANDIDATE);
+    if (user_sess->use_private_cand) {
+        /* create private candidate if not yet created */
+        NP2_CHECK_PRIVCAND_EXISTS(user_sess, rpc, reply, cleanup);
+        sr_pc_discard_changes(user_sess->private_ds);
+    } else {
+        /* update sysrepo session datastore */
+        sr_session_switch_ds(user_sess->sess, SR_DS_CANDIDATE);
 
-    /* sysrepo API */
-    if (sr_copy_config(user_sess->sess, NULL, SR_DS_RUNNING, np2srv.sr_timeout)) {
-        reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
-        goto cleanup;
+        /* sysrepo API */
+        if (sr_copy_config(user_sess->sess, NULL, SR_DS_RUNNING, np2srv.sr_timeout)) {
+            reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+            goto cleanup;
+        }
     }
 
     /* OK reply */
@@ -693,14 +884,26 @@ np2srv_rpc_validate_cb(const struct lyd_node *rpc, struct np_user_sess *user_ses
     ly_set_free(nodeset, NULL);
 
     if (!config) {
-        /* update sysrepo session datastore */
-        sr_session_switch_ds(user_sess->sess, ds);
+        if ((ds == SR_DS_CANDIDATE) && user_sess->use_private_cand) {
+            /* create private candidate if not yet created */
+            NP2_CHECK_PRIVCAND_EXISTS(user_sess, rpc, reply, cleanup);
 
-        /* sysrepo API */
-        if (sr_validate(user_sess->sess, NULL, 0)) {
-            reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
-            goto cleanup;
+            /* validate private candidate */
+            if (sr_pc_validate(user_sess->sess, NULL, user_sess->private_ds)) {
+                reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+                goto cleanup;
+            }
+        } else {
+            /* update sysrepo session datastore */
+            sr_session_switch_ds(user_sess->sess, ds);
+
+            /* sysrepo API */
+            if (sr_validate(user_sess->sess, NULL, 0)) {
+                reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+                goto cleanup;
+            }
         }
+
     } /* else already validated */
 
     /* OK reply */
@@ -708,6 +911,53 @@ np2srv_rpc_validate_cb(const struct lyd_node *rpc, struct np_user_sess *user_ses
 
 cleanup:
     lyd_free_siblings(config);
+    return reply;
+}
+
+struct nc_server_reply *
+np2srv_rpc_update_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess)
+{
+    sr_pc_conflict_resolution_t resolution_mode = SR_PC_REVERT_ON_CONFLICT;
+    sr_pc_conflict_set_t *conflict_set = NULL;
+    struct nc_server_reply *reply = NULL;
+    const char *str_resolution_mode;
+    struct lyd_node *leaf = NULL;
+    int ret;
+
+    /* get conflict resolution mode */
+    lyd_find_path(rpc, "resolution-mode", 0, &leaf);
+
+    if (leaf) {
+        str_resolution_mode = lyd_get_value(leaf);
+        if (!strcmp(str_resolution_mode, "revert-on-conflict")) {
+            resolution_mode = SR_PC_REVERT_ON_CONFLICT;
+        } else if (!strcmp(str_resolution_mode, "prefer-running")) {
+            resolution_mode = SR_PC_PREFER_RUNNING;
+        } else {
+            assert(!strcmp(str_resolution_mode, "prefer-candidate"));
+            resolution_mode = SR_PC_PREFER_CANDIDATE;
+        }
+    }
+
+    /* create private candidate if not yet created */
+    NP2_CHECK_PRIVCAND_EXISTS(user_sess, rpc, reply, cleanup);
+
+    ret = sr_pc_update(user_sess->sess, user_sess->private_ds, resolution_mode, &conflict_set);
+    if (ret != SR_ERR_OK) {
+        if (ret == SR_ERR_OPERATION_FAILED) {
+            /* build error msg with conflict info */
+            reply = np_reply_err_conflict(rpc, conflict_set);
+            goto cleanup;
+        }
+        reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+        goto cleanup;
+    }
+
+    /* OK reply */
+    reply = np_reply_success(rpc, NULL);
+
+cleanup:
+    sr_pc_free_conflicts(conflict_set);
     return reply;
 }
 
