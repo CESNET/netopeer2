@@ -1520,19 +1520,25 @@ np_err(const struct ly_ctx *ly_ctx, const char *err_msg, int err_code, const cha
 
     if (!strncmp(err_msg, "Unique data leaf(s)", 19)) {
         /* data-not-unique */
-        assert(err_path);
+        if (!err_path) {
+            goto cleanup;
+        }
         err_info_elem[0] = "non-unique";
         err_info_val[0] = err_path;
         e = np_err_create(ly_ctx, "protocol", "operation-failed", "data-not-unique", NULL,
                 "Unique constraint violated.", err_info_elem, err_info_val, 1);
     } else if (!strncmp(err_msg, "Too many", 8)) {
         /* too-many-elements */
-        assert(err_path);
+        if (!err_path) {
+            goto cleanup;
+        }
         e = np_err_create(ly_ctx, "protocol", "operation-failed", "too-many-elements", err_path, "Too many elements.",
                 NULL, NULL, 0);
     } else if (!strncmp(err_msg, "Too few", 7)) {
         /* too-few-elements */
-        assert(err_path);
+        if (!err_path) {
+            goto cleanup;
+        }
         e = np_err_create(ly_ctx, "protocol", "operation-failed", "too-few-elements", err_path, "Too few elements.",
                 NULL, NULL, 0);
     } else if (!strncmp(err_msg, "Must condition", 14)) {
@@ -1542,7 +1548,9 @@ np_err(const struct ly_ctx *ly_ctx, const char *err_msg, int err_code, const cha
         str = strndup(err_msg, ptr - err_msg);
 
         /* must-violation */
-        assert(err_path);
+        if (!err_path) {
+            goto cleanup;
+        }
         e = np_err_create(ly_ctx, "protocol", "operation-failed", "must-violation", err_path, str, NULL, NULL, 0);
     } else if (!strncmp(err_msg, "Invalid leafref value", 21) && strstr(err_msg, "no target instance")) {
         /* get the value */
@@ -1554,7 +1562,9 @@ np_err(const struct ly_ctx *ly_ctx, const char *err_msg, int err_code, const cha
         }
 
         /* instance-required */
-        assert(err_path);
+        if (!err_path) {
+            goto cleanup;
+        }
         e = np_err_create(ly_ctx, "protocol", "data-missing", "instance-required", err_path, str2, NULL, NULL, 0);
     } else if (!strncmp(err_msg, "Invalid instance-identifier", 26) && strstr(err_msg, "required instance not found")) {
         /* get the value */
@@ -1566,11 +1576,15 @@ np_err(const struct ly_ctx *ly_ctx, const char *err_msg, int err_code, const cha
         }
 
         /* instance-required */
-        assert(err_path);
+        if (!err_path) {
+            goto cleanup;
+        }
         e = np_err_create(ly_ctx, "protocol", "data-missing", "instance-required", err_path, str2, NULL, NULL, 0);
     } else if (!strncmp(err_msg, "Mandatory choice", 16)) {
         /* get the choice */
-        assert(err_path);
+        if (!err_path) {
+            goto cleanup;
+        }
         str = np_err_reply_get_quoted_string(err_msg, 0);
 
         /* missing-choice */
@@ -1599,7 +1613,9 @@ np_err(const struct ly_ctx *ly_ctx, const char *err_msg, int err_code, const cha
         }
 
         /* get element name */
-        assert(err_path);
+        if (!err_path) {
+            goto cleanup;
+        }
         ptr = strrchr(err_path, ':');
         if (!ptr) {
             ptr = strrchr(err_path, '/');
@@ -1681,14 +1697,15 @@ np_err(const struct ly_ctx *ly_ctx, const char *err_msg, int err_code, const cha
     } else if (err_code == SR_ERR_NO_MEMORY) {
         /* resource-denied */
         e = np_err_create(ly_ctx, "application", "resource-denied", NULL, NULL, err_msg, NULL, NULL, 0);
-    } else {
-        /* generic error */
-        e = np_err_create(ly_ctx, "application", "operation-failed", NULL, NULL, err_msg, NULL, NULL, 0);
     }
 
 cleanup:
     free(str);
     free(str2);
+    if (!e) {
+        /* generic error */
+        e = np_err_create(ly_ctx, "application", "operation-failed", NULL, NULL, err_msg, NULL, NULL, 0);
+    }
     return e;
 }
 
