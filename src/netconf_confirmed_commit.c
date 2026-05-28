@@ -130,7 +130,7 @@ cleanup:
 static char *
 ncc_get_module_name_from_filename(const char *filename)
 {
-    char *point = strstr(filename, ".json");
+    const char *point = strstr(filename, ".json");
     char *new = NULL;
 
     if (!point) {

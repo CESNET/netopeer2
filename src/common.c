@@ -1526,9 +1526,9 @@ np_err(const struct ly_ctx *ly_ctx, const char *err_msg, int err_code, const cha
 {
     struct lyd_node *e = NULL;
     const struct lysc_node *cn;
-    char *ptr, *str = NULL, *str2 = NULL;
+    char *str = NULL, *str2 = NULL;
     struct nc_session *nc_sess;
-    const char *err_info_elem[2], *err_info_val[2], *err_type, *err_tag, *msg;
+    const char *ptr, *err_info_elem[2], *err_info_val[2], *err_type, *err_tag, *msg;
 
     if (!strncmp(err_msg, "Unique data leaf(s)", 19)) {
         /* data-not-unique */
