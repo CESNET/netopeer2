@@ -31,6 +31,14 @@
 #include "np2_test.h"
 #include "np2_test_config.h"
 
+#if defined (__has_feature)
+#  if __has_feature(thread_sanitizer)
+#    define NP2_TSAN
+#  endif
+#elif defined (__SANITIZE_THREAD__)
+#  define NP2_TSAN
+#endif
+
 #define UPDATE_RPC(RES_MODE) \
     "  <update xmlns=\"urn:ietf:params:xml:ns:yang:ietf-netconf-private-candidate\">\n" \
     "    <resolution-mode>"RES_MODE"</resolution-mode>\n" \
@@ -408,6 +416,9 @@ test_pc_basic_commit(void **state)
     FREE_TEST_VARS(st);
 }
 
+#ifndef NP2_TSAN
+// This test a path in netopeer2 which starts a timer via the C library, and that makes TSAN segfault:
+// https://github.com/google/sanitizers/issues/1612
 static void
 test_pc_commit_timeout_runout(void **state)
 {
@@ -477,6 +488,8 @@ test_pc_commit_timeout_runout(void **state)
     /* No notification should occur */
     ASSERT_NO_NOTIF(st);
 }
+
+#endif
 
 static void
 test_pc_timeout_confirm(void **state)
@@ -929,7 +942,9 @@ main(int argc, char **argv)
         cmocka_unit_test(test_pc_lock_unlock),
 
         cmocka_unit_test_setup_teardown(test_pc_basic_commit, setup_common, teardown_common),
+#ifndef NP2_TSAN
         cmocka_unit_test_setup_teardown(test_pc_commit_timeout_runout, setup_common, teardown_common),
+#endif
         cmocka_unit_test_setup_teardown(test_pc_timeout_confirm, setup_common, teardown_common),
         cmocka_unit_test_setup_teardown(test_pc_timeout_confirm_modify, setup_common, teardown_common),
 
