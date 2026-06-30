@@ -243,8 +243,8 @@ np2log_printf(NC_VERB_LEVEL level, const char *format, ...)
         priority = LOG_DEBUG;
         break;
     }
-    /* no need to encode in this case */
-    np2log(priority, "NP", msg);
+
+    np2log(priority, "NP", "%s", msg);
 
 cleanup:
     free(msg);
