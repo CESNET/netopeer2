@@ -81,6 +81,10 @@ struct np2srv {
 
     struct nc_pollsession *nc_ps;   /**< libnetconf2 pollsession structure */
     pthread_t workers[NP2SRV_THREAD_COUNT]; /**< worker threads handling sessions */
+
+    int notif_envelope_enabled;     /**< whether notification envelope is enabled (from config) */
+    char *hostname;                 /**< cached server hostname for envelope */
+    ATOMIC_T env_seq;               /**< atomic sequence counter for envelope (starts at 1) */
 };
 
 extern struct np2srv np2srv;

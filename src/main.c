@@ -20,6 +20,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
+#include <limits.h>
 #include <pwd.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -53,6 +54,11 @@
 
 #ifdef NP2SRV_HAVE_SYSTEMD
 # include <systemd/sd-daemon.h>
+#endif
+
+/* Fallback for ::np2srv_notif_envelope_init() if limits.h doesn't define HOST_NAME_MAX */
+#ifndef HOST_NAME_MAX
+#define HOST_NAME_MAX 255
 #endif
 
 /** @brief flag for main loop */
@@ -532,12 +538,117 @@ np2srv_content_id_cb(void *UNUSED(user_data))
 }
 
 /**
+ * @brief Initialize notification envelope state (hostname and sequence counter).
+ *
+ * @return 0 on success, -1 on error.
+ */
+static int
+np2srv_notif_envelope_init(void)
+{
+    char hostbuf[HOST_NAME_MAX + 1];
+
+    /* init sequence counter to 1 */
+    ATOMIC_STORE_RELAXED(np2srv.env_seq, 1);
+
+    /* init hostname */
+    if (gethostname(hostbuf, sizeof(hostbuf)) != 0) {
+        ERR("Failed to get hostname (%s).", strerror(errno));
+        return -1;
+    }
+
+    /* ensure null-termination in case of truncation */
+    hostbuf[sizeof(hostbuf) - 1] = '\0';
+
+    /* handle empty hostname */
+    if (hostbuf[0] == '\0') {
+        np2srv.hostname = strdup("unknown");
+    } else {
+        np2srv.hostname = strdup(hostbuf);
+    }
+    if (!np2srv.hostname) {
+        EMEM;
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * @brief Add notification envelope capabilities to subscription-capabilities node.
+ *
+ * @param[in] subs_capas Subscription capabilities node to add to.
+ * @param[in] ly_ctx Libyang context.
+ * @return 0 on success, -1 on error.
+ */
+static int
+np2srv_add_notif_envelope_capabilities(struct lyd_node *subs_capas, const struct ly_ctx *ly_ctx)
+{
+    const struct lys_module *ypn_mod;
+    struct lyd_node *notif_meta, *metadata;
+
+    ypn_mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-yp-notification");
+    if (!ypn_mod) {
+        return 0;
+    }
+
+    if (lyd_new_inner(subs_capas, ypn_mod, "notification-metadata", 0, &notif_meta)) {
+        ERR("Failed to create notification-metadata.");
+        return -1;
+    }
+    if (lyd_new_term(notif_meta, ypn_mod, "envelope", "true", 0, NULL)) {
+        ERR("Failed to create envelope capability.");
+        return -1;
+    }
+    if (lys_feature_value(ypn_mod, "hostname-sequence-number") == LY_SUCCESS) {
+        if (lyd_new_inner(notif_meta, ypn_mod, "metadata", 0, &metadata)) {
+            ERR("Failed to create metadata container.");
+            return -1;
+        }
+        if (lyd_new_term(metadata, ypn_mod, "hostname-sequence-number", "true", 0, NULL)) {
+            ERR("Failed to create hostname-sequence-number capability.");
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+/**
+ * @brief Add YANG-Push observation capabilities to subscription-capabilities node.
+ *
+ * @param[in] subs_capas Subscription capabilities node to add to.
+ * @param[in] ly_ctx Libyang context.
+ * @return 0 on success, -1 on error.
+ */
+static int
+np2srv_add_yp_observation_capabilities(struct lyd_node *subs_capas, const struct ly_ctx *ly_ctx)
+{
+    const struct lys_module *iypo_mod;
+
+    iypo_mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-yp-observation");
+    if (!iypo_mod) {
+        return 0;
+    }
+
+    /* sysrepo automatically populates the observation-time fields in push-update/push-change-update
+     * notifications when it sees ietf-yp-observation loaded into the ly_ctx */
+    if (lyd_new_term(subs_capas, iypo_mod, "yang-push-observation-time-supported", "true", 0, NULL)) {
+        ERR("Failed to create yang-push-observation-time-supported capability.");
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
  * @brief Add subscription capabilities to a node
  * @param[in,out] node is a part of ietf-system-capabilities.
  * @param[in] ly_ctx a libyang context.
+ * @param[in] add_envelope whether to add notification envelope capabilities (only for global capabilities).
  */
 static int
-np2srv_add_subscription_capabilities(struct lyd_node *node, const struct ly_ctx *ly_ctx)
+np2srv_add_subscription_capabilities(struct lyd_node *node, const struct ly_ctx *ly_ctx,
+        int add_envelope)
 {
     const struct lys_module *notc_mod;
     struct lyd_node *subs_capas;
@@ -567,6 +678,18 @@ np2srv_add_subscription_capabilities(struct lyd_node *node, const struct ly_ctx 
             rc = -1;
             goto cleanup;
         }
+    }
+
+    /* notification envelope capabilities (from ietf-yp-notification) */
+    if (add_envelope && np2srv_add_notif_envelope_capabilities(subs_capas, ly_ctx)) {
+        rc = -1;
+        goto cleanup;
+    }
+
+    /* YANG-Push observation capabilities (from ietf-yp-observation) */
+    if (add_envelope && np2srv_add_yp_observation_capabilities(subs_capas, ly_ctx)) {
+        rc = -1;
+        goto cleanup;
     }
 cleanup:
     return rc;
@@ -631,7 +754,7 @@ np2srv_capabilities_oper_cb(sr_session_ctx_t *session, uint32_t sub_id,
         }
 
         /* per datastore capabilities */
-        if (np2srv_add_subscription_capabilities(per_node_capas, ly_ctx)) {
+        if (np2srv_add_subscription_capabilities(per_node_capas, ly_ctx, 0)) {
             ERR("Failed to add per node subscription-capabilities.");
             rc = -1;
             goto cleanup;
@@ -639,7 +762,7 @@ np2srv_capabilities_oper_cb(sr_session_ctx_t *session, uint32_t sub_id,
     }
 
     /* global capabilities */
-    if (np2srv_add_subscription_capabilities(sys_capas, ly_ctx)) {
+    if (np2srv_add_subscription_capabilities(sys_capas, ly_ctx, 1)) {
         ERR("Failed to add global subscription-capabilities.");
         rc = -1;
         goto cleanup;
@@ -953,6 +1076,11 @@ server_init(void)
         goto error;
     }
 
+    /* initialize notification envelope state */
+    if (np2srv_notif_envelope_init()) {
+        goto error;
+    }
+
     /* restore a previous confirmed commit if restore file exists */
     ncc_try_restore();
 
@@ -1025,6 +1153,7 @@ server_destroy(void)
 
     /* free dynamic members */
     free(np2srv.url_protocols);
+    free(np2srv.hostname);
 
     /* zero */
     memset(&np2srv, 0, sizeof np2srv);
@@ -1314,6 +1443,15 @@ server_data_subscribe(void)
     xpath = "/ietf-subscribed-notifications:filters";
     rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_config_sub_ntf_filters_cb, NULL, 0,
             SR_SUBSCR_DONE_ONLY, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
+        goto error;
+    }
+
+    /* notification envelope toggle */
+    xpath = "/ietf-subscribed-notifications:subscriptions/ietf-yp-notification:enable-notification-envelope";
+    rc = sr_module_change_subscribe(np2srv.sr_sess, mod_name, xpath, np2srv_config_notif_envelope_cb, NULL, 0,
+            SR_SUBSCR_DONE_ONLY | SR_SUBSCR_ENABLED, &np2srv.sr_data_sub);
     if (rc != SR_ERR_OK) {
         ERR("Subscribing for \"%s\" data changes failed (%s).", mod_name, sr_strerror(rc));
         goto error;

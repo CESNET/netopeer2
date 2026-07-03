@@ -28,6 +28,7 @@
 struct np_sub_ntf_arg {
     struct nc_session *ncs;
     uint32_t sub_id;
+    int envelope_enabled;           /**< envelope state when this subscription was created */
 };
 
 /**
@@ -61,6 +62,9 @@ struct nc_server_reply *np2srv_rpc_kill_sub_cb(const struct lyd_node *rpc, struc
 struct nc_server_reply *np2srv_rpc_resync_sub_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess);
 
 int np2srv_config_sub_ntf_filters_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
+        const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
+
+int np2srv_config_notif_envelope_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,
         const char *xpath, sr_event_t event, uint32_t request_id, void *private_data);
 
 int np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name,

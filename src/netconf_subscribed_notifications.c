@@ -45,6 +45,11 @@ static struct np_sub_ntf_state state = {
 #define STATE_UNLOCK { int _r; if ((_r = pthread_rwlock_unlock(&state.lock))) EUNLOCK(_r); }
 
 /**
+ * @brief Cache size for notification envelope sequence number deduplication.
+ */
+#define NP2_NOTIF_SEQ_CACHE_SIZE 32
+
+/**
  * @brief Print and set error for a SR event session.
  *
  * @param[in] ly_ctx Context to use.
@@ -167,6 +172,64 @@ sub_ntf_del(uint32_t sub_id)
 }
 
 /**
+ * @brief Get the sequence number for a notification, reusing the same number for all deliveries
+ * of the same notification (identified by its timestamp).
+ *
+ * The ietf-yp-notification YANG requires that all deliveries of the same published notification
+ * carry the same sequence number.
+ *
+ * The srsn dispatch thread is single-threaded (holds dispatch_lock), so this cache needs no locking.
+ * The dispatch loop drains one subscription fd completely before the next, so deliveries of the
+ * same notification to different subscriptions are separated by other notifications. A simple
+ * "last timestamp" check is insufficient; a small cache is used instead.
+ *
+ * When the cache is full, the entry with the oldest timestamp is evicted. This is correct as long
+ * as no subscription lags another by more than NP2_NOTIF_SEQ_CACHE_SIZE distinct in-flight
+ * notifications, which under normal load does not happen.
+ *
+ * @param[in] timestamp Notification timestamp (same for all deliveries of the same notification).
+ * @return Sequence number for this notification.
+ */
+static uint32_t
+np2srv_notif_envelope_seq(const struct timespec *timestamp)
+{
+    static struct {
+        struct timespec ts;
+        uint32_t seq;
+        int valid;
+    } cache[NP2_NOTIF_SEQ_CACHE_SIZE];
+    uint32_t i, seq, oldest = 0;
+
+    for (i = 0; i < NP2_NOTIF_SEQ_CACHE_SIZE; ++i) {
+        if (cache[i].valid && (cache[i].ts.tv_sec == timestamp->tv_sec) &&
+                (cache[i].ts.tv_nsec == timestamp->tv_nsec)) {
+            return cache[i].seq;
+        }
+    }
+
+    /* not found, allocate a new sequence number */
+    seq = ATOMIC_INC_RELAXED(np2srv.env_seq);
+
+    /* use a free slot, or evict the entry with the oldest timestamp */
+    for (i = 0; i < NP2_NOTIF_SEQ_CACHE_SIZE; ++i) {
+        if (!cache[i].valid) {
+            oldest = i;
+            break;
+        }
+        if ((cache[i].ts.tv_sec < cache[oldest].ts.tv_sec) ||
+                ((cache[i].ts.tv_sec == cache[oldest].ts.tv_sec) && (cache[i].ts.tv_nsec < cache[oldest].ts.tv_nsec))) {
+            oldest = i;
+        }
+    }
+
+    cache[oldest].ts = *timestamp;
+    cache[oldest].seq = seq;
+    cache[oldest].valid = 1;
+
+    return seq;
+}
+
+/**
  * @brief Sysrepo notification dispatch callback.
  */
 static void
@@ -175,11 +238,15 @@ np2srv_srsn_notif_cb(const struct lyd_node *notif, const struct timespec *timest
     struct np_sub_ntf_arg *arg = cb_data;
     struct nc_session *ncs;
     struct nc_server_notif *nc_ntf = NULL;
+    struct lyd_node *env = NULL;
     NC_MSG_TYPE msg_type;
     char *datetime = NULL;
+    int envelope_enabled, r_env;
+    uint32_t seq;
 
-    /* remember the NC session in case the subscription is removed */
+    /* remember values before arg might be freed */
     ncs = arg->ncs;
+    envelope_enabled = arg->envelope_enabled;
 
     if (!strcmp(LYD_NAME(notif), "subscription-terminated") &&
             !strcmp(notif->schema->module->name, "ietf-subscribed-notifications")) {
@@ -198,9 +265,30 @@ np2srv_srsn_notif_cb(const struct lyd_node *notif, const struct timespec *timest
         goto cleanup;
     }
 
-    /* create the notification object */
-    ly_time_ts2str(timestamp, &datetime);
-    nc_ntf = nc_server_notif_new((struct lyd_node *)notif, datetime, NC_PARAMTYPE_CONST);
+    if (envelope_enabled) {
+        /* build the notification envelope */
+        seq = np2srv_notif_envelope_seq(timestamp);
+        r_env = sr_notif_envelope_build(LYD_CTX(notif), notif, timestamp, np2srv.hostname, seq, &env);
+        if (r_env == SR_ERR_OK) {
+            /* NC_PARAMTYPE_FREE: env is locally allocated, ownership transfers to nc_ntf */
+            nc_ntf = nc_server_notif_new2(env, NC_NOTIF_TYPE_ENVELOPE, NULL, NC_PARAMTYPE_FREE);
+            if (nc_ntf) {
+                env = NULL;
+            }
+        } else if (r_env != SR_ERR_NOT_FOUND) {
+            ERR("Failed to build notification envelope (%s).", sr_strerror(r_env));
+            goto cleanup;
+        }
+        /* SR_ERR_NOT_FOUND: ietf-yp-notification not loaded, fall back to legacy format */
+    }
+
+    if (!nc_ntf) {
+        /* fallback: legacy RFC 5277 format */
+        ly_time_ts2str(timestamp, &datetime);
+        /* NC_PARAMTYPE_CONST: notif is const and owned by sysrepo, nc_server_notif_free will not free it;
+         * datetime is freed in cleanup */
+        nc_ntf = nc_server_notif_new2((struct lyd_node *)notif, NC_NOTIF_TYPE_LEGACY, datetime, NC_PARAMTYPE_CONST);
+    }
 
     /* send the notification */
     msg_type = nc_server_notif_send(ncs, nc_ntf, NP2SRV_NOTIF_SEND_TIMEOUT);
@@ -214,6 +302,7 @@ np2srv_srsn_notif_cb(const struct lyd_node *notif, const struct timespec *timest
     ncm_session_notification(ncs);
 
 cleanup:
+    lyd_free_tree(env);
     free(datetime);
     nc_server_notif_free(nc_ntf);
 }
@@ -269,6 +358,7 @@ sub_ntf_add(const struct ly_ctx *ly_ctx, struct nc_session *ncs, uint32_t sub_id
     }
     sub->cb_arg->ncs = ncs;
     sub->cb_arg->sub_id = sub_id;
+    sub->cb_arg->envelope_enabled = np2srv.notif_envelope_enabled;
 
     ++state.count;
 
@@ -967,15 +1057,16 @@ static int
 sub_ntf_send_notif_modified(struct nc_session *ncs, const struct np2srv_sub_ntf *sub,
         int use_stop, const struct timespec *stop, struct nc_server_reply **err_reply, sr_session_ctx_t *err_sess)
 {
-    int rc = 0;
+    int rc = 0, r_env;
     const struct ly_ctx *ly_ctx;
     srsn_state_sub_t *sr_sub = NULL;
     char buf[11], *datetime = NULL;
-    struct lyd_node *ly_ntf = NULL;
+    struct lyd_node *ly_ntf = NULL, *env = NULL;
     struct timespec ts;
     struct nc_server_notif *nc_ntf = NULL;
     NC_MSG_TYPE msg_type;
     struct timespec stop_time = {0};
+    uint32_t seq;
 
     ly_ctx = nc_session_get_ctx(ncs);
 
@@ -1041,6 +1132,34 @@ sub_ntf_send_notif_modified(struct nc_session *ncs, const struct np2srv_sub_ntf 
         goto cleanup;
     }
 
+    /* stream and replay-start-time (for non-yang-push subscriptions) */
+    if (!sub->is_yp) {
+        if (lyd_new_term(ly_ntf, NULL, "stream", sr_sub->sub_notif.stream, 0, NULL)) {
+            if (err_reply) {
+                *err_reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+            } else if (err_sess) {
+                sr_session_set_error(err_sess, NULL, SR_ERR_LY, ly_last_logmsg());
+            }
+            rc = -1;
+            goto cleanup;
+        }
+
+        if (sr_sub->sub_notif.start_time.tv_sec) {
+            ly_time_ts2str(&sr_sub->sub_notif.start_time, &datetime);
+            if (lyd_new_term(ly_ntf, NULL, "replay-start-time", datetime, 0, NULL)) {
+                if (err_reply) {
+                    *err_reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+                } else if (err_sess) {
+                    sr_session_set_error(err_sess, NULL, SR_ERR_LY, ly_last_logmsg());
+                }
+                rc = -1;
+                goto cleanup;
+            }
+            free(datetime);
+            datetime = NULL;
+        }
+    }
+
     /* yang-push parameters */
     if (sub_ntf_append_params_yang_push(ly_ntf, sr_sub, err_reply, err_sess)) {
         rc = -1;
@@ -1049,10 +1168,43 @@ sub_ntf_send_notif_modified(struct nc_session *ncs, const struct np2srv_sub_ntf 
 
     /* create the notification object, will free the parameters */
     ts = np_gettimespec(1);
-    ly_time_ts2str(&ts, &datetime);
-    nc_ntf = nc_server_notif_new(ly_ntf, datetime, NC_PARAMTYPE_FREE);
-    ly_ntf = NULL;
-    datetime = NULL;
+
+    if (sub->cb_arg->envelope_enabled && ly_ctx_get_module_implemented(ly_ctx, "ietf-yp-notification")) {
+        /* build the notification envelope.
+         * subscription-modified is unique per call, so the notif dedup cache used in
+         * np2srv_srsn_notif_cb is not needed here */
+        seq = ATOMIC_INC_RELAXED(np2srv.env_seq);
+        r_env = sr_notif_envelope_build(ly_ctx, ly_ntf, &ts, np2srv.hostname, seq, &env);
+        if (r_env == SR_ERR_OK) {
+            /* envelope built, ly_ntf was cloned so free the original */
+            lyd_free_tree(ly_ntf);
+            ly_ntf = NULL;
+            nc_ntf = nc_server_notif_new2(env, NC_NOTIF_TYPE_ENVELOPE, NULL, NC_PARAMTYPE_FREE);
+            if (nc_ntf) {
+                /* ownership of env transferred to nc_ntf */
+                env = NULL;
+            }
+        } else if (r_env != SR_ERR_NOT_FOUND) {
+            if (err_reply) {
+                *err_reply = np_reply_err_op_failed(NULL, ly_ctx, "Failed to build notification envelope.");
+            } else if (err_sess) {
+                sr_session_set_error(err_sess, NULL, r_env, "Failed to build notification envelope.");
+            }
+            rc = -1;
+            goto cleanup;
+        }
+        /* SR_ERR_NOT_FOUND: ietf-yp-notification not loaded, fall back to legacy format */
+    }
+
+    if (!nc_ntf) {
+        /* fallback: legacy RFC 5277 format */
+        ly_time_ts2str(&ts, &datetime);
+        nc_ntf = nc_server_notif_new2(ly_ntf, NC_NOTIF_TYPE_LEGACY, datetime, NC_PARAMTYPE_FREE);
+        if (nc_ntf) {
+            ly_ntf = NULL;
+            datetime = NULL;
+        }
+    }
 
     /* send the notification */
     msg_type = nc_server_notif_send(ncs, nc_ntf, NP2SRV_NOTIF_SEND_TIMEOUT);
@@ -1078,6 +1230,7 @@ cleanup:
     srsn_oper_data_subscriptions_free(sr_sub, 1);
     free(datetime);
     lyd_free_tree(ly_ntf);
+    lyd_free_tree(env);
     nc_server_notif_free(nc_ntf);
     return rc;
 }
@@ -1452,6 +1605,112 @@ sub_ntf_config_filters(sr_session_ctx_t *ev_sess, const char *filter_name, int i
 
 cleanup:
     free(xp);
+    return rc;
+}
+
+/**
+ * @brief Toggle the notification envelope on/off, terminating all existing subscriptions.
+ *
+ * Per ietf-yp-notification draft, changing enable-notification-envelope terminates all existing active
+ * subscriptions. The global flag is flipped under the STATE write lock before collecting
+ * subscription IDs: new subscriptions created after the
+ * flip (which also acquire the write lock in sub_ntf_add) will use the new format, while
+ * all subscriptions with the old format are collected for termination. Terminations are
+ * performed outside the lock to avoid deadlock with srsn; subscription-terminated
+ * notifications use the per-subscription envelope_enabled flag (the old value), not the
+ * global flag.
+ *
+ * @param[in] new_enabled New value of enable-notification-envelope.
+ * @return SR_ERR_OK on success, error code on failure.
+ */
+static int
+np2srv_notif_envelope_toggle(int new_enabled)
+{
+    int rc = SR_ERR_OK;
+    uint32_t i, *sub_ids = NULL;
+    uint32_t sub_count = 0;
+
+    /* WRITE LOCK - flip the flag and collect sub_ids atomically */
+    STATE_WLOCK;
+
+    if (new_enabled == np2srv.notif_envelope_enabled) {
+        /* UNLOCK */
+        STATE_UNLOCK;
+        return SR_ERR_OK;
+    }
+
+    /* Flip the global flag under the lock - new subscriptions will use the new format */
+    np2srv.notif_envelope_enabled = new_enabled;
+
+    if (state.count) {
+        sub_ids = malloc(state.count * sizeof *sub_ids);
+        if (!sub_ids) {
+            rc = SR_ERR_NO_MEMORY;
+            goto unlock;
+        }
+        for (i = 0; i < state.count; ++i) {
+            if (!state.subs[i].terminated) {
+                state.subs[i].terminated = 1;
+                sub_ids[sub_count++] = state.subs[i].sub_id;
+            }
+        }
+    }
+
+unlock:
+    STATE_UNLOCK;
+
+    if (rc) {
+        free(sub_ids);
+        return rc;
+    }
+
+    /* Terminate subscriptions outside the lock (avoids deadlock with srsn).
+     * subscription-terminated notifications use the per-subscription flags, not the global flag. */
+    for (i = 0; i < sub_count; ++i) {
+        srsn_terminate(sub_ids[i], "ietf-subscribed-notifications:no-such-subscription");
+    }
+
+    free(sub_ids);
+    return rc;
+}
+
+int
+np2srv_config_notif_envelope_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
+        const char *UNUSED(xpath), sr_event_t UNUSED(event), uint32_t UNUSED(request_id), void *UNUSED(private_data))
+{
+    int rc = SR_ERR_OK, r;
+    sr_change_iter_t *iter = NULL;
+    sr_change_oper_t op;
+    const struct lyd_node *node;
+    int new_val = -1;
+
+    rc = sr_get_changes_iter(session,
+            "/ietf-subscribed-notifications:subscriptions/ietf-yp-notification:enable-notification-envelope",
+            &iter);
+    if (rc) {
+        sr_session_set_error(session, NULL, rc, "Getting changes iter failed (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+
+    while ((r = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
+        if ((op == SR_OP_MODIFIED) || (op == SR_OP_CREATED)) {
+            new_val = ((struct lyd_node_term *)node)->value.boolean;
+        } else if (op == SR_OP_DELETED) {
+            new_val = 0;
+        }
+    }
+    if (r != SR_ERR_NOT_FOUND) {
+        sr_session_set_error(session, NULL, r, "Getting next change failed (%s).", sr_strerror(r));
+        rc = r;
+        goto cleanup;
+    }
+
+    if (new_val != -1) {
+        rc = np2srv_notif_envelope_toggle(new_val);
+    }
+
+cleanup:
+    sr_free_change_iter(iter);
     return rc;
 }
 
