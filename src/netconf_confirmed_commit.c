@@ -556,6 +556,9 @@ ncc_del_session(struct np_user_sess *user_sess, sr_session_ctx_t *sr_sess)
 
         /* send notification about canceling confirmed-commits */
         np_send_notif_confirmed_commit(user_sess->ntf_arg.nc_sess, sr_sess, NP_CC_CANCEL, 0, 0);
+    } else if (commit_ctx.nc_sess == user_sess->ntf_arg.nc_sess) {
+        /* clear stale session pointer, the confirmed commit is no longer tied to this session */
+        commit_ctx.nc_sess = NULL;
     }
 
     /* UNLOCK */
@@ -908,6 +911,8 @@ np2srv_confirmed_commit_cb(const struct lyd_node *rpc, struct np_user_sess *user
         if (ncc_set_persist(persist)) {
             goto cleanup;
         }
+        /* persistent confirmed commit is not tied to the current session */
+        commit_ctx.nc_sess = NULL;
     } else {
         commit_ctx.nc_sess = nc_sess;
     }
