@@ -268,9 +268,10 @@ test_on_change_modify_filter(void **state)
             "      </edit>\n"
             "    </yang-patch>\n"
             "  </datastore-changes>\n"
+            "  <point-in-time xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yp-observation\">state-changed</point-in-time>\n"
             "</push-change-update>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
+    ASSERT_NOTIF_EQUAL(st, ntf);
     free(ntf);
     FREE_TEST_VARS(st);
 
@@ -324,9 +325,10 @@ test_periodic_modify_filter(void **state)
             "      <name>Test</name>\n"
             "    </top>\n"
             "  </datastore-contents>\n"
+            "  <point-in-time xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yp-observation\">current-accounting</point-in-time>\n"
             "</push-update>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
+    ASSERT_NOTIF_EQUAL(st, ntf);
     free(ntf);
     FREE_TEST_VARS(st);
 
@@ -343,9 +345,10 @@ test_periodic_modify_filter(void **state)
             "<push-update xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
             "  <id>%d</id>\n"
             "  <datastore-contents/>\n"
+            "  <point-in-time xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yp-observation\">current-accounting</point-in-time>\n"
             "</push-update>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
+    ASSERT_NOTIF_EQUAL(st, ntf);
     free(ntf);
     FREE_TEST_VARS(st);
 }
@@ -370,9 +373,10 @@ test_periodic_modify_period(void **state)
             "<push-update xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
             "  <id>%d</id>\n"
             "  <datastore-contents/>\n"
+            "  <point-in-time xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yp-observation\">current-accounting</point-in-time>\n"
             "</push-update>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
+    ASSERT_NOTIF_EQUAL(st, ntf);
     free(ntf);
     FREE_TEST_VARS(st);
 
@@ -417,9 +421,10 @@ test_periodic_deletesub(void **state)
             "<push-update xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yang-push\">\n"
             "  <id>%d</id>\n"
             "  <datastore-contents/>\n"
+            "  <point-in-time xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yp-observation\">current-accounting</point-in-time>\n"
             "</push-update>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
-    assert_string_equal(st->str, ntf);
+    ASSERT_NOTIF_EQUAL(st, ntf);
     free(ntf);
     FREE_TEST_VARS(st);
 

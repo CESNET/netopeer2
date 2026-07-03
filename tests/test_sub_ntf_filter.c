@@ -397,6 +397,7 @@ test_filter_change(void **state)
             "<subscription-modified xmlns=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">\n"
             "  <id>%d</id>\n"
             "  <stream-filter-name>xpath-pass</stream-filter-name>\n"
+            "  <stream>notif1</stream>\n"
             "</subscription-modified>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
     assert_string_equal(st->str, ntf);

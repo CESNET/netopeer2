@@ -236,6 +236,14 @@ np2_glob_test_setup_sess_ctx(struct nc_session *sess, const char **modules)
         SETUP_FAIL_LOG;
         return 1;
     }
+    if (!ly_ctx_load_module(ctx, "ietf-yp-notification", "2025-12-24", all_features)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
+    if (!ly_ctx_load_module(ctx, "ietf-yp-observation", "2025-12-24", all_features)) {
+        SETUP_FAIL_LOG;
+        return 1;
+    }
     if (!ly_ctx_load_module(ctx, "ietf-netconf-private-candidate", "2026-02-03", all_features)) {
         SETUP_FAIL_LOG;
         return 1;
@@ -669,4 +677,17 @@ np2_glob_test_setup_nacm(void **state)
     FREE_TEST_VARS(st);
 
     return 0;
+}
+
+void
+np2_test_strip_yp_observation(struct lyd_node *notif)
+{
+    struct lyd_node *node;
+
+    if (lyd_find_path(notif, "ietf-yp-observation:timestamp", 0, &node)) {
+        node = NULL;
+    }
+    if (node) {
+        lyd_free_tree(node);
+    }
 }

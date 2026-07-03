@@ -192,6 +192,7 @@ test_modifysub_filter(void **state)
             "      <first>Different</first>\n"
             "    </n1>\n"
             "  </stream-subtree-filter>\n"
+            "  <stream>notif1</stream>\n"
             "</subscription-modified>\n";
     assert_int_not_equal(-1, asprintf(&ntf, template, st->ntf_id));
     assert_string_equal(st->str, ntf);
@@ -397,6 +398,7 @@ test_ds_subscriptions(void **state)
             "          </receiver>\n"
             "        </receivers>\n"
             "      </subscription>\n"
+            "      <enable-notification-envelope xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yp-notification\">false</enable-notification-envelope>\n"
             "    </subscriptions>\n"
             "  </data>\n"
             "</get>\n";
@@ -433,6 +435,7 @@ test_ds_subscriptions_sent_event(void **state)
             "          </receiver>\n"
             "        </receivers>\n"
             "      </subscription>\n"
+            "      <enable-notification-envelope xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yp-notification\">false</enable-notification-envelope>\n"
             "    </subscriptions>\n"
             "  </data>\n"
             "</get>\n";
@@ -481,6 +484,7 @@ test_ds_subscriptions_excluded_event(void **state)
             "          </receiver>\n"
             "        </receivers>\n"
             "      </subscription>\n"
+            "      <enable-notification-envelope xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yp-notification\">false</enable-notification-envelope>\n"
             "    </subscriptions>\n"
             "  </data>\n"
             "</get>\n";
@@ -548,6 +552,7 @@ test_multiple_subscriptions(void **state)
             "          </receiver>\n"
             "        </receivers>\n"
             "      </subscription>\n"
+            "      <enable-notification-envelope xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yp-notification\">false</enable-notification-envelope>\n"
             "    </subscriptions>\n"
             "  </data>\n"
             "</get>\n";
@@ -614,6 +619,7 @@ test_multiple_subscriptions_notif(void **state)
             "          </receiver>\n"
             "        </receivers>\n"
             "      </subscription>\n"
+            "      <enable-notification-envelope xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yp-notification\">false</enable-notification-envelope>\n"
             "    </subscriptions>\n"
             "  </data>\n"
             "</get>\n";

@@ -307,6 +307,26 @@ int np2_glob_test_teardown_notif(const char *test_name);
 
 int np2_glob_test_teardown(void **state, const char **modules);
 
+void np2_test_strip_yp_observation(struct lyd_node *notif);
+
+/*!
+ * @brief Compare a received notification string against an expected template,
+ * ignoring the ietf-yp-observation timestamp field.
+ *
+ * Strips the observation timestamp from state->op, re-prints state->str, then
+ * compares against @expected. Use in place of:
+ *   assert_string_equal(st->str, expected);
+ * for push-update/push-change-update notifications that contain observation
+ * timestamps. The point-in-time field is preserved (it has fixed enum values).
+ */
+#define ASSERT_NOTIF_EQUAL(state, expected) \
+    do { \
+        np2_test_strip_yp_observation(state->op); \
+        free(state->str); \
+        assert_int_equal(lyd_print_mem(&state->str, state->op, LYD_XML, 0), LY_SUCCESS); \
+        assert_string_equal(state->str, expected); \
+    } while (0)
+
 void parse_arg(int argc, char **argv);
 
 const char *np2_get_user(void);
