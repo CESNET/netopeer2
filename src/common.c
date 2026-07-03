@@ -774,7 +774,7 @@ int
 np_url_setcap(void)
 {
     uint32_t i, j;
-    char *cpblt, *url_protocols = NULL;
+    char *cpblt, *url_protocols = NULL, *tmp;
     int len = 0;
     curl_version_info_data *curl_data;
     const char *main_cpblt = "urn:ietf:params:netconf:capability:url:1.0?scheme=";
@@ -792,7 +792,12 @@ np_url_setcap(void)
         for (j = 0; j < (sizeof url_protocols_all / sizeof *url_protocols_all); ++j) {
             if (!strcmp(curl_data->protocols[i], url_protocols_all[j])) {
                 /* add supported protocol */
-                url_protocols = realloc(url_protocols, len + (len ? 1 : 0) + strlen(url_protocols_all[j]) + 1);
+                tmp = realloc(url_protocols, len + (len ? 1 : 0) + strlen(url_protocols_all[j]) + 1);
+                if (!tmp) {
+                    free(url_protocols);
+                    return 1;
+                }
+                url_protocols = tmp;
                 len += sprintf(url_protocols + len, "%s%s", len ? "," : "", url_protocols_all[j]);
                 break;
             }
@@ -825,8 +830,13 @@ static size_t
 url_writedata(char *ptr, size_t size, size_t nmemb, void *userdata)
 {
     struct np_url_mem *data = userdata;
+    char *tmp;
 
-    data->memory = realloc(data->memory, data->size + (size * nmemb) + 1);
+    tmp = realloc(data->memory, data->size + (size * nmemb) + 1);
+    if (!tmp) {
+        return 0;
+    }
+    data->memory = tmp;
     memcpy(data->memory + data->size, ptr, size * nmemb);
     data->size += size * nmemb;
 
