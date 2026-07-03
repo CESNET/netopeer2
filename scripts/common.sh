@@ -15,6 +15,8 @@ NP2_MODULES=(
 "netopeer-notifications@2026-01-05.yang"
 "ietf-system-capabilities@2022-02-17.yang"
 "ietf-notification-capabilities@2022-02-17.yang"
+"ietf-yp-notification@2025-12-24.yang -e hostname-sequence-number"
+"ietf-yp-observation@2025-12-24.yang"
 "ietf-netconf-private-candidate@2026-02-03.yang -e private-candidate"
 )
 
