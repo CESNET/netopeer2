@@ -329,7 +329,6 @@ load_config(void)
         config_file = NULL;
         goto cleanup;
     } else if (eaccess(config_file, F_OK) && (errno == ENOENT)) {
-        ERROR(__func__, "No saved configuration.");
         goto cleanup;
     }
 
@@ -495,7 +494,7 @@ store_config(void)
     struct lys_module *cli = NULL;
     const char *str;
 
-    if (ly_ctx_new(NULL, 0, &ctx)) {
+    if (ly_ctx_new(ly_yang_module_dir(), 0, &ctx)) {
         ERROR(__func__, "Failed to create context.");
         ERROR(__func__, "Unable to store configuration due to the previous error.");
         goto cleanup;
