@@ -38,8 +38,19 @@ static int
 local_setup(void **state)
 {
     struct np2_test *st;
-    const char *modules[] = {NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang", NULL};
+    const char *modules[] = {
+        NP_TEST_MODULE_DIR "/ietf-subscribed-notif-receivers@2024-02-01.yang",
+        NP_TEST_MODULE_DIR "/ietf-udp-client@2025-05-14.yang",
+        NP_TEST_MODULE_DIR "/ietf-tls-client@2024-03-16.yang",
+        NP_TEST_MODULE_DIR "/ietf-udp-notif-transport@2025-06-04.yang",
+        NP_TEST_MODULE_DIR "/notif1.yang", NP_TEST_MODULE_DIR "/notif2.yang", NULL
+    };
+    /* features per module; only ietf-udp-notif-transport needs dtls and encode-cbor */
+    const char *unt_features[] = {"dtls", "encode-cbor", NULL};
+    const char **features[] = {NULL, NULL, NULL, unt_features, NULL, NULL};
+    const char *search_dirs = NP_ROOT_DIR "/modules:" NP_TEST_MODULE_DIR ":" LN2_YANG_MODULE_DIR;
     char test_name[256];
+    sr_conn_ctx_t *conn;
     int rc;
 
     /* get test name */
@@ -48,6 +59,11 @@ local_setup(void **state)
     /* setup environment */
     rc = np2_glob_test_setup_env(test_name);
     assert_int_equal(rc, 0);
+
+    /* install UDP-Notif modules with features before the server starts */
+    assert_int_equal(SR_ERR_OK, sr_connect(0, &conn));
+    assert_int_equal(SR_ERR_OK, sr_install_modules(conn, modules, search_dirs, features));
+    sr_disconnect(conn);
 
     /* setup netopeer2 server */
     rc = np2_glob_test_setup_server(state, test_name, modules, NULL, 0);
@@ -89,7 +105,10 @@ static int
 local_teardown(void **state)
 {
     struct np2_test *st = *state;
-    const char *modules[] = {"notif1", "notif2", NULL};
+    const char *modules[] = {
+        "ietf-udp-notif-transport", "ietf-tls-client", "ietf-udp-client",
+        "ietf-subscribed-notif-receivers", "notif1", "notif2", NULL
+    };
 
     if (!st) {
         return 0;
@@ -947,6 +966,34 @@ test_killsub_diff_sess(void **state)
     nc_session_free(tmp, NULL);
 }
 
+static void
+test_transport_capabilities(void **state)
+{
+    struct np2_test *st = *state;
+    const char *template =
+            "<get xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <system-capabilities xmlns=\"urn:ietf:params:xml:ns:yang:ietf-system-capabilities\">\n"
+            "      <subscription-capabilities xmlns=\"urn:ietf:params:xml:ns:yang:ietf-notification-capabilities\">\n"
+            "        <transport-capabilities xmlns=\"urn:ietf:params:xml:ns:yang:ietf-yp-transport-capabilities\">\n"
+            "          <transport-capability>\n"
+            "            <transport-protocol xmlns:unt=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">unt:udp-notif</transport-protocol>\n"
+            "            <security-protocol>dtls12</security-protocol>\n"
+            "            <security-protocol>dtls13</security-protocol>\n"
+            "            <encoding-format xmlns:sn=\"urn:ietf:params:xml:ns:yang:ietf-subscribed-notifications\">sn:encode-xml</encoding-format>\n"
+            "            <encoding-format xmlns:unt=\"urn:ietf:params:xml:ns:yang:ietf-udp-notif-transport\">unt:encode-cbor</encoding-format>\n"
+            "          </transport-capability>\n"
+            "        </transport-capabilities>\n"
+            "      </subscription-capabilities>\n"
+            "    </system-capabilities>\n"
+            "  </data>\n"
+            "</get>\n";
+
+    GET_FILTER(st, "/ietf-system-capabilities:system-capabilities/ietf-notification-capabilities:subscription-capabilities/ietf-yp-transport-capabilities:transport-capabilities");
+    assert_string_equal(st->str, template);
+    FREE_TEST_VARS(st);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -962,6 +1009,7 @@ main(int argc, char **argv)
         cmocka_unit_test_teardown(test_ds_subscriptions, teardown_common),
         cmocka_unit_test_teardown(test_ds_subscriptions_sent_event, teardown_common),
         cmocka_unit_test_teardown(test_ds_subscriptions_excluded_event, teardown_common),
+        cmocka_unit_test_teardown(test_transport_capabilities, teardown_common),
         cmocka_unit_test_teardown(test_multiple_subscriptions, teardown_common),
         cmocka_unit_test_teardown(test_multiple_subscriptions_notif, teardown_common),
         cmocka_unit_test_setup_teardown(test_multiple_subscriptions_notif_interlaced, setup_notif2_data, teardown_common),

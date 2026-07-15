@@ -532,6 +532,114 @@ np2srv_content_id_cb(void *UNUSED(user_data))
 }
 
 /**
+ * @brief Add UDP-Notif transport capability to the transport-capabilities node.
+ *
+ * @param[in] transport_capas transport-capabilities container node.
+ * @param[in] yptc_mod ietf-yp-transport-capabilities module.
+ * @param[in] unt_mod ietf-udp-notif-transport module.
+ * @param[in] sn_mod ietf-subscribed-notifications module, may be NULL.
+ * @return 0 on success, -1 on error.
+ */
+static int
+np2srv_add_udp_notif_transport_capability(struct lyd_node *transport_capas,
+        const struct lys_module *yptc_mod, const struct lys_module *unt_mod,
+        const struct lys_module *sn_mod)
+{
+    struct lyd_node *cap = NULL;
+    int rc = 0;
+
+    if (lyd_new_list(transport_capas, yptc_mod, "transport-capability", 0, &cap,
+            "ietf-udp-notif-transport:udp-notif")) {
+        ERR("Failed to create transport-capability.");
+        rc = -1;
+        goto cleanup;
+    }
+
+    /* security-protocol */
+    if (lys_feature_value(unt_mod, "dtls") == LY_SUCCESS) {
+        if (lyd_new_term(cap, yptc_mod, "security-protocol", "ietf-yp-transport-capabilities:dtls12", 0, NULL)) {
+            ERR("Failed to create security-protocol dtls12.");
+            rc = -1;
+            goto cleanup;
+        }
+        if (lyd_new_term(cap, yptc_mod, "security-protocol", "ietf-yp-transport-capabilities:dtls13", 0, NULL)) {
+            ERR("Failed to create security-protocol dtls13.");
+            rc = -1;
+            goto cleanup;
+        }
+    }
+
+    /* encoding-format */
+    if (sn_mod && (lys_feature_value(sn_mod, "encode-xml") == LY_SUCCESS)) {
+        if (lyd_new_term(cap, yptc_mod, "encoding-format", "ietf-subscribed-notifications:encode-xml", 0, NULL)) {
+            ERR("Failed to create encoding-format encode-xml.");
+            rc = -1;
+            goto cleanup;
+        }
+    }
+    if (sn_mod && (lys_feature_value(sn_mod, "encode-json") == LY_SUCCESS)) {
+        if (lyd_new_term(cap, yptc_mod, "encoding-format", "ietf-subscribed-notifications:encode-json", 0, NULL)) {
+            ERR("Failed to create encoding-format encode-json.");
+            rc = -1;
+            goto cleanup;
+        }
+    }
+    if (lys_feature_value(unt_mod, "encode-cbor") == LY_SUCCESS) {
+        if (lyd_new_term(cap, yptc_mod, "encoding-format", "ietf-udp-notif-transport:encode-cbor", 0, NULL)) {
+            ERR("Failed to create encoding-format encode-cbor.");
+            rc = -1;
+            goto cleanup;
+        }
+    }
+
+cleanup:
+    return rc;
+}
+
+/**
+ * @brief Add transport capabilities to a subscription-capabilities node.
+ *
+ * @param[in] subs_capas subscription-capabilities node.
+ * @param[in] ly_ctx libyang context.
+ * @return SR_ERR_OK on success, -1 on error.
+ */
+static int
+np2srv_add_transport_capabilities(struct lyd_node *subs_capas, const struct ly_ctx *ly_ctx)
+{
+    const struct lys_module *yptc_mod, *unt_mod, *sn_mod;
+    struct lyd_node *transport_capas = NULL;
+    int rc = SR_ERR_OK;
+
+    yptc_mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-yp-transport-capabilities");
+    if (!yptc_mod) {
+        goto cleanup;
+    }
+
+    unt_mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-udp-notif-transport");
+    if (!unt_mod) {
+        /* no transport module implemented, do not create an empty container */
+        goto cleanup;
+    }
+
+    /* transport-capabilities */
+    if (lyd_new_path(subs_capas, ly_ctx, "ietf-yp-transport-capabilities:transport-capabilities",
+            NULL, 0, &transport_capas)) {
+        ERR("Failed to create transport-capabilities.");
+        rc = -1;
+        goto cleanup;
+    }
+
+    sn_mod = ly_ctx_get_module_implemented(ly_ctx, "ietf-subscribed-notifications");
+
+    if ((rc = np2srv_add_udp_notif_transport_capability(transport_capas, yptc_mod, unt_mod, sn_mod))) {
+        goto cleanup;
+    }
+
+cleanup:
+    return rc;
+}
+
+/**
  * @brief Add subscription capabilities to a node
  * @param[in,out] node is a part of ietf-system-capabilities.
  * @param[in] ly_ctx a libyang context.
@@ -568,6 +676,7 @@ np2srv_add_subscription_capabilities(struct lyd_node *node, const struct ly_ctx 
             goto cleanup;
         }
     }
+
 cleanup:
     return rc;
 }
@@ -580,7 +689,7 @@ np2srv_capabilities_oper_cb(sr_session_ctx_t *session, uint32_t sub_id,
         const char *module_name, const char *path, const char *request_xpath,
         uint32_t request_id, struct lyd_node **parent, void *private_data)
 {
-    struct lyd_node *sys_capas = NULL, *datastore_capas, *per_node_capas;
+    struct lyd_node *sys_capas = NULL, *datastore_capas, *per_node_capas, *global_subs_capas;
     const struct ly_ctx *ly_ctx;
     int rc = SR_ERR_OK;
     uint32_t ds;
@@ -641,6 +750,15 @@ np2srv_capabilities_oper_cb(sr_session_ctx_t *session, uint32_t sub_id,
     /* global capabilities */
     if (np2srv_add_subscription_capabilities(sys_capas, ly_ctx)) {
         ERR("Failed to add global subscription-capabilities.");
+        rc = -1;
+        goto cleanup;
+    }
+
+    /* transport capabilities (subscription-capabilities was just created above, so it must be found) */
+    lyd_find_path(sys_capas, "ietf-notification-capabilities:subscription-capabilities", 0, &global_subs_capas);
+    assert(global_subs_capas);
+    if (np2srv_add_transport_capabilities(global_subs_capas, ly_ctx)) {
+        ERR("Failed to add transport-capabilities.");
         rc = -1;
         goto cleanup;
     }
