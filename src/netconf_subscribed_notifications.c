@@ -446,7 +446,7 @@ sub_ntf_filter2xpath(sr_session_ctx_t *session, const char *filter_name_search_f
     if (subtree_filter) {
         /* subtree */
         if (((struct lyd_node_any *)subtree_filter)->child) {
-            if (srsn_filter_subtree2xpath(((struct lyd_node_any *)subtree_filter)->child, session, xpath)) {
+            if (sr_filter_subtree2xpath(session, ((struct lyd_node_any *)subtree_filter)->child, 1, xpath)) {
                 if (err_reply) {
                     *err_reply = np_reply_err_sr(session, "get");
                 } else if (err_sess) {

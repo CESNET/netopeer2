@@ -136,7 +136,7 @@ np2srv_rpc_getdata_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess
     ly_set_free(nodeset, NULL);
     if (node && !strcmp(node->schema->name, "subtree-filter")) {
         if (((struct lyd_node_any *)node)->child) {
-            if (srsn_filter_subtree2xpath(((struct lyd_node_any *)node)->child, user_sess->sess, &xp_filter)) {
+            if (sr_filter_subtree2xpath(user_sess->sess, ((struct lyd_node_any *)node)->child, 0, &xp_filter)) {
                 reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
                 goto cleanup;
             }
