@@ -639,6 +639,10 @@ np2srv_rpc_establish_sub_cb(const struct lyd_node *rpc, struct np_user_sess *use
             /* period */
             lyd_find_path(node, "period", 0, &node2);
             period = ((struct lyd_node_term *)node2)->value.uint32;
+            if ((uint64_t)period * 10 > UINT32_MAX) {
+                reply = np_reply_err_bad_elem(LYD_CTX(rpc), "Specified \"period\" is too large.", "period");
+                goto cleanup;
+            }
 
             /* anchor-time */
             if (!lyd_find_path(node, "anchor-time", 0, &node2)) {
@@ -1156,6 +1160,10 @@ np2srv_rpc_modify_sub_cb(const struct lyd_node *rpc, struct np_user_sess *user_s
             /* period */
             lyd_find_path(node, "period", 0, &node2);
             period = ((struct lyd_node_term *)node2)->value.uint32;
+            if ((uint64_t)period * 10 > UINT32_MAX) {
+                reply = np_reply_err_bad_elem(LYD_CTX(rpc), "Specified \"period\" is too large.", "period");
+                goto cleanup;
+            }
 
             /* anchor-time */
             if (!lyd_find_path(node, "anchor-time", 0, &node2)) {
