@@ -61,7 +61,7 @@ jobs:
             make-target: ""
           }
           - {
-            name: "Debug, gcc, with URL",
+            name: "Debug, gcc",
             os: "ubuntu-22.04",
             build-type: "Debug",
             dep-build-type: "Debug",
