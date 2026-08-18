@@ -170,6 +170,7 @@ jobs:
             cd build
             CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.build-type }} -DSYSREPO_SUPERUSER_UID=`id -u` -DENABLE_TESTS=OFF ..
             make -j2
+            sysctl fs.protected_regular=0
             sudo make install
           fi
 
