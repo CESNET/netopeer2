@@ -101,6 +101,7 @@ jobs:
           cd build
           CC=${{ matrix.config.cc }} cmake -DCMAKE_BUILD_TYPE=${{ matrix.config.build-type }} -DENABLE_TESTS=OFF ..
           make -j2
+          sudo sysctl fs.protected_regular=0
           sudo make install
 
       - name: Deps-libnetconf2
