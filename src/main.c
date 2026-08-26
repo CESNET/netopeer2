@@ -1216,7 +1216,9 @@ np2srv_libnetconf2_config_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id),
     diff = sr_get_change_diff(session);
     rc = nc_server_config_setup_diff(diff);
     if (rc) {
-        /* return value ignored anyway */
+        /* return value ignored anyway, this is a "done" event and the change is already committed,
+         * so at least make it visible that the server configuration is now out of sync with it */
+        ERR("Failed to apply the new server configuration, it is out of sync with the datastore.");
         return rc;
     }
 
