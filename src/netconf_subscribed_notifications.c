@@ -444,8 +444,9 @@ sub_ntf_filter2xpath(sr_session_ctx_t *session, const char *filter_name_search_f
 
         if (!subtree || !lyd_child(subtree->tree)->next) {
             if (err_reply) {
-                *err_reply = sub_ntf_error(LYD_CTX(subtree->tree), SR_ERR_INVAL_ARG,
+                *err_reply = sub_ntf_error(sr_session_acquire_context(session), SR_ERR_INVAL_ARG,
                         "Filter \"%s\" does not define any actual filter.", filter_name);
+                sr_session_release_context(session);
             } else if (err_sess) {
                 sr_session_set_error(err_sess, NULL, SR_ERR_INVAL_ARG, "Filter \"%s\" does not define any actual filter.",
                         filter_name);
