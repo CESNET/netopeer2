@@ -388,6 +388,7 @@ np2srv_pc_copyconfig(const struct lyd_node *rpc, struct np_user_sess *user_sess,
 {
     struct nc_server_reply *reply = NULL;
     sr_data_t *sr_data = NULL;
+    struct lyd_node *tree;
 
     assert(user_sess->use_private_cand);
 
@@ -405,7 +406,8 @@ np2srv_pc_copyconfig(const struct lyd_node *rpc, struct np_user_sess *user_sess,
                 goto cleanup;
             }
 
-            if (sr_pc_replace_trg_config(user_sess->sess, user_sess->private_ds, NULL, sr_data->tree)) {
+            tree = sr_data ? sr_data->tree : NULL;
+            if (sr_pc_replace_trg_config(user_sess->sess, user_sess->private_ds, NULL, tree)) {
                 reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
                 goto cleanup;
             }
@@ -429,12 +431,16 @@ np2srv_pc_copyconfig(const struct lyd_node *rpc, struct np_user_sess *user_sess,
             }
 
             /* copy from conventional datastore into candidate */
-            if (sr_replace_config(user_sess->sess, NULL, sr_data->tree, np2srv.sr_timeout)) {
+            if (sr_data) {
+                tree = sr_data->tree;
                 sr_data->tree = NULL;
+            } else {
+                tree = NULL;
+            }
+            if (sr_replace_config(user_sess->sess, NULL, tree, np2srv.sr_timeout)) {
                 reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
                 goto cleanup;
             }
-            sr_data->tree = NULL;
         }
     }
 
