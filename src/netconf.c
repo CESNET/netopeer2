@@ -401,6 +401,7 @@ np2srv_pc_copyconfig(const struct lyd_node *rpc, struct np_user_sess *user_sess,
             }
         } else {
             /* conventional datastore -> private candidate */
+            sr_session_switch_ds(user_sess->sess, sds);
             if (sr_get_data(user_sess->sess, "/*", 0, 0, 0, &sr_data)) {
                 reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
                 goto cleanup;
