@@ -4,8 +4,8 @@
  * @brief ietf-subscribed-notifications callbacks
  *
  * @copyright
- * Copyright (c) 2019 - 2021 Deutsche Telekom AG.
- * Copyright (c) 2017 - 2021 CESNET, z.s.p.o.
+ * Copyright (c) 2019 - 2026 Deutsche Telekom AG.
+ * Copyright (c) 2017 - 2026 CESNET, z.s.p.o.
  *
  * This source code is licensed under BSD 3-Clause License (the "License").
  * You may not use this file except in compliance with the License.
@@ -379,8 +379,8 @@ sub_ntf_rpc_get_filter(const struct lyd_node *rpc, const char *filter_name_str, 
  * @brief Transform filter into a single XPath filter.
  *
  * @param[in] session Session to use.
- * @param[in] filter_name_search_fmt Format string with a single '%s' for @p filter_name to retrieve the actual filter
- * from sysrepo.
+ * @param[in] filter_name_search_fmt Format string with a single %c%s%c for @p filter_name to retrieve the actual filter
+ * from sysrepo. The quotes will be automaticall added based on @p filter_name.
  * @param[in] filter_name Filter name value, if any.
  * @param[in] subtree_filter Subtree data node, if any.
  * @param[in] xpath_filter XPath filer value, if any.
@@ -397,11 +397,31 @@ sub_ntf_filter2xpath(sr_session_ctx_t *session, const char *filter_name_search_f
 {
     int rc = 0;
     sr_data_t *subtree = NULL;
-    char *str = NULL;
+    char *str = NULL, quot;
 
     if (filter_name) {
-        /* first get this filter from sysrepo */
-        if (asprintf(&str, filter_name_search_fmt, filter_name) == -1) {
+        /* decide the usable quotes */
+        if (strchr(filter_name, '\'')) {
+            if (strchr(filter_name, '\"')) {
+                if (err_reply) {
+                    if (asprintf(&str, "Invalid filter name \"%s\".", filter_name) == -1) {
+                        *err_reply = np_reply_err_op_failed(session, NULL, "Invalid filter name with both ' and \" characters.");
+                    } else {
+                        *err_reply = np_reply_err_op_failed(session, NULL, str);
+                    }
+                } else if (err_sess) {
+                    sr_session_set_error(err_sess, NULL, SR_ERR_UNSUPPORTED, "Invalid filter name \"%s\".", filter_name);
+                }
+                rc = -1;
+                goto cleanup;
+            }
+            quot = '\"';
+        } else {
+            quot = '\'';
+        }
+
+        /* get this filter from sysrepo */
+        if (asprintf(&str, filter_name_search_fmt, quot, filter_name, quot) == -1) {
             if (err_reply) {
                 *err_reply = np_reply_err_op_failed(session, NULL, "Memory allocation failed.");
             } else if (err_sess) {
@@ -582,7 +602,7 @@ np2srv_rpc_establish_sub_cb(const struct lyd_node *rpc, struct np_user_sess *use
                 &subtree_filter, "stream-xpath-filter", &xpath_filter))) {
             goto cleanup;
         }
-        if (sub_ntf_filter2xpath(user_sess->sess, "/ietf-subscribed-notifications:filters/stream-filter[name='%s']",
+        if (sub_ntf_filter2xpath(user_sess->sess, "/ietf-subscribed-notifications:filters/stream-filter[name=%c%s%c]",
                 filter_name, subtree_filter, xpath_filter, &xp, &reply, NULL)) {
             goto cleanup;
         }
@@ -629,7 +649,7 @@ np2srv_rpc_establish_sub_cb(const struct lyd_node *rpc, struct np_user_sess *use
             goto cleanup;
         }
         if (sub_ntf_filter2xpath(user_sess->sess,
-                "/ietf-subscribed-notifications:filters/ietf-yang-push:selection-filter[filter-id='%s']",
+                "/ietf-subscribed-notifications:filters/ietf-yang-push:selection-filter[filter-id=%c%s%c]",
                 filter_name, subtree_filter, xpath_filter, &xp, &reply, NULL)) {
             goto cleanup;
         }
@@ -1138,7 +1158,7 @@ np2srv_rpc_modify_sub_cb(const struct lyd_node *rpc, struct np_user_sess *user_s
                 &subtree_filter, "stream-xpath-filter", &xpath_filter))) {
             goto cleanup;
         }
-        if (sub_ntf_filter2xpath(user_sess->sess, "/ietf-subscribed-notifications:filters/stream-filter[name='%s']",
+        if (sub_ntf_filter2xpath(user_sess->sess, "/ietf-subscribed-notifications:filters/stream-filter[name=%c%s%c]",
                 filter_name, subtree_filter, xpath_filter, &xp, &reply, NULL)) {
             goto cleanup;
         }
@@ -1150,7 +1170,7 @@ np2srv_rpc_modify_sub_cb(const struct lyd_node *rpc, struct np_user_sess *user_s
             goto cleanup;
         }
         if (sub_ntf_filter2xpath(user_sess->sess,
-                "/ietf-subscribed-notifications:filters/ietf-yang-push:selection-filter[filter-id='%s']",
+                "/ietf-subscribed-notifications:filters/ietf-yang-push:selection-filter[filter-id=%c%s%c]",
                 filter_name, subtree_filter, xpath_filter, &xp, &reply, NULL)) {
             goto cleanup;
         }
@@ -1389,9 +1409,9 @@ sub_ntf_config_filters(sr_session_ctx_t *ev_sess, const char *filter_name, int i
     uint32_t i, sub_id;
 
     if (is_yp) {
-        search_fmt = "/ietf-subscribed-notifications:filters/ietf-yang-push:selection-filter[filter-id='%s']";
+        search_fmt = "/ietf-subscribed-notifications:filters/ietf-yang-push:selection-filter[filter-id=%c%s%c]";
     } else {
-        search_fmt = "/ietf-subscribed-notifications:filters/stream-filter[name='%s']";
+        search_fmt = "/ietf-subscribed-notifications:filters/stream-filter[name=%c%s%c]";
     }
 
     if (op == SR_OP_MODIFIED) {
