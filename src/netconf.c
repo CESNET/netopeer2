@@ -233,6 +233,11 @@ np2srv_pc_editconfig(const struct lyd_node *rpc, struct np_user_sess *user_sess,
     /* create private candidate if not yet created */
     NP2_CHECK_PRIVCAND_EXISTS(user_sess, rpc, reply, cleanup);
 
+    if (!config) {
+        /* no edit to perform */
+        goto cleanup;
+    }
+
     if (test_only) {
         /* duplicate private candidate as backup */
         if (sr_pc_backup_privcand(user_sess->sess, user_sess->private_ds, &dup_privcand)) {
