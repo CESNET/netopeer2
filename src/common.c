@@ -525,7 +525,7 @@ np_send_notif_confirmed_commit(const struct nc_session *session, sr_session_ctx_
     }
 
     /* create 'common-session-parms' grouping */
-    if ((event != NP_CC_TIMEOUT) && (rc = np_prepare_notif_common_session_parms(session, notif))) {
+    if (session && (rc = np_prepare_notif_common_session_parms(session, notif))) {
         goto cleanup;
     }
 
@@ -576,6 +576,9 @@ np_send_notif_confirmed_commit(const struct nc_session *session, sr_session_ctx_
 
 cleanup:
     lyd_free_tree(notif);
+    if (!session) {
+        sr_session_release_context(sr_session);
+    }
     return rc;
 }
 
