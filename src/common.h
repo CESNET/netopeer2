@@ -392,10 +392,12 @@ struct nc_server_reply *np_reply_err_valid(const struct ly_ctx *ly_ctx);
  *
  * @param[in] session Session to get context from, not needed if @p ly_ctx is set.
  * @param[in] ly_ctx Context to use directly, if available.
- * @param[in] msg Error message to use.
+ * @param[in] format Error message format.
+ * @param[in] ... Error message format arguments.
  * @return Server reply structure.
  */
-struct nc_server_reply *np_reply_err_op_failed(sr_session_ctx_t *session, const struct ly_ctx *ly_ctx, const char *msg);
+struct nc_server_reply *np_reply_err_op_failed(sr_session_ctx_t *session, const struct ly_ctx *ly_ctx,
+        const char *format, ...);
 
 /**
  * @brief Create NC error reply invalid-value.

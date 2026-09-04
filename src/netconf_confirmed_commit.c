@@ -604,7 +604,7 @@ ncc_backup_module(sr_session_ctx_t *session, const struct lys_module *module)
     }
     if (lyd_print_path(path, data ? data->tree : NULL, LYD_JSON, LYD_PRINT_SIBLINGS | LYD_PRINT_SHRINK)) {
         ERR("Failed backing up node of module \"%s\" into file \"%s\".", module->name, path);
-        reply = np_reply_err_op_failed(session, NULL, ly_last_logmsg());
+        reply = np_reply_err_op_failed(session, NULL, "%s", ly_last_logmsg());
         goto cleanup;
     }
 

@@ -253,7 +253,7 @@ sub_ntf_add(const struct ly_ctx *ly_ctx, struct nc_session *ncs, uint32_t sub_id
     sub->filter_name = filter_name ? strdup(filter_name) : NULL;
     if (subtree_filter) {
         if (lyd_dup_single(subtree_filter, NULL, 0, &sub->subtree_filter)) {
-            reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+            reply = np_reply_err_op_failed(NULL, ly_ctx, "%s", ly_last_logmsg());
             goto cleanup;
         }
     } else {
@@ -339,7 +339,7 @@ sub_ntf_rpc_get_filter(const struct lyd_node *rpc, const char *filter_name_str, 
     r = lyd_find_xpath(rpc, str, &nodeset);
     free(str);
     if (r) {
-        return np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
+        return np_reply_err_op_failed(NULL, LYD_CTX(rpc), "%s", ly_last_logmsg());
     }
     if (nodeset->count) {
         node = nodeset->dnodes[0];
@@ -404,11 +404,7 @@ sub_ntf_filter2xpath(sr_session_ctx_t *session, const char *filter_name_search_f
         if (strchr(filter_name, '\'')) {
             if (strchr(filter_name, '\"')) {
                 if (err_reply) {
-                    if (asprintf(&str, "Invalid filter name \"%s\".", filter_name) == -1) {
-                        *err_reply = np_reply_err_op_failed(session, NULL, "Invalid filter name with both ' and \" characters.");
-                    } else {
-                        *err_reply = np_reply_err_op_failed(session, NULL, str);
-                    }
+                    *err_reply = np_reply_err_op_failed(session, NULL, "Invalid filter name \"%s\".", filter_name);
                 } else if (err_sess) {
                     sr_session_set_error(err_sess, NULL, SR_ERR_UNSUPPORTED, "Invalid filter name \"%s\".", filter_name);
                 }
@@ -687,7 +683,7 @@ np2srv_rpc_establish_sub_cb(const struct lyd_node *rpc, struct np_user_sess *use
 
             /* excluded-change* */
             if (lyd_find_xpath(node, "excluded-change", &set)) {
-                reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
+                reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), "%s", ly_last_logmsg());
                 goto cleanup;
             }
             for (i = 0; i < set->count; ++i) {
@@ -716,18 +712,18 @@ np2srv_rpc_establish_sub_cb(const struct lyd_node *rpc, struct np_user_sess *use
 
     /* generate output */
     if (lyd_dup_single(rpc, NULL, LYD_DUP_WITH_PARENTS, &output)) {
-        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
+        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), "%s", ly_last_logmsg());
         goto cleanup;
     }
     sprintf(id_str, "%" PRIu32, sub_id);
     if (lyd_new_term(output, NULL, "id", id_str, 1, NULL)) {
-        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
+        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), "%s", ly_last_logmsg());
         goto cleanup;
     }
     if (np_difftimespec(&start, &replay_start) > 0) {
         ly_time_ts2str(&replay_start, &replay_start_str);
         if (lyd_new_term(output, NULL, "replay-start-time-revision", replay_start_str, 1, NULL)) {
-            reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
+            reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), "%s", ly_last_logmsg());
             goto cleanup;
         }
     }
@@ -831,7 +827,7 @@ sub_ntf_append_params_filter(struct lyd_node *parent, const struct np2srv_sub_nt
 cleanup:
     if (rc) {
         if (err_reply) {
-            *err_reply = np_reply_err_op_failed(NULL, LYD_CTX(parent), ly_last_logmsg());
+            *err_reply = np_reply_err_op_failed(NULL, LYD_CTX(parent), "%s", ly_last_logmsg());
         } else if (err_sess) {
             sr_session_set_error(err_sess, NULL, SR_ERR_LY, ly_last_logmsg());
         }
@@ -968,7 +964,7 @@ cleanup:
     free(datetime);
     if (rc) {
         if (err_reply) {
-            *err_reply = np_reply_err_op_failed(NULL, LYD_CTX(parent), ly_last_logmsg());
+            *err_reply = np_reply_err_op_failed(NULL, LYD_CTX(parent), "%s", ly_last_logmsg());
         } else if (err_sess) {
             sr_session_set_error(err_sess, NULL, SR_ERR_LY, ly_last_logmsg());
         }
@@ -1017,7 +1013,7 @@ sub_ntf_send_notif_modified(struct nc_session *ncs, const struct np2srv_sub_ntf 
 
     if (lyd_new_path(NULL, ly_ctx, "/ietf-subscribed-notifications:subscription-modified", NULL, 0, &ly_ntf)) {
         if (err_reply) {
-            *err_reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+            *err_reply = np_reply_err_op_failed(NULL, ly_ctx, "%s", ly_last_logmsg());
         } else if (err_sess) {
             sr_session_set_error(err_sess, NULL, SR_ERR_LY, ly_last_logmsg());
         }
@@ -1029,7 +1025,7 @@ sub_ntf_send_notif_modified(struct nc_session *ncs, const struct np2srv_sub_ntf 
     sprintf(buf, "%" PRIu32, sub->sub_id);
     if (lyd_new_term(ly_ntf, NULL, "id", buf, 0, NULL)) {
         if (err_reply) {
-            *err_reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+            *err_reply = np_reply_err_op_failed(NULL, ly_ctx, "%s", ly_last_logmsg());
         } else if (err_sess) {
             sr_session_set_error(err_sess, NULL, SR_ERR_LY, ly_last_logmsg());
         }
@@ -1049,7 +1045,7 @@ sub_ntf_send_notif_modified(struct nc_session *ncs, const struct np2srv_sub_ntf 
         ly_time_ts2str(&stop_time, &datetime);
         if (lyd_new_term(ly_ntf, NULL, "stop-time", datetime, 0, NULL)) {
             if (err_reply) {
-                *err_reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+                *err_reply = np_reply_err_op_failed(NULL, ly_ctx, "%s", ly_last_logmsg());
             } else if (err_sess) {
                 sr_session_set_error(err_sess, NULL, SR_ERR_LY, ly_last_logmsg());
             }
@@ -1225,7 +1221,7 @@ np2srv_rpc_modify_sub_cb(const struct lyd_node *rpc, struct np_user_sess *user_s
     lyd_free_siblings(sub->subtree_filter);
     sub->subtree_filter = NULL;
     if (subtree_filter && lyd_dup_siblings(subtree_filter, NULL, LYD_DUP_RECURSIVE, &sub->subtree_filter)) {
-        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
+        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), "%s", ly_last_logmsg());
         goto cleanup;
     }
 

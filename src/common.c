@@ -956,7 +956,7 @@ url_get(const struct ly_ctx *ly_ctx, const char *url, char **url_data)
 
     if (res != CURLE_OK) {
         ERR("Failed to download data (curl: %s).", curl_buffer);
-        reply = np_reply_err_op_failed(NULL, ly_ctx, curl_buffer);
+        reply = np_reply_err_op_failed(NULL, ly_ctx, "Failed to download data (curl: %s).", curl_buffer);
         goto cleanup;
     }
 
@@ -986,7 +986,7 @@ np_op_parse_url(const struct ly_ctx *ly_ctx, const char *url, int validate, stru
 
     /* load the whole config element */
     if (lyd_parse_data_mem(ly_ctx, url_data, LYD_XML, LYD_PARSE_OPAQ | LYD_PARSE_ONLY | LYD_PARSE_NO_STATE, 0, &node)) {
-        reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+        reply = np_reply_err_op_failed(NULL, ly_ctx, "%s", ly_last_logmsg());
         goto cleanup;
     }
 
@@ -1014,7 +1014,7 @@ np_op_parse_url(const struct ly_ctx *ly_ctx, const char *url, int validate, stru
     if (validate) {
         /* separate validation if requested */
         if (lyd_validate_all(config, NULL, LYD_VALIDATE_NO_STATE, NULL)) {
-            reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+            reply = np_reply_err_op_failed(NULL, ly_ctx, "%s", ly_last_logmsg());
             goto cleanup;
         }
     }
@@ -1041,7 +1041,7 @@ np_op_export_url(const struct ly_ctx *ly_ctx, const char *url, struct lyd_node *
 
     /* print the config as expected by the other end */
     if (lyd_new_opaq2(NULL, ly_ctx, "config", NULL, NULL, "urn:ietf:params:xml:ns:netconf:base:1.0", &config)) {
-        return np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+        return np_reply_err_op_failed(NULL, ly_ctx, "%s", ly_last_logmsg());
     }
     if (data) {
         lyd_insert_child(config, data);
@@ -1088,7 +1088,7 @@ np_op_export_url(const struct ly_ctx *ly_ctx, const char *url, struct lyd_node *
 
     if (curl_easy_perform(curl)) {
         ERR("Failed to upload data (curl: %s).", curl_buffer);
-        reply = np_reply_err_op_failed(NULL, ly_ctx, curl_buffer);
+        reply = np_reply_err_op_failed(NULL, ly_ctx, "Failed to upload data (curl: %s).", curl_buffer);
         goto cleanup;
     }
 
@@ -1133,18 +1133,18 @@ np_op_parse_config(struct lyd_node_any *node, uint32_t parse_options, struct lyd
     /* get/parse the data */
     if (node->value) {
         if (lyd_parse_data_mem(ly_ctx, node->value, LYD_XML, parse_options, 0, config)) {
-            reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+            reply = np_reply_err_op_failed(NULL, ly_ctx, "%s", ly_last_logmsg());
             goto cleanup;
         }
     } else {
         if (lyd_dup_siblings(node->child, NULL, LYD_DUP_RECURSIVE, config)) {
-            reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+            reply = np_reply_err_op_failed(NULL, ly_ctx, "%s", ly_last_logmsg());
             goto cleanup;
         }
         if (!(parse_options & (LYD_PARSE_ONLY | LYD_PARSE_OPAQ))) {
             /* separate validation if requested */
             if (lyd_validate_all(config, NULL, LYD_VALIDATE_NO_STATE, NULL)) {
-                reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+                reply = np_reply_err_op_failed(NULL, ly_ctx, "%s", ly_last_logmsg());
                 goto cleanup;
             }
         }
@@ -1179,7 +1179,7 @@ np_op_parse_config(struct lyd_node_any *node, uint32_t parse_options, struct lyd
                     goto cleanup;
                 }
                 if (lyd_find_xpath(*config, xpath, &set)) {
-                    reply = np_reply_err_op_failed(NULL, ly_ctx, ly_last_logmsg());
+                    reply = np_reply_err_op_failed(NULL, ly_ctx, "%s", ly_last_logmsg());
                     goto cleanup;
                 }
 
@@ -1327,7 +1327,7 @@ np_op_filter_data_get(struct np_user_sess *user_sess, sr_datastore_t ds, uint32_
         sr_release_data(sr_data);
         if (r) {
             /* other error */
-            reply = np_reply_err_op_failed(user_sess->sess, NULL, ly_last_logmsg());
+            reply = np_reply_err_op_failed(user_sess->sess, NULL, "%s", ly_last_logmsg());
             goto cleanup;
         }
     }
@@ -1820,18 +1820,32 @@ np_reply_err_valid(const struct ly_ctx *ly_ctx)
 }
 
 struct nc_server_reply *
-np_reply_err_op_failed(sr_session_ctx_t *session, const struct ly_ctx *ly_ctx, const char *msg)
+np_reply_err_op_failed(sr_session_ctx_t *session, const struct ly_ctx *ly_ctx, const char *format, ...)
 {
     struct lyd_node *e;
+    char *msg;
+    int r;
+    va_list ap;
 
     assert(session || ly_ctx);
 
+    /* print the message */
+    va_start(ap, format);
+    r = vasprintf(&msg, format, ap);
+    va_end(ap);
+    if (r == -1) {
+        LOGMEM(NULL);
+        return NULL;
+    }
+
+    /* create the error */
     e = nc_err(ly_ctx ? ly_ctx : sr_session_acquire_context(session), NC_ERR_OP_FAILED, NC_ERR_TYPE_APP);
     if (!ly_ctx) {
         sr_session_release_context(session);
     }
 
     nc_err_set_msg(e, msg, "en");
+    free(msg);
     return nc_server_reply_err(e);
 }
 

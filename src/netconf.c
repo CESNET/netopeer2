@@ -84,13 +84,13 @@ np_get_rpc_data(struct np_user_sess *user_sess, const char *xp_filter, struct ly
 
     /* now filter only the requested data from the created running data + state data */
     if (lyd_find_xpath3(NULL, base_data, xp_filter, LY_VALUE_JSON, NULL, NULL, &set)) {
-        reply = np_reply_err_op_failed(user_sess->sess, NULL, ly_last_logmsg());
+        reply = np_reply_err_op_failed(user_sess->sess, NULL, "%s", ly_last_logmsg());
         goto cleanup;
     }
 
     for (i = 0; i < set->count; ++i) {
         if (lyd_dup_single(set->dnodes[i], NULL, LYD_DUP_RECURSIVE | LYD_DUP_WITH_PARENTS | LYD_DUP_WITH_FLAGS, &node)) {
-            reply = np_reply_err_op_failed(user_sess->sess, NULL, ly_last_logmsg());
+            reply = np_reply_err_op_failed(user_sess->sess, NULL, "%s", ly_last_logmsg());
             goto cleanup;
         }
 
@@ -102,7 +102,7 @@ np_get_rpc_data(struct np_user_sess *user_sess, const char *xp_filter, struct ly
         /* merge */
         if (lyd_merge_tree(data, node, LYD_MERGE_DESTRUCT)) {
             lyd_free_tree(node);
-            reply = np_reply_err_op_failed(user_sess->sess, NULL, ly_last_logmsg());
+            reply = np_reply_err_op_failed(user_sess->sess, NULL, "%s", ly_last_logmsg());
             goto cleanup;
         }
     }
@@ -194,11 +194,11 @@ np2srv_rpc_get_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess)
 
     /* generate output */
     if (lyd_dup_single(rpc, NULL, LYD_DUP_WITH_PARENTS, &output)) {
-        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
+        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), "%s", ly_last_logmsg());
         goto cleanup;
     }
     if (lyd_new_any(output, NULL, "data", data_get, NULL, 0, LYD_NEW_ANY_USE_VALUE | LYD_NEW_VAL_OUTPUT, NULL)) {
-        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
+        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), "%s", ly_last_logmsg());
         goto cleanup;
     }
     data_get = NULL;

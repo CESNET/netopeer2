@@ -68,7 +68,7 @@ np_op_data_filter_origin(struct lyd_node **data, const struct lysc_ident *filter
     lyrc = lyd_find_xpath(*data, xpath, &set);
     free(xpath);
     if (lyrc) {
-        return np_reply_err_op_failed(NULL, LYD_CTX(*data), ly_last_logmsg());
+        return np_reply_err_op_failed(NULL, LYD_CTX(*data), "%s", ly_last_logmsg());
     }
 
     if (set->count) {
@@ -203,11 +203,11 @@ np2srv_rpc_getdata_cb(const struct lyd_node *rpc, struct np_user_sess *user_sess
 
     /* generate output */
     if (lyd_dup_single(rpc, NULL, LYD_DUP_WITH_PARENTS, &output)) {
-        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
+        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), "%s", ly_last_logmsg());
         goto cleanup;
     }
     if (lyd_new_any(output, NULL, "data", data, NULL, 0, LYD_NEW_ANY_USE_VALUE | LYD_NEW_VAL_OUTPUT, NULL)) {
-        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
+        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), "%s", ly_last_logmsg());
         goto cleanup;
     }
     data = NULL;

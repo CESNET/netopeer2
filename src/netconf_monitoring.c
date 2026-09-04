@@ -430,7 +430,7 @@ np_getschema_print_yang(const struct lys_module *mod, const struct lysp_submodul
     const struct ly_ctx *ctx;
     const struct lys_module *m;
     const char *filepath, *name, *revision;
-    char *path = NULL, *msg;
+    char *path = NULL;
     FILE *f = NULL;
     uint32_t idx;
     int len;
@@ -468,24 +468,18 @@ np_getschema_print_yang(const struct lys_module *mod, const struct lysp_submodul
     /* open the file */
     f = fopen(filepath, "r");
     if (!f) {
-        asprintf(&msg, "Failed to open \"%s\" (%s).", filepath, strerror(errno));
-        reply = np_reply_err_op_failed(NULL, ctx, msg);
-        free(msg);
+        reply = np_reply_err_op_failed(NULL, ctx, "Failed to open \"%s\" (%s).", filepath, strerror(errno));
         goto cleanup;
     }
 
     /* learn file size */
     if (fseek(f, 0, SEEK_END) == -1) {
-        asprintf(&msg, "Failed to fseek in \"%s\" (%s).", filepath, strerror(errno));
-        reply = np_reply_err_op_failed(NULL, ctx, msg);
-        free(msg);
+        reply = np_reply_err_op_failed(NULL, ctx, "Failed to fseek in \"%s\" (%s).", filepath, strerror(errno));
         goto cleanup;
     }
     len = ftell(f);
     if (len == -1) {
-        asprintf(&msg, "Failed to ftell in \"%s\" (%s).", filepath, strerror(errno));
-        reply = np_reply_err_op_failed(NULL, ctx, msg);
-        free(msg);
+        reply = np_reply_err_op_failed(NULL, ctx, "Failed to ftell in \"%s\" (%s).", filepath, strerror(errno));
         goto cleanup;
     }
     fseek(f, 0, SEEK_SET);
@@ -497,9 +491,7 @@ np_getschema_print_yang(const struct lys_module *mod, const struct lysp_submodul
         goto cleanup;
     }
     if (fread(*yang_data, 1, len, f) != (unsigned)len) {
-        asprintf(&msg, "Failed to read from \"%s\" (%s).", filepath, strerror(errno));
-        reply = np_reply_err_op_failed(NULL, ctx, msg);
-        free(msg);
+        reply = np_reply_err_op_failed(NULL, ctx, "Failed to read from \"%s\" (%s).", filepath, strerror(errno));
         goto cleanup;
     }
     (*yang_data)[len] = '\0';
@@ -582,11 +574,11 @@ np2srv_rpc_getschema_cb(const struct lyd_node *rpc, struct np_user_sess *UNUSED(
 
     /* generate output */
     if (lyd_dup_single(rpc, NULL, LYD_DUP_WITH_PARENTS, &output)) {
-        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
+        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), "%s", ly_last_logmsg());
         goto cleanup;
     }
     if (lyd_new_any(output, NULL, "data", NULL, module_data, 0, LYD_NEW_ANY_USE_VALUE | LYD_NEW_VAL_OUTPUT, NULL)) {
-        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), ly_last_logmsg());
+        reply = np_reply_err_op_failed(NULL, LYD_CTX(rpc), "%s", ly_last_logmsg());
         goto cleanup;
     }
     module_data = NULL;
