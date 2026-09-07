@@ -98,6 +98,17 @@ SYSREPO_SETUP:ON
 If cross-compiling for a different architecture, you will likely want to turn this option off
 and then run the scripts `setup.sh`, `merge_hostkey.sh`, and `merge_config.sh` manually.
 
+### Log Location
+
+Every log entry printed to stderr carries its date and time. The O-RAN WG11 security specification
+also requires a Location field identifying the element that emitted the entry. It is printed only
+when the `NETCONF_LOG_LOCATION` environment variable is set, which should hold the address
+the management plane reaches the element on:
+```
+$ NETCONF_LOG_LOCATION=10.148.135.52 netopeer2-server -d -v2
+[2026-08-19T02:28:24.123456789+02:00][INF][Location=10.148.135.52]: NP: Session 80: thread 1 event new RPC.
+```
+
 ## Server configuration
 
 By default, only SSH listen configuration is imported so to enable any other connection methods,
