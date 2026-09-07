@@ -1228,6 +1228,110 @@ np2srv_libnetconf2_config_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id),
 #ifdef NC_ENABLED_SSH_TLS
 
 /**
+ * @brief Replace every clear-text "$0$" password among the changes by its hash.
+ *
+ * ietf-ssh-server types a user password as iana-crypt-hash:crypt-hash, where the "$0$" prefix means
+ * the value is clear text and the server is expected to store a hash of it instead (RFC 9645,
+ * iana-crypt-hash). Without this the clear text is stored verbatim and ends up in the datastore and
+ * in every export of it. Runs in the "update" event, so the hash is what gets committed.
+ *
+ * @param[in] session Implicit callback session, its data are edited.
+ * @param[in] xpath XPath selecting the hashed-password nodes to check.
+ * @return SR_ERR_OK on success, sysrepo error value otherwise.
+ */
+static int
+np2srv_hash_passwords(sr_session_ctx_t *session, const char *xpath)
+{
+    int r, rc = SR_ERR_OK;
+    sr_change_iter_t *iter = NULL;
+    sr_change_oper_t op;
+    const struct lyd_node *node;
+    const char *value;
+    char *path = NULL, *hashed_pw = NULL;
+
+    rc = sr_get_changes_iter(session, xpath, &iter);
+    if (rc != SR_ERR_OK) {
+        sr_session_set_error(session, NULL, rc, "Getting changes iter failed (%s).", sr_strerror(rc));
+        goto cleanup;
+    }
+
+    while ((r = sr_get_change_tree_next(session, iter, &op, &node, NULL, NULL, NULL)) == SR_ERR_OK) {
+        if ((op != SR_OP_CREATED) && (op != SR_OP_MODIFIED)) {
+            continue;
+        }
+
+        value = lyd_get_value(node);
+        if (!value || strncmp(value, "$0$", 3)) {
+            /* already a hash, nothing to do */
+            continue;
+        }
+
+        if (nc_server_config_hash_password(value + 3, &hashed_pw)) {
+            rc = SR_ERR_INTERNAL;
+            sr_session_set_error(session, NULL, rc, "Hashing the password of a NETCONF user failed.");
+            goto cleanup;
+        }
+
+        path = lyd_path(node, LYD_PATH_STD, NULL, 0);
+        if (!path) {
+            rc = SR_ERR_NO_MEMORY;
+            goto cleanup;
+        }
+
+        /* edit the data being committed so that the clear text is never stored */
+        rc = sr_set_item_str(session, path, hashed_pw, NULL, 0);
+        if (rc != SR_ERR_OK) {
+            sr_session_set_error(session, NULL, rc, "Storing the hashed password failed (%s).", sr_strerror(rc));
+            goto cleanup;
+        }
+
+        VRB("Hashed the clear-text password of \"%s\".", path);
+
+        free(path);
+        path = NULL;
+        free(hashed_pw);
+        hashed_pw = NULL;
+    }
+    if (r != SR_ERR_NOT_FOUND) {
+        rc = r;
+        sr_session_set_error(session, NULL, rc, "Getting next change failed (%s).", sr_strerror(r));
+        goto cleanup;
+    }
+
+cleanup:
+    free(path);
+    free(hashed_pw);
+    sr_free_change_iter(iter);
+    return rc;
+}
+
+/**
+ * @brief Callback for hashing clear-text NETCONF user passwords before they are committed.
+ *
+ * Separate from ::np2srv_libnetconf2_config_cb(), which is subscribed DONE-only and therefore cannot
+ * change (nor reject) the data.
+ */
+static int
+np2srv_password_hash_update_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const char *UNUSED(module_name),
+        const char *UNUSED(xpath), sr_event_t event, uint32_t UNUSED(request_id), void *UNUSED(private_data))
+{
+    int rc;
+
+    if (event != SR_EV_UPDATE) {
+        return SR_ERR_OK;
+    }
+
+    rc = np2srv_hash_passwords(session, "/ietf-netconf-server:netconf-server/listen/endpoints/endpoint/ssh/"
+            "ssh-server-parameters/client-authentication/users/user/password/hashed-password");
+    if (rc != SR_ERR_OK) {
+        return rc;
+    }
+
+    return np2srv_hash_passwords(session, "/ietf-netconf-server:netconf-server/call-home/netconf-client/endpoints/"
+            "endpoint/ssh/ssh-server-parameters/client-authentication/users/user/password/hashed-password");
+}
+
+/**
  * @brief Callback for providing SSH algorithms operational data.
  */
 static int
@@ -1464,6 +1568,17 @@ server_data_subscribe(void)
     /* create keys and certs subscriptions before server configuration, which may already reference them */
     SR_CONFIG_SUBSCR("ietf-keystore", NULL, np2srv_libnetconf2_config_cb);
     SR_CONFIG_SUBSCR("ietf-truststore", NULL, np2srv_libnetconf2_config_cb);
+#ifdef NC_ENABLED_SSH_TLS
+    /* hash clear-text user passwords before they are stored, needs the "update" event which the
+     * DONE-only subscription below cannot get */
+    rc = sr_module_change_subscribe(np2srv.sr_sess, "ietf-netconf-server", NULL, np2srv_password_hash_update_cb,
+            NULL, 0, SR_SUBSCR_UPDATE, &np2srv.sr_data_sub);
+    if (rc != SR_ERR_OK) {
+        ERR("Subscribing for \"ietf-netconf-server\" password hashing failed (%s).", sr_strerror(rc));
+        goto error;
+    }
+#endif /* NC_ENABLED_SSH_TLS */
+
     SR_CONFIG_SUBSCR("ietf-netconf-server", NULL, np2srv_libnetconf2_config_cb);
     SR_CONFIG_SUBSCR("libnetconf2-netconf-server", NULL, np2srv_libnetconf2_config_cb);
 
