@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <syslog.h>
@@ -41,7 +42,9 @@ uint8_t np2_stderr_log = 0;
 static void
 np2log(int priority, const char *src, const char *fmt, ...)
 {
-    char *format;
+    struct timespec ts;
+    char *msg = NULL, *timestamp = NULL;
+    const char *level, *location;
     va_list ap;
 
     va_start(ap, fmt);
@@ -49,36 +52,47 @@ np2log(int priority, const char *src, const char *fmt, ...)
     va_end(ap);
 
     if (np2_stderr_log) {
-        format = malloc(11 + strlen(fmt) + 2);
-        if (!format) {
-            fprintf(stderr, "[ERR]: Memory allocation failed (%s:%d), src: %s, fmt: %s\n", __FILE__, __LINE__, src, fmt);
-            return;
-        }
-
         switch (priority) {
         case LOG_ERR:
-            sprintf(format, "[ERR]: %s: %s\n", src, fmt);
+            level = "ERR";
             break;
         case LOG_WARNING:
-            sprintf(format, "[WRN]: %s: %s\n", src, fmt);
+            level = "WRN";
             break;
         case LOG_INFO:
-            sprintf(format, "[INF]: %s: %s\n", src, fmt);
+            level = "INF";
             break;
         case LOG_DEBUG:
-            sprintf(format, "[DBG]: %s: %s\n", src, fmt);
+            level = "DBG";
             break;
         default:
-            sprintf(format, "[UNK]: %s: %s\n", src, fmt);
+            level = "UNK";
             break;
         }
 
         va_start(ap, fmt);
-        vfprintf(stderr, format, ap);
+        if (vasprintf(&msg, fmt, ap) == -1) {
+            msg = NULL;
+        }
         va_end(ap);
+        ts = np_gettimespec(1);
+        if (!msg || ly_time_ts2str(&ts, &timestamp)) {
+            fprintf(stderr, "[ERR]: Memory allocation failed (%s:%d), src: %s, fmt: %s\n", __FILE__, __LINE__, src, fmt);
+            goto cleanup;
+        }
 
-        free(format);
+        /* optional location of the element, required by O-RAN WG11 */
+        location = getenv("NETCONF_LOG_LOCATION");
+        if (location && location[0]) {
+            fprintf(stderr, "[%s][%s][Location=%s]: %s: %s\n", timestamp, level, location, src, msg);
+        } else {
+            fprintf(stderr, "[%s][%s]: %s: %s\n", timestamp, level, src, msg);
+        }
     }
+
+cleanup:
+    free(msg);
+    free(timestamp);
 }
 
 /**
