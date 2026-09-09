@@ -212,13 +212,13 @@ np_release_user_sess(struct np_user_sess *user_sess)
 static LY_ERR
 sub_ntf_lysc_has_notif_clb(struct lysc_node *node, void *UNUSED(data), ly_bool *UNUSED(dfs_continue))
 {
-    LY_ARRAY_COUNT_TYPE u;
+    LYA_COUNT_T u;
     const struct lysc_ext *ext;
 
     if (node->nodetype == LYS_NOTIF) {
         return LY_EEXIST;
     } else {
-        LY_ARRAY_FOR(node->exts, u) {
+        LYA_FOR(node->exts, u) {
             ext = node->exts[u].def;
             if (!strcmp(ext->name, "mount-point") && !strcmp(ext->module->name, "ietf-yang-schema-mount")) {
                 /* any data including notifications could be mounted */
@@ -1834,7 +1834,7 @@ np_reply_err_op_failed(sr_session_ctx_t *session, const struct ly_ctx *ly_ctx, c
     r = vasprintf(&msg, format, ap);
     va_end(ap);
     if (r == -1) {
-        LOGMEM(NULL);
+        EMEM;
         return NULL;
     }
 

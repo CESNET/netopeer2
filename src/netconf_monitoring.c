@@ -277,7 +277,7 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
     char **cpblts;
     char *time_str, buf[11];
     uint32_t i;
-    LY_ARRAY_COUNT_TYPE u;
+    LYA_COUNT_T u;
     struct timespec ts;
 
     /* context is locked while the callback is executed */
@@ -323,7 +323,7 @@ np2srv_ncm_oper_cb(sr_session_ctx_t *session, uint32_t UNUSED(sub_id), const cha
         lyd_new_term(list, NULL, "location", "NETCONF", 0, NULL);
 
         if (mod->parsed) {
-            LY_ARRAY_FOR(mod->parsed->includes, u) {
+            LYA_FOR(mod->parsed->includes, u) {
                 submod = mod->parsed->includes[u].submodule;
 
                 lyd_new_list(cont, NULL, "schema", 0, &list, submod->name, submod->revs ? submod->revs[0].date : "", "yang");
