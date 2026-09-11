@@ -49,8 +49,8 @@ set(LIBYANG_DEP_SOVERSION 5.9.2)
 set(LIBYANG_DEP_SOVERSION_MAJOR 5)
 
 # libnetconf2 required version
-set(LIBNETCONF2_DEP_VERSION 4.4.3)
-set(LIBNETCONF2_DEP_SOVERSION 5.4.3)
+set(LIBNETCONF2_DEP_VERSION 4.6.0)
+set(LIBNETCONF2_DEP_SOVERSION 5.4.19)
 set(LIBNETCONF2_DEP_SOVERSION_MAJOR 5)
 
 # sysrepo required version
@@ -156,16 +156,6 @@ if(PkgConfig_FOUND)
     pkg_check_modules(PKG_LN2 libnetconf2)
 
     if(PKG_LN2_FOUND)
-        # libnetconf2 thread count check
-        pkg_get_variable(LN2_THREAD_COUNT libnetconf2 "LN2_MAX_THREAD_COUNT")
-        if(LN2_THREAD_COUNT)
-            if(LN2_THREAD_COUNT LESS THREAD_COUNT)
-                message(FATAL_ERROR "libnetconf2 was compiled with support up to ${LN2_THREAD_COUNT} threads, server is configured with ${THREAD_COUNT}.")
-            else()
-                message(STATUS "libnetconf2 was compiled with support of up to ${LN2_THREAD_COUNT} threads")
-            endif()
-        endif()
-
         # get libnetconf2 module directory, use it later when installing modules
         pkg_get_variable(LN2_YANG_MODULE_DIR libnetconf2 "LN2_SCHEMAS_DIR")
     endif()
@@ -173,9 +163,6 @@ endif()
 
 # } PKGCONFIG
 
-if(NOT LN2_THREAD_COUNT)
-    message(STATUS "Unable to learn libnetconf2 thread support, check skipped")
-endif()
 if(NOT LN2_YANG_MODULE_DIR)
     message(FATAL_ERROR "Unable to learn libnetconf2 module search directory, define LN2_YANG_MODULE_DIR manually.")
 endif()
