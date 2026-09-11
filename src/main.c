@@ -121,15 +121,16 @@ signal_handler(int sig)
  * @brief Callback for deleting NC sessions.
  *
  * @param[in] session NC session to delete.
+ * @param[in] in_ps Whether @p session is still in the pollsession.
  */
 static void
-np2srv_del_session_cb(struct nc_session *session)
+np2srv_del_session_cb(struct nc_session *session, int in_ps)
 {
     struct np_user_sess *user_sess;
     uint32_t i;
 
     /* remove from PS structure */
-    if (nc_ps_del_session(np2srv.nc_ps, session)) {
+    if (in_ps && nc_ps_del_session(np2srv.nc_ps, session)) {
         ERR("Removing session from ps failed.");
     }
 
@@ -1115,7 +1116,7 @@ server_destroy(void)
         while (nc_ps_session_count(np2srv.nc_ps)) {
             sess = nc_ps_get_session(np2srv.nc_ps, 0);
             nc_session_set_term_reason(sess, NC_SESSION_TERM_OTHER);
-            np2srv_del_session_cb(sess);
+            np2srv_del_session_cb(sess, 1);
             sr_release_context(np2srv.sr_conn);
         }
         nc_ps_free(np2srv.nc_ps);
@@ -1554,7 +1555,7 @@ worker_thread(void *arg)
         }
         if (rc & NC_PSPOLL_SESSION_TERM) {
             VRB("Session %d: thread %d event session terminated.", nc_session_get_id(ncs), idx);
-            np2srv_del_session_cb(ncs);
+            np2srv_del_session_cb(ncs, 0);
             sr_release_context(np2srv.sr_conn);
         }
 #ifdef NC_ENABLED_SSH_TLS
