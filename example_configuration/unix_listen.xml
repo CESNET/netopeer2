@@ -1,0 +1,21 @@
+<netconf-server xmlns="urn:ietf:params:xml:ns:yang:ietf-netconf-server">
+  <listen>
+    <endpoints>
+      <endpoint>
+        <name>default-unix</name>
+        <unix xmlns="urn:cesnet:libnetconf2-netconf-server">
+          <hidden-path/>
+          <socket-permissions>
+            <mode>0660</mode> <!-- the default -->
+          </socket-permissions>
+          <!-- <client-authentication> User mapping configuration - if empty, system users are mapped to netconf users.
+            <user-mapping>
+              <system-user>root</system-user>
+              <netconf-user>root</netconf-user>
+            </user-mapping>
+          </client-authentication> -->
+        </unix>
+      </endpoint>
+    </endpoints>
+  </listen>
+</netconf-server>

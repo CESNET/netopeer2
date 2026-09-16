@@ -1734,7 +1734,8 @@ print_usage(char *progname)
     fprintf(stdout, " -x PATH    Path to a data file with data for libyang ext data callback. They are required for\n");
     fprintf(stdout, "            supporting some extensions such as schema-mount, in which case the ietf-yang-schema-mount\n");
     fprintf(stdout, "            operational data are expected to be in the file.\n");
-    fprintf(stdout, " -U ENDPT:PATH Set UNIX socket path for a specific endpoint.\n");
+    fprintf(stdout, " -U ENDPT:PATH Set hidden UNIX socket path for a specific endpoint. The endpoint needs to be set in\n");
+    fprintf(stdout, "            the configuration.\n");
     fprintf(stdout, " -v LEVEL   Verbose output level:\n");
     fprintf(stdout, "                0 - errors\n");
     fprintf(stdout, "                1 - errors and warnings\n");
