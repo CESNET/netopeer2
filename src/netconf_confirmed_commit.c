@@ -896,7 +896,26 @@ np2srv_confirmed_commit_cb(const struct lyd_node *rpc, struct np_user_sess *user
                 goto cleanup;
             }
         }
+    }
 
+    /* sysrepo API */
+    if (user_sess->use_private_cand) {
+        /* create private candidate if not yet created */
+        NP2_CHECK_PRIVCAND_EXISTS(user_sess, rpc, reply, cleanup);
+
+        if (sr_pc_commit(user_sess->sess, user_sess->private_ds, &conflict_set)) {
+            reply = np_reply_err_conflict(rpc, conflict_set);
+            goto cleanup;
+        }
+    } else {
+        sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING);
+        if (sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout)) {
+            reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
+            goto cleanup;
+        }
+    }
+
+    if (commit_ctx.timer) {
         /* there is already a pending confirmed commit, keep its backup, but the timeout will be reset */
         timer_delete(commit_ctx.timer);
         commit_ctx.timer = 0;
@@ -928,23 +947,6 @@ np2srv_confirmed_commit_cb(const struct lyd_node *rpc, struct np_user_sess *user
     } else {
         /* send notification about starting confirmed-commits */
         np_send_notif_confirmed_commit(nc_sess, user_sess->sess, NP_CC_START, timeout, 0);
-    }
-
-    /* sysrepo API */
-    if (user_sess->use_private_cand) {
-        /* create private candidate if not yet created */
-        NP2_CHECK_PRIVCAND_EXISTS(user_sess, rpc, reply, cleanup);
-
-        if (sr_pc_commit(user_sess->sess, user_sess->private_ds, &conflict_set)) {
-            reply = np_reply_err_conflict(rpc, conflict_set);
-            goto cleanup;
-        }
-    } else {
-        sr_session_switch_ds(user_sess->sess, SR_DS_RUNNING);
-        if (sr_copy_config(user_sess->sess, NULL, SR_DS_CANDIDATE, np2srv.sr_timeout)) {
-            reply = np_reply_err_sr(user_sess->sess, LYD_NAME(rpc));
-            goto cleanup;
-        }
     }
 
     /* OK reply */
