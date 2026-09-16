@@ -566,9 +566,11 @@ np2srv_rpc_copyconfig_cb(const struct lyd_node *rpc, struct np_user_sess *user_s
                 }
             }
 
-            config = sr_data->tree;
-            sr_data->tree = NULL;
-            sr_release_data(sr_data);
+            if (sr_data) {
+                config = sr_data->tree;
+                sr_data->tree = NULL;
+                sr_release_data(sr_data);
+            }
         }
 
         /* we need with-defaults flag in this case */
