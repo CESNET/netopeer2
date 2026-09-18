@@ -2052,7 +2052,12 @@ static void
 parse_cert(const char *name, const char *path)
 {
     int i, j, has_san, first_san;
+#if OPENSSL_VERSION_NUMBER >= 0x40000000L
+    int ip_length, bs_length;
+    const unsigned char *ip_data, *bs_data;
+#else
     ASN1_OCTET_STRING *ip;
+#endif
     ASN1_INTEGER *bs;
     BIO *bio_out;
     FILE *fp;
@@ -2077,9 +2082,17 @@ parse_cert(const char *name, const char *path)
 
     bs = X509_get_serialNumber(cert);
     BIO_printf(bio_out, "-----%s----- serial: ", name);
+#if OPENSSL_VERSION_NUMBER >= 0x40000000L
+    bs_data = ASN1_STRING_get0_data(bs);
+    bs_length = ASN1_STRING_length(bs);
+    for (i = 0; i < bs_length; i++) {
+        BIO_printf(bio_out, "%02x", bs_data[i]);
+    }
+#else
     for (i = 0; i < bs->length; i++) {
         BIO_printf(bio_out, "%02x", bs->data[i]);
     }
+#endif
     BIO_printf(bio_out, "\n");
 
     BIO_printf(bio_out, "Subject: ");
@@ -2119,6 +2132,21 @@ parse_cert(const char *name, const char *path)
                 }
                 if (san_name->type == GEN_IPADD) {
                     BIO_printf(bio_out, "IP:");
+#if OPENSSL_VERSION_NUMBER >= 0x40000000L
+                    ip_data = ASN1_STRING_get0_data(san_name->d.iPAddress);
+                    ip_length = ASN1_STRING_length(san_name->d.iPAddress);
+                    if (ip_length == 4) {
+                        BIO_printf(bio_out, "%d.%d.%d.%d", ip_data[0], ip_data[1], ip_data[2], ip_data[3]);
+                    } else if (ip_length == 16) {
+                        for (j = 0; j < ip_length; ++j) {
+                            if ((j > 0) && (j < 15) && (j % 2 == 1)) {
+                                BIO_printf(bio_out, "%02x:", ip_data[j]);
+                            } else {
+                                BIO_printf(bio_out, "%02x", ip_data[j]);
+                            }
+                        }
+                    }
+#else
                     ip = san_name->d.iPAddress;
                     if (ip->length == 4) {
                         BIO_printf(bio_out, "%d.%d.%d.%d", ip->data[0], ip->data[1], ip->data[2], ip->data[3]);
@@ -2131,6 +2159,7 @@ parse_cert(const char *name, const char *path)
                             }
                         }
                     }
+#endif
                 }
             }
         }
