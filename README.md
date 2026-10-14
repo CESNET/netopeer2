@@ -66,6 +66,12 @@ the `distro` directory.
 * lcov (for code coverage)
 * genhtml (for code coverage)
 
+### Platform
+
+The main supported platform is Linux but other Unix-based systems are known to be supported as well. There is also
+a port of this server available for embedded devices running FreeRTOS in a separate
+[repository](https://github.com/CESNET/netopeer2-freertos).
+
 ## Compilation and installation
 
 ```
