@@ -470,6 +470,45 @@ test_stream_no_pass(void **state)
     FREE_TEST_VARS(st);
 }
 
+static void
+test_state_after_delete(void **state)
+{
+    struct np2_test *st = *state;
+    uint32_t ids[3], i;
+    char *str;
+
+    /* establish 3 subscriptions */
+    for (i = 0; i < 3; ++i) {
+        SEND_RPC_ESTABSUB(st, NULL, "notif1", NULL, NULL);
+        ASSERT_OK_SUB_NTF(st);
+        ids[i] = st->ntf_id;
+        FREE_TEST_VARS(st);
+    }
+
+    /* delete the first one, it is removed once its subscription-terminated notification is received */
+    SEND_RPC_DELSUB(st, ids[0]);
+    RECV_NOTIF(st);
+    assert_string_equal(LYD_NAME(st->op), "subscription-terminated");
+    FREE_TEST_VARS(st);
+    st->rpc = nc_rpc_deletesub(ids[0]);
+    ASSERT_OK_REPLY(st);
+    FREE_TEST_VARS(st);
+
+    /* the state has only the remaining subscriptions */
+    GET_DATA_FILTER(st, "ietf-datastores:operational", "/ietf-subscribed-notifications:subscriptions", NULL, NULL, 0, 0,
+            0, 0, NC_WD_ALL);
+    for (i = 0; i < 3; ++i) {
+        assert_int_not_equal(-1, asprintf(&str, "<id>%" PRIu32 "</id>", ids[i]));
+        if (i) {
+            assert_non_null(strstr(st->str, str));
+        } else {
+            assert_null(strstr(st->str, str));
+        }
+        free(str);
+    }
+    FREE_TEST_VARS(st);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -483,6 +522,7 @@ main(int argc, char **argv)
         cmocka_unit_test_teardown(test_stop_time, teardown_common),
         cmocka_unit_test_teardown(test_history_only, teardown_common),
         cmocka_unit_test_teardown(test_stream_no_pass, teardown_common),
+        cmocka_unit_test_teardown(test_state_after_delete, teardown_common),
     };
 
     nc_verbosity(NC_VERB_WARNING);
