@@ -1568,7 +1568,7 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
     srsn_state_sub_t *sr_subs = NULL, *sr_sub;
     struct np2srv_sub_ntf *sub;
     char buf[26], *path, *datetime;
-    uint32_t i, sr_sub_count = 0, sr_sub_i = 0;
+    uint32_t i, j, sr_sub_count = 0;
     LY_ERR lyrc;
 
     /* context is locked while the callback is executing */
@@ -1594,19 +1594,16 @@ np2srv_oper_sub_ntf_subscriptions_cb(sr_session_ctx_t *session, uint32_t UNUSED(
         sub = &state.subs[i];
 
         /* find the SRSN subscription */
-        do {
-            sr_sub = &sr_subs[sr_sub_i];
-            ++sr_sub_i;
-
-            if (sr_sub->sub_id == sub->sub_id) {
+        for (j = 0; j < sr_sub_count; ++j) {
+            if (sr_subs[j].sub_id == sub->sub_id) {
                 break;
             }
-        } while (sr_sub_i <= sr_sub_count);
-        if (sr_sub_i > sr_sub_count) {
-            sr_session_set_error(session, NULL, SR_ERR_INTERNAL, "Internal error (%s:%d).", __func__, __LINE__);
-            rc = SR_ERR_INTERNAL;
-            goto cleanup;
         }
+        if (j == sr_sub_count) {
+            /* fine to skip, it is terminated and removed once its subscription-terminated is dispatched */
+            continue;
+        }
+        sr_sub = &sr_subs[j];
 
         /* subscription with id */
         sprintf(buf, "%" PRIu32, sub->sub_id);
