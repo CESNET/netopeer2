@@ -285,24 +285,45 @@ cleanup:
 void
 np_sub_ntf_session_destroy(struct nc_session *ncs)
 {
-    uint32_t i = 0;
+    struct np_sub_ntf_arg **args = NULL;
+    uint32_t i = 0, arg_count = 0;
+    void *mem;
 
     /* WRITE LOCK */
     STATE_WLOCK;
 
     while (i < state.count) {
-        if (state.subs[i].nc_id == nc_session_get_id(ncs)) {
-            /* terminate the subscription (without a notification being sent, so remove it manually) */
-            srsn_terminate(state.subs[i].sub_id, NULL);
-            sub_ntf_del(state.subs[i].sub_id);
-        } else {
+        if (state.subs[i].nc_id != nc_session_get_id(ncs)) {
             /* skip */
             ++i;
+            continue;
         }
+
+        mem = realloc(args, (arg_count + 1) * sizeof *args);
+        if (!mem) {
+            /* terminate it right away */
+            EMEM;
+            srsn_terminate(state.subs[i].sub_id, NULL);
+            sub_ntf_del(state.subs[i].sub_id);
+            continue;
+        }
+        args = mem;
+
+        /* remove the subscription, keep its callback argument until it is terminated */
+        args[arg_count++] = state.subs[i].cb_arg;
+        state.subs[i].cb_arg = NULL;
+        sub_ntf_del(state.subs[i].sub_id);
     }
 
     /* UNLOCK */
     STATE_UNLOCK;
+
+    /* terminate without the lock, srsn_terminate() may wait for a get of the operational data that needs it */
+    for (i = 0; i < arg_count; ++i) {
+        srsn_terminate(args[i]->sub_id, NULL);
+        free(args[i]);
+    }
+    free(args);
 }
 
 /**

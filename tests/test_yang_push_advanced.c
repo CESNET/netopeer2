@@ -489,6 +489,55 @@ test_onchange_deletesub(void **state)
     ASSERT_NO_NOTIF(st);
 }
 
+static int
+held_oper_cb(sr_session_ctx_t *session, uint32_t sub_id, const char *module_name, const char *path,
+        const char *request_xpath, uint32_t request_id, struct lyd_node **parent, void *private_data)
+{
+    static int called;
+
+    (void) session; (void) sub_id; (void) module_name; (void) path;
+    (void) request_xpath; (void) request_id; (void) parent; (void) private_data;
+
+    /* hold the first push-update */
+    if (!called++) {
+        sleep(1);
+    }
+    return SR_ERR_OK;
+}
+
+static void
+test_periodic_session_close(void **state)
+{
+    struct np2_test *st = *state;
+    sr_subscription_ctx_t *sub = NULL;
+
+    /* the first push-update starts right away, gets the held state data and the subscriptions state of the server */
+    assert_int_equal(SR_ERR_OK, sr_oper_get_subscribe(st->sr_sess, "ietf-interfaces", "/ietf-interfaces:interfaces-state",
+            held_oper_cb, NULL, 0, &sub));
+    st->rpc = nc_rpc_establishpush_periodic("ietf-datastores:operational",
+            "/ietf-interfaces:interfaces-state | /ietf-subscribed-notifications:subscriptions", NULL, NULL, 50, NULL, NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    ASSERT_OK_SUB_NTF(st);
+    FREE_TEST_VARS(st);
+
+    /* close the session, its subscription is terminated while the push-update is held */
+    nc_session_free(st->nc_sess, NULL);
+    st->nc_sess = NULL;
+
+    /* the subscriptions state is available meanwhile */
+    st->rpc = nc_rpc_getdata("ietf-datastores:operational", "/ietf-subscribed-notifications:subscriptions", NULL, NULL,
+            0, 0, 0, 0, NC_WD_ALL, NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(st->nc_sess2, st->rpc, 1000, &st->msgid);
+    assert_int_equal(st->msgtype, NC_MSG_RPC);
+    st->msgtype = nc_recv_reply(st->nc_sess2, st->rpc, st->msgid, 2000, &st->envp, &st->op);
+    assert_int_equal(st->msgtype, NC_MSG_REPLY);
+    assert_non_null(st->op);
+    FREE_TEST_VARS(st);
+
+    sr_unsubscribe(sub);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -502,6 +551,7 @@ main(int argc, char **argv)
         cmocka_unit_test_teardown(test_periodic_modify_period, teardown_common),
         cmocka_unit_test_teardown(test_periodic_deletesub, teardown_common),
         cmocka_unit_test_teardown(test_onchange_deletesub, teardown_common),
+        cmocka_unit_test_teardown(test_periodic_session_close, teardown_common),
     };
 
     nc_verbosity(NC_VERB_WARNING);
