@@ -328,11 +328,7 @@ test_xpath_filter_denied(void **state)
     GET_CONFIG_FILTER(st, filter);
     expected =
             "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
-            "  <data>\n"
-            "    <people xmlns=\"urn:nt2\">\n"
-            "      <name>Arnold</name>\n"
-            "    </people>\n"
-            "  </data>\n"
+            "  <data/>\n"
             "</get-config>\n";
     assert_string_equal(st->str, expected);
     FREE_TEST_VARS(st);
