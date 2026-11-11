@@ -421,6 +421,7 @@ error:
 /**
  * @brief Print YANG (sub)module data.
  *
+ * @param[in] ctx Context to use.
  * @param[in] mod Module to print, if @p submod not set.
  * @param[in] submod Submodule to print, if set.
  * @param[out] yang_data Printed YANG data.
@@ -428,18 +429,16 @@ error:
  * @return server reply on error.
  */
 static struct nc_server_reply *
-np_getschema_print_yang(const struct lys_module *mod, const struct lysp_submodule *submod, char **yang_data)
+np_getschema_print_yang(const struct ly_ctx *ctx, const struct lys_module *mod, const struct lysc_submodule *submod,
+        char **yang_data)
 {
     struct nc_server_reply *reply = NULL;
-    const struct ly_ctx *ctx;
     const struct lys_module *m;
     const char *filepath, *name, *revision;
     char *path = NULL;
     FILE *f = NULL;
     uint32_t idx;
     int len;
-
-    ctx = mod ? mod->ctx : submod->mod->ctx;
 
     if (submod && submod->filepath) {
         filepath = submod->filepath;
@@ -461,7 +460,7 @@ np_getschema_print_yang(const struct lys_module *mod, const struct lysp_submodul
         /* create the path to the file */
         len = strrchr(m->filepath, '/') - m->filepath;
         name = submod ? submod->name : mod->name;
-        revision = submod ? (submod->revs ? submod->revs[0].date : NULL) : mod->revision;
+        revision = submod ? submod->revision : mod->revision;
         if (asprintf(&path, "%.*s/%s%s%s.yang", len, m->filepath, name, revision ? "@" : "", revision ? revision : "") == -1) {
             reply = np_reply_err_op_failed(NULL, ctx, "Memory allocation failed.");
             goto cleanup;
@@ -515,7 +514,7 @@ np2srv_rpc_getschema_cb(const struct lyd_node *rpc, struct np_user_sess *UNUSED(
     const char *identifier = NULL, *revision = NULL, *format = NULL;
     char *module_data = NULL;
     const struct lys_module *module = NULL;
-    const struct lysp_submodule *submodule = NULL;
+    const struct lysc_submodule *submodule = NULL;
     struct lyd_node *node, *output = NULL;
 
     /* identifier */
@@ -548,7 +547,7 @@ np2srv_rpc_getschema_cb(const struct lyd_node *rpc, struct np_user_sess *UNUSED(
         /* get specific module */
         module = ly_ctx_get_module(LYD_CTX(rpc), identifier, revision);
         if (!module) {
-            submodule = ly_ctx_get_submodule(LYD_CTX(rpc), identifier, revision);
+            submodule = ly_ctx_get_submodule3(LYD_CTX(rpc), identifier, revision);
         }
     } else {
         /* try to get implemented, then latest module */
@@ -557,7 +556,7 @@ np2srv_rpc_getschema_cb(const struct lyd_node *rpc, struct np_user_sess *UNUSED(
             module = ly_ctx_get_module_latest(LYD_CTX(rpc), identifier);
         }
         if (!module) {
-            submodule = ly_ctx_get_submodule_latest(LYD_CTX(rpc), identifier);
+            submodule = ly_ctx_get_submodule3_latest(LYD_CTX(rpc), identifier);
         }
     }
     if (!module && !submodule) {
@@ -572,7 +571,7 @@ np2srv_rpc_getschema_cb(const struct lyd_node *rpc, struct np_user_sess *UNUSED(
     }
 
     /* get module data */
-    if ((reply = np_getschema_print_yang(module, submodule, &module_data))) {
+    if ((reply = np_getschema_print_yang(LYD_CTX(rpc), module, submodule, &module_data))) {
         goto cleanup;
     }
 
