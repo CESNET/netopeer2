@@ -63,7 +63,6 @@ jobs:
       - name: Deps-packages
         shell: bash
         run: |
-          sudo add-apt-repository ppa:kedazo/libssh-0.7.x -y
           sudo apt-get update
           sudo apt-get install $DEFAULT_PACKAGES ${{ matrix.config.packages }}
           if ${{ matrix.config.snaps != '' }}
