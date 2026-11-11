@@ -457,10 +457,10 @@ np2srv_rpc_copyconfig_cb(const struct lyd_node *rpc, struct np_user_sess *user_s
     sr_datastore_t ds = SR_DS_OPERATIONAL, sds = SR_DS_OPERATIONAL;
     struct ly_set *nodeset = NULL;
     struct lyd_node *config = NULL;
-    sr_data_t *sr_data;
     int run_to_start = 0, source_is_config = 0;
 
 #ifdef NP2SRV_URL_CAPAB
+    sr_data_t *sr_data;
     const char *trg_url = NULL;
     int lyp_wd_flag;
     uint8_t url = 0;
