@@ -33,14 +33,15 @@ target_link_libraries(netopeer2-cli ${LIBYANG_LIBRARIES})
 target_link_libraries(netopeer2-cli ${LIBNETCONF2_LIBRARIES})
 
 # dependencies
-if(LIBNETCONF2_ENABLED_SSH_TLS)
+if(LIBNETCONF2_SSH)
     # - libssh
     if(NOT LIBSSH_FOUND)
         message(FATAL_ERROR "libnetconf2 supports SSH but libssh was not found, CLI compilation failed!")
     endif()
     target_link_libraries(netopeer2-cli ${LIBSSH_LIBRARIES})
     include_directories(${LIBSSH_INCLUDE_DIRS})
-
+endif()
+if(LIBNETCONF2_TLS)
     # - SSL library
     if (MBEDTLS_FOUND)
         # - MbedTLS (has priority over OpenSSL)

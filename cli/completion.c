@@ -146,9 +146,11 @@ complete_cmd(const char *buf, const char *hint, linenoiseCompletions *lc)
     unsigned int match_count = 0, i;
 
     if (!strncmp(buf, "searchpath ", 11)
-#ifdef NC_ENABLED_SSH_TLS
-            || !strncmp(buf, "auth keys add ", 14) || !strncmp(buf, "cert add ", 9) ||
-            !strncmp(buf, "cert remove ", 12) || !strncmp(buf, "cert replaceown ", 16)
+#ifdef NC_SSH
+            || !strncmp(buf, "auth keys add ", 14)
+#endif
+#ifdef NC_TLS
+            || !strncmp(buf, "cert add ", 9) || !strncmp(buf, "cert remove ", 12) || !strncmp(buf, "cert replaceown ", 16)
 #endif
        ) {
         path_completion(hint, lc);

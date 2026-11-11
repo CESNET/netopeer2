@@ -252,6 +252,8 @@ cleanup:
     free(history_file);
 }
 
+#ifdef NC_SSH
+
 /**
  * @brief Loads the authentication method preference from the configuration.
 
@@ -296,6 +298,8 @@ str2knownhosts_mode(const char *mode_str)
     }
 }
 
+#endif
+
 void
 load_config(void)
 {
@@ -303,7 +307,7 @@ load_config(void)
     struct lyd_node *config = NULL, *match = NULL, *client;
     struct ly_ctx *ctx = NULL;
 
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_SSH
     const char *key_pub, *key_priv;
     struct lyd_node *parent = NULL, *key = NULL, *auth_pref = NULL;
 #endif
@@ -376,7 +380,7 @@ load_config(void)
     if (!strcmp(lyd_get_value(match), "true")) {
         opts.output_flag = 1;
     } /* else default (formatted XML) */
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_SSH
     lyd_find_path(client, "authentication", 0, &auth_pref);
 
     /* <netconf-client> -> <authentication> -> <method-preference>*/
@@ -418,7 +422,7 @@ load_config(void)
         nc_client_ssh_set_knownhosts_mode(opts.knownhosts_mode);
         nc_client_ssh_ch_set_knownhosts_mode(opts.knownhosts_mode);
     }
-#endif /* NC_ENABLED_SSH_TLS */
+#endif /* NC_SSH */
 
 cleanup:
     lyd_free_tree(config);
@@ -426,6 +430,8 @@ cleanup:
     free(config_file);
     free(netconf_dir);
 }
+
+#ifdef NC_SSH
 
 /**
  * @brief Stores the current configuration of the authentication method preference to a file.
@@ -482,12 +488,14 @@ knownhosts_mode2str(NC_SSH_KNOWNHOSTS_MODE mode)
     }
 }
 
+#endif
+
 void
 store_config(void)
 {
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_SSH
     struct lyd_node *auth, *pref, *keys, *pair;
-#endif /* NC_ENABLED_SSH_TLS */
+#endif
     char *netconf_dir = NULL, *history_file = NULL, *config_file = NULL;
     struct ly_ctx *ctx = NULL;
     struct lyd_node *root = NULL;
@@ -541,7 +549,7 @@ store_config(void)
         }
     }
 
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_SSH
     /* SSH authentication */
     if (lyd_new_inner(root, NULL, "authentication", 0, &auth)) {
         goto cleanup;
@@ -596,7 +604,7 @@ store_config(void)
             goto cleanup;
         }
     }
-#endif /* NC_ENABLED_SSH_TLS */
+#endif
 
     /* get netconf dir */
     if ((netconf_dir = get_netconf_dir()) == NULL) {

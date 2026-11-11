@@ -5,10 +5,11 @@
 #  LIBNETCONF2_INCLUDE_DIRS - the LibNETCONF2 include directory
 #  LIBNETCONF2_LIBRARIES - Link these to use LibNETCONF2
 #  LIBNETCONF2_VERSION - SO version of the found libNETCONF2 library
-#  LIBNETCONF2_ENABLED_SSH_TLS - LibNETCONF2 was compiled with SSH and TLS support
+#  LIBNETCONF2_SSH - LibNETCONF2 was compiled with SSH support
+#  LIBNETCONF2_TLS - LibNETCONF2 was compiled with TLS support
 #
 #  Author Michal Vasko <mvasko@cesnet.cz>
-#  Copyright (c) 2021 CESNET, z.s.p.o.
+#  Copyright (c) 2021 - 2026 CESNET, z.s.p.o.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions
@@ -92,7 +93,8 @@ else()
 
     # check the configured options and make them available through cmake
     list(INSERT CMAKE_REQUIRED_INCLUDES 0 "${LIBNETCONF2_INCLUDE_DIR}")
-    check_symbol_exists("NC_ENABLED_SSH_TLS" "nc_client.h" LIBNETCONF2_ENABLED_SSH_TLS)
+    check_symbol_exists("NC_SSH" "nc_client.h" LIBNETCONF2_SSH)
+    check_symbol_exists("NC_TLS" "nc_client.h" LIBNETCONF2_TLS)
     list(REMOVE_AT CMAKE_REQUIRED_INCLUDES 0)
 endif()
 

@@ -49,8 +49,8 @@ set(LIBYANG_DEP_SOVERSION 5.9.2)
 set(LIBYANG_DEP_SOVERSION_MAJOR 5)
 
 # libnetconf2 required version
-set(LIBNETCONF2_DEP_VERSION 4.6.1)
-set(LIBNETCONF2_DEP_SOVERSION 5.5.0)
+set(LIBNETCONF2_DEP_VERSION 4.7.2)
+set(LIBNETCONF2_DEP_SOVERSION 5.5.6)
 set(LIBNETCONF2_DEP_SOVERSION_MAJOR 5)
 
 # sysrepo required version
@@ -259,7 +259,7 @@ endif()
 set(serverlibs ${serverlibs} ${LIBNETCONF2_LIBRARIES})
 
 # libssh (was already found, if exists)
-if(LIBSSH_FOUND AND LIBNETCONF2_ENABLED_SSH_TLS)
+if(LIBSSH_FOUND AND LIBNETCONF2_SSH)
     set(serverlibs ${serverlibs} ${LIBSSH_LIBRARIES})
     include_directories(${LIBSSH_INCLUDE_DIRS})
 endif()

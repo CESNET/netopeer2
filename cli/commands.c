@@ -43,14 +43,14 @@
 #include "completion.h"
 #include "configuration.h"
 
-#ifdef NC_ENABLED_SSH_TLS
-#ifdef HAVE_MBEDTLS
+#ifdef NC_TLS
+# ifdef HAVE_MBEDTLS
 #   include <mbedtls/x509.h>
 #   include <mbedtls/x509_crt.h>
-#else
+# else
 #   include <openssl/pem.h>
 #   include <openssl/x509v3.h>
-#endif
+# endif
 #endif
 
 #define CLI_CH_TIMEOUT 60 /* 1 minute */
@@ -670,8 +670,10 @@ cmd_verb_help(void)
 static void
 cmd_connect_help(void)
 {
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_SSH
     printf("connect [--help] [--ssh] [--host <hostname>] [--port <num>] [--login <username>]\n");
+#endif
+#ifdef NC_TLS
     printf("connect [--help] --tls [--host <hostname>] [--port <num>] [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>]\n");
 #endif
     printf("connect [--help] --unix [--socket <path>]\n");
@@ -680,10 +682,14 @@ cmd_connect_help(void)
 static void
 cmd_listen_help(void)
 {
-#ifdef NC_ENABLED_SSH_TLS
+#if defined (NC_SSH) || defined (NC_TLS)
     printf("listen [--help] [--timeout <sec>] [--host <ip-address>] [--port <num>]\n");
+# ifdef NC_SSH
     printf("   SSH [--ssh] [--login <username>]\n");
+# endif
+# ifdef NC_TLS
     printf("   TLS  --tls  [--cert <cert_path> [--key <key_path>]] [--trusted <trusted_CA_store.pem>] [--peername <server-hostname>]\n");
+# endif
 #endif
 }
 
@@ -1283,7 +1289,7 @@ cmd_monitor_help(void)
     printf("monitor [--help] [on | off]\n");
 }
 
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_SSH
 
 static void
 cmd_auth_help(void)
@@ -1295,12 +1301,6 @@ static void
 cmd_knownhosts_help(void)
 {
     printf("knownhosts (--help | --del <key_index> | --mode <accept|accept-new|ask|skip|strict>)\n");
-}
-
-static void
-cmd_cert_help(void)
-{
-    printf("cert [--help | display | add <cert_path> | remove <cert_name> | displayown | replaceown (<cert_path.pem> | <cert_path.crt> <key_path.key>)]\n");
 }
 
 static int
@@ -1786,6 +1786,16 @@ cmd_connect_listen_ssh(struct arglist *cmd, int is_connect)
     }
 
     return EXIT_SUCCESS;
+}
+
+#endif /* NC_SSH */
+
+#ifdef NC_TLS
+
+static void
+cmd_cert_help(void)
+{
+    printf("cert [--help | display | add <cert_path> | remove <cert_name> | displayown | replaceown (<cert_path.pem> | <cert_path.crt> <key_path.key>)]\n");
 }
 
 static int
@@ -2602,7 +2612,7 @@ error_cleanup:
     return ret;
 }
 
-#endif /* NC_ENABLED_SSH_TLS */
+#endif /* NC_TLS */
 
 static int
 cmd_connect_listen_unix(struct arglist *cmd, int is_connect)
@@ -2740,25 +2750,25 @@ cmd_verb(const char *arg, char **UNUSED(tmp_config_file))
     if (!strcmp(verb, "error") || !strcmp(verb, "0")) {
         nc_verbosity(0);
         verb_ly = 0;
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_SSH
         nc_libssh_thread_verbosity(0);
 #endif
     } else if (!strcmp(verb, "warning") || !strcmp(verb, "1")) {
         nc_verbosity(1);
         verb_ly = 1;
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_SSH
         nc_libssh_thread_verbosity(1);
 #endif
     } else if (!strcmp(verb, "verbose") || !strcmp(verb, "2")) {
         nc_verbosity(2);
         verb_ly = 2;
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_SSH
         nc_libssh_thread_verbosity(2);
 #endif
     } else if (!strcmp(verb, "debug") || !strcmp(verb, "3")) {
         nc_verbosity(3);
         verb_ly = 3;
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_SSH
         nc_libssh_thread_verbosity(3);
 #endif
     } else {
@@ -2843,18 +2853,20 @@ cmd_status(const char *UNUSED(arg), char **UNUSED(tmp_config_file))
         printf("Current NETCONF session:\n");
         printf("  ID          : %u\n", nc_session_get_id(session));
         switch (transport) {
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_SSH
         case NC_TI_SSH:
             s = "SSH";
             printf("  Host        : %s\n", nc_session_get_host(session));
             printf("  Port        : %u\n", nc_session_get_port(session));
             break;
+#endif /* NC_SSH */
+#ifdef NC_TLS
         case NC_TI_TLS:
             s = "TLS";
             printf("  Host        : %s\n", nc_session_get_host(session));
             printf("  Port        : %u\n", nc_session_get_port(session));
             break;
-#endif
+#endif /* NC_TLS */
         case NC_TI_FD:
             s = "FD";
             break;
@@ -2887,20 +2899,21 @@ cmd_connect_listen(const char *arg, int is_connect)
     struct arglist cmd;
     struct option long_options[] = {
         {"help", 0, 0, 'h'},
-#ifdef NC_ENABLED_SSH_TLS
+#if defined (NC_SSH) || defined (NC_TLS)
+        {"host", 1, 0, 'o'},
+        {"port", 1, 0, 'p'},
+        {"timeout", 1, 0, 'i'},
+# ifdef NC_SSH
         {"ssh", 0, 0, 's'},
-        {"timeout", 1, 0, 'i'},
-        {"host", 1, 0, 'o'},
-        {"port", 1, 0, 'p'},
         {"login", 1, 0, 'l'},
+# endif
+# ifdef NC_TLS
         {"tls", 0, 0, 't'},
-        {"timeout", 1, 0, 'i'},
-        {"host", 1, 0, 'o'},
-        {"port", 1, 0, 'p'},
         {"cert", 1, 0, 'c'},
         {"key", 1, 0, 'k'},
         {"trusted", 1, 0, 'r'},
         {"peername", 1, 0, 'e'},
+# endif
 #endif
         {"unix", 0, 0, 'u'},
         {"socket", 1, 0, 'S'},
@@ -2925,10 +2938,14 @@ cmd_connect_listen(const char *arg, int is_connect)
 
     ret = -1;
 
-#ifdef NC_ENABLED_SSH_TLS
-    optstring = "hsti:o:p:l:c:k:r:e:uS:";
+#if defined (NC_SSH) && defined (NC_TLS)
+    optstring = "ho:p:i:sl:tc:k:r:e:uS:";
+#elif defined (NC_SSH)
+    optstring = "ho:p:i:sl:uS:";
+#elif defined (NC_TLS)
+    optstring = "ho:p:i:tc:k:r:e:uS:";
 #else
-    optstring = "hi:o:p:c:k:r:e:uS:";
+    optstring = "huS:";
 #endif
 
     while (!ti && ((c = getopt_long(cmd.count, cmd.list, optstring, long_options, &option_index)) != -1)) {
@@ -2936,10 +2953,12 @@ cmd_connect_listen(const char *arg, int is_connect)
         case 'h':
             ti = NC_TI_FD;
             break;
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_SSH
         case 's':
             ti = NC_TI_SSH;
             break;
+#endif
+#ifdef NC_TLS
         case 't':
             ti = NC_TI_TLS;
             break;
@@ -2954,8 +2973,12 @@ cmd_connect_listen(const char *arg, int is_connect)
 
     if (!ti) {
         /* default transport */
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_SSH
         ti = NC_TI_SSH;
+#elif defined (NC_TLS)
+        ti = NC_TI_TLS;
+#else
+        ti = NC_TI_UNIX;
 #endif
     }
 
@@ -2967,17 +2990,19 @@ cmd_connect_listen(const char *arg, int is_connect)
             cmd_listen_help();
         }
         break;
-    case NC_TI_UNIX:
-        ret = cmd_connect_listen_unix(&cmd, is_connect);
-        break;
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_SSH
     case NC_TI_SSH:
         ret = cmd_connect_listen_ssh(&cmd, is_connect);
         break;
+#endif
+#ifdef NC_TLS
     case NC_TI_TLS:
         ret = cmd_connect_listen_tls(&cmd, is_connect);
         break;
 #endif
+    case NC_TI_UNIX:
+        ret = cmd_connect_listen_unix(&cmd, is_connect);
+        break;
     default:
         ERROR(func_name, "Unknown transport.");
         ret = EXIT_FAILURE;
@@ -6933,11 +6958,11 @@ cmd_timed(const char *arg, char **UNUSED(tmp_config_file))
 }
 
 COMMAND commands[] = {
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_SSH
     {"auth", cmd_auth, cmd_auth_help, "Manage SSH authentication options"},
 #endif
     {"cancel-commit", cmd_cancelcommit, cmd_cancelcommit_help, "ietf-netconf <cancel-commit> operation"},
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_TLS
     {"cert", cmd_cert, cmd_cert_help, "Manage trusted or your own certificates"},
 #endif
     {"commit", cmd_commit, cmd_commit_help, "ietf-netconf <commit> operation"},
@@ -6966,7 +6991,7 @@ COMMAND commands[] = {
     {"help", cmd_help, NULL, "Display commands description"},
     {"kill-session", cmd_killsession, cmd_killsession_help, "ietf-netconf <kill-session> operation"},
     {"kill-sub", cmd_killsub, cmd_killsub_help, "ietf-subscribed-notifications <kill-subscription> operation"},
-#ifdef NC_ENABLED_SSH_TLS
+#ifdef NC_SSH
     {"knownhosts", cmd_knownhosts, cmd_knownhosts_help, "Manage the user knownhosts file"},
 #endif
     {"listen", cmd_listen, cmd_listen_help, "Wait for a Call Home connection from a NETCONF server"},
