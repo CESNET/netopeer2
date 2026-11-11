@@ -34,7 +34,7 @@ jobs:
         config:
           - {
             name: "Coverity",
-            os: "ubuntu-latest",
+            os: "ubuntu-24.04",
             build-type: "Debug",
             dep-build-type: "Debug",
             cc: "clang",
@@ -46,7 +46,7 @@ jobs:
           }
           - {
             name: "Codecov",
-            os: "ubuntu-latest",
+            os: "ubuntu-24.04",
             build-type: "Debug",
             dep-build-type: "Debug",
             cc: "gcc",
