@@ -38,7 +38,7 @@ jobs:
         config:
           - {
             name: "Release, gcc",
-            os: "ubuntu-24.04",
+            os: "ubuntu-latest",
             build-type: "Release",
             dep-build-type: "Release",
             cc: "gcc",
@@ -50,7 +50,7 @@ jobs:
           }
           - {
             name: "Release, clang",
-            os: "ubuntu-24.04",
+            os: "ubuntu-latest",
             build-type: "Release",
             dep-build-type: "Release",
             cc: "clang",
@@ -62,7 +62,7 @@ jobs:
           }
           - {
             name: "Debug, gcc",
-            os: "ubuntu-24.04",
+            os: "ubuntu-latest",
             build-type: "Debug",
             dep-build-type: "Debug",
             cc: "gcc",
@@ -74,7 +74,7 @@ jobs:
           }
           - {
             name: "Debug, clang",
-            os: "ubuntu-24.04",
+            os: "ubuntu-latest",
             build-type: "Debug",
             dep-build-type: "Debug",
             cc: "clang",
@@ -87,7 +87,7 @@ jobs:
           }
           - {
             name: "ASAN and UBSAN",
-            os: "ubuntu-24.04",
+            os: "ubuntu-latest",
             build-type: "Debug",
             dep-build-type: "Debug",
             cc: "clang",
@@ -99,7 +99,7 @@ jobs:
           }
           - {
             name: "DEB Package",
-            os: "ubuntu-24.04",
+            os: "ubuntu-latest",
             build-type: "Release",
             dep-build-type: "Release",
             cc: "gcc",
