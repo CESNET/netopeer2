@@ -289,9 +289,6 @@ if(ENABLE_URL)
 endif()
 
 # libsystemd
-if(NOT PKG_CONFIG_FOUND AND NOT SYSTEMD_UNIT_DIR)
-    set(SYSTEMD_UNIT_DIR "/usr/lib/systemd/system")
-endif()
 find_package(LibSystemd)
 if(LIBSYSTEMD_FOUND)
     set(NP2SRV_HAVE_SYSTEMD 1)
