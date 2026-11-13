@@ -87,7 +87,7 @@ jobs:
           }
           - {
             name: "ASAN and UBSAN",
-            os: "ubuntu-latest",
+            os: "ubuntu-24.04",
             build-type: "Debug",
             dep-build-type: "Debug",
             cc: "clang",
