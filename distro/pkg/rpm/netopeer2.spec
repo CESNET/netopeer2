@@ -16,8 +16,8 @@ BuildRequires: sysrepo-tools
 BuildRequires: libcurl-devel
 BuildRequires: libssh-devel
 BuildRequires: openssl-devel
-BuildRequires: systemd-devel
-BuildRequires: systemd
+BuildRequires: pkgconfig(libsystemd)
+BuildRequires: systemd-rpm-macros
 
 Requires: %{name}-server%{?_isa} = %{version}-%{release}
 Requires: %{name}-cli%{?_isa} = %{version}-%{release}
@@ -63,6 +63,7 @@ a single established NETCONF session.
 
 %build
 %cmake -DCMAKE_BUILD_TYPE=RELWITHDEBINFO \
+       -DENABLE_TESTS=OFF \
        -DCMAKE_INSTALL_SYSCONFDIR=/etc \
        -DSYSREPO_SETUP=OFF \
        -DPIDFILE_PREFIX=/run \
