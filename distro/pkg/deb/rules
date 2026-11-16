@@ -18,7 +18,7 @@ export DPKG_GENSYMBOLS_CHECK_LEVEL=4
 	dh $@ --buildsystem=cmake --builddir=build
 
 override_dh_auto_configure:
-	dh_auto_configure --builddir=build -- -DCMAKE_BUILD_TYPE="Release" -DENABLE_TESTS=OFF -DBUILD_CLI=ON -DSYSREPO_SETUP=OFF -DPIDFILE_PREFIX=/run -DSERVER_DIR=/var/lib/netopeer2
+	dh_auto_configure --builddir=build -- -DCMAKE_BUILD_TYPE="Release" -DENABLE_TESTS=OFF -DSYSREPO_SETUP=OFF -DPIDFILE_PREFIX=/run -DSERVER_DIR=/var/lib/netopeer2
 
 override_dh_auto_install:
 	dh_auto_install --builddir=build --destdir=$(CURDIR)/debian/tmp
