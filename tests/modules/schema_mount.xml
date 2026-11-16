@@ -30,6 +30,10 @@
                 <name>edit1</name>
                 <namespace>urn:ed1</namespace>
             </module>
+            <module>
+                <name>rpc1</name>
+                <namespace>urn:r1</namespace>
+            </module>
         </module-set>
         <content-id>1</content-id>
     </yang-library>

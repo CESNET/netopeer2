@@ -1,0 +1,12 @@
+module rpc1 {
+  namespace "urn:r1";
+  prefix "r1";
+
+  rpc rpc1 {
+    input {
+      leaf first {
+        type string;
+      }
+    }
+  }
+}

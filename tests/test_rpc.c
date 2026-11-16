@@ -38,6 +38,7 @@ local_setup(void **state)
     char test_name[256], extdata_path[256];
     const char *modules[] = {
         NP_TEST_MODULE_DIR "/edit1.yang",
+        NP_TEST_MODULE_DIR "/rpc1.yang",
         NP_TEST_MODULE_DIR "/sm.yang",
         NULL
     };
@@ -184,7 +185,7 @@ static void
 test_kill(void **state)
 {
     struct np2_test *st = *state;
-    char *error, *expected;
+    char *expected;
     const char *template;
 
     if (np2_is_nacm_recovery()) {
@@ -199,23 +200,18 @@ test_kill(void **state)
     ASSERT_ERROR_REPLY(st);
 
     /* check the error message */
-    lyd_print_mem(&error, st->envp, LYD_XML, 0);
     template =
-            "<rpc-reply xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\" "
-            "message-id=\"%" PRIu64 "\">\n"
-            "  <rpc-error>\n"
-            "    <error-type>protocol</error-type>\n"
-            "    <error-tag>access-denied</error-tag>\n"
-            "    <error-severity>error</error-severity>\n"
-            "    <error-path xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">/nc:kill-session</error-path>\n"
-            "    <error-message xml:lang=\"en\">Executing the operation is denied "
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>protocol</error-type>\n"
+            "  <error-tag>access-denied</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-path xmlns:nc=\"urn:ietf:params:xml:ns:netconf:base:1.0\">/nc:kill-session</error-path>\n"
+            "  <error-message xml:lang=\"en\">Executing the operation is denied "
             "because \"%s\" NACM authorization failed.</error-message>\n"
-            "  </rpc-error>\n"
-            "</rpc-reply>\n";
-    assert_int_not_equal(-1, asprintf(&expected, template, st->msgid, np2_get_user()));
-    assert_string_equal(error, expected);
+            "</rpc-error>\n";
+    assert_int_not_equal(-1, asprintf(&expected, template, np2_get_user()));
+    assert_string_equal(st->str, expected);
 
-    free(error);
     free(expected);
     FREE_TEST_VARS(st);
 
@@ -332,6 +328,25 @@ test_schema_mount(void **state)
             "    </root3>\n"
             "  </data>\n"
             "</get-config>\n");
+    FREE_TEST_VARS(st);
+
+    /* send custom RPC from rpc1 */
+    st->rpc = nc_rpc_act_generic_xml(
+            "<root xmlns=\"urn:sm\">"
+            "  <rpc1 xmlns=\"urn:r1\">"
+            "    <first>my-value</first>"
+            "  </rpc1>"
+            "</root>", NC_PARAMTYPE_CONST);
+    st->msgtype = nc_send_rpc(st->nc_sess, st->rpc, 1000, &st->msgid);
+    assert_int_equal(NC_MSG_RPC, st->msgtype);
+    ASSERT_ERROR_REPLY(st);
+    assert_string_equal(st->str,
+            "<rpc-error xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <error-type>application</error-type>\n"
+            "  <error-tag>operation-failed</error-tag>\n"
+            "  <error-severity>error</error-severity>\n"
+            "  <error-message xml:lang=\"en\">There are no matching subscribers for RPC/action \"/sm:root/rpc1:rpc1\".</error-message>\n"
+            "</rpc-error>\n");
     FREE_TEST_VARS(st);
 }
 
