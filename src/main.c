@@ -888,6 +888,11 @@ np2srv_new_session_fail_cb(const char *client_name, const char *endpt_name, uint
         goto cleanup;
     }
 
+    if (!ly_ctx_get_module_implemented(ly_ctx, "netopeer-notifications")) {
+        /* module not installed, no notification */
+        goto cleanup;
+    }
+
     /* create the notification */
     rc = lyd_new_path(NULL, ly_ctx, "/netopeer-notifications:netconf-call-home-endpoint-fail", NULL, 0, &ntf);
     if (rc) {
