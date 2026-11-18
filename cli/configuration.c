@@ -544,7 +544,7 @@ store_config(void)
 
     /* search-path */
     if (nc_client_get_schema_searchpath()) {
-        if (lyd_new_term(root, NULL, "searchpath", nc_client_get_schema_searchpath(), 0, NULL)) {
+        if (lyd_new_term(root, NULL, "search-path", nc_client_get_schema_searchpath(), 0, NULL)) {
             goto cleanup;
         }
     }
