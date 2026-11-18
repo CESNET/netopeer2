@@ -330,6 +330,20 @@ test_schema_mount(void **state)
             "</get-config>\n");
     FREE_TEST_VARS(st);
 
+    /* use an xpath with path to the mounted data */
+    GET_CONFIG_FILTER(st, "/sm:root/edit1:cont/third");
+    assert_string_equal(st->str,
+            "<get-config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n"
+            "  <data>\n"
+            "    <root xmlns=\"urn:sm\">\n"
+            "      <cont xmlns=\"urn:ed1\">\n"
+            "        <third>25</third>\n"
+            "      </cont>\n"
+            "    </root>\n"
+            "  </data>\n"
+            "</get-config>\n");
+    FREE_TEST_VARS(st);
+
     /* send custom RPC from rpc1 */
     st->rpc = nc_rpc_act_generic_xml(
             "<root xmlns=\"urn:sm\">"
