@@ -378,7 +378,7 @@ load_config(void)
     /* <netconf-client> -> <shrink> */
     lyd_find_path(client, "shrink", 0, &match);
     if (!strcmp(lyd_get_value(match), "true")) {
-        opts.output_flag = 1;
+        opts.output_flag = LYD_PRINT_SHRINK;
     } /* else default (formatted XML) */
 #ifdef NC_SSH
     lyd_find_path(client, "authentication", 0, &auth_pref);
