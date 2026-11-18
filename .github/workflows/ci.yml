@@ -203,7 +203,6 @@ jobs:
             ${{ matrix.config.pkg-setup }}
             ${{ matrix.config.pkg-cmd }} ${{ matrix.config.pkg-packages }}
             ${{ matrix.config.pipx-install }}
-            echo "$HOME/.local/bin" >> $GITHUB_PATH
             pipx install apkg
             $HOME/.local/bin/apkg system-setup
 
@@ -211,26 +210,26 @@ jobs:
         run: |
           git clone -b ${{ needs.git-branch.outputs.branch-name }} https://github.com/CESNET/libyang.git
           cd libyang
-          apkg build
-          apkg install
+          $HOME/.local/bin/apkg build
+          $HOME/.local/bin/apkg install
 
       - name: Deps-sysrepo
         run: |
           git clone -b ${{ needs.git-branch.outputs.branch-name }} https://github.com/sysrepo/sysrepo.git
           cd sysrepo
-          apkg build
-          apkg install
+          $HOME/.local/bin/apkg build
+          $HOME/.local/bin/apkg install
 
       - name: Deps-libnetconf2
         run: |
           git clone -b ${{ needs.git-branch.outputs.branch-name }} https://github.com/CESNET/libnetconf2.git
           cd libnetconf2
-          apkg build
-          apkg install
+          $HOME/.local/bin/apkg build
+          $HOME/.local/bin/apkg install
 
       - name: Build-and-install-package
         run: |
           git clone -b ${{ needs.git-branch.outputs.branch-name }} https://github.com/CESNET/netopeer2.git
           cd netopeer2
-          apkg build
-          apkg install
+          $HOME/.local/bin/apkg build
+          $HOME/.local/bin/apkg install
