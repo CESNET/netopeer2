@@ -209,12 +209,12 @@ np_rpc_get_ds(const struct lyd_node *rpc)
  *
  * @param[in] sess Session to use for reading data from sysrepo.
  * @param[in] rpc RPC to use.
- * @param[out] filter_subtree Subtree filter node.
- * @param[out] filter_xpath XPath filter string.
+ * @param[out] filter_subtree Subtree filter node, if any.
+ * @param[out] filter_xpath XPath filter string, if any.
  */
 static void
-np_rpc_get_filter(sr_session_ctx_t *sess, const struct lyd_node *rpc, const struct lyd_node **filter_subtree,
-        const char **filter_xpath)
+np_rpc_get_filter(sr_session_ctx_t *sess, const struct lyd_node *rpc, struct lyd_node **filter_subtree,
+        char **filter_xpath)
 {
     struct lyd_node *node;
     struct lyd_meta *meta;
@@ -253,17 +253,17 @@ np_rpc_get_filter(sr_session_ctx_t *sess, const struct lyd_node *rpc, const stru
 
         if (!meta) {
             /* subtree */
-            *filter_subtree = ((struct lyd_node_any *)node)->child;
+            lyd_dup_siblings(((struct lyd_node_any *)node)->child, NULL, LYD_DUP_RECURSIVE, filter_subtree);
         } else {
             /* xpath */
-            *filter_xpath = lyd_get_meta_value(meta);
+            *filter_xpath = strdup(lyd_get_meta_value(meta));
         }
     } else if (!lyd_find_path(rpc, "stream-subtree-filter", 0, &node)) {
         /* sub ntf subtree filter (establish-subscription, modify-subscription) */
-        *filter_subtree = ((struct lyd_node_any *)node)->child;
+        lyd_dup_siblings(((struct lyd_node_any *)node)->child, NULL, LYD_DUP_RECURSIVE, filter_subtree);
     } else if (!lyd_find_path(rpc, "stream-xpath-filter", 0, &node)) {
         /* sub ntf XPath filter */
-        *filter_xpath = lyd_get_value(node);
+        *filter_xpath = strdup(lyd_get_value(node));
     }
 
     ly_temp_log_options(NULL);
@@ -308,8 +308,9 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
     struct nc_server_reply *reply = NULL;
     sr_data_t *output = NULL, *op_data = NULL;
     struct nc_server_reply *(*rpc_cb)(const struct lyd_node *rpc, struct np_user_sess *user_sess) = NULL;
-    const struct lyd_node *filter_subtree;
-    const char *ds_str, *filter_xpath, *sub_stream;
+    struct lyd_node *filter_subtree = NULL;
+    const char *ds_str, *sub_stream;
+    char *filter_xpath = NULL;
     NC_RPL rpl_type;
     int rc;
 
@@ -464,6 +465,8 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
     }
 
 cleanup:
+    free(filter_xpath);
+    lyd_free_siblings(filter_subtree);
     sr_release_data(output);
     sr_release_data(op_data);
     np_release_user_sess(user_sess);
