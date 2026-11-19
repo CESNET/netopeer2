@@ -207,22 +207,40 @@ np_rpc_get_ds(const struct lyd_node *rpc)
 /**
  * @brief Get the used filter in the RPC, if any.
  *
+ * @param[in] sess Session to use for reading data from sysrepo.
  * @param[in] rpc RPC to use.
  * @param[out] filter_subtree Subtree filter node.
  * @param[out] filter_xpath XPath filter string.
  */
 static void
-np_rpc_get_filter(const struct lyd_node *rpc, const struct lyd_node **filter_subtree, const char **filter_xpath)
+np_rpc_get_filter(sr_session_ctx_t *sess, const struct lyd_node *rpc, const struct lyd_node **filter_subtree,
+        const char **filter_xpath)
 {
     struct lyd_node *node;
     struct lyd_meta *meta;
     uint32_t temp_lo = 0;
+    sr_data_t *data = NULL;
+    char *xpath;
 
     *filter_subtree = NULL;
     *filter_xpath = NULL;
 
     /* no logging */
     ly_temp_log_options(&temp_lo);
+
+    if (!lyd_find_path(rpc, "stream-filter-name", 0, &node)) {
+        /* sub ntf subtree filter reference, find it */
+        if (asprintf(&xpath, "/ietf-subscribed-notifications:filters/stream-filter[name='%s']", lyd_get_value(node)) != -1) {
+            sr_session_switch_ds(sess, SR_DS_RUNNING);
+            sr_get_data(sess, xpath, 0, 0, 0, &data);
+            free(xpath);
+        }
+
+        if (data) {
+            /* set as rpc so that the actual referenced filters are found */
+            rpc = lyd_child(data->tree);
+        }
+    }
 
     if (!lyd_find_path(rpc, "filter", 0, &node)) {
         /* learn filter type */
@@ -240,9 +258,16 @@ np_rpc_get_filter(const struct lyd_node *rpc, const struct lyd_node **filter_sub
             /* xpath */
             *filter_xpath = lyd_get_meta_value(meta);
         }
+    } else if (!lyd_find_path(rpc, "stream-subtree-filter", 0, &node)) {
+        /* sub ntf subtree filter (establish-subscription, modify-subscription) */
+        *filter_subtree = ((struct lyd_node_any *)node)->child;
+    } else if (!lyd_find_path(rpc, "stream-xpath-filter", 0, &node)) {
+        /* sub ntf XPath filter */
+        *filter_xpath = lyd_get_value(node);
     }
 
     ly_temp_log_options(NULL);
+    sr_release_data(data);
 }
 
 /**
@@ -385,7 +410,7 @@ np2srv_rpc_cb(struct lyd_node *rpc, struct nc_session *ncs)
         ds_str = np_rpc_get_ds(rpc);
 
         /* get filter, if any */
-        np_rpc_get_filter(rpc, &filter_subtree, &filter_xpath);
+        np_rpc_get_filter(user_sess->sess, rpc, &filter_subtree, &filter_xpath);
 
         /* get subscription stream, if any */
         np_rpc_get_stream(rpc, &sub_stream);
